@@ -6,4 +6,11 @@
 --
 -- This drops the orphaned Postgres type. IF EXISTS makes the migration
 -- idempotent for environments where it was manually dropped.
+--
+-- On fresh installs the legacy Settings table is created by the early
+-- 20241218 migration with a `backupSchedule` column that still references
+-- this type (the column-drop migrations target a row that hasn't been
+-- created yet in early init, but the column survives). Drop the column
+-- explicitly here before dropping the type so the dependency check passes.
+ALTER TABLE "Settings" DROP COLUMN IF EXISTS "backupSchedule";
 DROP TYPE IF EXISTS "BackupSchedule";

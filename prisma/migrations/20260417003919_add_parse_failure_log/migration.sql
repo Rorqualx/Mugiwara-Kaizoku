@@ -2,7 +2,7 @@
 -- (Fandom, Wikipedia, ComicVine, MangaDex). Previously an empty/undefined
 -- result was indistinguishable from "source has no data" — this table
 -- makes extraction failures queryable without changing extractor behavior.
-CREATE TABLE "ParseFailureLog" (
+CREATE TABLE IF NOT EXISTS "ParseFailureLog" (
     "id" TEXT NOT NULL,
     "source" TEXT NOT NULL,
     "url" TEXT NOT NULL,
@@ -15,11 +15,11 @@ CREATE TABLE "ParseFailureLog" (
     CONSTRAINT "ParseFailureLog_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "ParseFailureLog_source_createdAt_idx"
+CREATE INDEX IF NOT EXISTS "ParseFailureLog_source_createdAt_idx"
   ON "ParseFailureLog" ("source", "createdAt");
 
-CREATE INDEX "ParseFailureLog_mangaId_idx"
+CREATE INDEX IF NOT EXISTS "ParseFailureLog_mangaId_idx"
   ON "ParseFailureLog" ("mangaId");
 
-CREATE INDEX "ParseFailureLog_stage_createdAt_idx"
+CREATE INDEX IF NOT EXISTS "ParseFailureLog_stage_createdAt_idx"
   ON "ParseFailureLog" ("stage", "createdAt");

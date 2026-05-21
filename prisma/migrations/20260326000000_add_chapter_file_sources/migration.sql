@@ -1,5 +1,5 @@
--- CreateTable
-CREATE TABLE "ChapterFile" (
+-- CreateTable (idempotent — also created by 20251212000001_consolidate_schema_drift on fresh installs)
+CREATE TABLE IF NOT EXISTS "ChapterFile" (
     "id" SERIAL NOT NULL,
     "chapterId" INTEGER NOT NULL,
     "filePath" VARCHAR(500) NOT NULL,
@@ -16,13 +16,15 @@ CREATE TABLE "ChapterFile" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ChapterFile_chapterId_filePath_key" ON "ChapterFile"("chapterId", "filePath");
-CREATE INDEX "ChapterFile_chapterId_idx" ON "ChapterFile"("chapterId");
-CREATE INDEX "ChapterFile_filePath_idx" ON "ChapterFile"("filePath");
-CREATE INDEX "ChapterFile_chapterId_isActive_idx" ON "ChapterFile"("chapterId", "isActive");
+CREATE UNIQUE INDEX IF NOT EXISTS "ChapterFile_chapterId_filePath_key" ON "ChapterFile"("chapterId", "filePath");
+CREATE INDEX IF NOT EXISTS "ChapterFile_chapterId_idx" ON "ChapterFile"("chapterId");
+CREATE INDEX IF NOT EXISTS "ChapterFile_filePath_idx" ON "ChapterFile"("filePath");
+CREATE INDEX IF NOT EXISTS "ChapterFile_chapterId_isActive_idx" ON "ChapterFile"("chapterId", "isActive");
 
 -- AddForeignKey
-ALTER TABLE "ChapterFile" ADD CONSTRAINT "ChapterFile_chapterId_fkey" FOREIGN KEY ("chapterId") REFERENCES "Chapter"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+    ALTER TABLE "ChapterFile" ADD CONSTRAINT "ChapterFile_chapterId_fkey" FOREIGN KEY ("chapterId") REFERENCES "Chapter"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- DataMigration: Populate ChapterFile from existing Chapter rows
 -- Detect sourceType: if a filePath appears in multiple chapters, it's likely a 'volume' file
