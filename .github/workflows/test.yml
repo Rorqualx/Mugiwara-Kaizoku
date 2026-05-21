@@ -23,6 +23,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Archive extraction tooling required by some integration tests
+      # (webtoon outer-archive + peek/classify tests use 7z and unar).
+      - name: Install system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends p7zip-full unar
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
