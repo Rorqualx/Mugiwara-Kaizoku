@@ -27,19 +27,22 @@ NC='\033[0m'
 echo -e "${BLUE}🐳 Starting Kaizoku in Docker container${NC}"
 
 # =============================================================================
-# 1. SECRETS BOOTSTRAP
+# 0. CONFIG DIR LAYOUT
 # =============================================================================
-# Auto-generate NEXTAUTH_SECRET / AUTH_SECRET on first boot and persist them.
-# Explicit env vars always win — this only kicks in when both are empty.
-if [ -d "/config" ] && [ -w "/config" ]; then
-  SECRETS_FILE="/config/secrets.env"
-elif [ -d "/app/config" ]; then
-  mkdir -p /app/config 2>/dev/null || true
-  SECRETS_FILE="/app/config/secrets.env"
-else
-  mkdir -p /app/config 2>/dev/null || true
-  SECRETS_FILE="/app/config/secrets.env"
-fi
+# Single user-mounted directory holds everything persistent. Subdirs:
+#   /config/secrets.env  — auto-generated session secrets
+#   /config/postgres     — bundled Postgres data (PGDATA)
+#   /config/data         — app state: libraries metadata, downloads, suwayomi
+#   /config/logs         — app logs
+# Entrypoint creates + chowns these on every boot so a fresh user-mounted
+# host dir Just Works (Docker volumes inherit host ownership which is
+# usually wrong for the postgres user).
+mkdir -p /config /config/data /config/logs /config/postgres
+chown app:app /config /config/data /config/logs
+chown postgres:postgres /config/postgres
+chmod 700 /config/postgres
+
+SECRETS_FILE="/config/secrets.env"
 
 if [ -f "$SECRETS_FILE" ]; then
   echo -e "${BLUE}🔑 Loading persisted secrets from $SECRETS_FILE${NC}"

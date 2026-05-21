@@ -1,61 +1,10 @@
- # Mugiwara-Kaizoku — single-container Docker Compose
-#
-# Everything bundled in one image: app + Postgres + Suwayomi + FlareSolverr.
-# Session secrets are auto-generated on first boot.
-#
-# For an external Postgres / sidecar layout (advanced), see
-# docker-compose.advanced.yml.
-
 services:
   kaizoku:
     image: ghcr.io/rorqualx/mugiwara-kaizoku:latest
-    # To build locally instead of pulling, comment the line above and uncomment:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
     container_name: kaizoku
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      # Adjust to your timezone (IANA format).
-      TZ: UTC
-      # The defaults below are wired into the bundled Postgres on first boot.
-      # Override them only if you're sharing the DB with something else.
-      # POSTGRES_USER: kaizoku
-      # POSTGRES_PASSWORD: kaizoku
-      # POSTGRES_DB: kaizoku
-      # NEXTAUTH_SECRET / AUTH_SECRET are auto-generated on first boot and
-      # persisted to the `kaizoku_config` volume. Override here only if you
-      # need to share secrets across multiple instances.
-      # NEXTAUTH_URL: http://localhost:3000   # set to your public URL
     volumes:
-      # === App-managed state (don't touch from the host) ===
-      # Auto-generated session secrets + user-set config overrides.
-      - kaizoku_config:/config
-      # Everything internal: Postgres data, library/scan metadata,
-      # download cache, Suwayomi server state. Single source of truth
-      # for "user data + metadata + DB" — back this volume up.
-      - kaizoku_data:/data
-      # App logs (optional — remove to keep logs only in container stdout).
-      - kaizoku_logs:/logs
-
-      # === Your manga library (bind-mount) ===
-      # Host directory where your actual manga files live. Mounted at
-      # /library inside the container — kept SEPARATE from /data so the
-      # app's internal state and your files never share a directory tree.
-      # After first boot, go to Settings → Libraries and add /library
-      # (or a subdirectory of it) as a scan path.
-      # The host directory should be owned by UID 1000.
-      - "${MANGA_LIBRARY_PATH:-./manga}:/library"
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s   # postgres init + migrations take a bit on first boot
-
-volumes:
-  kaizoku_config:
-  kaizoku_data:
-  kaizoku_logs:
+      - ${LIBRARY_PATH:-./library}:/library
+      - ${CONFIG_PATH:-./config}:/config

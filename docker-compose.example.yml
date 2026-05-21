@@ -1,57 +1,26 @@
-# Example Compose stack: Mugiwara-Kaizoku + a torrent client sharing one
-# downloads volume.
+# Mugiwara-Kaizoku + a torrent client sharing one downloads volume.
 #
-# This is the "robust" deployment shape: both containers bind the named
-# volume `downloads_volume` to /downloads. The torrent client writes to
-# /downloads, Mugiwara reads from /downloads — no path-mapping translation
-# is needed, the identity mapping the seeder writes on first boot just
-# works.
+# The shared `downloads_volume` makes the path-mapping identity rule work
+# end-to-end: Transmission writes to /downloads, Kaizoku reads from
+# /downloads, same path = same volume = no translation needed.
 #
-# Use this as a starting point. Adjust ports, volume locations, and the
-# torrent client image to suit your setup. The key invariant is the
-# shared `downloads_volume` bind on BOTH services.
-#
-# Postgres is bundled inside the kaizoku image (no separate `db` service
-# needed). For external Postgres, see docker-compose.advanced.yml.
+# Swap Transmission for qBittorrent / Deluge / SABnzbd if you prefer —
+# keep the same `/downloads` mount on both services.
 
 services:
   kaizoku:
     image: ghcr.io/rorqualx/mugiwara-kaizoku:latest
-    # Or build locally:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
     container_name: kaizoku
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      TZ: UTC
-      # Tells the first-boot path-mapping seeder to register an identity
-      # mapping for /downloads. Must match the in-container path of the
-      # shared `downloads_volume` below AND on the torrent client.
       DOWNLOAD_FOLDER: /downloads
     volumes:
-      # App-managed state (don't touch from host)
-      - kaizoku_config:/config
-      - kaizoku_data:/data       # postgres + metadata + suwayomi state
-      - kaizoku_logs:/logs
-
-      # YOUR MANGA LIBRARY (bind-mount) — host directory must be owned by UID 1000.
-      # After first boot: Settings → Libraries → add /library as a scan path.
-      - "${MANGA_LIBRARY_PATH:-./manga}:/library"
-
-      # SHARED with the torrent client — load-bearing volume.
+      - ${LIBRARY_PATH:-./library}:/library
+      - ${CONFIG_PATH:-./config}:/config
       - downloads_volume:/downloads
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
 
-  # Transmission (swap for qBittorrent / Deluge / SABnzbd with the same
-  # /downloads mount and the identity mapping continues to work).
   transmission:
     image: lscr.io/linuxserver/transmission:latest
     container_name: kaizoku_transmission
@@ -59,24 +28,12 @@ services:
     environment:
       PUID: 1000
       PGID: 1000
-      TZ: UTC
     volumes:
       - transmission_config:/config
-      # SAME path as the kaizoku service. This is what makes the identity
-      # mapping work — Transmission writes to /downloads, Kaizoku reads
-      # from /downloads, both resolve to the same volume.
       - downloads_volume:/downloads
     ports:
       - "9091:9091"
 
 volumes:
-  kaizoku_config:
-  kaizoku_data:
-  kaizoku_logs:
   transmission_config:
   downloads_volume:
-    # Replace with a `driver_opts` block to bind a specific host directory:
-    # driver_opts:
-    #   type: none
-    #   o: bind
-    #   device: /path/on/host/to/downloads

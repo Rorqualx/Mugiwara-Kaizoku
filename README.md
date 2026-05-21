@@ -51,21 +51,20 @@ First time you open it, you'll be redirected to `/setup` to create the admin acc
 ## Quick start (Docker)
 
 ```bash
-# Single-container — Postgres, Suwayomi, and FlareSolverr all bundled.
 curl -O https://raw.githubusercontent.com/Rorqualx/Mugiwara-Kaizoku/main/docker-compose.yml
-MANGA_LIBRARY_PATH=/path/to/your/manga docker compose up -d
+LIBRARY_PATH=/path/to/your/manga CONFIG_PATH=/path/to/your/config docker compose up -d
 ```
 
-That's it. Session secrets are **auto-generated on first boot** and persisted to the `kaizoku_config` volume. Visit `http://localhost:3000` and complete `/setup`. First boot takes 60–90s while Postgres initializes; subsequent boots are fast.
+Two paths to set, everything else is automatic. Visit `http://localhost:3000` and complete `/setup`. First boot takes 60–90s while Postgres initializes inside the container.
 
-**After first boot:** go to **Settings → Libraries** and add `/library` (or a subdirectory of it) as a scan path. That's where your bind-mounted manga lives inside the container.
+**After first boot:** Settings → Libraries → add `/library` as a scan path.
 
-| Mount | Type | What's inside |
-|---|---|---|
-| `kaizoku_config` → `/config` | Named volume | Auto-generated session secrets, user-set config overrides |
-| `kaizoku_data` → `/data` | Named volume | **All internal state** — Postgres DB, library scan metadata, download cache, Suwayomi server. Back this up. |
-| `kaizoku_logs` → `/logs` | Named volume | App logs (optional — remove to keep logs only in container stdout) |
-| `${MANGA_LIBRARY_PATH}` → `/library` | Host bind-mount | **Your actual manga files.** Kept separate from `/data` so internal state and library files never share a tree. |
+| Mount | Purpose |
+|---|---|
+| `${LIBRARY_PATH}` → `/library` | Your manga files |
+| `${CONFIG_PATH}` → `/config` | Everything else (secrets, Postgres, downloads cache, Suwayomi state, logs) |
+
+Postgres, Suwayomi, and FlareSolverr are all bundled inside the image — no sidecar containers needed.
 
 **Want external Postgres / sidecar containers?** See [`docker-compose.advanced.yml`](docker-compose.advanced.yml) for the multi-container layout (separate `db` + `flaresolverr` services). Both compose files use the same image — the entrypoint detects which mode based on `DATABASE_URL`.
 

@@ -136,12 +136,12 @@ FROM base AS runner
 WORKDIR /app
 
 # Non-root app user (UID 1000). The entrypoint stays root to manage postgres,
-# then drops to this user via gosu when launching the app.
+# then drops to this user via gosu when launching the app. All persistent
+# state lives under /config (single user-mounted directory). /library is
+# the bind-mount path for the user's manga files.
 RUN useradd -m -u 1000 app && \
-    mkdir -p /logs /config /data /data/postgres && \
-    chown -R app:app /app /logs /config && \
-    chown -R postgres:postgres /data/postgres && \
-    chown app:app /data
+    mkdir -p /config /library && \
+    chown -R app:app /app /config /library
 
 # Entrypoint + helper scripts
 COPY scripts/database/wait-for-db.sh /usr/local/bin/wait-for-db.sh
@@ -166,9 +166,9 @@ COPY --from=build --chown=app:app /app/src ./src
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     DOCKER=true \
-    KAIZOKU_LOG_PATH=/logs \
+    KAIZOKU_LOG_PATH=/config/logs \
     HOME=/config \
-    PGDATA=/data/postgres
+    PGDATA=/config/postgres
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD nc -z localhost ${KAIZOKU_PORT:-3000} || exit 1
