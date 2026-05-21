@@ -29,6 +29,17 @@ export function AutomaticBackupForm({
   onSubmit,
   isSubmitting
 }: AutomaticBackupFormProps): React.ReactElement {
+  // Boolean toggles auto-save: each one is an independent setting and
+  // making the user remember to click Save Settings after flipping a
+  // switch was the same footgun that broke FlareSolverr autoStart. Text
+  // inputs (frequency, maxBackups) still wait for the explicit Save.
+  const autoSaveSwitch = (field: keyof BackupSettings) =>
+    (event: React.ChangeEvent<HTMLInputElement>): void => {
+      const next = event.currentTarget.checked;
+      form.setFieldValue(field, next);
+      void onSubmit({ ...form.values, [field]: next });
+    };
+
   return (
     <form onSubmit={form.onSubmit(onSubmit)}>
       <Card shadow="sm" p="lg" radius="md">
@@ -38,7 +49,8 @@ export function AutomaticBackupForm({
           <Switch
             label="Enable automatic backups"
             description="Automatically create backups on schedule"
-            {...form.getInputProps('autoBackupEnabled', { type: 'checkbox' })}
+            checked={form.values.autoBackupEnabled}
+            onChange={autoSaveSwitch('autoBackupEnabled')}
           />
 
           {form.values.autoBackupEnabled && (
@@ -69,19 +81,22 @@ export function AutomaticBackupForm({
           <Switch
             label="Include cover images"
             description="Include manga cover images in backup"
-            {...form.getInputProps('includeCovers', { type: 'checkbox' })}
+            checked={form.values.includeCovers}
+            onChange={autoSaveSwitch('includeCovers')}
           />
 
           <Switch
             label="Include chapter files"
             description="Include downloaded chapter files (large size)"
-            {...form.getInputProps('includeChapterFiles', { type: 'checkbox' })}
+            checked={form.values.includeChapterFiles}
+            onChange={autoSaveSwitch('includeChapterFiles')}
           />
 
           <Switch
             label="Compress backup"
             description="Compress backup file to save space"
-            {...form.getInputProps('compressBackup', { type: 'checkbox' })}
+            checked={form.values.compressBackup}
+            onChange={autoSaveSwitch('compressBackup')}
           />
 
           <Group justify="flex-end" mt="md">

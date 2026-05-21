@@ -140,12 +140,24 @@ function FileConversionSettings(): React.ReactElement {
                   <Switch
                     label="Enable Automatic Conversion"
                     description="Automatically convert downloaded and pack-imported files to the preferred format"
-                    {...form.getInputProps('enableAutoConversion', { type: 'checkbox' })}
+                    checked={form.values.enableAutoConversion}
+                    onChange={(event): void => {
+                      const next = event.currentTarget.checked;
+                      form.setFieldValue('enableAutoConversion', next);
+                      // Auto-save isolated toggles so the user doesn't have
+                      // to remember to scroll down and click Save Settings.
+                      void handleSubmit({ ...form.values, enableAutoConversion: next });
+                    }}
                   />
                   <Switch
                     label="Delete Source After Conversion"
                     description="Remove original file after successful conversion (saves disk space)"
-                    {...form.getInputProps('deleteSourceAfterConversion', { type: 'checkbox' })}
+                    checked={form.values.deleteSourceAfterConversion}
+                    onChange={(event): void => {
+                      const next = event.currentTarget.checked;
+                      form.setFieldValue('deleteSourceAfterConversion', next);
+                      void handleSubmit({ ...form.values, deleteSourceAfterConversion: next });
+                    }}
                   />
                 </Stack>
               </Card>
