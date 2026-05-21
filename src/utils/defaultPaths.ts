@@ -24,10 +24,10 @@ const isDocker = DOCKER_ENV === 'true' || DOCKER_ENV === '1';
 
 /**
  * Base data directory path
- * In Docker: /app/data
- * In local: [project_root]/data
+ * In Docker: /data (bundled-Postgres mode: /data/postgres + /data/manga + /data/libraries + /data/downloads + /data/suwayomi)
+ * In local:  [project_root]/data
  */
-export const BASE_DATA_DIR = isDocker ? '/app/data' : path.resolve(process.cwd(), 'data');
+export const BASE_DATA_DIR = isDocker ? '/data' : path.resolve(process.cwd(), 'data');
 
 logger.info(`Data directory: ${isDocker ? 'Docker' : 'local'} mode, BASE_DATA_DIR=${BASE_DATA_DIR}`);
 /**
