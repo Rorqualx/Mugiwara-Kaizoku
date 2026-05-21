@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## Container images
+
+            ```
+            docker pull ghcr.io/rorqualx/mugiwara-kaizoku:${{ github.ref_name }}
+            ```
+
+            See [the README](https://github.com/Rorqualx/Mugiwara-Kaizoku#quick-start-docker) for setup.

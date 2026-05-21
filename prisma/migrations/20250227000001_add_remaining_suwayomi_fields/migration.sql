@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Settings" 
+ADD COLUMN IF NOT EXISTS "suwayomiServerPath" TEXT,
+ADD COLUMN IF NOT EXISTS "suwayomiConfigPath" TEXT,
+ADD COLUMN IF NOT EXISTS "suwayomiPort" INTEGER DEFAULT 4567,
+ADD COLUMN IF NOT EXISTS "suwayomiSources" TEXT[] DEFAULT ARRAY[]::TEXT[];

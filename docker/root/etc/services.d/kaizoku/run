@@ -1,0 +1,12 @@
+#!/usr/bin/with-contenv bash
+
+cd /app
+
+shopt -s globstar
+
+umask 022
+
+# Mangal configuration removed - deprecated
+
+exec 2>&1
+exec s6-setuidgid abc /usr/bin/node dist/server/index.js

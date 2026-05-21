@@ -1,0 +1,3433 @@
+{
+  "summary": {
+    "iterationNumber": 3,
+    "timestamp": "2026-01-25T18:27:27.645Z",
+    "totalPages": 15,
+    "successCount": 0,
+    "successRate": 0,
+    "avgPrecision": 0,
+    "avgRecall": 0,
+    "avgF1": 0,
+    "topErrors": [
+      {
+        "category": "PARSER_SELECTION_FAILED",
+        "count": 9
+      },
+      {
+        "category": "NO_CONTENT",
+        "count": 6
+      }
+    ],
+    "durationMs": 64160
+  },
+  "result": {
+    "iterationNumber": 3,
+    "timestamp": "2026-01-25T18:27:27.645Z",
+    "durationMs": 64160,
+    "targetMet": false,
+    "metrics": {
+      "totalAttempts": 15,
+      "successfulAttempts": 0,
+      "avgPrecision": 0,
+      "avgRecall": 0,
+      "avgF1": 0,
+      "microPrecision": 0,
+      "microRecall": 0,
+      "microF1": 0,
+      "byEntityType": {}
+    },
+    "failures": {
+      "totalFailures": 15,
+      "byCategory": {
+        "PARSER_SELECTION_FAILED": {
+          "count": 9,
+          "percentage": 60,
+          "examples": [
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser arc-based was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            }
+          ]
+        },
+        "STRUCTURE_NOT_RECOGNIZED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "ENTITY_EXTRACTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PATTERN_MISMATCH": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "CONFIDENCE_TOO_LOW": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "FETCH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "GROUND_TRUTH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PARSE_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "NO_CONTENT": {
+          "count": 6,
+          "percentage": 40,
+          "examples": [
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            },
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            },
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            }
+          ]
+        },
+        "TIMEOUT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "UNKNOWN": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        }
+      },
+      "commonPatterns": [
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:VOLUMES",
+          "count": 4,
+          "affectedPages": [
+            "131822-fandom-VOLUMES",
+            "63031-fandom-VOLUMES",
+            "85247-fandom-VOLUMES",
+            "106130-fandom-VOLUMES"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:OTHER",
+          "count": 4,
+          "affectedPages": [
+            "31154-fandom-OTHER",
+            "132288-fandom-OTHER",
+            "30765-fandom-OTHER",
+            "34571-fandom-OTHER"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "NO_CONTENT:fandom:CHAPTERS",
+          "count": 3,
+          "affectedPages": [
+            "144946-fandom-CHAPTERS",
+            "86034-fandom-CHAPTERS",
+            "159142-fandom-CHAPTERS"
+          ],
+          "suggestedFix": "Review and address this failure pattern"
+        },
+        {
+          "pattern": "NO_CONTENT:fandom:VOLUMES",
+          "count": 3,
+          "affectedPages": [
+            "96344-fandom-VOLUMES",
+            "154349-fandom-VOLUMES",
+            "31859-fandom-VOLUMES"
+          ],
+          "suggestedFix": "Review and address this failure pattern"
+        }
+      ],
+      "failedPageIds": [
+        "131822-fandom-VOLUMES",
+        "86551-fandom-ARCS",
+        "63031-fandom-VOLUMES",
+        "85247-fandom-VOLUMES",
+        "144946-fandom-CHAPTERS",
+        "96344-fandom-VOLUMES",
+        "31154-fandom-OTHER",
+        "154349-fandom-VOLUMES",
+        "31859-fandom-VOLUMES",
+        "132288-fandom-OTHER",
+        "86034-fandom-CHAPTERS",
+        "30765-fandom-OTHER",
+        "106130-fandom-VOLUMES",
+        "34571-fandom-OTHER",
+        "159142-fandom-CHAPTERS"
+      ]
+    },
+    "suggestions": [
+      {
+        "id": "suggestion-1",
+        "category": "parser",
+        "title": "Improve Parser Selection",
+        "description": "Review static analyzer recommendations and parser matching logic",
+        "expectedImpact": 0.48,
+        "relatedErrors": [
+          "PARSER_SELECTION_FAILED"
+        ],
+        "affectedPageCount": 9,
+        "priority": "critical"
+      },
+      {
+        "id": "suggestion-2",
+        "category": "structure",
+        "title": "Filter Non-Content Pages",
+        "description": "Add detection for pages without extractable content",
+        "expectedImpact": 0.32000000000000006,
+        "relatedErrors": [
+          "NO_CONTENT"
+        ],
+        "affectedPageCount": 6,
+        "priority": "critical"
+      }
+    ],
+    "attempts": [
+      {
+        "page": {
+          "id": "131822-fandom-VOLUMES",
+          "title": "Tonikaku Kawaii",
+          "anilistId": 131822,
+          "source": "fandom",
+          "url": "https://tonikaku-kawaii.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://tonikaku-kawaii.fandom.com/wiki/Tonikaku%20Kawaii"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "34",
+            "normalizedValue": "34",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "340",
+            "normalizedValue": "340",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "2 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              558,
+              559
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Volume1en]",
+            "normalizedValue": "image volume1en",
+            "confidence": 0.85,
+            "source": "bootstrap",
+            "tokenIndices": [
+              345
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              329
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              360
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "FLY ME TO THE MOON",
+            "normalizedValue": "fly me to the moon",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "FLY ME TO THE MOON",
+            "normalizedValue": "fly me to the moon",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kenjirou Hata",
+            "normalizedValue": "kenjirou hata",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "4",
+            "normalizedValue": "4",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The prequel to Tonikaku Kawaii.",
+            "normalizedValue": "the prequel to tonikaku kawaii",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2021",
+            "normalizedValue": "2021",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx131822-eBp0SkbW17HR.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx131822-eBp0SkbW17HR.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 11,
+          "falseNegatives": 11
+        },
+        "durationMs": 14397
+      },
+      {
+        "page": {
+          "id": "86551-fandom-ARCS",
+          "title": "Made in Abyss",
+          "anilistId": 86551,
+          "source": "fandom",
+          "url": "https://madeinabyss.fandom.com/wiki/Story_Arcs",
+          "urlType": "ARCS",
+          "baseUrl": "https://madeinabyss.fandom.com/wiki/Made_in_Abyss_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser arc-based was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "15",
+            "normalizedValue": "15",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 01",
+            "normalizedValue": "made in abyss volume 01",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 02",
+            "normalizedValue": "made in abyss volume 02",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 03",
+            "normalizedValue": "made in abyss volume 03",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 04",
+            "normalizedValue": "made in abyss volume 04",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 05",
+            "normalizedValue": "made in abyss volume 05",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 06",
+            "normalizedValue": "made in abyss volume 06",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 07",
+            "normalizedValue": "made in abyss volume 07",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 08",
+            "normalizedValue": "made in abyss volume 08",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 09",
+            "normalizedValue": "made in abyss volume 09",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 10",
+            "normalizedValue": "made in abyss volume 10",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 11",
+            "normalizedValue": "made in abyss volume 11",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 12",
+            "normalizedValue": "made in abyss volume 12",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 13",
+            "normalizedValue": "made in abyss volume 13",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 14",
+            "normalizedValue": "made in abyss volume 14",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Made in Abyss Volume 15",
+            "normalizedValue": "made in abyss volume 15",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "62",
+            "normalizedValue": "62",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              666
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Made in Abyss",
+            "normalizedValue": "made in abyss",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Made in Abyss",
+            "normalizedValue": "made in abyss",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "メイドインアビス",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Akihito Tsukushi",
+            "normalizedValue": "akihito tsukushi",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Adventure",
+            "normalizedValue": "adventure",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Horror",
+            "normalizedValue": "horror",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Sci-Fi",
+            "normalizedValue": "sci-fi",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "In an age when the corners of the world have been scoured for their secrets, only one place remains unexplored–a massive cave system known as the Abyss. Those who traverse its endless pits and labyrin",
+            "normalizedValue": "in an age when the corners of the world have been scoured for their secrets only one place remains unexploreda massive cave system known as the abyss those who traverse its endless pits and labyrin",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2012",
+            "normalizedValue": "2012",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx86551-0EzmsMZiPSu9.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx86551-0EzmsMZiPSu9.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 40,
+          "falseNegatives": 14
+        },
+        "durationMs": 3644
+      },
+      {
+        "page": {
+          "id": "63031-fandom-VOLUMES",
+          "title": "Alice in Borderland",
+          "anilistId": 63031,
+          "source": "fandom",
+          "url": "https://aliceinborderland.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://aliceinborderland.fandom.com/wiki/Alice_in_Borderland"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "40",
+            "normalizedValue": "40",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland RETRY Volume 1",
+            "normalizedValue": "categoryalice in borderland retry volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 1",
+            "normalizedValue": "categoryalice in borderland volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1 (RETRY)",
+            "normalizedValue": "volume 1 retry",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland RETRY Volume 2",
+            "normalizedValue": "categoryalice in borderland retry volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 2",
+            "normalizedValue": "categoryalice in borderland volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2 (RETRY)",
+            "normalizedValue": "volume 2 retry",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 3",
+            "normalizedValue": "categoryalice in borderland volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 4",
+            "normalizedValue": "categoryalice in borderland volume 4",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 5",
+            "normalizedValue": "categoryalice in borderland volume 5",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 6",
+            "normalizedValue": "categoryalice in borderland volume 6",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 7",
+            "normalizedValue": "categoryalice in borderland volume 7",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 8",
+            "normalizedValue": "categoryalice in borderland volume 8",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 9",
+            "normalizedValue": "categoryalice in borderland volume 9",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 10",
+            "normalizedValue": "categoryalice in borderland volume 10",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 11",
+            "normalizedValue": "categoryalice in borderland volume 11",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 12",
+            "normalizedValue": "categoryalice in borderland volume 12",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 13",
+            "normalizedValue": "categoryalice in borderland volume 13",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 14",
+            "normalizedValue": "categoryalice in borderland volume 14",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Alice in Borderland Volume 15",
+            "normalizedValue": "categoryalice in borderland volume 15",
+            "confidence": 0.955,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Imawa no Kuni no Alice",
+            "normalizedValue": "imawa no kuni no alice",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Alice in Borderland",
+            "normalizedValue": "alice in borderland",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "今際の国のアリス",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Haro Aso",
+            "normalizedValue": "haro aso",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "18",
+            "normalizedValue": "18",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "87",
+            "normalizedValue": "87",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Horror",
+            "normalizedValue": "horror",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Psychological",
+            "normalizedValue": "psychological",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Thriller",
+            "normalizedValue": "thriller",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Eighteen-year-old Ryohei Arisu is sick of his life. School sucks, his love life is a joke, and his future feels like impending doom. As he struggles to exist in a world that can’t be bothered with him",
+            "normalizedValue": "eighteen-year-old ryohei arisu is sick of his life school sucks his love life is a joke and his future feels like impending doom as he struggles to exist in a world that cant be bothered with him",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2010",
+            "normalizedValue": "2010",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/nx63031-lE9pKD3cpmVK.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/nx63031-lE9pKD3cpmVK.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 36,
+          "falseNegatives": 17
+        },
+        "durationMs": 3741
+      },
+      {
+        "page": {
+          "id": "85247-fandom-VOLUMES",
+          "title": "Twin Star Exorcists",
+          "anilistId": 85247,
+          "source": "fandom",
+          "url": "https://twin-star-exorcists.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://twin-star-exorcists.fandom.com/wiki/Twin%20Star%20Exorcists%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser plain-table was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "35",
+            "normalizedValue": "35",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "134",
+            "normalizedValue": "134",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "3 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              149,
+              150
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Volume 01]",
+            "normalizedValue": "image volume 01",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              151
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              138
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              195
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              136
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              730
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              136
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Sousei no Onmyouji",
+            "normalizedValue": "sousei no onmyouji",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Twin Star Exorcists",
+            "normalizedValue": "twin star exorcists",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "双星の陰陽師",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Yoshiaki Sukeno",
+            "normalizedValue": "yoshiaki sukeno",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "35",
+            "normalizedValue": "35",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "142",
+            "normalizedValue": "142",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Rokuro dreams of becoming anything but an exorcist! Then mysterious Benio turns up. The pair are dubbed the \"Twin Star Exorcists\" and learn they are fated to marry... Can Rokuro escape both fates? Whe",
+            "normalizedValue": "rokuro dreams of becoming anything but an exorcist then mysterious benio turns up the pair are dubbed the twin star exorcists and learn they are fated to marry can rokuro escape both fates whe",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2013",
+            "normalizedValue": "2013",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx85247-ViNailSUKZVn.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx85247-ViNailSUKZVn.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.07142857142857142,
+          "recall": 0.058823529411764705,
+          "f1": 0.06451612903225808,
+          "truePositives": 1,
+          "falsePositives": 13,
+          "falseNegatives": 16
+        },
+        "durationMs": 4442
+      },
+      {
+        "page": {
+          "id": "144946-fandom-CHAPTERS",
+          "title": "Gachiakuta",
+          "anilistId": 144946,
+          "source": "fandom",
+          "url": "https://gachiakuta.fandom.com/wiki/Category:Chapters",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://gachiakuta.fandom.com/wiki/Gachiakuta"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Kei Urana",
+            "normalizedValue": "kei urana",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "(JP) (US)",
+            "normalizedValue": "jp us",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "18",
+            "normalizedValue": "18",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "162",
+            "normalizedValue": "162",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              76
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "161",
+            "normalizedValue": "161",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              237
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              784,
+              785,
+              786,
+              787,
+              788,
+              789,
+              790,
+              791,
+              792
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              81
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Gachiakuta",
+            "normalizedValue": "gachiakuta",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Gachiakuta",
+            "normalizedValue": "gachiakuta",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ガチアクタ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kei Urana",
+            "normalizedValue": "kei urana",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "A boy lives in a floating town, where the poor scrape by and the rich live a sumptuous life, simply casting their garbage off the side, into the abyss. When he’s falsely accused of murder, though, his",
+            "normalizedValue": "a boy lives in a floating town where the poor scrape by and the rich live a sumptuous life simply casting their garbage off the side into the abyss when hes falsely accused of murder though his",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2022",
+            "normalizedValue": "2022",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx144946-cscic3n2SwdY.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx144946-cscic3n2SwdY.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.125,
+          "recall": 0.08333333333333333,
+          "f1": 0.1,
+          "truePositives": 1,
+          "falsePositives": 7,
+          "falseNegatives": 11
+        },
+        "durationMs": 1862
+      },
+      {
+        "page": {
+          "id": "96344-fandom-VOLUMES",
+          "title": "The 8th Son? Are You Kidding Me?",
+          "anilistId": 96344,
+          "source": "fandom",
+          "url": "https://hachinan-tte-sore-wa-nai-deshou.fandom.com/wiki/Category:Volumes",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://the8thsonareyoukiddingme.fandom.com/wiki/THE_8TH_SON%3F_ARE_YOU_KIDDING_ME%3F%3A_ANOTHER_REINCARNATION"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "ARTIST",
+            "value": "Demon KakkaTakarano Arika.",
+            "normalizedValue": "demon kakkatakarano arika",
+            "confidence": 0.6649999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "14",
+            "normalizedValue": "14",
+            "confidence": 0.7,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 1",
+            "normalizedValue": "hachinan manga volume 1",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 2",
+            "normalizedValue": "hachinan manga volume 2",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 3",
+            "normalizedValue": "hachinan manga volume 3",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 4",
+            "normalizedValue": "hachinan manga volume 4",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 5",
+            "normalizedValue": "hachinan manga volume 5",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 6",
+            "normalizedValue": "hachinan manga volume 6",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 7",
+            "normalizedValue": "hachinan manga volume 7",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 8",
+            "normalizedValue": "hachinan manga volume 8",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 9",
+            "normalizedValue": "hachinan manga volume 9",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 10",
+            "normalizedValue": "hachinan manga volume 10",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 11",
+            "normalizedValue": "hachinan manga volume 11",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 12",
+            "normalizedValue": "hachinan manga volume 12",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 13",
+            "normalizedValue": "hachinan manga volume 13",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Hachinan Manga Volume 14",
+            "normalizedValue": "hachinan manga volume 14",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              405
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "6",
+            "normalizedValue": "6",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              448
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              568,
+              569,
+              570,
+              571,
+              572,
+              573,
+              574,
+              575,
+              576
+            ]
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "April 30 2025 10:00:00 GMT+9",
+            "normalizedValue": "april 30 2025 100000 gmt9",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              14,
+              15,
+              16,
+              17,
+              18
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Hachi-nan tte, Sore wa Nai deshou!",
+            "normalizedValue": "hachi-nan tte sore wa nai deshou",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "八男って、それはないでしょう！",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Y.A",
+            "normalizedValue": "ya",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Hiroki Kusumoto",
+            "normalizedValue": "hiroki kusumoto",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Ichinomiya Shingo, a 25-year-old man working at a firm company, while thinking of tomorrow's busy working day, goes to sleep. However, when he woke up, he found himself in a room unknown to him and re",
+            "normalizedValue": "ichinomiya shingo a 25-year-old man working at a firm company while thinking of tomorrows busy working day goes to sleep however when he woke up he found himself in a room unknown to him and re",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2015",
+            "normalizedValue": "2015",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/nx96344-Dw9xBv2ximH8.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/nx96344-Dw9xBv2ximH8.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 20,
+          "falseNegatives": 12
+        },
+        "durationMs": 5211
+      },
+      {
+        "page": {
+          "id": "31154-fandom-OTHER",
+          "title": "Zero no Tsukaima",
+          "anilistId": 31154,
+          "source": "fandom",
+          "url": "https://zeronotsukaima.fandom.com/wiki/Manga_(disambiguation)",
+          "urlType": "OTHER",
+          "baseUrl": "https://zeronotsukaima.fandom.com/wiki/Zero_no_Tsukaima%3A_Fantasy_Force"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Manga (disambiguation)",
+            "normalizedValue": "manga disambiguation",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              344,
+              345
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Disambiguations",
+            "normalizedValue": "disambiguations",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              343
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              521
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Disambiguations",
+            "normalizedValue": "disambiguations",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              343
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.2727272727272727,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Zero no Tsukaima",
+            "normalizedValue": "zero no tsukaima",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Zero's Familiar",
+            "normalizedValue": "zeros familiar",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ゼロの使い魔",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Noboru Yamaguchi",
+            "normalizedValue": "noboru yamaguchi",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Nana Mochizuki",
+            "normalizedValue": "nana mochizuki",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "7",
+            "normalizedValue": "7",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "36",
+            "normalizedValue": "36",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "In a world where sorcery reigns supreme, bumbling witch-in-training Louise Francoise le Blanc de La Valliere is known by her classmates at the Tristain Academy of Magic as “Louise the Zero.” During an",
+            "normalizedValue": "in a world where sorcery reigns supreme bumbling witch-in-training louise francoise le blanc de la valliere is known by her classmates at the tristain academy of magic as louise the zero during an",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2006",
+            "normalizedValue": "2006",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx31154-C4QrUpAaqWLJ.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx31154-C4QrUpAaqWLJ.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 5,
+          "falseNegatives": 15
+        },
+        "durationMs": 1436
+      },
+      {
+        "page": {
+          "id": "154349-fandom-VOLUMES",
+          "title": "Kindergarten Wars",
+          "anilistId": 154349,
+          "source": "fandom",
+          "url": "https://kindergarten-wars.fandom.com/wiki/Category:Volumes",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://kindergarten-wars.fandom.com/wiki/Kindergarten%20WARS%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "PUBLISHER",
+            "value": "(in Japanese)Seoul Media Comics (in Korean)",
+            "normalizedValue": "in japaneseseoul media comics in korean",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "16",
+            "normalizedValue": "16",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 4",
+            "normalizedValue": "volume 4",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 5",
+            "normalizedValue": "volume 5",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 6",
+            "normalizedValue": "volume 6",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 7",
+            "normalizedValue": "volume 7",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 8",
+            "normalizedValue": "volume 8",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 9",
+            "normalizedValue": "volume 9",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 10",
+            "normalizedValue": "volume 10",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 11",
+            "normalizedValue": "volume 11",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 12",
+            "normalizedValue": "volume 12",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 13",
+            "normalizedValue": "volume 13",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 14",
+            "normalizedValue": "volume 14",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 15",
+            "normalizedValue": "volume 15",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 16",
+            "normalizedValue": "volume 16",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1920",
+            "normalizedValue": "1920",
+            "confidence": 0.95,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Youchien WARS",
+            "normalizedValue": "youchien wars",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Kindergarten Wars",
+            "normalizedValue": "kindergarten wars",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "幼稚園WARS",
+            "normalizedValue": "wars",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "You Chiba",
+            "normalizedValue": "you chiba",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Quentin Matias",
+            "normalizedValue": "quentin matias",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Rita is Convict 999, a former legendary assassin who now works at a kindergarten for the children of world leaders. Her job is to protect the schoolchildren from the clutches of would-be assassins sen",
+            "normalizedValue": "rita is convict 999 a former legendary assassin who now works at a kindergarten for the children of world leaders her job is to protect the schoolchildren from the clutches of would-be assassins sen",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2022",
+            "normalizedValue": "2022",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx154349-MHP25nYWDGzR.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx154349-MHP25nYWDGzR.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 26,
+          "falseNegatives": 14
+        },
+        "durationMs": 4417
+      },
+      {
+        "page": {
+          "id": "31859-fandom-VOLUMES",
+          "title": "Natsume Yuujinchou",
+          "anilistId": 31859,
+          "source": "fandom",
+          "url": "https://natsumeyuujinchou.fandom.com/wiki/Category:Volumes",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://natsumeyuujinchou.fandom.com/wiki/Natsume_Yuujinchou%3A_Hazuki_no_Shirushi"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "33",
+            "normalizedValue": "33",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 4",
+            "normalizedValue": "volume 4",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 5",
+            "normalizedValue": "volume 5",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 6",
+            "normalizedValue": "volume 6",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 7",
+            "normalizedValue": "volume 7",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 8",
+            "normalizedValue": "volume 8",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 9",
+            "normalizedValue": "volume 9",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 10",
+            "normalizedValue": "volume 10",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 11",
+            "normalizedValue": "volume 11",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 12",
+            "normalizedValue": "volume 12",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 13",
+            "normalizedValue": "volume 13",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 14",
+            "normalizedValue": "volume 14",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 15",
+            "normalizedValue": "volume 15",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 16",
+            "normalizedValue": "volume 16",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 17",
+            "normalizedValue": "volume 17",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 18",
+            "normalizedValue": "volume 18",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 19",
+            "normalizedValue": "volume 19",
+            "confidence": 0.855,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Natsume Yuujinchou",
+            "normalizedValue": "natsume yuujinchou",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Natsume's Book of Friends",
+            "normalizedValue": "natsumes book of friends",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "夏目友人帳",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Yuki Midorikawa",
+            "normalizedValue": "yuki midorikawa",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Tomiko Suzuki",
+            "normalizedValue": "tomiko suzuki",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "When Reiko was Takashi's age, she bound the names of demons and spirits in her Book of Friends, enslaving them to her capricious whim. Now Takashi is the owner of the book, and the creatures will do a",
+            "normalizedValue": "when reiko was takashis age she bound the names of demons and spirits in her book of friends enslaving them to her capricious whim now takashi is the owner of the book and the creatures will do a",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2003",
+            "normalizedValue": "2003",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx31859-mITgIaJFBzl4.png",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx31859-mITgIaJFBzl4.png",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 42,
+          "falseNegatives": 12
+        },
+        "durationMs": 4596
+      },
+      {
+        "page": {
+          "id": "132288-fandom-OTHER",
+          "title": "Hirayasumi",
+          "anilistId": 132288,
+          "source": "fandom",
+          "url": "https://hirayasumi.fandom.com/wiki/List_of_Volumes",
+          "urlType": "OTHER",
+          "baseUrl": "https://hirayasumi.fandom.com/wiki/Hirayasumi_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser bulleted-list was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "89",
+            "normalizedValue": "89",
+            "confidence": 0.7999999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "TITLE",
+            "value": "List of Volumes and Chapters",
+            "normalizedValue": "list of volumes and chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              128,
+              129,
+              130,
+              131,
+              132
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Volume 1 cover]",
+            "normalizedValue": "image volume 1 cover",
+            "confidence": 0.85,
+            "source": "bootstrap",
+            "tokenIndices": [
+              167
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              22
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              168
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The list of all the Volumes of Hirayasumi, with their content and cover pages.",
+            "normalizedValue": "the list of all the volumes of hirayasumi with their content and cover pages",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Hirayasumi",
+            "normalizedValue": "hirayasumi",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Hirayasumi",
+            "normalizedValue": "hirayasumi",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ひらやすみ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Keigo Shinzo",
+            "normalizedValue": "keigo shinzo",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Slice of Life",
+            "normalizedValue": "slice of life",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "With a carefree outlook on life, Hiroto knows better than anyone that slowing down is sometimes the best way to move forward. At 29 years old, carefree Hiroto Ikuta doesn’t have a girlfriend, a full-t",
+            "normalizedValue": "with a carefree outlook on life hiroto knows better than anyone that slowing down is sometimes the best way to move forward at 29 years old carefree hiroto ikuta doesnt have a girlfriend a full-t",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2021",
+            "normalizedValue": "2021",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx132288-YnkpDO1wNHNM.png",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx132288-YnkpDO1wNHNM.png",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 10,
+          "falseNegatives": 12
+        },
+        "durationMs": 5211
+      },
+      {
+        "page": {
+          "id": "86034-fandom-CHAPTERS",
+          "title": "Kakumeiki Valvrave",
+          "anilistId": 86034,
+          "source": "fandom",
+          "url": "https://kakumeikivalvrave.fandom.com/wiki/Category:Chapters",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://kakumeikivalvrave.fandom.com/wiki/Kakumeiki_Valvrave"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              590
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "5",
+            "normalizedValue": "5",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              633
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              743,
+              744,
+              745,
+              746,
+              747,
+              748,
+              749,
+              750,
+              751
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Kakumeiki Valvrave",
+            "normalizedValue": "kakumeiki valvrave",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Valvrave the Liberator",
+            "normalizedValue": "valvrave the liberator",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "革命機ヴァルヴレイヴ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Yomoji Otono",
+            "normalizedValue": "yomoji otono",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "16",
+            "normalizedValue": "16",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Mecha",
+            "normalizedValue": "mecha",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "True Calendar (T.C.) 71 - A new age where 70% of the human population lives in space thanks to the development of \"Dyson Sphere\", a city in space. The world is divided into two main powers: The Dorssi",
+            "normalizedValue": "true calendar tc 71 - a new age where 70 of the human population lives in space thanks to the development of dyson sphere a city in space the world is divided into two main powers the dorssi",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2013",
+            "normalizedValue": "2013",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "NOVEL",
+            "normalizedValue": "novel",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/56034-xR0jlk49nGpC.png",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/56034-xR0jlk49nGpC.png",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 3,
+          "falseNegatives": 14
+        },
+        "durationMs": 1216
+      },
+      {
+        "page": {
+          "id": "30765-fandom-OTHER",
+          "title": "Junjou Romantica",
+          "anilistId": 30765,
+          "source": "fandom",
+          "url": "https://junjouromantica.fandom.com/wiki/Junjou_Romantica_Manga",
+          "urlType": "OTHER",
+          "baseUrl": "https://junjouromantica.fandom.com/wiki/Junjou_Romantica"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "29",
+            "normalizedValue": "29",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 4",
+            "normalizedValue": "volume 4",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 5",
+            "normalizedValue": "volume 5",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 6",
+            "normalizedValue": "volume 6",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 7",
+            "normalizedValue": "volume 7",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 8",
+            "normalizedValue": "volume 8",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 9",
+            "normalizedValue": "volume 9",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 10",
+            "normalizedValue": "volume 10",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 11",
+            "normalizedValue": "volume 11",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 12",
+            "normalizedValue": "volume 12",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 13",
+            "normalizedValue": "volume 13",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 14",
+            "normalizedValue": "volume 14",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 15",
+            "normalizedValue": "volume 15",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 16",
+            "normalizedValue": "volume 16",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 17",
+            "normalizedValue": "volume 17",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 18",
+            "normalizedValue": "volume 18",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 19",
+            "normalizedValue": "volume 19",
+            "confidence": 0.955,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Junjou Romantica",
+            "normalizedValue": "junjou romantica",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Junjo Romantica",
+            "normalizedValue": "junjo romantica",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "純情ロマンチカ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Shungiku Nakamura",
+            "normalizedValue": "shungiku nakamura",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The Junjou Romantica series features the stories of three couples, which are all loosely interconnected. Junjou Romantica Misaki Takahashi, struggling to pass his college entrance exams, is in need of",
+            "normalizedValue": "the junjou romantica series features the stories of three couples which are all loosely interconnected junjou romantica misaki takahashi struggling to pass his college entrance exams is in need of",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2002",
+            "normalizedValue": "2002",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/765-TAPxKFkDrekO.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/765-TAPxKFkDrekO.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.02564102564102564,
+          "recall": 0.08333333333333333,
+          "f1": 0.039215686274509796,
+          "truePositives": 1,
+          "falsePositives": 38,
+          "falseNegatives": 11
+        },
+        "durationMs": 4287
+      },
+      {
+        "page": {
+          "id": "106130-fandom-VOLUMES",
+          "title": "Blue Lock",
+          "anilistId": 106130,
+          "source": "fandom",
+          "url": "https://bluelock.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://bluelock.fandom.com/wiki/Blue_Lock"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "37",
+            "normalizedValue": "37",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "330",
+            "normalizedValue": "330",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "2 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              567,
+              568
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Japanese]",
+            "normalizedValue": "image japanese",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              571
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              556
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "4",
+            "normalizedValue": "4",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              622
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              554
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              938
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              554
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Blue Lock",
+            "normalizedValue": "blue lock",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Blue Lock",
+            "normalizedValue": "blue lock",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ブルーロック",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Muneyuki Kaneshiro",
+            "normalizedValue": "muneyuki kaneshiro",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Yuusuke Nomura",
+            "normalizedValue": "yuusuke nomura",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Sports",
+            "normalizedValue": "sports",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "After a disastrous defeat at the 2018 World Cup, Japan's team struggles to regroup. But what's missing? An absolute Ace Striker, who can guide them to the win. The Japan Football Union is hell-bent on",
+            "normalizedValue": "after a disastrous defeat at the 2018 world cup japans team struggles to regroup but whats missing an absolute ace striker who can guide them to the win the japan football union is hell-bent on",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2018",
+            "normalizedValue": "2018",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx106130-yPNeuSu75ey1.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx106130-yPNeuSu75ey1.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 15,
+          "falseNegatives": 13
+        },
+        "durationMs": 4587
+      },
+      {
+        "page": {
+          "id": "34571-fandom-OTHER",
+          "title": "Snow White with the Red Hair",
+          "anilistId": 34571,
+          "source": "fandom",
+          "url": "https://akagaminoshirayukihime.fandom.com/wiki/List_of_Volumes",
+          "urlType": "OTHER",
+          "baseUrl": "https://snow-white-with-the-red-hair.fandom.com/wiki/Snow%20White%20with%20the%20Red%20Hair"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser bulleted-list was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "27",
+            "normalizedValue": "27",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 4",
+            "normalizedValue": "volume 4",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 5",
+            "normalizedValue": "volume 5",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 6",
+            "normalizedValue": "volume 6",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 7",
+            "normalizedValue": "volume 7",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 8",
+            "normalizedValue": "volume 8",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 9",
+            "normalizedValue": "volume 9",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 10",
+            "normalizedValue": "volume 10",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 11",
+            "normalizedValue": "volume 11",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 12",
+            "normalizedValue": "volume 12",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 13",
+            "normalizedValue": "volume 13",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 14",
+            "normalizedValue": "volume 14",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 15",
+            "normalizedValue": "volume 15",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 16",
+            "normalizedValue": "volume 16",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 17",
+            "normalizedValue": "volume 17",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 18",
+            "normalizedValue": "volume 18",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 19",
+            "normalizedValue": "volume 19",
+            "confidence": 0.955,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Akagami no Shirayuki-hime",
+            "normalizedValue": "akagami no shirayuki-hime",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Snow White with the Red Hair",
+            "normalizedValue": "snow white with the red hair",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "赤髪の白雪姫",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Sorata Akizuki",
+            "normalizedValue": "sorata akizuki",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Shirayuki is famous for her naturally bright-red hair, and the prince of Tanbarun wants her all to himself! But when she escapes into the woods of the neighboring kingdom, a young man named Zen and hi",
+            "normalizedValue": "shirayuki is famous for her naturally bright-red hair and the prince of tanbarun wants her all to himself but when she escapes into the woods of the neighboring kingdom a young man named zen and hi",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2006",
+            "normalizedValue": "2006",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx34571-uRvqh90mPuGS.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx34571-uRvqh90mPuGS.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 46,
+          "falseNegatives": 12
+        },
+        "durationMs": 3707
+      },
+      {
+        "page": {
+          "id": "159142-fandom-CHAPTERS",
+          "title": "Firefly Wedding",
+          "anilistId": 159142,
+          "source": "fandom",
+          "url": "https://firefly-wedding.fandom.com/wiki/Category:Chapters",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://firefly-wedding.fandom.com/wiki/Firefly%20Wedding%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              152
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              193
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.5,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Hotaru no Yomeiri",
+            "normalizedValue": "hotaru no yomeiri",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Firefly Wedding",
+            "normalizedValue": "firefly wedding",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ホタルの嫁入り",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Oreco Tachibana",
+            "normalizedValue": "oreco tachibana",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "79",
+            "normalizedValue": "79",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "On the surface, Satoko has it all—she’s beautiful, the daughter of a nobleman, and at a prime age for marriage. Unfortunately, she is also quite ill and only has a short time left to live. Before she ",
+            "normalizedValue": "on the surface satoko has it allshes beautiful the daughter of a nobleman and at a prime age for marriage unfortunately she is also quite ill and only has a short time left to live before she",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2023",
+            "normalizedValue": "2023",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx159142-S9GSi03mT8Qa.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx159142-S9GSi03mT8Qa.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 3,
+          "falseNegatives": 12
+        },
+        "durationMs": 1387
+      }
+    ]
+  }
+}

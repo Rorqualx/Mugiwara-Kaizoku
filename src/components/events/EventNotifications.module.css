@@ -1,0 +1,41 @@
+/* EventNotifications.module.css */
+
+.notificationPanel {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  width: 400px;
+  max-height: 80vh;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  background: var(--mantine-color-body);
+  border-radius: var(--mantine-radius-md);
+}
+
+@media (max-width: 768px) {
+  .notificationPanel {
+    width: calc(100vw - 40px);
+    right: 20px;
+    left: 20px;
+  }
+}
+
+.notificationItem {
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.notificationItem:hover {
+  transform: translateX(-4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.unreadIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--mantine-color-blue-6);
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}

@@ -1,0 +1,200 @@
+name: Security Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  # Allow manual trigger
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  security-scan:
+    name: Security Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for better analysis
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.0
+
+      - name: Install dependencies
+        run: |
+          # Create stub for local file dependency (mangadex-ts-client) unavailable in CI
+          mkdir -p ../mangadex/ts-mangadex
+          echo '{"name":"mangadex-ts-client","version":"0.0.0","main":"index.js"}' > ../mangadex/ts-mangadex/package.json
+          echo 'module.exports = {};' > ../mangadex/ts-mangadex/index.js
+          bun install
+
+      - name: Run security checks
+        id: security
+        run: |
+          # Run security validation and save reports
+          bun run security:check --output security-report.json || true
+          bun run security:sarif || true
+        continue-on-error: true
+
+      - name: Upload SARIF report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: security-report.sarif
+          category: security-validation
+        continue-on-error: true
+
+      - name: Upload security report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: |
+            security-report.json
+            security-report.sarif
+          retention-days: 30
+
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read the security report
+            let report;
+            try {
+              const reportData = fs.readFileSync('security-report.json', 'utf8');
+              report = JSON.parse(reportData);
+            } catch (error) {
+              console.log('Could not read security report');
+              return;
+            }
+
+            // Generate markdown comment
+            const blockingViolations = report.results.flatMap(r =>
+              r.violations.filter(v => v.severity === 'critical' || v.severity === 'high')
+            );
+
+            const warningViolations = report.results.flatMap(r =>
+              r.violations.filter(v => v.severity !== 'critical' && v.severity !== 'high')
+            );
+
+            let body = '## 🔒 Security Validation Report\n\n';
+
+            // Summary table
+            body += '| Metric | Count |\n';
+            body += '|--------|-------|\n';
+            body += `| ✅ Passed | ${report.passedChecks} |\n`;
+            body += `| ❌ Failed | ${report.failedChecks} |\n`;
+            body += `| ⚠️ Warnings | ${report.warningChecks} |\n`;
+            body += `| 🚫 Blocking Issues | ${blockingViolations.length} |\n`;
+            body += `| ⚠️ Warning Issues | ${warningViolations.length} |\n\n`;
+
+            // Blocking issues
+            if (blockingViolations.length > 0) {
+              body += '### ❌ Blocking Issues\n\n';
+              blockingViolations.slice(0, 10).forEach((v, i) => {
+                body += `${i + 1}. **${v.category.toUpperCase()}**: ${v.message}\n`;
+                if (v.file) {
+                  body += `   - Location: \`${v.file}${v.line ? ':' + v.line : ''}\`\n`;
+                }
+                if (v.suggestion) {
+                  body += `   - Fix: ${v.suggestion}\n`;
+                }
+                body += '\n';
+              });
+              if (blockingViolations.length > 10) {
+                body += `_...and ${blockingViolations.length - 10} more blocking issues_\n\n`;
+              }
+            }
+
+            // Warning summary
+            if (warningViolations.length > 0) {
+              body += '<details>\n';
+              body += '<summary>⚠️ Warnings (' + warningViolations.length + ')</summary>\n\n';
+              warningViolations.slice(0, 5).forEach((v, i) => {
+                body += `${i + 1}. **${v.category.toUpperCase()}**: ${v.message}\n`;
+              });
+              if (warningViolations.length > 5) {
+                body += `\n_...and ${warningViolations.length - 5} more warnings_\n`;
+              }
+              body += '\n</details>\n\n';
+            }
+
+            // Final verdict
+            if (report.shouldBlock) {
+              body += '---\n### ❌ Security Check Failed\n';
+              body += 'This PR has critical security issues that must be fixed before merging.\n';
+            } else if (warningViolations.length > 0) {
+              body += '---\n### ⚠️ Security Check Passed with Warnings\n';
+              body += 'Please review and address warnings when possible.\n';
+            } else {
+              body += '---\n### ✅ Security Check Passed\n';
+              body += 'No security issues detected.\n';
+            }
+
+            // Post comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+      - name: Fail if blocking issues found
+        if: always()
+        run: |
+          # Check if security report exists and has blocking issues
+          if [ -f security-report.json ]; then
+            SHOULD_BLOCK=$(cat security-report.json | jq -r '.shouldBlock')
+            if [ "$SHOULD_BLOCK" = "true" ]; then
+              echo "❌ Security validation failed - blocking issues detected"
+              exit 1
+            fi
+          fi
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  secret-scanning:
+    name: Secret Scanning (GitGuardian)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: GitGuardian scan
+        uses: GitGuardian/ggshield-action@v1
+        env:
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+        continue-on-error: true

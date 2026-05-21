@@ -1,0 +1,18 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Check for skip flag
+if [ "$SKIP_SECURITY" = "1" ]; then
+  echo "⚠️  SKIP_SECURITY=1 - Skipping security validation"
+  echo "   This is NOT recommended for regular commits"
+  exit 0
+fi
+
+echo "🔒 Running security validation..."
+echo ""
+
+# Run comprehensive security checks
+bun run security:check
+
+# Exit with security check exit code
+exit $?

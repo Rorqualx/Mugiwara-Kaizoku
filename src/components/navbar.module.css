@@ -1,0 +1,107 @@
+/**
+ * CSS Module for Navigation Bar Component
+ * 
+ * Provides styling for the main navigation interface including interactive items,
+ * nested navigation, and submenu functionality. Uses Mantine theme variables
+ * for consistent theming and spacing.
+ *
+ * @module components/navbar.module.css
+ */
+
+/**
+ * Base navigation item styling
+ * 
+ * Implements smooth hover transitions and consistent spacing.
+ * Uses theme-aware colors and spacing variables.
+ */
+.navItem {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  padding: var(--mantine-spacing-xs) calc(var(--mantine-spacing-sm) * 0.8);
+  margin: calc(var(--mantine-spacing-xs) / 4) 0;
+  border-radius: var(--mantine-radius-sm);
+  cursor: pointer;
+  background-color: transparent;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.navItem:hover {
+  background-color: var(--mantine-color-default-hover);
+  transform: translateX(2px);
+}
+
+.navItem.active {
+  background-color: rgba(74, 108, 247, 0.2);
+  border-left: 3px solid #4a6cf7;
+  transform: translateX(0);
+}
+
+/**
+ * Disabled navigation item styling
+ * 
+ * Maintains consistent appearance with active items but removes
+ * interactive behaviors and hover effects.
+ */
+.navItemDisabled {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  padding: var(--mantine-spacing-xs) calc(var(--mantine-spacing-sm) * 0.8);
+  margin: calc(var(--mantine-spacing-xs) / 4) 0;
+  border-radius: var(--mantine-radius-sm);
+  cursor: default;
+  background-color: transparent;
+}
+
+/**
+ * Nested navigation item styling
+ * 
+ * Provides indentation and visual distinction for sub-items.
+ * Implements smooth hover animations and darker background.
+ */
+.navItemNested {
+  padding-left: calc(var(--mantine-spacing-sm) * 1.8);
+  font-size: calc(var(--mantine-font-size-xs) * 0.95);
+  margin: 0;
+  opacity: 0.85;
+  background-color: #424242;
+  transform-origin: left center;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navItemNested:hover {
+  opacity: 1;
+  background-color: #2d2d2d;
+  transform: translateX(4px);
+}
+
+/**
+ * Container for dropdown menu functionality
+ * 
+ * Establishes positioning context for submenu display.
+ * Handles hover-based menu activation.
+ */
+.menuContainer {
+  position: relative;
+}
+
+.menuContainer:hover .submenu {
+  display: block;
+}
+
+/**
+ * Submenu styling and positioning
+ * 
+ * Implements flyout menu behavior with absolute positioning.
+ * Ensures proper z-indexing for overlay display.
+ */
+.submenu {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: 0;
+  min-width: 200px;
+  z-index: 100;
+}

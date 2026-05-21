@@ -1,0 +1,118 @@
+name: Run Tests on PR Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  test:
+    name: Run Requested Tests
+    # Only run if the comment is on a PR and contains a test command
+    if: ${{ github.event.issue.pull_request && startsWith(github.event.comment.body, '/test') }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get comment body
+        id: get-comment-body
+        run: |
+          echo "COMMENT_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.comment.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Parse test command
+        id: parse-command
+        run: |
+          COMMENT="${{ env.COMMENT_BODY }}"
+          
+          # Default to running all tests if no specific test pattern is provided
+          TEST_PATTERN="all"
+          
+          # Extract test pattern if provided (e.g., /test components/Button)
+          if [[ "$COMMENT" =~ ^/test[[:space:]]+([[:graph:]]+) ]]; then
+            TEST_PATTERN="${BASH_REMATCH[1]}"
+          fi
+          
+          echo "TEST_PATTERN=$TEST_PATTERN" >> $GITHUB_ENV
+          echo "TEST_PATTERN=$TEST_PATTERN" >> $GITHUB_OUTPUT
+      
+      - name: Get PR details
+        id: get-pr
+        uses: octokit/request-action@v2.x
+        with:
+          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.issue.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJson(steps.get-pr.outputs.data).head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      # Post initial comment that tests are running
+      - name: Post initial comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            🧪 Running tests for pattern: `${{ env.TEST_PATTERN }}`
+            
+            This may take a few minutes. Results will be posted here when complete.
+      
+      # Run tests based on pattern
+      - name: Run tests
+        id: run-tests
+        run: |
+          # Set up result capturing
+          mkdir -p tmp
+          RESULT_FILE="tmp/test-results.txt"
+          
+          # Different handling based on test pattern
+          if [ "${{ env.TEST_PATTERN }}" = "all" ]; then
+            echo "Running all tests..."
+            bun run test > $RESULT_FILE 2>&1 || true
+          else
+            echo "Running tests matching pattern: ${{ env.TEST_PATTERN }}"
+            bun jest "${{ env.TEST_PATTERN }}" --colors > $RESULT_FILE 2>&1 || true
+          fi
+          
+          # Capture test output for comment
+          TEST_OUTPUT=$(cat $RESULT_FILE)
+          
+          # Determine if tests passed
+          if grep -q "FAIL " $RESULT_FILE; then
+            echo "TESTS_PASSED=false" >> $GITHUB_ENV
+          else
+            echo "TESTS_PASSED=true" >> $GITHUB_ENV
+          fi
+          
+          # Format output for GitHub comment
+          echo 'TEST_OUTPUT<<EOF' >> $GITHUB_ENV
+          echo '```' >> $GITHUB_ENV
+          echo "$TEST_OUTPUT" >> $GITHUB_ENV
+          echo '```' >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+      
+      # Post results comment
+      - name: Post results comment
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ### Test Results for `${{ env.TEST_PATTERN }}`
+            
+            ${{ env.TESTS_PASSED == 'true' && '✅ Tests passed!' || '❌ Tests failed!' }}
+            
+            <details>
+              <summary>View test output</summary>
+              
+              ${{ env.TEST_OUTPUT }}
+            </details>

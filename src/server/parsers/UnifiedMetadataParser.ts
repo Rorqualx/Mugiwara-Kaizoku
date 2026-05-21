@@ -1,0 +1,546 @@
+/**
+ * Unified Metadata Parser
+ *
+ * A single, comprehensive parser that consolidates all metadata extraction logic
+ * from various providers (Fandom, Wikipedia, etc.) into a unified interface.
+ * This eliminates code duplication and provides consistent parsing across all sources.
+ */
+
+
+import * as cheerio from 'cheerio';
+
+import { isFeatureEnabled } from '@/server/config/feature-flags';
+import { logger } from '@/utils/logger';
+
+import { FandomAdapter } from './adapters/FandomAdapter';
+import { WikipediaAdapter } from './adapters/WikipediaAdapter';
+import { ContentExtractor } from './core/ContentExtractor';
+import { DataNormalizer, type NormalizedMangaData } from './core/DataNormalizer';
+import { PatternRecognitionEngine } from './pattern-recognition/core/PatternRecognitionEngine';
+import { extractDescription } from './unified-metadata-parser/description-extractors';
+import { ExtractionUtilities } from './unified-metadata-parser/extraction-utilities';
+import {
+  extractFandomCoverImage,
+  extractWikipediaCoverImage,
+  extractGenericCoverImage,
+  extractAllImages
+} from './unified-metadata-parser/image-extractors';
+import { extractMetadataFromInfobox } from './unified-metadata-parser/infobox-extractors';
+import {
+  extractVolumesFromMLData,
+  extractChaptersFromMLData,
+  extractMetadataFromMLInfobox,
+  extractCoverFromMLData,
+  extractTablesFromMLData
+} from './unified-metadata-parser/ml-data-extractors';
+import { PatternLibrary } from './unified-metadata-parser/pattern-library';
+import {
+  parseTables,
+  parseGalleries
+} from './unified-metadata-parser/table-parsers';
+import {
+  isRecord
+} from './unified-metadata-parser/types';
+
+import type { RecognitionRequest, UserFeedback, PatternPrediction } from './pattern-recognition/types';
+import type {
+  ParseOptions,
+  ParsedContent,
+  UIFormattedContent,
+  VolumeInfo,
+  ChapterInfo,
+  ExtractedMetadata,
+  TableData,
+  InfoboxData
+} from './unified-metadata-parser/types';
+import type { CheerioAPI } from 'cheerio';
+
+// Re-export types for backward compatibility
+export type {
+  ParseOptions,
+  ParsedContent,
+  UIFormattedContent,
+  VolumeInfo,
+  ChapterInfo,
+  ExtractedMetadata,
+  TableData,
+  InfoboxData
+};
+
+// Re-export classes for backward compatibility
+export { PatternLibrary, ExtractionUtilities };
+
+// ============================================================================
+// Unified Parser
+// ============================================================================
+
+export class UnifiedMetadataParser {
+  private $: CheerioAPI | null = null;
+  private contentExtractor: ContentExtractor;
+  private dataNormalizer: DataNormalizer;
+  private fandomAdapter: FandomAdapter;
+  private wikipediaAdapter: WikipediaAdapter;
+  private patternEngine: PatternRecognitionEngine | null = null;
+  private useMLPatterns = isFeatureEnabled('mlPatternRecognition');
+  private initializationPromise: Promise<void> | null = null;
+
+  constructor(options: { enableMLPatterns?: boolean } = {}) {
+    this.contentExtractor = new ContentExtractor();
+    this.dataNormalizer = new DataNormalizer();
+    this.fandomAdapter = new FandomAdapter();
+    this.wikipediaAdapter = new WikipediaAdapter();
+
+    // Initialize Pattern Recognition Engine if enabled via feature flag or option
+    if (this.useMLPatterns || options.enableMLPatterns) {
+      this.useMLPatterns = true;
+      this.patternEngine = new PatternRecognitionEngine({
+        enableLearning: true,
+        enableEvolution: true,
+        enableCaching: true
+      });
+
+      // Initialize engine asynchronously and track the promise
+      this.initializationPromise = this.patternEngine.initialize().catch((error: unknown) => {
+        logger.error('Failed to initialize pattern engine', error);
+      });
+    }
+  }
+
+  /**
+   * Wait for initialization to complete (useful for tests and cleanup)
+   */
+  async awaitInitialization(): Promise<void> {
+    if (this.initializationPromise) {
+      await this.initializationPromise;
+    }
+  }
+
+  /**
+   * Shutdown the parser and cleanup resources
+   */
+  async shutdown(): Promise<void> {
+    // Wait for any pending initialization first
+    await this.awaitInitialization();
+
+    // Shutdown pattern engine if it exists
+    if (this.patternEngine) {
+      try {
+        await this.patternEngine.shutdown();
+      } catch (error: unknown) {
+        logger.error('Failed to shutdown pattern engine', error);
+      }
+      this.patternEngine = null;
+    }
+
+    this.initializationPromise = null;
+  }
+
+  /**
+   * Parse content using the new unified architecture
+   * This is the recommended method for new implementations
+   */
+  async parseUnified(htmlOrUrl: string, options: ParseOptions & { isUrl?: boolean } = {}): Promise<NormalizedMangaData> {
+    // If it's a URL, use adapters
+    if (options.isUrl) {
+      if (htmlOrUrl.includes('fandom.com')) {
+        return this.fandomAdapter.extract(htmlOrUrl);
+      } else if (htmlOrUrl.includes('wikipedia.org')) {
+        return this.wikipediaAdapter.extract(htmlOrUrl);
+      }
+    }
+
+    // Otherwise, parse HTML directly
+    const content = await this.contentExtractor.extract(htmlOrUrl, {
+      autoDetectFormat: true,
+      extractTables: true,
+      extractImages: true,
+      extractMetadata: true,
+      extractLinks: true,
+      mergeData: true,
+      cleanText: true
+    });
+
+    return this.dataNormalizer.normalize(content, {
+      validateDates: true,
+      validateNumbers: true,
+      removeInvalid: true,
+      deduplicateChapters: true,
+      deduplicateVolumes: true,
+      mergeVariants: true,
+      inferMissingData: true,
+      sortChapters: true,
+      sortVolumes: true,
+      normalizeText: true
+    });
+  }
+
+  /**
+   * Parse HTML content and extract metadata (legacy method)
+   */
+  parseHTML(html: string, options: ParseOptions = {}): ParsedContent {
+    this.$ = cheerio.load(html);
+    const $ = this.$;
+
+    const result: ParsedContent = {
+      volumes: [],
+      chapters: [],
+      metadata: {},
+      images: [],
+      tables: [],
+    };
+
+    // Note: ML pattern recognition is async - use parseHTMLAsync for ML support
+    // This synchronous method skips ML patterns for backward compatibility
+    // Use ML patterns if enabled (fire and forget for caching purposes)
+    if (this.useMLPatterns && this.patternEngine) {
+      void this.parseWithMLPatternsAsync(html, options);
+    }
+
+    // Detect source if not specified
+    const source = options.source ?? this.detectSource($);
+
+    // Extract based on source
+    switch (source) {
+      case 'fandom':
+        this.parseFandomContent($, result);
+        break;
+      case 'wikipedia':
+        this.parseWikipediaContent($, result);
+        break;
+      default:
+        // Try both approaches
+        this.parseGenericContent($, result);
+    }
+
+    // Extract images if requested
+    if (options.extractImages) {
+      result.images = extractAllImages($);
+    }
+
+    // Clean URLs if requested
+    if (options.cleanUrls) {
+      result.coverImage = ExtractionUtilities.cleanImageUrl(result.coverImage);
+      result.images = result.images.map(url => ExtractionUtilities.cleanImageUrl(url));
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse HTML using ML Pattern Recognition
+   */
+  private async parseWithMLPatternsAsync(html: string, _options: ParseOptions): Promise<ParsedContent | null> {
+    if (!this.patternEngine) return null;
+
+    try {
+      // Create recognition request
+      const request: RecognitionRequest = {
+        html,
+        options: {
+          useCache: true,
+          learnFromResult: true,
+          confidenceThreshold: 0.7
+        }
+      };
+
+      // Use Promise.race for timeout instead of busy-wait
+      const recognitionResult = await Promise.race([
+        this.patternEngine.recognize(request),
+        new Promise<null>((resolve) => {
+          setTimeout(() => {
+            resolve(null);
+          }, 1000);
+        })
+      ]);
+
+      if (!recognitionResult) {
+        return null;
+      }
+
+      // Convert ML results to ParsedContent format
+      return this.convertMLResultsToContent(recognitionResult);
+    } catch (error: unknown) {
+      // Log error without using console.error directly in production
+      void error; // Acknowledge the error variable
+      return null;
+    }
+  }
+
+  /**
+   * Convert ML recognition results to ParsedContent
+   */
+  private convertMLResultsToContent(recognitionResult: PatternPrediction): ParsedContent {
+    const data = isRecord(recognitionResult.extractedData) ? recognitionResult.extractedData : {};
+    const coverImage = extractCoverFromMLData(data);
+
+    return {
+      volumes: extractVolumesFromMLData(data),
+      chapters: extractChaptersFromMLData(data),
+      metadata: extractMetadataFromMLInfobox(data, (status) => this.normalizeStatus(status)),
+      images: [],
+      tables: extractTablesFromMLData(data),
+      ...(coverImage && { coverImage })
+    };
+  }
+
+  /**
+   * Normalize status string to enum
+   */
+  private normalizeStatus(status: string | undefined): ExtractedMetadata['status'] | undefined {
+    if (!status) return undefined;
+    const lower = status.toLowerCase();
+    if (lower.includes('complete')) return 'COMPLETED';
+    if (lower.includes('hiatus')) return 'HIATUS';
+    if (lower.includes('cancel')) return 'CANCELLED';
+    return 'ONGOING';
+  }
+
+  /**
+   * Provide feedback for ML pattern learning
+   */
+  async provideFeedback(matchId: string, feedback: UserFeedback): Promise<void> {
+    if (this.patternEngine) {
+      await this.patternEngine.provideFeedback(matchId, feedback);
+    }
+  }
+
+  /**
+   * Get ML engine metrics
+   */
+  getMLMetrics(): { patterns: number; accuracy: number; confidence: number } | null {
+    if (this.patternEngine) {
+      const metrics = this.patternEngine.getMetrics();
+      // Map SystemMetrics to the expected format
+      return {
+        patterns: metrics.patterns.total,
+        accuracy: metrics.learning.accuracy,
+        confidence: metrics.models.accuracy
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Detect the source type from HTML
+   */
+  private detectSource($: CheerioAPI): 'fandom' | 'wikipedia' | 'unknown' {
+    // Check for Fandom indicators
+    if ($('.fandom-community-header').length > 0 ||
+        $('meta[property="og:site_name"]').attr('content')?.includes('Fandom')) {
+      return 'fandom';
+    }
+
+    // Check for Wikipedia indicators
+    if ($('#mw-content-text').length > 0 ||
+        $('meta[name="generator"]').attr('content')?.includes('MediaWiki')) {
+      return 'wikipedia';
+    }
+
+    return 'unknown';
+  }
+
+  /**
+   * Parse Fandom wiki content
+   */
+  private parseFandomContent($: CheerioAPI, result: ParsedContent): void {
+    // Extract title from infobox
+    const title = ExtractionUtilities.cleanText($('.portable-infobox .pi-title').first().text()) ||
+                  ExtractionUtilities.cleanText($('h1.page-header__title').first().text());
+    if (title) {
+      Object.assign(result, { title });
+    }
+
+    // Extract infobox
+    const infobox = this.parseInfobox($, '.portable-infobox');
+    Object.assign(result, { infobox });
+
+    // Extract metadata from infobox
+    this.extractMetadataFromInfoboxLegacy(infobox, result.metadata);
+
+    // Extract cover image
+    Object.assign(result, { coverImage: extractFandomCoverImage($) });
+
+    // Parse volume/chapter tables
+    parseTables($, result);
+
+    // Parse galleries if present
+    parseGalleries($, result);
+
+    // Extract description
+    Object.assign(result, { description: extractDescription($, 'generic') });
+  }
+
+  /**
+   * Parse Wikipedia content
+   */
+  private parseWikipediaContent($: CheerioAPI, result: ParsedContent): void {
+    // Extract title from page
+    const title = ExtractionUtilities.cleanText($('.infobox-title').first().text()) ||
+                  ExtractionUtilities.cleanText($('#firstHeading').first().text()) ||
+                  ExtractionUtilities.cleanText($('h1').first().text());
+    if (title) {
+      Object.assign(result, { title });
+    }
+
+    // Extract infobox
+    const infobox = this.parseInfobox($, '.infobox');
+    Object.assign(result, { infobox });
+
+    // Extract metadata
+    this.extractMetadataFromInfoboxLegacy(infobox, result.metadata);
+
+    // Extract main image
+    Object.assign(result, { coverImage: extractWikipediaCoverImage($) });
+
+    // Parse tables
+    parseTables($, result);
+
+    // Extract description
+    Object.assign(result, { description: extractDescription($, 'wikipedia') });
+  }
+
+  /**
+   * Parse generic content (fallback)
+   */
+  private parseGenericContent($: CheerioAPI, result: ParsedContent): void {
+    // Try to extract title from common selectors
+    const title = ExtractionUtilities.cleanText($('.portable-infobox .pi-title').first().text()) ||
+                  ExtractionUtilities.cleanText($('.infobox-title').first().text()) ||
+                  ExtractionUtilities.cleanText($('#firstHeading').first().text()) ||
+                  ExtractionUtilities.cleanText($('h1').first().text());
+    if (title) {
+      Object.assign(result, { title });
+    }
+
+    // Try both infobox selectors
+    const infobox = this.parseInfobox($, '.portable-infobox, .infobox');
+    Object.assign(result, { infobox });
+
+    // Extract metadata
+    this.extractMetadataFromInfoboxLegacy(infobox, result.metadata);
+
+    // Try to find cover image
+    Object.assign(result, { coverImage: extractGenericCoverImage($) });
+
+    // Parse all tables
+    parseTables($, result);
+
+    // Extract description
+    Object.assign(result, { description: extractDescription($, 'generic') });
+  }
+
+  /**
+   * Parse infobox data
+   */
+  private parseInfobox($: CheerioAPI, selector: string): InfoboxData {
+    const infobox: InfoboxData = {};
+    const $infobox = $(selector).first();
+
+    if ($infobox.length === 0) return infobox;
+
+    // Parse different infobox formats
+
+    // Format 1: Portable infobox (Fandom)
+    $infobox.find('.pi-item').each((_, item) => {
+      const $item = $(item);
+      const label = ExtractionUtilities.cleanText($item.find('.pi-data-label').text());
+      const value = ExtractionUtilities.cleanText($item.find('.pi-data-value').text());
+      if (label && value) {
+        infobox[label.toLowerCase()] = value;
+      }
+    });
+
+    // Format 2: Traditional infobox (Wikipedia)
+    $infobox.find('tr').each((_, row) => {
+      const $row = $(row);
+      const $th = $row.find('th');
+      const $td = $row.find('td');
+
+      if ($th.length > 0 && $td.length > 0) {
+        const label = ExtractionUtilities.cleanText($th.text());
+        const value = ExtractionUtilities.cleanText($td.text());
+        if (label && value) {
+          infobox[label.toLowerCase()] = value;
+        }
+      }
+    });
+
+    return infobox;
+  }
+
+  /**
+   * Extract metadata from infobox using the extracted module
+   */
+  private extractMetadataFromInfoboxLegacy(infobox: InfoboxData, metadata: ExtractedMetadata): void {
+    // Use the extracted function and merge results
+    const extracted = extractMetadataFromInfobox(infobox);
+
+    // Assign all extracted values to metadata using Object.assign
+    Object.assign(metadata, {
+      ...(extracted.author && { author: extracted.author }),
+      ...(extracted.artist && { artist: extracted.artist }),
+      ...(extracted.publisher && { publisher: extracted.publisher }),
+      ...(extracted.magazine && { magazine: extracted.magazine }),
+      ...(extracted.demographic && { demographic: extracted.demographic }),
+      ...(extracted.genres && { genres: extracted.genres }),
+      ...(extracted.status && { status: extracted.status }),
+      ...(extracted.originalRun && { originalRun: extracted.originalRun }),
+      ...(extracted.volumes !== undefined && { volumes: extracted.volumes }),
+      ...(extracted.chapters !== undefined && { chapters: extracted.chapters }),
+    });
+  }
+
+  /**
+   * Format parsed content for UI
+   */
+  formatForUI(parsed: ParsedContent): UIFormattedContent {
+    return {
+      // Required fields
+      id: (parsed.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-')) ?? '',
+      title: parsed.title ?? '',
+      source: 'unified-parser',
+      provider: 'unified',
+
+      // Cover and images
+      cover: parsed.coverImage ?? '',
+      coverImage: parsed.coverImage ?? '',
+      coverUrl: parsed.coverImage ?? '',
+      // volumeCovers not in UIFormattedContent interface
+
+      // Description
+      description: parsed.description ?? '',
+
+      // Status
+      status: parsed.metadata.status ?? 'ONGOING',
+
+      // Genres
+      genres: parsed.metadata.genres ?? [],
+
+      // Alternative titles
+      alternativeTitles: parsed.metadata.alternativeTitles ?? [],
+
+      // Authors
+      authors: parsed.metadata.author ?? [],
+
+      // Publisher
+      publisher: parsed.metadata.publisher ?? '',
+
+      // Volumes and chapters
+      volumes: parsed.metadata.volumes ?? parsed.volumes.length,
+      chapters: parsed.metadata.chapters ?? parsed.chapters.length,
+
+      // Full metadata
+      metadata: {
+        ...parsed.metadata,
+        volumeList: parsed.volumes,
+        chapterList: parsed.chapters,
+        images: parsed.images,
+        tables: parsed.tables,
+        infobox: parsed.infobox
+      }
+    };
+  }
+}
+
+// Export singleton instance with ML patterns enabled via feature flag
+export const unifiedParser = new UnifiedMetadataParser();

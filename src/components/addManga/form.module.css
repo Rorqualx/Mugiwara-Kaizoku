@@ -1,0 +1,41 @@
+/**
+ * CSS Module for the Add Manga Form
+ * 
+ * Provides styles for the form layout and button positioning in the manga addition workflow.
+ * Uses CSS modules for style encapsulation and Mantine theme variables for consistency.
+ *
+ * @module components/addManga/form.module.css
+ */
+
+/**
+ * Container class for the add manga form
+ * 
+ * Sets up a flex column layout with minimum height and padding.
+ * Ensures consistent spacing and alignment of form elements.
+ *
+ * @property {string} form - Class name for the form container
+ */
+.form {
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  padding: var(--mantine-spacing-xs);
+}
+
+/**
+ * Fixed positioning for the form's button group
+ * 
+ * Positions buttons at the bottom of the form with proper spacing.
+ * Uses Mantine's light-dark utility for theme-aware background colors.
+ * Ensures buttons remain visible and accessible while scrolling.
+ *
+ * @property {string} buttonGroup - Class name for the button container
+ */
+.buttonGroup {
+  position: fixed;
+  bottom: 19px;
+  right: 55px;
+  width: calc(100% - 55px);
+  height: 50px;
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}

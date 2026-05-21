@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Image Proxy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        .test-image {
+            max-width: 300px;
+            height: auto;
+            border: 2px solid #444;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: block;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #22c55e20;
+            color: #22c55e;
+        }
+        .error {
+            background: #ef444420;
+            color: #ef4444;
+        }
+        h2 {
+            color: #60a5fa;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Testing Image Proxy with Fandom Images</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Direct Fandom URL (will likely fail due to CORS)</h2>
+        <pre id="direct-url">https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest</pre>
+        <img class="test-image" id="direct-img" alt="Direct Fandom URL">
+        <div class="status" id="direct-status">Click button to test...</div>
+        <button onclick="testDirect()">Test Direct URL</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Proxied URL (should work)</h2>
+        <pre id="proxy-url">Calculating...</pre>
+        <img class="test-image" id="proxy-img" alt="Proxied URL">
+        <div class="status" id="proxy-status">Click button to test...</div>
+        <button onclick="testProxy()">Test Proxy URL</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: API Response Simulation</h2>
+        <pre id="api-response">Waiting for API call...</pre>
+        <button onclick="simulateAPI()">Simulate API Call</button>
+    </div>
+    
+    <script>
+        const originalUrl = 'https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest';
+        
+        // Calculate MD5 hash for proxy path (simplified - in real app this is done server-side)
+        async function generateProxyPath(url) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(url);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            // Use first 16 chars like the server does with MD5
+            return hashHex.substring(0, 16);
+        }
+        
+        async function testDirect() {
+            const img = document.getElementById('direct-img');
+            const status = document.getElementById('direct-status');
+            
+            status.textContent = 'Loading...';
+            status.className = 'status';
+            
+            img.src = originalUrl;
+            
+            img.onload = function() {
+                status.textContent = '✓ Image loaded successfully!';
+                status.className = 'status success';
+            };
+            
+            img.onerror = function() {
+                status.textContent = '✗ Failed to load image (expected due to CORS)';
+                status.className = 'status error';
+            };
+        }
+        
+        async function testProxy() {
+            const img = document.getElementById('proxy-img');
+            const status = document.getElementById('proxy-status');
+            const urlDisplay = document.getElementById('proxy-url');
+            
+            status.textContent = 'Generating proxy URL...';
+            status.className = 'status';
+            
+            // Note: In the real app, the hash is generated server-side with MD5
+            // This is just for testing - the actual hash will be different
+            const proxyPath = await generateProxyPath(originalUrl);
+            const proxyUrl = `/api/image-proxy/${proxyPath}?url=${encodeURIComponent(originalUrl)}`;
+            
+            urlDisplay.textContent = proxyUrl;
+            
+            status.textContent = 'Loading image through proxy...';
+            img.src = proxyUrl;
+            
+            img.onload = function() {
+                status.textContent = '✓ Image loaded successfully through proxy!';
+                status.className = 'status success';
+                console.log('Proxy successful:', proxyUrl);
+            };
+            
+            img.onerror = function() {
+                status.textContent = '✗ Failed to load image through proxy';
+                status.className = 'status error';
+                console.error('Proxy failed:', proxyUrl);
+            };
+        }
+        
+        async function simulateAPI() {
+            const responseDisplay = document.getElementById('api-response');
+            
+            responseDisplay.textContent = 'Calling fetchFandomChapterMetadata...';
+            
+            try {
+                // This simulates what the React component does
+                const response = await fetch('/api/trpc/metadata.fetchFandomChapterMetadata', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        json: {
+                            url: 'https://fire-force.fandom.com/wiki/Chapter_0'
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                responseDisplay.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.result?.data?.json?.data?.coverImageUrl) {
+                    const coverUrl = data.result.data.json.data.coverImageUrl;
+                    console.log('API returned cover URL:', coverUrl);
+                    
+                    // Test loading the image from API response
+                    const testImg = new Image();
+                    testImg.onload = () => console.log('API image loaded successfully!');
+                    testImg.onerror = () => console.error('API image failed to load');
+                    testImg.src = coverUrl;
+                }
+            } catch (error) {
+                responseDisplay.textContent = 'Error: ' + error.message;
+                console.error('API call failed:', error);
+            }
+        }
+    </script>
+</body>
+</html>

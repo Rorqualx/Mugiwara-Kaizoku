@@ -1,0 +1,238 @@
+/**
+ * Prowlarr Integration Styles
+ * 
+ * Comprehensive styling for the Prowlarr integration interface.
+ * Includes styles for configuration forms, status indicators,
+ * indexer tables, and interactive elements.
+ * 
+ * Component Structure:
+ * - Configuration panel
+ * - Status indicators
+ * - Form elements
+ * - Indexer table
+ * - Action buttons
+ * - Tab navigation
+ */
+
+/**
+ * Main configuration container
+ * Provides spacing for the entire configuration section
+ */
+.prowlarr-config {
+  margin-bottom: 2rem;
+}
+
+/**
+ * Status indicator container
+ * Displays connection status and configuration state
+ * Used with .success and .error modifiers
+ */
+.config-status {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/**
+ * Success state styling
+ * Uses semi-transparent green background with matching text
+ */
+.config-status.success {
+  background-color: rgba(0, 200, 83, 0.1);
+  color: #00c853;
+}
+
+/**
+ * Error state styling
+ * Uses semi-transparent red background with matching text
+ */
+.config-status.error {
+  background-color: rgba(244, 67, 54, 0.1);
+  color: #f44336;
+}
+
+/**
+ * Reconfiguration button
+ * Right-aligned button for resetting configuration
+ */
+.reconfigure-button {
+  margin-left: auto;
+}
+
+/**
+ * Form field group
+ * Contains label, input, and helper text
+ */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+/**
+ * Form labels
+ * Bold text for field identification
+ */
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+/**
+ * Helper text styling
+ * Muted text for additional field information
+ */
+.form-group small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #6c757d;
+}
+
+/**
+ * Save configuration button
+ * Primary action button with top margin
+ */
+.save-button {
+  margin-top: 1rem;
+}
+
+/**
+ * Indexer list table
+ * Full-width table for displaying indexer information
+ */
+.indexers-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/**
+ * Table cell styling
+ * Consistent padding and left alignment
+ */
+.indexers-table th,
+.indexers-table td {
+  padding: 0.75rem;
+  text-align: left;
+}
+
+/**
+ * Enabled indexer row
+ * Subtle green background for active indexers
+ */
+.indexers-table tr.enabled {
+  background-color: rgba(0, 200, 83, 0.05);
+}
+
+/**
+ * Disabled indexer row
+ * Subtle gray background for inactive indexers
+ */
+.indexers-table tr.disabled {
+  background-color: rgba(158, 158, 158, 0.05);
+}
+
+/**
+ * Status indicator badge
+ * Compact badge for showing indexer state
+ */
+.status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/**
+ * Enabled status badge
+ * Green background with white text
+ */
+.status-badge.enabled {
+  background-color: #00c853;
+  color: white;
+}
+
+/**
+ * Disabled status badge
+ * Gray background with white text
+ */
+.status-badge.disabled {
+  background-color: #9e9e9e;
+  color: white;
+}
+
+/**
+ * Action button container
+ * Horizontal layout with spacing between buttons
+ */
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/**
+ * Toggle state button
+ * Blue button for enabling/disabling indexers
+ */
+.toggle-button {
+  background-color: #2196f3;
+  color: white;
+}
+
+/**
+ * Test connection button
+ * Orange button for testing indexer connectivity
+ */
+.test-button {
+  background-color: #ff9800;
+  color: white;
+}
+
+/**
+ * Delete indexer button
+ * Red button for removing indexers
+ */
+.delete-button {
+  background-color: #f44336;
+  color: white;
+}
+
+/**
+ * Tab navigation container
+ * Horizontal layout with bottom border
+ */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 1rem;
+}
+
+/**
+ * Individual tab button
+ * Unstyled button with hover states
+ */
+.tab {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-weight: 500;
+}
+
+/**
+ * Active tab state
+ * Blue underline and text for current tab
+ */
+.tab.active {
+  border-bottom: 2px solid #2196f3;
+  color: #2196f3;
+}
+
+/**
+ * Tab panel container
+ * Vertical padding for content sections
+ */
+.tab-content {
+  padding: 1rem 0;
+}

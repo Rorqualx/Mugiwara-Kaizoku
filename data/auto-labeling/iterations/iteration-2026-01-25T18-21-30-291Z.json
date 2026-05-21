@@ -1,0 +1,575 @@
+{
+  "summary": {
+    "iterationNumber": 2,
+    "timestamp": "2026-01-25T18:21:30.291Z",
+    "totalPages": 2,
+    "successCount": 0,
+    "successRate": 0,
+    "avgPrecision": 0,
+    "avgRecall": 0,
+    "avgF1": 0,
+    "topErrors": [
+      {
+        "category": "NO_CONTENT",
+        "count": 2
+      }
+    ],
+    "durationMs": 13182
+  },
+  "result": {
+    "iterationNumber": 2,
+    "timestamp": "2026-01-25T18:21:30.291Z",
+    "durationMs": 13182,
+    "targetMet": false,
+    "metrics": {
+      "totalAttempts": 2,
+      "successfulAttempts": 0,
+      "avgPrecision": 0,
+      "avgRecall": 0,
+      "avgF1": 0,
+      "microPrecision": 0,
+      "microRecall": 0,
+      "microF1": 0,
+      "byEntityType": {}
+    },
+    "failures": {
+      "totalFailures": 2,
+      "byCategory": {
+        "PARSER_SELECTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "STRUCTURE_NOT_RECOGNIZED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "ENTITY_EXTRACTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PATTERN_MISMATCH": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "CONFIDENCE_TOO_LOW": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "FETCH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "GROUND_TRUTH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PARSE_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "NO_CONTENT": {
+          "count": 2,
+          "percentage": 100,
+          "examples": [
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            },
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            }
+          ]
+        },
+        "TIMEOUT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "UNKNOWN": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        }
+      },
+      "commonPatterns": [],
+      "failedPageIds": [
+        "85281-fandom-CHAPTERS",
+        "119283-fandom-OTHER"
+      ]
+    },
+    "suggestions": [
+      {
+        "id": "suggestion-1",
+        "category": "structure",
+        "title": "Filter Non-Content Pages",
+        "description": "Add detection for pages without extractable content",
+        "expectedImpact": 0.8,
+        "relatedErrors": [
+          "NO_CONTENT"
+        ],
+        "affectedPageCount": 2,
+        "priority": "critical"
+      }
+    ],
+    "attempts": [
+      {
+        "page": {
+          "id": "85281-fandom-CHAPTERS",
+          "title": "Murcielago",
+          "anilistId": 85281,
+          "source": "fandom",
+          "url": "https://murcielago.fandom.com/wiki/Category:Chapters",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://murcielago.fandom.com/wiki/Murci%C3%A9lago%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 25",
+            "normalizedValue": "volume 25",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "12",
+            "normalizedValue": "12",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              172
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "25",
+            "normalizedValue": "25",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              34
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              227
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              171
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              251
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              171
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "MURCIÉLAGO",
+            "normalizedValue": "murcilago",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "MURCIÉLAGO",
+            "normalizedValue": "murcilago",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "MURCIÉLAGO-ムルシエラゴ-",
+            "normalizedValue": "murcilago--",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kana Yoshimura",
+            "normalizedValue": "kana yoshimura",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Horror",
+            "normalizedValue": "horror",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Mystery",
+            "normalizedValue": "mystery",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Psychological",
+            "normalizedValue": "psychological",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Mass murderers may not have much by way of career skills, but Kuroko Koumori seems to have landed her dream job as a hitwoman for the Tokyo police! A license to kill other killers? That's some serious",
+            "normalizedValue": "mass murderers may not have much by way of career skills but kuroko koumori seems to have landed her dream job as a hitwoman for the tokyo police a license to kill other killers thats some serious",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2013",
+            "normalizedValue": "2013",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx85281-nQMiUnSqg0F0.png",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx85281-nQMiUnSqg0F0.png",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 10,
+          "falseNegatives": 16
+        },
+        "durationMs": 6099
+      },
+      {
+        "page": {
+          "id": "119283-fandom-OTHER",
+          "title": "The Vexations of a Shut-In Vampire Princess",
+          "anilistId": 119283,
+          "source": "fandom",
+          "url": "https://hikikomari-kyuuketsuki.fandom.com/wiki/List_of_Episodes",
+          "urlType": "OTHER",
+          "baseUrl": "https://thevexationsofashutinvampireprincess.fandom.com/wiki/The_Vexations_of_a_Shut-In_Vampire_Princess"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "PUBLISHER",
+            "value": "日本語 English",
+            "normalizedValue": " english",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "confidence": 0.7,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 1",
+            "normalizedValue": "light novel volume 1",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 2",
+            "normalizedValue": "light novel volume 2",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 3",
+            "normalizedValue": "light novel volume 3",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 4",
+            "normalizedValue": "light novel volume 4",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 5",
+            "normalizedValue": "light novel volume 5",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 6",
+            "normalizedValue": "light novel volume 6",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 7",
+            "normalizedValue": "light novel volume 7",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 8",
+            "normalizedValue": "light novel volume 8",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 9",
+            "normalizedValue": "light novel volume 9",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 10",
+            "normalizedValue": "light novel volume 10",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 11",
+            "normalizedValue": "light novel volume 11",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 12",
+            "normalizedValue": "light novel volume 12",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 13",
+            "normalizedValue": "light novel volume 13",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "List of Episodes",
+            "normalizedValue": "list of episodes",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              34,
+              35,
+              36
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "List of Episodes in The Vexations of a Shut-In Vampire Princess anime adaption.",
+            "normalizedValue": "list of episodes in the vexations of a shut-in vampire princess anime adaption",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              156,
+              157,
+              158,
+              159,
+              160,
+              161,
+              162,
+              163,
+              164,
+              165,
+              166,
+              167,
+              168
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Hikikomari Kyuuketsuki no Monmon",
+            "normalizedValue": "hikikomari kyuuketsuki no monmon",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "The Vexations of a Shut-In Vampire Princess ",
+            "normalizedValue": "the vexations of a shut-in vampire princess",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ひきこまり吸血姫の悶々",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kotei Kobayashi",
+            "normalizedValue": "kotei kobayashi",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Three years into her life as a shut-in, vampire Terakomari Gandesblood (Komari for short), awakens to find she’s been appointed as a Commander in the Mulnite Imperial Army! The thing is, her new unit ",
+            "normalizedValue": "three years into her life as a shut-in vampire terakomari gandesblood komari for short awakens to find shes been appointed as a commander in the mulnite imperial army the thing is her new unit",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2020",
+            "normalizedValue": "2020",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "NOVEL",
+            "normalizedValue": "novel",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx119283-iuhI6oQSEuSS.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx119283-iuhI6oQSEuSS.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 17,
+          "falseNegatives": 12
+        },
+        "durationMs": 7065
+      }
+    ]
+  }
+}

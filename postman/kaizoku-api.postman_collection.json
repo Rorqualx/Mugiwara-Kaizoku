@@ -1,0 +1,804 @@
+{
+  "info": {
+    "name": "Kaizoku API",
+    "description": "Third-party API for Mugiwara-Kaizoku manga management system",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "your-api-key-here",
+      "type": "string"
+    },
+    {
+      "key": "manga_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "library_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "chapter_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "download_id",
+      "value": "dl_123",
+      "type": "string"
+    },
+    {
+      "key": "webhook_id",
+      "value": "wh_123",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "health"]
+            },
+            "description": "Check API health status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get OpenAPI Spec",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/openapi.json",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "openapi.json"]
+            },
+            "description": "Get OpenAPI 3.0 specification"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Generate API Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My API Key\",\n  \"permissions\": [\n    {\n      \"resource\": \"manga\",\n      \"actions\": [\"read\", \"write\"]\n    },\n    {\n      \"resource\": \"libraries\",\n      \"actions\": [\"read\"]\n    }\n  ],\n  \"expiresAt\": null\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/keys",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "keys"]
+            },
+            "description": "Generate a new API key (requires authentication)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Manga",
+      "item": [
+        {
+          "name": "List Manga",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manga?page=1&limit=20&status=ACTIVE",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "manga"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "description": "Filter by status"
+                },
+                {
+                  "key": "search",
+                  "value": "One Piece",
+                  "description": "Search by title",
+                  "disabled": true
+                },
+                {
+                  "key": "libraryId",
+                  "value": "{{library_id}}",
+                  "description": "Filter by library",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all manga with pagination and filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Manga",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"One Piece\",\n  \"sourceId\": \"one-piece-anilist\",\n  \"source\": \"anilist\",\n  \"libraryId\": {{library_id}},\n  \"metadata\": {\n    \"description\": \"The legendary pirate adventure\",\n    \"authors\": [\"Eiichiro Oda\"],\n    \"genres\": [\"Adventure\", \"Comedy\", \"Drama\"],\n    \"coverUrl\": \"https://example.com/cover.jpg\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manga",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "manga"]
+            },
+            "description": "Create a new manga"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Manga Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manga/{{manga_id}}?include=chapters,metadata",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "manga", "{{manga_id}}"],
+              "query": [
+                {
+                  "key": "include",
+                  "value": "chapters,metadata",
+                  "description": "Include related data"
+                }
+              ]
+            },
+            "description": "Get manga details by ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Manga",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"metadata\": {\n    \"tags\": [\"Shonen\", \"Pirates\", \"Superpowers\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manga/{{manga_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "manga", "{{manga_id}}"]
+            },
+            "description": "Update manga information"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Manga",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/manga/{{manga_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "manga", "{{manga_id}}"]
+            },
+            "description": "Delete a manga"
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providers\": [\"anilist\", \"comicvine\"],\n  \"force\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/manga/{{manga_id}}/metadata/refresh",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "manga", "{{manga_id}}", "metadata", "refresh"]
+            },
+            "description": "Refresh manga metadata from providers"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Libraries",
+      "item": [
+        {
+          "name": "List Libraries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/libraries",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "libraries"]
+            },
+            "description": "List all libraries"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Library",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shonen Collection\",\n  \"path\": \"/manga/shonen\",\n  \"scanInterval\": 3600\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/libraries",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "libraries"]
+            },
+            "description": "Create a new library"
+          },
+          "response": []
+        },
+        {
+          "name": "Trigger Library Scan",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/libraries/{{library_id}}/scan",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "libraries", "{{library_id}}", "scan"]
+            },
+            "description": "Trigger a library scan"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chapters",
+      "item": [
+        {
+          "name": "List Chapters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/chapters?mangaId={{manga_id}}&status=PENDING",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "chapters"],
+              "query": [
+                {
+                  "key": "mangaId",
+                  "value": "{{manga_id}}",
+                  "description": "Filter by manga"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING",
+                  "description": "Filter by status"
+                }
+              ]
+            },
+            "description": "List chapters with filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Chapter",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/chapters/{{chapter_id}}/download",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "chapters", "{{chapter_id}}", "download"]
+            },
+            "description": "Queue a chapter for download"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Downloads",
+      "item": [
+        {
+          "name": "List Downloads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/downloads?status=DOWNLOADING",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "downloads"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "DOWNLOADING",
+                  "description": "Filter by status"
+                }
+              ]
+            },
+            "description": "List downloads with filters"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Download",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"pause\",\n  \"priority\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/downloads/{{download_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "downloads", "{{download_id}}"]
+            },
+            "description": "Update download (pause/resume/cancel)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Download Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/downloads/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "downloads", "stats"]
+            },
+            "description": "Get download statistics"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Advanced Search",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"pirate\",\n  \"filters\": {\n    \"status\": [\"ACTIVE\", \"COMPLETED\"],\n    \"source\": [\"anilist\"],\n    \"genres\": [\"Adventure\", \"Comedy\"],\n    \"yearStart\": 1997,\n    \"yearEnd\": 2023\n  },\n  \"sort\": {\n    \"field\": \"updatedAt\",\n    \"order\": \"desc\"\n  },\n  \"facets\": [\"status\", \"source\", \"genres\"],\n  \"page\": 1,\n  \"limit\": 20\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "search"]
+            },
+            "description": "Advanced search with filters and facets"
+          },
+          "response": []
+        },
+        {
+          "name": "Search Suggestions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/search/suggestions?query=one p&type=manga&limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "search", "suggestions"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "one p",
+                  "description": "Search query"
+                },
+                {
+                  "key": "type",
+                  "value": "manga",
+                  "description": "Suggestion type"
+                },
+                {
+                  "key": "limit",
+                  "value": "5",
+                  "description": "Max suggestions"
+                }
+              ]
+            },
+            "description": "Get search suggestions"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Metadata",
+      "item": [
+        {
+          "name": "Search Metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metadata/search?query=Naruto&providers=anilist,comicvine&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "metadata", "search"],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "Naruto",
+                  "description": "Search query"
+                },
+                {
+                  "key": "providers",
+                  "value": "anilist,comicvine",
+                  "description": "Providers to search"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Max results per provider"
+                }
+              ]
+            },
+            "description": "Search across metadata providers"
+          },
+          "response": []
+        },
+        {
+          "name": "List Providers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metadata/providers",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "metadata", "providers"]
+            },
+            "description": "List available metadata providers"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Batch Operations",
+      "item": [
+        {
+          "name": "Execute Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operations\": [\n    {\n      \"id\": \"op1\",\n      \"method\": \"GET\",\n      \"resource\": \"manga/1\"\n    },\n    {\n      \"id\": \"op2\",\n      \"method\": \"GET\",\n      \"resource\": \"manga/2\"\n    },\n    {\n      \"id\": \"op3\",\n      \"method\": \"POST\",\n      \"resource\": \"chapters/456/download\"\n    }\n  ],\n  \"options\": {\n    \"parallel\": true,\n    \"continueOnError\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/batch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "batch"]
+            },
+            "description": "Execute multiple operations in a single request"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "List Webhooks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "webhooks"]
+            },
+            "description": "List all webhooks"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://your-server.com/webhook\",\n  \"events\": [\"manga.created\", \"manga.updated\", \"chapter.downloaded\"],\n  \"secret\": \"optional-secret-for-hmac\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "webhooks"]
+            },
+            "description": "Create a new webhook"
+          },
+          "response": []
+        },
+        {
+          "name": "Test Webhook",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/webhooks/{{webhook_id}}/test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "webhooks", "{{webhook_id}}", "test"]
+            },
+            "description": "Test webhook delivery"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "API Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/api?interval=day&resources=manga,chapters",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "metrics", "api"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2025-01-01T00:00:00Z",
+                  "description": "Start date",
+                  "disabled": true
+                },
+                {
+                  "key": "endDate",
+                  "value": "2025-01-07T23:59:59Z",
+                  "description": "End date",
+                  "disabled": true
+                },
+                {
+                  "key": "interval",
+                  "value": "day",
+                  "description": "Time interval"
+                },
+                {
+                  "key": "resources",
+                  "value": "manga,chapters",
+                  "description": "Filter by resources"
+                }
+              ]
+            },
+            "description": "Get API usage metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "System Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/system",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "metrics", "system"]
+            },
+            "description": "Get system-wide metrics"
+          },
+          "response": []
+        },
+        {
+          "name": "User Activity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/metrics/user/current?days=30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "metrics", "user", "current"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "Activity period in days"
+                }
+              ]
+            },
+            "description": "Get user activity metrics"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Server-Sent Events",
+      "item": [
+        {
+          "name": "Connect to SSE Stream",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/events/stream?events=manga.created,chapter.downloaded",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "events", "stream"],
+              "query": [
+                {
+                  "key": "events",
+                  "value": "manga.created,chapter.downloaded",
+                  "description": "Event types to subscribe to"
+                },
+                {
+                  "key": "lastEventId",
+                  "value": "evt_123",
+                  "description": "Resume from last event",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Connect to Server-Sent Events stream (requires EventSource client)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Add request timestamp",
+          "pm.variables.set('request_timestamp', new Date().toISOString());",
+          "",
+          "// Generate request ID",
+          "pm.variables.set('request_id', 'req_' + Math.random().toString(36).substr(2, 9));"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Common tests for all requests",
+          "",
+          "// Check response time",
+          "pm.test('Response time is less than 2000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+          "});",
+          "",
+          "// Check for request ID in response",
+          "if (pm.response.json().error) {",
+          "    pm.test('Error response contains request ID', function () {",
+          "        pm.expect(pm.response.json().error).to.have.property('requestId');",
+          "    });",
+          "}",
+          "",
+          "// Check rate limit headers",
+          "pm.test('Rate limit headers are present', function () {",
+          "    pm.response.to.have.header('X-RateLimit-Limit');",
+          "    pm.response.to.have.header('X-RateLimit-Remaining');",
+          "    pm.response.to.have.header('X-RateLimit-Reset');",
+          "});",
+          "",
+          "// Save rate limit info",
+          "if (pm.response.headers.get('X-RateLimit-Remaining')) {",
+          "    const remaining = parseInt(pm.response.headers.get('X-RateLimit-Remaining'));",
+          "    const reset = parseInt(pm.response.headers.get('X-RateLimit-Reset'));",
+          "    const resetDate = new Date(reset * 1000);",
+          "    ",
+          "    console.log(`Rate limit: ${remaining} requests remaining, resets at ${resetDate.toLocaleTimeString()}`);",
+          "}"
+        ]
+      }
+    }
+  ]
+}

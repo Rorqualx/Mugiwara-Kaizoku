@@ -1,0 +1,332 @@
+/**
+ * Calendar Component Styles
+ * 
+ * CSS styles for enhanced visual effects and animations in the calendar.
+ * Includes hover effects, transitions, and responsive adjustments.
+ * 
+ * @module styles/calendar.css
+ */
+
+/* Calendar event animations and transitions */
+.rbc-event {
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.rbc-event:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.rbc-event::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0)
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.rbc-event:hover::before {
+  opacity: 1;
+}
+
+/* Confidence indicator animation */
+.confidence-badge {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Pattern badge animation */
+.pattern-badge {
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Calendar loading skeleton */
+.calendar-loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* Event list item hover effects */
+.event-list-item {
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.event-list-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Filter panel animations */
+.filter-panel-enter {
+  animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Calendar navigation animation */
+.calendar-nav-transition {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.calendar-nav-transition.changing {
+  opacity: 0.5;
+  transform: scale(0.98);
+}
+
+/* Today indicator pulse */
+.rbc-today {
+  position: relative;
+}
+
+.rbc-today::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background-color: #f7768e;
+  border-radius: 50%;
+  animation: todayPulse 2s ease-in-out infinite;
+}
+
+@keyframes todayPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(247, 118, 142, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(247, 118, 142, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(247, 118, 142, 0);
+  }
+}
+
+/* Upcoming release cards */
+.upcoming-release-card {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.upcoming-release-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .rbc-event {
+    font-size: 11px;
+    padding: 2px 4px;
+  }
+  
+  .rbc-event:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .event-list-item:hover {
+    transform: none;
+  }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .rbc-event:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+  
+  .rbc-event::before {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0)
+    );
+  }
+  
+  .upcoming-release-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* High confidence event glow */
+.high-confidence-event {
+  position: relative;
+}
+
+.high-confidence-event::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, #9ece6a, #7aa2f7);
+  border-radius: 4px;
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.high-confidence-event:hover::after {
+  opacity: 0.3;
+}
+
+/* Manual override indicator */
+.manual-override-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  background-color: #ff9e64;
+  border-radius: 50%;
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Filter active indicator */
+.filter-active {
+  position: relative;
+}
+
+.filter-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #7aa2f7;
+  animation: filterActiveSlide 0.3s ease;
+}
+
+@keyframes filterActiveSlide {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Export modal format options */
+.export-format-option {
+  transition: all 0.2s ease;
+}
+
+.export-format-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Calendar month view improvements */
+.rbc-month-view .rbc-event-content {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Week view time slot hover */
+.rbc-time-slot:hover {
+  background-color: rgba(122, 162, 247, 0.05);
+}
+
+/* Agenda view improvements */
+.rbc-agenda-view {
+  font-size: 14px;
+}
+
+.rbc-agenda-event-cell {
+  transition: background-color 0.2s ease;
+}
+
+.rbc-agenda-event-cell:hover {
+  background-color: rgba(122, 162, 247, 0.05);
+}
+
+/* Custom scrollbar for calendar */
+.rbc-agenda-content::-webkit-scrollbar,
+.event-list-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.rbc-agenda-content::-webkit-scrollbar-track,
+.event-list-scroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.rbc-agenda-content::-webkit-scrollbar-thumb,
+.event-list-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.rbc-agenda-content::-webkit-scrollbar-thumb:hover,
+.event-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}

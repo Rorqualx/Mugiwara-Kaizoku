@@ -1,0 +1,177 @@
+/**
+ * CSS Module for Chapters Table Component
+ * 
+ * Provides styling and performance optimizations for the manga chapters table.
+ * Implements hardware acceleration and containment strategies for smooth scrolling
+ * and animations, especially important for large chapter lists.
+ *
+ * @module components/chaptersTable.module.css
+ */
+
+/**
+ * Root table container with performance optimizations
+ * 
+ * Uses CSS containment and hardware acceleration to improve rendering performance,
+ * especially important for tables with many rows.
+ */
+.table {
+  width: 100%;
+  contain: content; /* CSS containment for better performance */
+  transform: translateZ(0); /* Force GPU acceleration */
+  backface-visibility: hidden; /* Prevent flickering during animations */
+}
+
+/**
+ * Table header styling with sticky positioning
+ * 
+ * Creates a fixed header that stays at the top during scrolling.
+ * Uses theme-aware colors for consistent dark mode support.
+ */
+.header {
+  background-color: var(--mantine-color-dark-6);
+  color: var(--mantine-color-gray-0);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/**
+ * Table row with hover effect
+ * 
+ * Implements smooth background color transitions for hover states.
+ * Uses will-change for optimized animation performance.
+ */
+.row {
+  transition: background-color 150ms ease;
+  will-change: background-color; /* Optimize for animations */
+}
+
+.row:hover {
+  background-color: var(--mantine-color-dark-5);
+}
+
+/**
+ * Chapter row with optimized hover
+ * 
+ * Uses CSS-only hover effect instead of JavaScript for better performance.
+ * Applies to DataTable rows in chapter tables.
+ */
+.chapterRow {
+  transition: background-color 100ms ease;
+  cursor: pointer;
+}
+
+.chapterRow:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/**
+ * Filename cell styling
+ * 
+ * Implements text truncation with ellipsis for long filenames.
+ * Uses monospace font for better alignment of file paths.
+ */
+.fileName {
+  font-family: var(--mantine-font-family-monospace);
+  padding: var(--mantine-spacing-xs);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 300px; /* Limit width to prevent layout shifts */
+}
+
+/**
+ * File size cell styling
+ * 
+ * Right-aligns size information and uses monospace font
+ * for consistent number alignment.
+ */
+.size {
+  text-align: right;
+  font-family: var(--mantine-font-family-monospace);
+}
+
+/**
+ * Status badge with hover animation
+ * 
+ * Implements a subtle scale animation on hover.
+ * Uses hardware acceleration for smooth transitions.
+ */
+.statusBadge {
+  transition: transform 150ms ease;
+  will-change: transform; /* Optimize for animations */
+}
+
+.statusBadge:hover {
+  transform: scale(1.05);
+}
+
+/* Optimize transitions for expand/collapse */
+/**
+ * Volume section header styling
+ * 
+ * Implements smooth background transitions for interactive states.
+ * Uses hardware acceleration for better performance.
+ */
+.volumeHeader {
+  transition: background-color 0.2s ease;
+  will-change: background-color;
+  transform: translateZ(0); /* Force GPU acceleration */
+}
+
+/**
+ * Volume content container with expand/collapse animations
+ * 
+ * Implements smooth height and opacity transitions for expand/collapse.
+ * Uses containment and hardware acceleration for better performance.
+ */
+.volumeContent {
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, padding 0.3s ease-in-out;
+  will-change: max-height, opacity;
+  transform: translateZ(0); /* Force GPU acceleration */
+  contain: content; /* Improve rendering performance */
+  overflow: hidden;
+}
+
+/* Add optimizations for the container */
+/**
+ * Volume section container with performance optimizations
+ * 
+ * Uses CSS containment and hardware acceleration to improve rendering
+ * performance of expandable volume sections.
+ */
+.volumeContainer {
+  contain: layout style; /* Improve rendering performance */
+  transform: translateZ(0); /* Force GPU acceleration */
+  backface-visibility: hidden; /* Prevent flickering during animations */
+}
+
+/* Optimize rendering with hardware acceleration where appropriate */
+/**
+ * Action icon with hardware acceleration
+ *
+ * Uses transform and backface-visibility for smoother rendering
+ * of interactive icons.
+ */
+.actionIcon {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/**
+ * Right-aligned header cell with minimal right padding
+ *
+ * Overrides default header padding to align text closer to the right edge.
+ * Used for Status, Release Date, and Actions columns.
+ */
+.headerRight {
+  padding: 7px 4px 7px 4px !important;
+}
+
+/**
+ * Status column header with more padding for better spacing
+ */
+.headerStatus {
+  padding: 7px 12px 7px 4px !important;
+}

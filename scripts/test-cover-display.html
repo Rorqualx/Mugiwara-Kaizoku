@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chapter Cover Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .chapter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chapter-card {
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #2a2a2a;
+        }
+        .chapter-card img {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            display: block;
+        }
+        .chapter-card .info {
+            padding: 10px;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #0f4c0f; }
+        .error { background: #4c0f0f; }
+    </style>
+</head>
+<body>
+    <h1>Fire Force Chapter Covers - Display Test</h1>
+    <p>Testing if chapter cover images load correctly through the proxy:</p>
+    
+    <div id="status" class="status">Loading...</div>
+    
+    <div class="chapter-grid" id="chapters"></div>
+
+    <script>
+        const chapters = [
+            {
+                number: 0,
+                url: '/api/image-proxy/38e835e975992dd8?url=https%3A%2F%2Fstatic.wikia.nocookie.net%2Ffire-brigade-of-flames%2Fimages%2F9%2F98%2FShinra_Kusakabe_Joins_the_Force.png',
+                title: 'Shinra Kusakabe Joins the Force'
+            },
+            {
+                number: 1,
+                url: '/api/image-proxy/cb5d75b34266272c?url=https%3A%2F%2Fstatic.wikia.nocookie.net%2Ffire-brigade-of-flames%2Fimages%2F2%2F21%2FChapter_1_English.png',
+                title: 'Chapter 1'
+            },
+            {
+                number: 2,
+                url: '/api/image-proxy/8bfbe0a135c7f875?url=https%3A%2F%2Fstatic.wikia.nocookie.net%2Ffire-brigade-of-flames%2Fimages%2F7%2F72%2FChapter_2_English.png',
+                title: 'Chapter 2'
+            },
+            {
+                number: 10,
+                url: '/api/image-proxy/c6bea7033049e2e1?url=https%3A%2F%2Fstatic.wikia.nocookie.net%2Ffire-brigade-of-flames%2Fimages%2F2%2F20%2FChapter_10.png',
+                title: 'Chapter 10'
+            }
+        ];
+        
+        const container = document.getElementById('chapters');
+        const status = document.getElementById('status');
+        let loadedCount = 0;
+        let errorCount = 0;
+        
+        chapters.forEach(chapter => {
+            const card = document.createElement('div');
+            card.className = 'chapter-card';
+            
+            const img = document.createElement('img');
+            img.src = `http://localhost:3000${chapter.url}`;
+            img.alt = chapter.title;
+            img.onload = () => {
+                loadedCount++;
+                updateStatus();
+            };
+            img.onerror = () => {
+                errorCount++;
+                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjI1MCIgZmlsbD0iIzMzMyIvPjx0ZXh0IHg9IjEwMCIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkltYWdlIHVuYXZhaWxhYmxlPC90ZXh0Pjwvc3ZnPg==';
+                updateStatus();
+            };
+            
+            const info = document.createElement('div');
+            info.className = 'info';
+            info.innerHTML = `<strong>Chapter ${chapter.number}</strong><br>${chapter.title}`;
+            
+            card.appendChild(img);
+            card.appendChild(info);
+            container.appendChild(card);
+        });
+        
+        function updateStatus() {
+            const total = chapters.length;
+            const completed = loadedCount + errorCount;
+            
+            if (completed === total) {
+                if (errorCount === 0) {
+                    status.className = 'status success';
+                    status.textContent = `✅ All ${loadedCount} chapter covers loaded successfully!`;
+                } else {
+                    status.className = 'status error';
+                    status.textContent = `⚠️ ${loadedCount} loaded, ${errorCount} failed to load`;
+                }
+            } else {
+                status.textContent = `Loading... (${completed}/${total})`;
+            }
+        }
+    </script>
+</body>
+</html>

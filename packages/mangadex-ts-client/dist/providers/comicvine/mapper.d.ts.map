@@ -1,0 +1,1 @@
+{"version":3,"file":"mapper.d.ts","sourceRoot":"","sources":["../../../src/providers/comicvine/mapper.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,EAAE,QAAQ,EAAE,OAAO,EAAqC,MAAM,SAAS,CAAC;AAE/E,OAAO,EACL,YAAY,EAQb,MAAM,sBAAsB,CAAC;AA0C9B,2CAA2C;AAC3C,wBAAgB,kBAAkB,CAChC,MAAM,EAAE,QAAQ,EAChB,MAAM,CAAC,EAAE,OAAO,EAAE,GACjB,OAAO,CAAC,YAAY,CAAC,CAiFvB"}

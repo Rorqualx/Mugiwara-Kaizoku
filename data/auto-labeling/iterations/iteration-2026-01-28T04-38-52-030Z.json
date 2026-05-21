@@ -1,0 +1,2686 @@
+{
+  "iterationId": "iter-1769575132029",
+  "timestamp": "2026-01-28T04:38:52.029Z",
+  "config": {
+    "sampleSize": 10,
+    "targetF1": 0.85,
+    "maxIterations": 1,
+    "minMatchConfidence": 0.6,
+    "parallel": false,
+    "concurrency": 1,
+    "pageTimeoutMs": 30000,
+    "saveResults": true,
+    "outputDir": "data/auto-labeling/iterations",
+    "filters": {
+      "urlTypes": [
+        "MANGA_PAGE"
+      ],
+      "sources": [
+        "fandom"
+      ],
+      "requireAnilistId": true
+    }
+  },
+  "samples": [
+    {
+      "id": "107135-fandom-MANGA_PAGE",
+      "title": "Reign of the Seven Spellblades",
+      "anilistId": 107135,
+      "source": "fandom",
+      "url": "https://reign-of-the-seven-spellblades.fandom.com/wiki/Reign_of_the_Seven_Spellblades_(Manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://reign-of-the-seven-spellblades.fandom.com/wiki/Reign%20of%20the%20Seven%20Spellblades"
+    },
+    {
+      "id": "79865-fandom-MANGA_PAGE",
+      "title": "Ajin",
+      "anilistId": 79865,
+      "source": "fandom",
+      "url": "https://ajin.fandom.com/wiki/Ajin_(Manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://ajin.fandom.com/wiki/Ajin"
+    },
+    {
+      "id": "101808-fandom-MANGA_PAGE",
+      "title": "Combatants Will Be Dispatched!",
+      "anilistId": 101808,
+      "source": "fandom",
+      "url": "https://sentouin-hakenshimasu.fandom.com/wiki/Manga",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://combatantswillbedispatched.fandom.com/wiki/Combatants_Will_Be_Dispatched!_Wiki"
+    },
+    {
+      "id": "85710-fandom-MANGA_PAGE",
+      "title": "Tokyo Ghoul",
+      "anilistId": 85710,
+      "source": "fandom",
+      "url": "https://tokyoghoul.fandom.com/wiki/Tokyo_Ghoul_(manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://tokyoghoul.fandom.com/wiki/Tokyo_Ghoul_Wiki"
+    },
+    {
+      "id": "159288-fandom-MANGA_PAGE",
+      "title": "Kemurikusa",
+      "anilistId": 159288,
+      "source": "fandom",
+      "url": "https://kemurikusa.fandom.com/wiki/Manga",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://kemurikusa.fandom.com/wiki/Kemurikusa_Wiki"
+    },
+    {
+      "id": "106130-fandom-MANGA_PAGE",
+      "title": "Blue Lock",
+      "anilistId": 106130,
+      "source": "fandom",
+      "url": "https://bluelock.fandom.com/wiki/Blue_Lock_(Manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://bluelock.fandom.com/wiki/Blue_Lock"
+    },
+    {
+      "id": "85939-fandom-MANGA_PAGE",
+      "title": "Plunderer",
+      "anilistId": 85939,
+      "source": "fandom",
+      "url": "https://plunderer.fandom.com/wiki/Plunderer_(Manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://plunderer.fandom.com/wiki/Plunderer_(disambiguation)"
+    },
+    {
+      "id": "122342-fandom-MANGA_PAGE",
+      "title": "Blue Box",
+      "anilistId": 122342,
+      "source": "fandom",
+      "url": "https://blue-box.fandom.com/wiki/Blue_Box_(Manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://bluebox.fandom.com/wiki/Blue_Box_Wiki"
+    },
+    {
+      "id": "106176-fandom-MANGA_PAGE",
+      "title": "Otherside Picnic",
+      "anilistId": 106176,
+      "source": "fandom",
+      "url": "https://otherside-picnic.fandom.com/wiki/Otherside_Picnic_(Manga)",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://othersidepicnic.fandom.com/wiki/Otherside_Picnic"
+    },
+    {
+      "id": "63297-fandom-MANGA_PAGE",
+      "title": "Ao Haru Ride",
+      "anilistId": 63297,
+      "source": "fandom",
+      "url": "https://ao-haru-ride.fandom.com/wiki/Manga",
+      "urlType": "MANGA_PAGE",
+      "baseUrl": "https://ao-haru-ride.fandom.com/wiki/Ao%20Haru%20Ride"
+    }
+  ],
+  "groundTruths": [
+    {
+      "pageUrl": "https://reign-of-the-seven-spellblades.fandom.com/wiki/Reign_of_the_Seven_Spellblades_(Manga)",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:31.731Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://ajin.fandom.com/wiki/Ajin_(Manga)",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:34.349Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://sentouin-hakenshimasu.fandom.com/wiki/Manga",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:35.509Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://tokyoghoul.fandom.com/wiki/Tokyo_Ghoul_(manga)",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:40.675Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://kemurikusa.fandom.com/wiki/Manga",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:42.978Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://plunderer.fandom.com/wiki/Plunderer_(Manga)",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:44.054Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://blue-box.fandom.com/wiki/Blue_Box_(Manga)",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:45.146Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://otherside-picnic.fandom.com/wiki/Otherside_Picnic_(Manga)",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:48.954Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    },
+    {
+      "pageUrl": "https://ao-haru-ride.fandom.com/wiki/Manga",
+      "pageType": "MANGA_PAGE",
+      "source": "fandom",
+      "entities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "extractedAt": "2026-01-28T04:38:50.712Z",
+      "agentModel": "placeholder",
+      "confidence": 0.9
+    }
+  ],
+  "attempts": [
+    {
+      "page": {
+        "id": "107135-fandom-MANGA_PAGE",
+        "title": "Reign of the Seven Spellblades",
+        "anilistId": 107135,
+        "source": "fandom",
+        "url": "https://reign-of-the-seven-spellblades.fandom.com/wiki/Reign_of_the_Seven_Spellblades_(Manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://reign-of-the-seven-spellblades.fandom.com/wiki/Reign%20of%20the%20Seven%20Spellblades"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Reign_of_the_Seven_Spellblades_(Manga)",
+          "normalizedValue": "reign_of_the_seven_spellblades_manga",
+          "confidence": 0.9025,
+          "source": "parser"
+        },
+        {
+          "type": "ARTIST",
+          "value": "(character design)",
+          "normalizedValue": "character design",
+          "confidence": 0.9025,
+          "source": "parser"
+        },
+        {
+          "type": "PUBLISHER",
+          "value": "(Japanese) (English)",
+          "normalizedValue": "japanese english",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "STATUS",
+          "value": "FINISHED",
+          "normalizedValue": "completed",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "2019-05-25",
+          "normalizedValue": "2019-05-25",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "8",
+          "normalizedValue": "8",
+          "confidence": 0.95,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 1 (Light Novel)",
+          "normalizedValue": "volume 1 light novel",
+          "confidence": 0.955,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 2 (Light Novel)",
+          "normalizedValue": "volume 2 light novel",
+          "confidence": 0.955,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 3 (Light Novel)",
+          "normalizedValue": "volume 3 light novel",
+          "confidence": 0.955,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "62",
+          "normalizedValue": "62",
+          "confidence": 0.95,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "2 volume headers detected",
+          "normalizedValue": "volume_headers_detected",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.85,
+          "source": "parser"
+        },
+        {
+          "type": "TITLE",
+          "value": "Reign of the Seven Spellblades",
+          "normalizedValue": "reign of  seven spellblades",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            390,
+            391,
+            392,
+            393,
+            394
+          ]
+        },
+        {
+          "type": "COVER_IMAGE",
+          "value": "[IMAGE: Japanese]",
+          "normalizedValue": "image japanese",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            397
+          ]
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "1",
+          "normalizedValue": "1",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            26
+          ]
+        },
+        {
+          "type": "TITLE",
+          "value": "Reign of the Seven Spellblades (Manga)",
+          "normalizedValue": "reign of  seven spellblades manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            374,
+            375,
+            376,
+            377,
+            378,
+            379
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            848
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            22
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            52
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "List of Characters",
+          "normalizedValue": "list of characters",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            79,
+            80,
+            81
+          ]
+        },
+        {
+          "type": "ALT_TITLE",
+          "value": "Nanatsu no Maken ga Shihai Suru",
+          "normalizedValue": "nanatsu no maken ga shihai suru",
+          "confidence": 0.5318181818181819,
+          "source": "bootstrap"
+        },
+        {
+          "type": "AUTHOR",
+          "value": "Bokuto Uno",
+          "normalizedValue": "bokuto uno",
+          "confidence": 0.5909090909090909,
+          "source": "bootstrap"
+        },
+        {
+          "type": "ARTIST",
+          "value": "Sakae EsunoMiyuki Ruria (character design)",
+          "normalizedValue": "sakae esunomiyuki ruria character design",
+          "confidence": 0.5909090909090909,
+          "source": "bootstrap"
+        },
+        {
+          "type": "PUBLISHER",
+          "value": "Kadokawa Shoten (Japanese)Yen Press (English)",
+          "normalizedValue": "kadokawa shoten japaneseyen press english",
+          "confidence": 0.5909090909090909,
+          "source": "bootstrap"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "May 25, 2019 – November 25, 2023",
+          "normalizedValue": "may 25 2019  november 25 2023",
+          "confidence": 0.5909090909090909,
+          "source": "bootstrap"
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.85,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 2850,
+      "timestamp": "2026-01-28T04:38:34.206Z"
+    },
+    {
+      "page": {
+        "id": "79865-fandom-MANGA_PAGE",
+        "title": "Ajin",
+        "anilistId": 79865,
+        "source": "fandom",
+        "url": "https://ajin.fandom.com/wiki/Ajin_(Manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://ajin.fandom.com/wiki/Ajin"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Ajin",
+          "normalizedValue": "ajin",
+          "confidence": 0.6649999999999999,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "88",
+          "normalizedValue": "88",
+          "confidence": 0.7,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "The Shin’ya Nakamura Incident",
+          "normalizedValue": "shinya nakamura incident",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Detection and Subsequent Action",
+          "normalizedValue": "detection and subsequent action",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Event on the First Night",
+          "normalizedValue": "event on  first night",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.85,
+          "source": "parser"
+        },
+        {
+          "type": "COVER_IMAGE",
+          "value": "[IMAGE: Volume 1]",
+          "normalizedValue": "image volume 1",
+          "confidence": 0.85,
+          "source": "bootstrap",
+          "tokenIndices": [
+            166
+          ]
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "17",
+          "normalizedValue": "17",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            190
+          ]
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "1",
+          "normalizedValue": "1",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            23
+          ]
+        },
+        {
+          "type": "AUTHOR",
+          "value": "Author: Gamon Sakurai (artist and",
+          "normalizedValue": "author gamon sakurai artist and",
+          "confidence": 0.8,
+          "source": "bootstrap",
+          "tokenIndices": [
+            170,
+            171,
+            172,
+            173,
+            174
+          ]
+        },
+        {
+          "type": "TITLE",
+          "value": "Ajin in: Media , Manga English 日本語 Ajin (Manga)",
+          "normalizedValue": "ajin in media  manga english  ajin manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            130,
+            131,
+            132,
+            133,
+            134,
+            135,
+            136,
+            137,
+            138
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            568
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            132
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            19
+          ]
+        },
+        {
+          "type": "TITLE",
+          "value": "Ajin (Manga)",
+          "normalizedValue": "ajin manga",
+          "confidence": 0.7272727272727273,
+          "source": "bootstrap"
+        },
+        {
+          "type": "SUMMARY",
+          "value": "Ajin: Demi-Human is a seinen manga written and drawn by Gamon Sakurai (桜井画門, Sakurai Gamon).",
+          "normalizedValue": "ajin demi-human is  seinen manga written and drawn by gamon sakurai  sakurai gamon",
+          "confidence": 0.7272727272727273,
+          "source": "bootstrap"
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.85,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 1204,
+      "timestamp": "2026-01-28T04:38:35.413Z"
+    },
+    {
+      "page": {
+        "id": "101808-fandom-MANGA_PAGE",
+        "title": "Combatants Will Be Dispatched!",
+        "anilistId": 101808,
+        "source": "fandom",
+        "url": "https://sentouin-hakenshimasu.fandom.com/wiki/Manga",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://combatantswillbedispatched.fandom.com/wiki/Combatants_Will_Be_Dispatched!_Wiki"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Combat Agent Six",
+          "normalizedValue": "combat agent six",
+          "confidence": 0.9025,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "5",
+          "normalizedValue": "5",
+          "confidence": 1,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 1",
+          "normalizedValue": "volume 1",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_SUMMARY",
+          "value": "After a career spent slapping down superheroes as an evil minion of the Kisaragi Corporation, Agent Six has his next assignment-invade a fantasy world! With his pluck new partner, the \"pretty-girl android\" Alice, Agent Six sets out to bring his target planet to heel. What better way to accomplish that than by partnering with the locals?! Alongside Royal Guard Captain Snow, Battle Chimera Rose, and Archbishop Grimm, Alice and Six will square off against demon hordes-even if it's just a means of taking down the competition! Let the battle to be baddest begin!",
+          "normalizedValue": "after  career spent slapping down superheroes as  evil minion of  kisaragi corporation agent six has his next assignment-invade  fantasy world with his pluck new partner  pretty-girl android alice agent six sets out to bring his target planet to heel what better way to accomplish that than by partnering with  locals alongside royal guard captain snow battle chimera rose and archbishop grimm alice and six will square off against demon hordes-even if its just  means of taking down  competition let  battle to be baddest begin",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 2",
+          "normalizedValue": "volume 2",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_SUMMARY",
+          "value": "Serving as mercenaries for the Kingdom of Grace, Snow and friends find themselves at war with the Demon King's army. Six launches an all-out assault...but how will his modern weapons fare against such unorthodox foes?",
+          "normalizedValue": "serving as mercenaries for  kingdom of grace snow and friends find themselves at war with  demon kings army six launches  all-out assaultbut how will his modern weapons fare against such unorthodox foes",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 3",
+          "normalizedValue": "volume 3",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_SUMMARY",
+          "value": "Agent Six's utterly unchivalrous tactics had been working wonders, but that all comes to an end when he and Alice are outed as spies and banished from the kingdom of Grace. How unfortunate that the Demon Army is preparing for all-out war at that very moment... Six might still be able to save his feckless former squadmates from certain doom-but only if he's willing to gain an unfortunate nickname in the process!",
+          "normalizedValue": "agent sixs utterly unchivalrous tactics had been working wonders but that all comes to  end when he and alice are outed as spies and banished from  kingdom of grace how unfortunate that  demon army is preparing for all-out war at that very moment six might still be able to save his feckless former squadmates from certain doom-but only if hes willing to gain  unfortunate nickname in  process",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "66",
+          "normalizedValue": "66",
+          "confidence": 1,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TABLE",
+          "value": "detected",
+          "normalizedValue": "volume_table_detected",
+          "confidence": 0.8,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.9,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "1",
+          "normalizedValue": "1",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            22
+          ]
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "18",
+          "normalizedValue": "18",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            79
+          ]
+        },
+        {
+          "type": "SUMMARY",
+          "value": "The Combatants will be dispatched manga began serialization on March 27th, 2018 and is currently ongoing as of 2023. The medium is written by Natsume Akatsuki and illustrated by Misaaki Kiasa, and follows the events of the light novel. The series has been collected in 9 tankōbon volumes and is published in North America by Yen Press.",
+          "normalizedValue": "combatants will be dispatched manga began serialization on march 27th 2018 and is currently ongoing as of 2023  medium is written by natsume akatsuki and illustrated by misaaki kiasa and follows  events of  light novel  series has been collected in 9 tankbon volumes and is published in north america by yen press",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            246,
+            247,
+            248,
+            249,
+            250,
+            251,
+            252,
+            253,
+            254,
+            255,
+            256,
+            257,
+            258,
+            259,
+            260,
+            261,
+            262,
+            263,
+            264,
+            265,
+            266,
+            267,
+            268,
+            269,
+            270,
+            271,
+            272,
+            273,
+            274,
+            275,
+            276,
+            277,
+            278,
+            279,
+            280,
+            281,
+            282,
+            283,
+            284,
+            285,
+            286,
+            287,
+            288,
+            289,
+            290,
+            291,
+            292,
+            293,
+            294,
+            295,
+            296,
+            297,
+            298,
+            299,
+            300,
+            301,
+            302
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            335
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            232
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            31
+          ]
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.9,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 5001,
+      "timestamp": "2026-01-28T04:38:40.415Z"
+    },
+    {
+      "page": {
+        "id": "85710-fandom-MANGA_PAGE",
+        "title": "Tokyo Ghoul",
+        "anilistId": 85710,
+        "source": "fandom",
+        "url": "https://tokyoghoul.fandom.com/wiki/Tokyo_Ghoul_(manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://tokyoghoul.fandom.com/wiki/Tokyo_Ghoul_Wiki"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "AUTHOR",
+          "value": "Sui Ishida",
+          "normalizedValue": "sui ishida",
+          "confidence": 0.9,
+          "source": "parser"
+        },
+        {
+          "type": "MAGAZINE",
+          "value": "Weekly Young Jump",
+          "normalizedValue": "weekly young jump",
+          "confidence": 0.81,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "14",
+          "normalizedValue": "14",
+          "confidence": 0.91,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "Action / Drama / Horror / Psychological / Seinen / Supernatural",
+          "normalizedValue": "action  drama  horror  psychological  seinen  supernatural",
+          "confidence": 0.7200000000000001,
+          "source": "parser"
+        },
+        {
+          "type": "TITLE",
+          "value": "Tokyo Ghoul (manga)",
+          "normalizedValue": "tokyo ghoul manga",
+          "confidence": 0.85,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TABLE",
+          "value": "detected",
+          "normalizedValue": "volume_table_detected",
+          "confidence": 0.8,
+          "source": "static_analysis"
+        },
+        {
+          "type": "CHAPTER_TABLE",
+          "value": "detected",
+          "normalizedValue": "chapter_table_detected",
+          "confidence": 0.8,
+          "source": "static_analysis"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "2 volume headers detected",
+          "normalizedValue": "volume_headers_detected",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "YYYY-MM-DD",
+          "normalizedValue": "yyyy-mm-dd",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "DD/MM/YYYY",
+          "normalizedValue": "ddmmyyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.9,
+          "source": "parser"
+        },
+        {
+          "type": "TITLE",
+          "value": "(manga)",
+          "normalizedValue": "manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            633
+          ]
+        },
+        {
+          "type": "COVER_IMAGE",
+          "value": "[IMAGE: Volume 01]",
+          "normalizedValue": "image volume 01",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            673
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Action / Drama / Horror / Psychological / Seinen / Supernatural Tokyo Ghoul ( 東京喰種",
+          "normalizedValue": "action  drama  horror  psychological  seinen  supernatural tokyo ghoul",
+          "confidence": 0.85,
+          "source": "bootstrap",
+          "tokenIndices": [
+            711,
+            712,
+            713,
+            714,
+            715,
+            716,
+            717,
+            718,
+            719,
+            720,
+            721,
+            722,
+            723,
+            724,
+            725
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            2246
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            34
+          ]
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.9,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 2445,
+      "timestamp": "2026-01-28T04:38:42.861Z"
+    },
+    {
+      "page": {
+        "id": "159288-fandom-MANGA_PAGE",
+        "title": "Kemurikusa",
+        "anilistId": 159288,
+        "source": "fandom",
+        "url": "https://kemurikusa.fandom.com/wiki/Manga",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://kemurikusa.fandom.com/wiki/Kemurikusa_Wiki"
+      },
+      "success": false,
+      "extractedEntities": [
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "3",
+          "normalizedValue": "3",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            346
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            422
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            126
+          ]
+        },
+        {
+          "type": "SUMMARY",
+          "value": "A manga called \"Kemurikusa Wakaba Notes\" written by Tatsuki himself, is being serialized in \"Ultra Jump\" (Shueisha) from February 2019. Here, Wakaba, one of the main characters in the TV anime version, draws the story from another perspective.",
+          "normalizedValue": "manga called kemurikusa wakaba notes written by tatsuki himself is being serialized in ultra jump shueisha from february 2019 here wakaba one of  main characters in  tv anime version draws  story from another perspective",
+          "confidence": 0.13636363636363635,
+          "source": "bootstrap"
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 0,
+        "falsePositives": 0,
+        "falseNegatives": 1,
+        "precision": 0,
+        "recall": 0,
+        "f1": 0,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 0,
+            "falsePositives": 0,
+            "falseNegatives": 1,
+            "precision": 0,
+            "recall": 0,
+            "f1": 0
+          }
+        },
+        "matches": [],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          }
+        ]
+      },
+      "durationMs": 858,
+      "timestamp": "2026-01-28T04:38:43.719Z"
+    },
+    {
+      "page": {
+        "id": "106130-fandom-MANGA_PAGE",
+        "title": "Blue Lock",
+        "anilistId": 106130,
+        "source": "fandom",
+        "url": "https://bluelock.fandom.com/wiki/Blue_Lock_(Manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://bluelock.fandom.com/wiki/Blue_Lock"
+      },
+      "success": false,
+      "error": "Failed to fetch HTML",
+      "extractedEntities": [],
+      "expectedEntities": [],
+      "metrics": null,
+      "durationMs": 197,
+      "timestamp": "2026-01-28T04:38:43.916Z"
+    },
+    {
+      "page": {
+        "id": "85939-fandom-MANGA_PAGE",
+        "title": "Plunderer",
+        "anilistId": 85939,
+        "source": "fandom",
+        "url": "https://plunderer.fandom.com/wiki/Plunderer_(Manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://plunderer.fandom.com/wiki/Plunderer_(disambiguation)"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Plunderer",
+          "normalizedValue": "plunderer",
+          "confidence": 0.6649999999999999,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "73",
+          "normalizedValue": "73",
+          "confidence": 0.7,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Love Letter",
+          "normalizedValue": "love letter",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "The Legendary Red Baron",
+          "normalizedValue": "legendary red baron",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "I Hate You",
+          "normalizedValue": "i hate you",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "2 volume headers detected",
+          "normalizedValue": "volume_headers_detected",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.85,
+          "source": "parser"
+        },
+        {
+          "type": "COVER_IMAGE",
+          "value": "[IMAGE: PlundererVol1]",
+          "normalizedValue": "image plunderervol1",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            257
+          ]
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "21",
+          "normalizedValue": "21",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            289
+          ]
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "82",
+          "normalizedValue": "82",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            291
+          ]
+        },
+        {
+          "type": "TITLE",
+          "value": "Plunderer (Manga)",
+          "normalizedValue": "plunderer manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            236,
+            237
+          ]
+        },
+        {
+          "type": "SUMMARY",
+          "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+          "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            473,
+            474,
+            475,
+            476,
+            477,
+            478,
+            479,
+            480,
+            481
+          ]
+        },
+        {
+          "type": "ALT_TITLE",
+          "value": "Purandara",
+          "normalizedValue": "purandara",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            262
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Factions",
+          "normalizedValue": "factions",
+          "confidence": 0.7,
+          "source": "bootstrap",
+          "tokenIndices": [
+            54
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Fantasy",
+          "normalizedValue": "fantasy",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            484
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Shounen",
+          "normalizedValue": "shounen",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            271
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "ecchi",
+          "normalizedValue": "ecchi",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            267
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            466
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            18
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            19
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Random character",
+          "normalizedValue": "random character",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            31,
+            32
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Action",
+          "normalizedValue": "action",
+          "confidence": 0.5090909090909091,
+          "source": "bootstrap"
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.85,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 1081,
+      "timestamp": "2026-01-28T04:38:44.997Z"
+    },
+    {
+      "page": {
+        "id": "122342-fandom-MANGA_PAGE",
+        "title": "Blue Box",
+        "anilistId": 122342,
+        "source": "fandom",
+        "url": "https://blue-box.fandom.com/wiki/Blue_Box_(Manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://bluebox.fandom.com/wiki/Blue_Box_Wiki"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Blue Box_(Manga)",
+          "normalizedValue": "blue box_manga",
+          "confidence": 0.9025,
+          "source": "parser"
+        },
+        {
+          "type": "AUTHOR",
+          "value": "Kouji Miura",
+          "normalizedValue": "kouji miura",
+          "confidence": 0.9025,
+          "source": "parser"
+        },
+        {
+          "type": "PUBLISHER",
+          "value": "Shueisha",
+          "normalizedValue": "shueisha",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "STATUS",
+          "value": "ONGOING",
+          "normalizedValue": "ongoing",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "2021-04-12",
+          "normalizedValue": "2021-04-12",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "Romance",
+          "normalizedValue": "romance",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "School",
+          "normalizedValue": "school",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "Shonen",
+          "normalizedValue": "shonen",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "Sports",
+          "normalizedValue": "sports",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "24",
+          "normalizedValue": "24",
+          "confidence": 0.95,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COVER",
+          "value": "https://static.wikia.nocookie.net/blue-box/images/2/25/Blue_Box_Volume_3.png/revision/latest/scale-to-width-down/180?cb=20211228023035",
+          "normalizedValue": "image_present",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_SUMMARY",
+          "value": "A badminton guy falls for a basketball girl. Do these sports-crossed lovers have a chance?\n\nTaiki is a high school freshman on the badminton team. Chinatsu is the star of the girls’ basketball team. They both dream of becoming national champions, but that might not be the only thing they have in common. When an unexpected turn of events brings them closer together, they’ll have more than sports on their minds.\n\nTaiki would have done anything to get closer to his crush, Chinatsu. But now that they are living under the same roof, he may have gotten more than he bargained for. How will he be able to focus on badminton when the girl of his dreams is only a room away?",
+          "normalizedValue": "badminton guy falls for  basketball girl do these sports-crossed lovers have  chance taiki is  high school freshman on  badminton team chinatsu is  star of  girls basketball team they both dream of becoming national champions but that might not be  only thing they have in common when  unexpected turn of events brings them closer together theyll have more than sports on their minds taiki would have done anything to get closer to his crush chinatsu but now that they are living under  same roof he may have gotten more than he bargained for how will he be able to focus on badminton when  girl of his dreams is only  room away",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_RELEASE_DATE",
+          "value": "August 4th, 2021",
+          "normalizedValue": "august 4th 2021",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_SUMMARY",
+          "value": "Taiki’s new doubles partner puts him on an intense training regimen that makes his dream of reaching nationals start to feel a little more achievable. Then Taiki meets another badminton player with eyes for Chinatsu. Will this new rival spell the end for Taiki’s romantic aspirations?",
+          "normalizedValue": "taikis new doubles partner puts him on  intense training regimen that makes his dream of reaching nationals start to feel  little more achievable then taiki meets another badminton player with eyes for chinatsu will this new rival spell  end for taikis romantic aspirations",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_RELEASE_DATE",
+          "value": "October 4th, 2021",
+          "normalizedValue": "october 4th 2021",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_SUMMARY",
+          "value": "At long last, the prefectural qualifiers for nationals begin! After his intense training with Haryu, Taiki will finally be put to the test in a grueling doubles match. Can Taiki take down opponents from the formidable Sajikawa High School? Or will his dreams of reaching nationals come crashing down around him?",
+          "normalizedValue": "at long last  prefectural qualifiers for nationals begin after his intense training with haryu taiki will finally be put to  test in  grueling doubles match can taiki take down opponents from  formidable sajikawa high school or will his dreams of reaching nationals come crashing down around him",
+          "confidence": 0.76,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_RELEASE_DATE",
+          "value": "January 4th, 2022",
+          "normalizedValue": "january 4th 2022",
+          "confidence": 0.8075,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "216",
+          "normalizedValue": "216",
+          "confidence": 0.95,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "2 volume headers detected",
+          "normalizedValue": "volume_headers_detected",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.85,
+          "source": "parser"
+        },
+        {
+          "type": "TITLE",
+          "value": "Blue Box (Manga)",
+          "normalizedValue": "blue box manga",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            316,
+            317,
+            318
+          ]
+        },
+        {
+          "type": "COVER_IMAGE",
+          "value": "[IMAGE: Chapter 1 LCP]",
+          "normalizedValue": "image chapter 1 lcp",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            319
+          ]
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "4",
+          "normalizedValue": "4",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            440
+          ]
+        },
+        {
+          "type": "ALT_TITLE",
+          "value": "アオのハコ Ao no Hako",
+          "normalizedValue": "ao no hako",
+          "confidence": 0.85,
+          "source": "bootstrap",
+          "tokenIndices": [
+            322,
+            323,
+            324,
+            325
+          ]
+        },
+        {
+          "type": "TITLE",
+          "value": "Blue Box Wiki , Manga , Media Blue Box (Manga)",
+          "normalizedValue": "blue box wiki  manga  media blue box manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            296,
+            297,
+            298,
+            299,
+            300,
+            301,
+            302,
+            303,
+            304,
+            305
+          ]
+        },
+        {
+          "type": "MAGAZINE",
+          "value": "Weekly Shonen Jump",
+          "normalizedValue": "weekly shonen jump",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            26,
+            27,
+            28
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            981
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Blue Box Wiki",
+          "normalizedValue": "blue box wiki",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            3,
+            4,
+            5
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            19
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            18
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Characters",
+          "normalizedValue": "characters",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            73
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Main",
+          "normalizedValue": "main",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            7
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Friends",
+          "normalizedValue": "friends",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            79
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Supporting",
+          "normalizedValue": "supporting",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            92
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Rivals",
+          "normalizedValue": "rivals",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            107
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Family",
+          "normalizedValue": "family",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            118
+          ]
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.85,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 3585,
+      "timestamp": "2026-01-28T04:38:48.583Z"
+    },
+    {
+      "page": {
+        "id": "106176-fandom-MANGA_PAGE",
+        "title": "Otherside Picnic",
+        "anilistId": 106176,
+        "source": "fandom",
+        "url": "https://otherside-picnic.fandom.com/wiki/Otherside_Picnic_(Manga)",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://othersidepicnic.fandom.com/wiki/Otherside_Picnic"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Otherside Picnic",
+          "normalizedValue": "otherside picnic",
+          "confidence": 0.6649999999999999,
+          "source": "parser"
+        },
+        {
+          "type": "AUTHOR",
+          "value": "Iori Miyazawa",
+          "normalizedValue": "iori miyazawa",
+          "confidence": 0.6649999999999999,
+          "source": "parser"
+        },
+        {
+          "type": "PUBLISHER",
+          "value": "Shōnen Gangan Square Enix",
+          "normalizedValue": "shnen gangan square enix",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "STATUS",
+          "value": "ONGOING",
+          "normalizedValue": "ongoing",
+          "confidence": 0.595,
+          "source": "parser"
+        },
+        {
+          "type": "DEMOGRAPHIC",
+          "value": "Shōnen",
+          "normalizedValue": "shnen",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "2018-02-10",
+          "normalizedValue": "2018-02-10",
+          "confidence": 0.595,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "Shōnen",
+          "normalizedValue": "shnen",
+          "confidence": 0.5599999999999999,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "82",
+          "normalizedValue": "82",
+          "confidence": 0.7999999999999999,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Wriggler Hunting I",
+          "normalizedValue": "wriggler hunting i",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Wriggler Hunting II",
+          "normalizedValue": "wriggler hunting ii",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Surviving the Eight-Foot-Tall Lady I",
+          "normalizedValue": "surviving  eight-foot-tall lady i",
+          "confidence": 0.63,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TABLE",
+          "value": "detected",
+          "normalizedValue": "volume_table_detected",
+          "confidence": 0.8,
+          "source": "static_analysis"
+        },
+        {
+          "type": "CHAPTER_TABLE",
+          "value": "detected",
+          "normalizedValue": "chapter_table_detected",
+          "confidence": 0.8,
+          "source": "static_analysis"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "1 volume headers detected",
+          "normalizedValue": "volume_headers_detected",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "FORMAT",
+          "value": "ISBN detected",
+          "normalizedValue": "isbn",
+          "confidence": 0.9,
+          "source": "static_analysis"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.9,
+          "source": "parser"
+        },
+        {
+          "type": "COVER_IMAGE",
+          "value": "[IMAGE: Manga Cover 1 English]",
+          "normalizedValue": "image manga cover 1 english",
+          "confidence": 0.95,
+          "source": "bootstrap",
+          "tokenIndices": [
+            349
+          ]
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "1",
+          "normalizedValue": "1",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            22
+          ]
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "4",
+          "normalizedValue": "4",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            456
+          ]
+        },
+        {
+          "type": "TITLE",
+          "value": "Otherside Picnic (Manga)",
+          "normalizedValue": "otherside picnic manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            334,
+            335,
+            336
+          ]
+        },
+        {
+          "type": "ARTIST",
+          "value": "Eita Mizuno",
+          "normalizedValue": "eita mizuno",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            89,
+            90
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Pages using ISBN magic links",
+          "normalizedValue": "pages using isbn magic links",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            319,
+            320,
+            321,
+            322,
+            323
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            4251
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Pages using ISBN magic links",
+          "normalizedValue": "pages using isbn magic links",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            319,
+            320,
+            321,
+            322,
+            323
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Manga",
+          "normalizedValue": "manga",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            41
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Media",
+          "normalizedValue": "media",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            19
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Pages with broken file links",
+          "normalizedValue": "pages with broken file links",
+          "confidence": 0.5818181818181819,
+          "source": "bootstrap"
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.9,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 2029,
+      "timestamp": "2026-01-28T04:38:50.613Z"
+    },
+    {
+      "page": {
+        "id": "63297-fandom-MANGA_PAGE",
+        "title": "Ao Haru Ride",
+        "anilistId": 63297,
+        "source": "fandom",
+        "url": "https://ao-haru-ride.fandom.com/wiki/Manga",
+        "urlType": "MANGA_PAGE",
+        "baseUrl": "https://ao-haru-ride.fandom.com/wiki/Ao%20Haru%20Ride"
+      },
+      "success": true,
+      "extractedEntities": [
+        {
+          "type": "TITLE",
+          "value": "Ao Haru Ride",
+          "normalizedValue": "ao haru ride",
+          "confidence": 0.9025,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_COUNT",
+          "value": "13",
+          "normalizedValue": "13",
+          "confidence": 0.95,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "1 Volume 1",
+          "normalizedValue": "1 volume 1",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 2",
+          "normalizedValue": "volume 2",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "VOLUME_TITLE",
+          "value": "Volume 3",
+          "normalizedValue": "volume 3",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_COUNT",
+          "value": "49",
+          "normalizedValue": "49",
+          "confidence": 0.95,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Chapter 1",
+          "normalizedValue": "chapter 1",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Chapter 2",
+          "normalizedValue": "chapter 2",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "CHAPTER_TITLE",
+          "value": "Chapter 3",
+          "normalizedValue": "chapter 3",
+          "confidence": 0.855,
+          "source": "parser"
+        },
+        {
+          "type": "RELEASE_DATE",
+          "value": "Month DD, YYYY",
+          "normalizedValue": "month dd yyyy",
+          "confidence": 0.6,
+          "source": "static_analysis"
+        },
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "confidence": 0.85,
+          "source": "parser"
+        },
+        {
+          "type": "GENRE",
+          "value": "Ao Haru Ride Article in: Ao Haru Ride Manga",
+          "normalizedValue": "ao haru ride article in ao haru ride manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            219,
+            220,
+            221,
+            222,
+            223,
+            224,
+            225,
+            226,
+            227
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Categories",
+          "normalizedValue": "categories",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            966
+          ]
+        },
+        {
+          "type": "TAGS",
+          "value": "Ao Haru Ride Article in: Ao Haru Ride Manga",
+          "normalizedValue": "ao haru ride article in ao haru ride manga",
+          "confidence": 0.9,
+          "source": "bootstrap",
+          "tokenIndices": [
+            219,
+            220,
+            221,
+            222,
+            223,
+            224,
+            225,
+            226,
+            227
+          ]
+        },
+        {
+          "type": "CHARACTERS",
+          "value": "Characters",
+          "normalizedValue": "characters",
+          "confidence": 1,
+          "source": "bootstrap",
+          "tokenIndices": [
+            50
+          ]
+        },
+        {
+          "type": "GENRE",
+          "value": "Ao Haru Ride Manga",
+          "normalizedValue": "ao haru ride manga",
+          "confidence": 0.10909090909090909,
+          "source": "bootstrap"
+        },
+        {
+          "type": "SUMMARY",
+          "value": "Ao Haru Ride (アオハライド Aoharaido) is a Japanese manga series written and illustrated by Io Sakisaka. It began serialization in 2011 in the shoujo manga magazine Bessatsu Margaret. An anime television series and drama CD adaptation has been announced.",
+          "normalizedValue": "ao haru ride  aoharaido is  japanese manga series written and illustrated by io sakisaka it began serialization in 2011 in  shoujo manga magazine bessatsu margaret  anime television series and drama cd adaptation has been announced",
+          "confidence": 0.13636363636363635,
+          "source": "bootstrap"
+        }
+      ],
+      "expectedEntities": [
+        {
+          "type": "PAGE_TYPE",
+          "value": "MANGA_PAGE",
+          "normalizedValue": "manga_page",
+          "required": true
+        }
+      ],
+      "metrics": {
+        "truePositives": 1,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 1,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        },
+        "matches": [
+          {
+            "extracted": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "confidence": 0.85,
+              "source": "parser"
+            },
+            "expected": {
+              "type": "PAGE_TYPE",
+              "value": "MANGA_PAGE",
+              "normalizedValue": "manga_page",
+              "required": true
+            },
+            "similarity": 1,
+            "matchType": "exact"
+          }
+        ],
+        "unmatchedExtracted": [],
+        "unmatchedExpected": []
+      },
+      "durationMs": 1414,
+      "timestamp": "2026-01-28T04:38:52.028Z"
+    }
+  ],
+  "metrics": {
+    "overall": {
+      "totalAttempts": 10,
+      "successfulAttempts": 8,
+      "avgPrecision": 1,
+      "avgRecall": 1,
+      "avgF1": 1,
+      "microPrecision": 1,
+      "microRecall": 1,
+      "microF1": 1,
+      "byEntityType": {
+        "PAGE_TYPE": {
+          "entityType": "PAGE_TYPE",
+          "truePositives": 8,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        }
+      }
+    },
+    "bySource": {
+      "fandom": {
+        "totalAttempts": 10,
+        "successfulAttempts": 8,
+        "avgPrecision": 1,
+        "avgRecall": 1,
+        "avgF1": 1,
+        "microPrecision": 1,
+        "microRecall": 1,
+        "microF1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 8,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        }
+      }
+    },
+    "byPageType": {
+      "MANGA_PAGE": {
+        "totalAttempts": 10,
+        "successfulAttempts": 8,
+        "avgPrecision": 1,
+        "avgRecall": 1,
+        "avgF1": 1,
+        "microPrecision": 1,
+        "microRecall": 1,
+        "microF1": 1,
+        "byEntityType": {
+          "PAGE_TYPE": {
+            "entityType": "PAGE_TYPE",
+            "truePositives": 8,
+            "falsePositives": 0,
+            "falseNegatives": 0,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1
+          }
+        }
+      }
+    },
+    "byEntityType": {
+      "PAGE_TYPE": {
+        "entityType": "PAGE_TYPE",
+        "truePositives": 8,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1
+      }
+    }
+  },
+  "improvements": [
+    {
+      "entityType": "GENRE",
+      "issue": "low_confidence",
+      "pattern": "GENRE extractions had low confidence 4 times",
+      "suggestedFix": "Adjust confidence threshold for GENRE or improve pattern specificity",
+      "examples": [
+        {
+          "expected": "",
+          "extracted": "Action",
+          "page": "https://plunderer.fandom.com/wiki/Plunderer_(Manga)"
+        },
+        {
+          "expected": "",
+          "extracted": "Shōnen",
+          "page": "https://otherside-picnic.fandom.com/wiki/Otherside_Picnic_(Manga)"
+        },
+        {
+          "expected": "",
+          "extracted": "Pages with broken file links",
+          "page": "https://otherside-picnic.fandom.com/wiki/Otherside_Picnic_(Manga)"
+        },
+        {
+          "expected": "",
+          "extracted": "Ao Haru Ride Manga",
+          "page": "https://ao-haru-ride.fandom.com/wiki/Manga"
+        }
+      ],
+      "impactScore": 0.41000000000000003,
+      "affectedFiles": [
+        "src/server/ml/training/bootstrap-labeler/pattern-detector/label-mapping.ts"
+      ]
+    },
+    {
+      "entityType": "RELEASE_DATE",
+      "issue": "low_confidence",
+      "pattern": "RELEASE_DATE extractions had low confidence 2 times",
+      "suggestedFix": "Adjust confidence threshold for RELEASE_DATE or improve pattern specificity",
+      "examples": [
+        {
+          "expected": "",
+          "extracted": "May 25, 2019 – November 25, 2023",
+          "page": "https://reign-of-the-seven-spellblades.fandom.com/wiki/Reign_of_the_Seven_Spellblades_(Manga)"
+        },
+        {
+          "expected": "",
+          "extracted": "2018-02-10",
+          "page": "https://otherside-picnic.fandom.com/wiki/Otherside_Picnic_(Manga)"
+        }
+      ],
+      "impactScore": 0.32999999999999996,
+      "affectedFiles": [
+        "src/server/ml/training/bootstrap-labeler/pattern-detector/label-mapping.ts"
+      ]
+    },
+    {
+      "entityType": "SUMMARY",
+      "issue": "low_confidence",
+      "pattern": "SUMMARY extractions had low confidence 2 times",
+      "suggestedFix": "Adjust confidence threshold for SUMMARY or improve pattern specificity",
+      "examples": [
+        {
+          "expected": "",
+          "extracted": "A manga called \"Kemurikusa Wakaba Notes\" written by Tatsuki himself, is being serialized in \"Ultra Jump\" (Shueisha) from February 2019. Here, Wakaba, one of the main characters in the TV anime version, draws the story from another perspective.",
+          "page": "https://kemurikusa.fandom.com/wiki/Manga"
+        },
+        {
+          "expected": "",
+          "extracted": "Ao Haru Ride (アオハライド Aoharaido) is a Japanese manga series written and illustrated by Io Sakisaka. It began serialization in 2011 in the shoujo manga magazine Bessatsu Margaret. An anime television series and drama CD adaptation has been announced.",
+          "page": "https://ao-haru-ride.fandom.com/wiki/Manga"
+        }
+      ],
+      "impactScore": 0.32999999999999996,
+      "affectedFiles": [
+        "src/server/ml/training/bootstrap-labeler/pattern-detector/label-mapping.ts"
+      ]
+    }
+  ],
+  "durationMs": 20700,
+  "targetMet": true,
+  "summary": {
+    "totalPages": 10,
+    "successfulPages": 8,
+    "failedPages": 2,
+    "cachedGroundTruths": 0,
+    "freshGroundTruths": 9
+  }
+}

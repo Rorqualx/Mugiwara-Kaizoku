@@ -1,0 +1,112 @@
+# Claude Configuration for Mugiwara Kaizoku
+
+# This file configures Claude's behavior for this project
+# Place this in the project root as .claude-config or claude.config.yml
+
+project_name: "Mugiwara Kaizoku"
+documentation_rules: strict
+
+# Documentation Management Rules
+documentation:
+  # Mandatory search before creating docs
+  search_required: true
+  search_paths:
+    - /docs
+    - /docs/archive
+  
+  # Primary documentation locations
+  consolidated_guides:
+    database: /docs/database/database-guide.md
+    architecture: /docs/architecture/architecture-overview.md
+    testing: /docs/testing/testing-guide.md
+    anilist: /docs/adapters-clients/anilist-guide.md
+    fandom: /docs/adapters-clients/fandom-adapter-guide.md
+    clients: /docs/adapters-clients/download-clients-guide.md
+    configuration: /docs/configuration/configuration-system.md
+    typescript: /docs/typescript/typescript-patterns-guide.md
+    development: /docs/development/development-guide.md
+
+  # Required reading before implementation
+  required_reading:
+    - /claude.md
+    - /docs/architecture/architecture-overview.md
+    - /docs/development/DEVELOPMENT_RULES.md
+    - /docs/CLAUDE_DOCUMENTATION_RULES.md
+
+  # Naming conventions
+  naming:
+    style: kebab-case
+    prohibited_patterns:
+      - "*-final-final*.md"
+      - "*-v2-*.md"
+      - "*-temp*.md"
+      - "*-old*.md"
+      - "*-backup*.md"
+
+  # Header template (required for all docs)
+  header_template: |
+    # [Title]
+    
+    *Status: [Active|Draft|Deprecated]*  
+    *Author: [Name/Team]*  
+    *Canonical: [Yes|No]*
+    
+    ## Overview
+    
+    [Description]
+    
+    ---
+
+# Behavioral Rules
+behavior:
+  documentation_strategy: "update-first"
+  
+  rules:
+    - "ALWAYS use ast-grep for code searches (functions, types, imports, classes)"
+    - "ALWAYS search existing documentation before creating new content"
+    - "ALWAYS update existing docs rather than creating duplicates"
+    - "ALWAYS follow established architecture patterns"
+    - "ALWAYS maintain the consolidated guide structure"
+    - "NEVER create temporary or versioned documentation files"
+    - "NEVER fragment information across multiple files"
+    - "NEVER use grep/ripgrep for code pattern searches"
+    
+  decision_tree: |
+    1. Does documentation exist? → UPDATE it
+    2. Does it fit in a guide? → ADD SECTION to guide
+    3. Is it troubleshooting? → UPDATE troubleshooting section
+    4. Is it truly new? → CREATE (with justification)
+
+# Quick Commands
+commands:
+  search_topic: "find /docs -iname '*$TOPIC*.md' -type f"
+  find_guides: "ls /docs/*/*-guide.md"
+  check_canonical: "grep -r 'Canonical: Yes' /docs --include='*.md' -l"
+  check_compliance: "node /docs/check-template-compliance.js"
+  check_ast_grep: "./.claude/hooks/ast-grep-check.sh check"
+  ast_grep_functions: "ast-grep --pattern 'function $NAME($$$) { $$$ }' src/"
+  ast_grep_types: "ast-grep --pattern 'type $NAME = $$$' src/"
+  ast_grep_interfaces: "ast-grep --pattern 'interface $NAME { $$$ }' src/"
+  ast_grep_imports: "ast-grep --pattern 'import { $$$ } from \"$PATH\"' src/"
+
+# Enforcement Level
+enforcement: strict
+warn_on_new_file_creation: true
+require_justification_for_new_docs: true
+
+# Statistics (from cleanup)
+project_stats:
+  total_files_before: 500+
+  total_files_after: 390
+  consolidation_rate: 86%
+  compliance_rate: 100%
+  
+# Message to Claude
+message: |
+  This project underwent extensive documentation cleanup in July 2025.
+  Over 110 files were consolidated into 14 comprehensive guides.
+  Your primary job is to MAINTAIN this organization, not create new chaos.
+  Read existing docs first, update them second, create new ones only as last resort.
+
+  IMPORTANT: Always use ast-grep for code searches, not grep/ripgrep.
+  See claude.md for detailed guidelines and examples.

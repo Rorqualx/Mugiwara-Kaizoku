@@ -1,0 +1,219 @@
+name: Documentation Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'src/**/README.md'
+      - 'scripts/**/README.md'
+      - '.github/workflows/documentation-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'docs/**'
+      - 'src/**/README.md'
+      - 'scripts/**/README.md'
+      - '.github/workflows/documentation-validation.yml'
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  validate-documentation:
+    name: Validate Documentation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for better link validation
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: '1.3.0'
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Run documentation validation
+      id: validate
+      run: |
+        echo "## Documentation Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Run validation and capture output
+        bun scripts/validation/validate-documentation.js > validation-results.txt 2>&1 || true
+        
+        # Extract key metrics
+        ERRORS=$(grep -oP 'Errors found: \K\d+' validation-results.txt || echo "0")
+        WARNINGS=$(grep -oP 'Warnings found: \K\d+' validation-results.txt || echo "0")
+        SUGGESTIONS=$(grep -oP 'Suggestions: \K\d+' validation-results.txt || echo "0")
+        
+        # Set outputs
+        echo "errors=$ERRORS" >> $GITHUB_OUTPUT
+        echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+        echo "suggestions=$SUGGESTIONS" >> $GITHUB_OUTPUT
+        
+        # Add to summary
+        echo "### 📊 Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Errors**: $ERRORS" >> $GITHUB_STEP_SUMMARY
+        echo "- **Warnings**: $WARNINGS" >> $GITHUB_STEP_SUMMARY
+        echo "- **Suggestions**: $SUGGESTIONS" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Add details if there are errors
+        if [ "$ERRORS" -gt 0 ]; then
+          echo "### ❌ Errors Found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -A 3 "❌ Errors:" validation-results.txt | head -50 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Add warnings if present
+        if [ "$WARNINGS" -gt 0 ]; then
+          echo "### ⚠️ Warnings" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep -A 3 "⚠️  Warnings:" validation-results.txt | head -20 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Check for critical issues
+      run: |
+        ERRORS=${{ steps.validate.outputs.errors }}
+        WARNINGS=${{ steps.validate.outputs.warnings }}
+        
+        # Fail if there are any errors
+        if [ "$ERRORS" -gt 0 ]; then
+          echo "❌ Documentation validation failed with $ERRORS errors"
+          exit 1
+        fi
+        
+        # Warn but don't fail for warnings
+        if [ "$WARNINGS" -gt 0 ]; then
+          echo "⚠️ Documentation has $WARNINGS warnings"
+        fi
+        
+        echo "✅ Documentation validation passed!"
+
+    - name: Upload validation results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation-validation-results
+        path: validation-results.txt
+        retention-days: 30
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request' && failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const errors = ${{ steps.validate.outputs.errors }};
+          const warnings = ${{ steps.validate.outputs.warnings }};
+          
+          const comment = `## 📚 Documentation Validation Failed
+          
+          The documentation validation check found issues that need to be addressed:
+          
+          - **Errors**: ${errors}
+          - **Warnings**: ${warnings}
+          
+          ### How to fix:
+          
+          1. Run \`npm run validate:docs\` locally to see all issues
+          2. Use \`npm run fix:docs\` to automatically fix some issues
+          3. Manually fix any remaining errors
+          4. Refer to [CANONICAL_DOCS.md](./docs/CANONICAL_DOCS.md) for correct documentation
+          
+          Please fix these issues before merging.`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  check-cross-references:
+    name: Check Cross References
+    runs-on: ubuntu-latest
+    needs: validate-documentation
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: '1.3.0'
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Run cross-reference check
+      run: |
+        echo "## Cross-Reference Check" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Run the cross-reference validator
+        bun scripts/validation/validate-cross-references.js --fix=false > cross-ref-results.txt 2>&1 || true
+        
+        # Extract results
+        TOTAL_FILES=$(grep -oP 'Total files checked: \K\d+' cross-ref-results.txt || echo "0")
+        FILES_WITH_ISSUES=$(grep -oP 'Files with issues: \K\d+' cross-ref-results.txt || echo "0")
+        
+        echo "- **Total files checked**: $TOTAL_FILES" >> $GITHUB_STEP_SUMMARY
+        echo "- **Files with issues**: $FILES_WITH_ISSUES" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "$FILES_WITH_ISSUES" -gt 0 ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files needing updates:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          grep "File:" cross-ref-results.txt | head -20 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Upload cross-reference results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: cross-reference-results
+        path: cross-ref-results.txt
+        retention-days: 30
+
+  documentation-coverage:
+    name: Check Documentation Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check documentation coverage
+      run: |
+        echo "## Documentation Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Check for components without documentation
+        echo "### Components without README.md:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        find src/components -type d -mindepth 1 -maxdepth 2 ! -exec test -e "{}/README.md" \; -print | head -10 >> $GITHUB_STEP_SUMMARY || echo "All components documented ✅" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        
+        # Check for services without documentation
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Services without README.md:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        find src/server/services -type d -mindepth 1 -maxdepth 1 ! -exec test -e "{}/README.md" \; -print | head -10 >> $GITHUB_STEP_SUMMARY || echo "All services documented ✅" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        
+        # Count total documentation files
+        TOTAL_DOCS=$(find . -name "*.md" -not -path "./node_modules/*" -not -path "./.git/*" | wc -l)
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Total documentation files**: $TOTAL_DOCS" >> $GITHUB_STEP_SUMMARY

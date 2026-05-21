@@ -1,0 +1,112 @@
+/* Mobile Navigation Drawer Styles */
+
+.drawerContent {
+  height: 100%;
+  background-color: var(--mantine-color-dark-7);
+}
+
+.drawerBody {
+  padding: 0;
+  height: 100%;
+}
+
+.drawerContainer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.drawerHeader {
+  padding: var(--mantine-spacing-md);
+  background-color: var(--mantine-color-dark-8);
+  border-bottom: 1px solid var(--mantine-color-dark-4);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.drawerScrollArea {
+  flex: 1;
+  height: calc(100% - 60px);
+}
+
+.navSection {
+  border-bottom: 1px solid var(--mantine-color-dark-5);
+}
+
+.navSection:last-child {
+  border-bottom: none;
+}
+
+.sectionHeader {
+  padding: var(--mantine-spacing-md);
+  color: var(--mantine-color-gray-3);
+  background-color: var(--mantine-color-dark-6);
+}
+
+.navItem {
+  display: block;
+  width: 100%;
+  padding: var(--mantine-spacing-md);
+  color: var(--mantine-color-gray-0);
+  transition: background-color 0.2s ease;
+}
+
+.navItem:hover {
+  background-color: var(--mantine-color-dark-5);
+}
+
+.navItem:active {
+  background-color: var(--mantine-color-dark-4);
+}
+
+.subItems {
+  background-color: var(--mantine-color-dark-8);
+}
+
+.subNavItem {
+  display: block;
+  width: 100%;
+  padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
+  padding-left: calc(var(--mantine-spacing-md) * 2.5);
+  color: var(--mantine-color-gray-2);
+  transition: background-color 0.2s ease;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.subNavItem:hover {
+  background-color: var(--mantine-color-dark-6);
+}
+
+.subNavItem:active {
+  background-color: var(--mantine-color-dark-5);
+}
+
+/* Active state styles */
+.navItem[data-active="true"],
+.subNavItem[data-active="true"] {
+  background-color: var(--mantine-color-blue-9);
+  color: var(--mantine-color-white);
+  position: relative;
+}
+
+.navItem[data-active="true"]::before,
+.subNavItem[data-active="true"]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background-color: var(--mantine-color-blue-4);
+}
+
+/* Touch optimization */
+@media (hover: none) {
+  .navItem,
+  .subNavItem {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+  }
+}

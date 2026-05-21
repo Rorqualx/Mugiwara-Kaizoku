@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Annotation System Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    section {
+      margin-bottom: 40px;
+      padding: 20px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+    }
+    h2 {
+      color: #333;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 10px;
+    }
+    h3 {
+      color: #555;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 10px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f5f5f5;
+    }
+    img {
+      max-width: 200px;
+      margin: 10px;
+      border: 1px solid #ddd;
+    }
+    .nested {
+      padding: 10px;
+      border: 1px dashed #ccc;
+      margin: 5px;
+    }
+    figure {
+      display: inline-block;
+      margin: 10px;
+    }
+    figcaption {
+      text-align: center;
+      font-size: 0.9em;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h1>Annotation System Test Page</h1>
+  <p>This page contains test content for all annotation E2E test scenarios.</p>
+
+  <!-- Test 1: Selection Uniqueness (Dynamic Context Sizing) -->
+  <section id="chapters">
+    <h2>Test 1: Chapter Repetition (Context Sizing)</h2>
+    <p>Tests dynamic context expansion for disambiguating repetitive text.</p>
+
+    <h3>Chapter 1: The Beginning</h3>
+    <p>This is the first chapter of our story.</p>
+
+    <h3>Chapter 10: The Middle</h3>
+    <p>We are now in the middle of the story.</p>
+
+    <h3>Chapter 11: Almost There</h3>
+    <p>Getting closer to the end.</p>
+
+    <h3>Chapter 100: The End</h3>
+    <p>This is where everything concludes.</p>
+
+    <h3>Chapter 1 Revisited</h3>
+    <p>A flashback to Chapter 1 events.</p>
+  </section>
+
+  <!-- Test 2: Word Boundary Detection (Abbreviations) -->
+  <section id="abbreviations">
+    <h2>Test 2: Abbreviations (Word Boundaries)</h2>
+    <p>Tests that abbreviations like "Vol.", "Dr.", etc. are handled correctly.</p>
+
+    <p>Read Vol. 1 first. Dr. Stone is by Dr. Inagaki.</p>
+    <p>See Ch. 5 for details. Mr. Smith met Mrs. Jones at St. Mary's.</p>
+    <p>Published by Inc. Ltd. Corp. in association with Prof. Brown.</p>
+    <p>Gen. Washington and Col. Smith led the troops. Lt. Jones followed.</p>
+    <p>No. 42 is the answer. Pt. 2 continues the story.</p>
+  </section>
+
+  <!-- Test 3: Sentence Boundary Detection -->
+  <section id="ellipsis">
+    <h2>Test 3: Ellipsis (Sentence Boundaries)</h2>
+    <p>Tests that ellipsis (...) doesn't break sentence detection.</p>
+
+    <p>Wait... What happened?</p>
+    <p>I thought... maybe... we could try.</p>
+    <p>He said "Well..." and then paused.</p>
+    <p>The ending was... unexpected!</p>
+    <p>So... what do you think? I wonder...</p>
+  </section>
+
+  <!-- Test 4: Race Conditions (handled in E2E tests) -->
+  <section id="race-conditions">
+    <h2>Test 4: Race Conditions</h2>
+    <p>This section is for testing rapid selection/click interactions.</p>
+
+    <p>Select this text quickly.</p>
+    <p>Then click here rapidly.</p>
+    <p>And drag across this text.</p>
+    <p>Multiple selections should not duplicate.</p>
+    <p>Quick double-clicks should be handled.</p>
+  </section>
+
+  <!-- Test 5: Image URL Matching -->
+  <section id="images">
+    <h2>Test 5: Image URL Matching</h2>
+    <p>Tests that images with version params match to the same base token.</p>
+
+    <figure>
+      <img src="https://via.placeholder.com/150?v=1" alt="Cover Version 1">
+      <figcaption>Version 1</figcaption>
+    </figure>
+    <figure>
+      <img src="https://via.placeholder.com/150?v=2" alt="Cover Version 2">
+      <figcaption>Version 2</figcaption>
+    </figure>
+    <figure>
+      <img src="https://via.placeholder.com/150?v=3&size=large" alt="Cover Version 3">
+      <figcaption>Version 3</figcaption>
+    </figure>
+  </section>
+
+  <!-- Test 6: XPath Stability -->
+  <section id="nested-html">
+    <h2>Test 6: XPath Stability (Nested HTML)</h2>
+    <p>Tests XPath resolution in deeply nested structures.</p>
+
+    <div class="nested" id="outer">
+      <div class="nested" id="middle">
+        <div class="nested" id="inner">
+          <span class="highlight">Deeply nested text here</span>
+        </div>
+      </div>
+    </div>
+
+    <article class="post">
+      <header>
+        <h3>Post Title</h3>
+      </header>
+      <div class="body">
+        <p>First paragraph with <strong>bold <em>and italic</em></strong> text.</p>
+        <p>Second paragraph with <a href="#">a link <span>with nested span</span></a>.</p>
+      </div>
+    </article>
+  </section>
+
+  <!-- CJK Text Testing -->
+  <section id="cjk">
+    <h2>CJK Text (Word Boundaries)</h2>
+    <p>Tests word segmentation in non-Latin scripts.</p>
+
+    <h3>Japanese</h3>
+    <p>One Piece (ワンピース) is a popular manga.</p>
+    <p>ナルトも面白いですね。</p>
+
+    <h3>Chinese</h3>
+    <p>海贼王是一部很好的漫画。</p>
+    <p>这是中文测试文本。</p>
+
+    <h3>Korean</h3>
+    <p>원피스 만화는 인기가 많습니다.</p>
+    <p>한글 테스트입니다.</p>
+
+    <h3>Mixed</h3>
+    <p>Mix of English and 日本語 and 中文 text.</p>
+  </section>
+
+  <!-- Table Testing -->
+  <section id="tables">
+    <h2>Table Selection</h2>
+    <p>Tests column and row selection tools.</p>
+
+    <table id="simple-table">
+      <thead>
+        <tr>
+          <th>Header A</th>
+          <th>Header B</th>
+          <th>Header C</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Cell A1</td>
+          <td>Cell B1</td>
+          <td>Cell C1</td>
+        </tr>
+        <tr>
+          <td>Cell A2</td>
+          <td>Cell B2</td>
+          <td>Cell C2</td>
+        </tr>
+        <tr>
+          <td>Cell A3</td>
+          <td>Cell B3</td>
+          <td>Cell C3</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Manga Info Table</h3>
+    <table id="manga-table">
+      <tr>
+        <th>Title</th>
+        <td>One Piece</td>
+      </tr>
+      <tr>
+        <th>Author</th>
+        <td>Eiichiro Oda</td>
+      </tr>
+      <tr>
+        <th>Volumes</th>
+        <td>105+</td>
+      </tr>
+      <tr>
+        <th>Status</th>
+        <td>Ongoing</td>
+      </tr>
+    </table>
+  </section>
+</body>
+</html>

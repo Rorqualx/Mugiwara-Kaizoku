@@ -1,0 +1,144 @@
+# Bun Configuration for Mugiwara Kaizoku
+#
+# This file configures Bun's behavior for package management, building, and runtime.
+# Optimized for fast development and production builds.
+#
+# Documentation: https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Package installation configuration
+
+# Parallel script execution during install (default: CPU count * 2)
+# Increase for faster installs on multi-core systems
+concurrentScripts = 16
+
+# Use frozen lockfile (like npm ci / yarn install --frozen-lockfile)
+# Set to true in CI to ensure reproducible builds
+frozenLockfile = false  # Enable in CI with: bun install --frozen-lockfile
+
+# Install all dependency types
+optional = true  # Install optionalDependencies
+dev = true       # Install devDependencies
+peer = true      # Install peerDependencies
+production = false  # Set to true for production-only installs
+
+# Dependency resolution strategy
+# - "hoisted": Traditional node_modules structure (default, most compatible)
+# - "hardlink": Symlinks to global cache (faster, less disk space)
+# - "copy": Copy from cache (slowest, most compatible)
+linker = "hoisted"
+
+# Automatically add dependencies to package.json
+# Set to false to require explicit --save flags
+auto = true
+
+# Security: Minimum release age before installing packages
+# Helps prevent supply chain attacks by waiting for new packages to be vetted
+# Time in seconds (e.g., 259200 = 3 days)
+minimumReleaseAge = 0  # Disabled for now, enable in production if needed
+
+# Exact versions for added packages
+# When true: "1.2.3" instead of "^1.2.3"
+exact = false
+
+# Enable global cache
+# All packages stored in ~/.bun/install/cache/ for faster installs
+globalCache = true
+
+[install.cache]
+# Cache configuration
+
+# Cache directory (default: ~/.bun/install/cache/)
+# Uncomment to customize location
+# dir = "~/.bun/install/cache"
+
+# Cache time-to-live in seconds
+# 2592000 = 30 days
+ttl = 2592000
+
+# Disable cache (not recommended, slows installs)
+disable = false
+
+[build]
+# Build configuration for bun build command
+
+# Enable sourcemaps for debugging
+# Options: "none" | "inline" | "external" | "linked"
+sourcemap = "linked"
+
+# Minification (disable in dev, enable in production)
+minify = false
+
+# Target environment
+# Options: "browser" | "bun" | "node"
+target = "bun"
+
+# Output format
+# Options: "esm" | "cjs" | "iife"
+format = "esm"
+
+[test]
+# Testing configuration for bun test
+
+# Test file patterns
+# Default: ["**/*.test.{js,jsx,ts,tsx}", "**/*_test.{js,jsx,ts,tsx}"]
+# Preload Jest compatibility layer for bun test
+preload = ["./tests/setup.ts"]
+
+# Exclude Playwright e2e tests (run via `bunx playwright test` instead)
+exclude = ["tests/e2e/**/*"]
+
+# Coverage configuration
+# coverage = true
+# coverageThreshold = 80
+
+[run]
+# Runtime configuration
+
+# Enable Bun's native module resolution
+# Faster than Node.js resolution
+bunModules = true
+
+# Shell to use for scripts
+# Options: "bun" | "node" | custom path
+shell = "bun"
+
+[define]
+# Define global constants (like Webpack's DefinePlugin)
+# Useful for environment-specific builds
+
+# Example: Define NODE_ENV at build time
+# "process.env.NODE_ENV" = "\"production\""
+
+[loader]
+# Custom file loaders
+# Bun automatically handles: .js, .jsx, .ts, .tsx, .json, .toml, .txt, .node
+
+# Example: Custom loaders for specific file types
+# ".svg" = "text"
+# ".png" = "file"
+
+# [install.scopes]
+# Private registry configuration (if using npm private packages)
+#
+# Example for GitHub Packages:
+# "@myorg" = { url = "https://npm.pkg.github.com", token = "$GITHUB_TOKEN" }
+#
+# Example for npm Enterprise:
+# "@mycompany" = { url = "https://npm.mycompany.com", token = "$NPM_TOKEN" }
+
+# [lockfile]
+# Lockfile configuration
+#
+# Bun uses bun.lockb (binary format) for fast parsing
+# No configuration typically needed, but options available:
+#
+# print = false  # Don't print lockfile changes
+# save = true    # Always save lockfile
+
+# [macros]
+# Macro configuration for build-time code execution
+# Advanced feature for code generation
+#
+# Example:
+# "./my-macro.ts" = { "myMacro" = "MyMacro" }

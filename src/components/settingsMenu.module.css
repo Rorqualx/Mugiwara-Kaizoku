@@ -1,0 +1,26 @@
+/**
+ * CSS Module for Settings Menu Component
+ * 
+ * Provides styling for the settings menu interface elements.
+ * Uses Mantine theme variables for consistent theming and responsive design.
+ *
+ * @module components/settingsMenu.module.css
+ */
+
+/**
+ * Title styling for settings sections
+ * 
+ * Applies consistent typography and spacing to section titles.
+ * Uses Mantine's theme variables for:
+ * - Font size (h3 level heading)
+ * - Spacing (extra small margin)
+ * - Text color (theme-aware)
+ *
+ * @property {string} settings-title - Class name for section titles
+ */
+.settings-title {
+  font-size: var(--mantine-h3-font-size);
+  font-weight: 600;
+  margin-right: var(--mantine-spacing-xs);
+  color: var(--mantine-color-text);
+}

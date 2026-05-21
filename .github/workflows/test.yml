@@ -1,0 +1,111 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  # Setup database first using schema recreation approach
+  setup-database:
+    uses: ./.github/workflows/database-setup.yml
+
+  test:
+    needs: setup-database
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun prisma generate
+
+      # Run TypeScript type checking
+      - name: Type check
+        run: bun run type-check
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      # Run ESLint
+      - name: Lint
+        run: bun run lint
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      # Determine changed files for PR
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v47
+        with:
+          files: |
+            src/**/*.ts
+            src/**/*.tsx
+          files_ignore: |
+            **/*.d.ts
+            **/node_modules/**
+          include_all_old_new_renamed_files: true
+
+      # Run tests for changed files
+      - name: Run tests for changed files
+        if: steps.changed-files.outputs.any_changed == 'true' && github.event_name == 'pull_request'
+        run: |
+          echo "Files changed in this PR:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          
+          # Create array of test files to run
+          TEST_FILES=""
+          
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            # Extract file parts
+            DIR=$(dirname "$file")
+            FILENAME=$(basename "$file" | cut -f 1 -d '.')
+            
+            # Check different possible test locations
+            TEST_LOCATIONS=(
+              "${DIR}/__tests__/${FILENAME}.test.tsx"
+              "${DIR}/__tests__/${FILENAME}.test.ts"
+              "${DIR}/${FILENAME}/__tests__/${FILENAME}.test.tsx"
+              "${DIR}/${FILENAME}/__tests__/${FILENAME}.test.ts"
+            )
+            
+            for test in "${TEST_LOCATIONS[@]}"; do
+              if [ -f "$test" ]; then
+                TEST_FILES="$TEST_FILES $test"
+              fi
+            done
+          done
+          
+          if [ -n "$TEST_FILES" ]; then
+            echo "Running tests for changed files: $TEST_FILES"
+            bun jest $TEST_FILES --ci
+          else
+            echo "No matching test files found for changed files."
+          fi
+
+      # Run all tests for main/develop branches or manual trigger
+      - name: Run all tests
+        if: github.event_name != 'pull_request' || steps.changed-files.outputs.any_changed != 'true'
+        run: bun run test:ci
+
+      # Upload test coverage reports
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # Optional if repo is public
+          file: ./coverage/coverage-final.json
+          fail_ci_if_error: false
+          verbose: true

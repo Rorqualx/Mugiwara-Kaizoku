@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Enhanced Metadata UI</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre { background: #f4f4f4; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Enhanced Metadata UI Test</h1>
+    
+    <div id="status"></div>
+    <div id="results"></div>
+    
+    <script>
+        const statusEl = document.getElementById('status');
+        const resultsEl = document.getElementById('results');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            statusEl.appendChild(div);
+        }
+        
+        async function testEnhancedMetadata() {
+            log('Starting UI enhancement test...');
+            
+            // Step 1: Search for manga
+            log('Searching for "Fire Force" in AniList...');
+            
+            const searchResponse = await fetch('/api/trpc/manga.search?batch=1&input=' + encodeURIComponent(JSON.stringify({
+                "0": { "json": { "source": "anilist", "keyword": "Fire Force" } }
+            })));
+            
+            const searchData = await searchResponse.json();
+            const anilistResult = searchData[0]?.result?.data?.json?.[0];
+            
+            if (!anilistResult) {
+                log('No AniList results found', 'error');
+                return;
+            }
+            
+            log(`Found: ${anilistResult.title}`, 'success');
+            
+            // Step 2: Test enhanced Fandom metadata
+            log('Testing Fandom enhancement...');
+            
+            const fandomSearchResponse = await fetch('/api/trpc/manga.search?batch=1&input=' + encodeURIComponent(JSON.stringify({
+                "0": { "json": { "source": "fandom", "keyword": "Fire Force" } }
+            })));
+            
+            const fandomData = await fandomSearchResponse.json();
+            const fandomResult = fandomData[0]?.result?.data?.json?.[0];
+            
+            if (fandomResult) {
+                log(`Found Fandom: ${fandomResult.title}`, 'success');
+                
+                // Check if enhanced fields are present
+                const hasEnhancedFields = !!(
+                    fandomResult.volumeCovers ||
+                    fandomResult.gallery ||
+                    fandomResult.characterArt ||
+                    fandomResult.themes
+                );
+                
+                if (hasEnhancedFields) {
+                    log('✅ Enhanced Fandom metadata is already present!', 'success');
+                    
+                    const details = {
+                        'Volume Covers': fandomResult.volumeCovers?.length || 0,
+                        'Gallery Images': fandomResult.gallery?.length || 0,
+                        'Character Art': fandomResult.characterArt?.length || 0,
+                        'Themes': fandomResult.themes?.length || 0
+                    };
+                    
+                    resultsEl.innerHTML = '<h3>Enhanced Fandom Fields:</h3><pre>' + 
+                        JSON.stringify(details, null, 2) + '</pre>';
+                } else {
+                    log('⚠️ Basic Fandom metadata only (enhancement needed)', 'error');
+                    
+                    // Try to fetch enhanced metadata
+                    if (fandomResult.wikiUrl || fandomResult.url) {
+                        log('Attempting to fetch enhanced metadata...');
+                        
+                        const enhanceResponse = await fetch('/api/trpc/metadata.fetchEnhancedMangaMetadata', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                json: {
+                                    mangaPageUrl: fandomResult.wikiUrl || fandomResult.url,
+                                    includeGallery: true
+                                }
+                            })
+                        });
+                        
+                        const enhanceData = await enhanceResponse.json();
+                        
+                        if (enhanceData.result?.data?.json) {
+                            log('✅ Successfully fetched enhanced metadata!', 'success');
+                            
+                            const enhanced = enhanceData.result.data.json;
+                            const details = {
+                                'Volume Covers': enhanced.coverArt?.volumeCovers?.length || 0,
+                                'Gallery Images': enhanced.coverArt?.gallery?.length || 0,
+                                'Character Art': enhanced.coverArt?.characterArt?.length || 0,
+                                'Descriptions': enhanced.descriptions?.length || 0
+                            };
+                            
+                            resultsEl.innerHTML += '<h3>Fetched Enhanced Fields:</h3><pre>' + 
+                                JSON.stringify(details, null, 2) + '</pre>';
+                        } else {
+                            log('❌ Failed to fetch enhanced metadata', 'error');
+                        }
+                    }
+                }
+            } else {
+                log('No Fandom results found', 'error');
+            }
+            
+            log('Test complete!', 'info');
+        }
+        
+        // Run test on load
+        testEnhancedMetadata().catch(error => {
+            log(`Error: ${error.message}`, 'error');
+        });
+    </script>
+</body>
+</html>

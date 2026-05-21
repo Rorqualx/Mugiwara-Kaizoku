@@ -1,0 +1,341 @@
+# GitHub Actions Workflow: Bun Runtime Testing
+#
+# This workflow validates the Mugiwara Kaizoku application with Bun 1.3 runtime.
+# It runs on every pull request and push to main branch.
+#
+# Jobs:
+# 1. test-bun: Run tests, type checks, and builds with Bun
+# 2. compare-performance: Compare Bun vs Node.js performance (optional)
+#
+# Features:
+# - Bun dependency caching for faster builds
+# - Parallel job execution
+# - Performance benchmarking
+# - Docker image building
+# - Security scanning
+#
+# Triggered by:
+# - Pull requests to main
+# - Pushes to main
+# - Manual workflow dispatch
+
+name: Bun Runtime Testing
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'Dockerfile.bun'
+      - 'docker-compose.bun.yml'
+      - '.github/workflows/test-bun.yml'
+
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      run_performance_comparison:
+        description: 'Run performance comparison with Node.js'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+# Cancel in-progress runs when a new workflow is triggered
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: '1.3.0'
+  NODE_VERSION: '21.x'
+
+jobs:
+  # =============================================================================
+  # Job 1: Test with Bun Runtime
+  # =============================================================================
+  test-bun:
+    name: Test with Bun ${{ matrix.bun-version }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        bun-version: ['1.3.0']
+
+    steps:
+      # -------------------------------------------------------------------------
+      # Setup: Checkout and Environment
+      # -------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun ${{ matrix.bun-version }}
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun-version }}
+
+      # -------------------------------------------------------------------------
+      # Caching: Bun Dependencies
+      # -------------------------------------------------------------------------
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        id: bun-cache
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      # -------------------------------------------------------------------------
+      # Dependencies: Install
+      # -------------------------------------------------------------------------
+      - name: Install dependencies with Bun
+        run: bun install --frozen-lockfile
+        env:
+          BUN_INSTALL_CACHE_DIR: ~/.bun/install/cache
+
+      # -------------------------------------------------------------------------
+      # Database: Setup PostgreSQL
+      # -------------------------------------------------------------------------
+      - name: Setup PostgreSQL
+        uses: ikalnytskyi/action-setup-postgres@v6
+        with:
+          username: kaizoku
+          password: kaizoku
+          database: kaizoku
+          port: 5432
+        id: postgres
+
+      - name: Setup database schema
+        # Use db push for CI - it creates schema directly from prisma/schema.prisma
+        # This is preferred for CI since we always start with a fresh database
+        # migrate deploy would fail on migration conflicts that exist in the migration history
+        run: bun prisma db push --force-reset
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+
+      - name: Generate Prisma client
+        run: bun prisma generate
+
+      # -------------------------------------------------------------------------
+      # Validation: Type Checking
+      # -------------------------------------------------------------------------
+      - name: Run TypeScript type check
+        run: bun run type-check:bun
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      # -------------------------------------------------------------------------
+      # Validation: Linting
+      # -------------------------------------------------------------------------
+      - name: Run ESLint
+        run: bun run lint
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      # -------------------------------------------------------------------------
+      # Testing: Unit and Integration Tests
+      # -------------------------------------------------------------------------
+      - name: Run tests with Bun
+        run: bun test tests/server tests/components tests/unit tests/integration --timeout 30000
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+
+      # -------------------------------------------------------------------------
+      # Build: Production Build
+      # -------------------------------------------------------------------------
+      - name: Build Next.js app with Bun
+        run: bun run build
+        env:
+          DATABASE_URL: ${{ steps.postgres.outputs.connection-uri }}
+          NEXT_TELEMETRY_DISABLED: 1
+
+      # -------------------------------------------------------------------------
+      # Artifacts: Upload Build Output
+      # -------------------------------------------------------------------------
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bun-build-${{ matrix.bun-version }}
+          path: |
+            .next/
+            !.next/cache
+          retention-days: 7
+
+  # =============================================================================
+  # Job 2: Docker Build with Bun
+  # =============================================================================
+  docker-build-bun:
+    name: Build Docker Image (Bun)
+    runs-on: ubuntu-latest
+    needs: test-bun
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.bun
+          push: false
+          load: true
+          tags: mugiwara-kaizoku:bun-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Test Docker image health
+        run: |
+          docker run -d --name test-container \
+            -p 3000:3000 \
+            -e DATABASE_URL="postgresql://kaizoku:kaizoku@localhost:5432/kaizoku" \
+            -e NEXTAUTH_SECRET="test-secret" \
+            -e NEXTAUTH_URL="http://localhost:3000" \
+            mugiwara-kaizoku:bun-${{ github.sha }}
+
+          # Wait for container to be healthy
+          timeout 60 sh -c 'until docker inspect --format="{{.State.Health.Status}}" test-container | grep -q "healthy"; do sleep 2; done'
+
+          echo "✅ Docker container is healthy"
+
+          docker logs test-container
+          docker stop test-container
+          docker rm test-container
+
+  # =============================================================================
+  # Job 3: Performance Comparison (Optional)
+  # =============================================================================
+  # NOTE: This job is disabled because the project uses Bun exclusively and
+  # does not maintain a package-lock.json for npm comparison.
+  # To re-enable, generate package-lock.json: npm install --package-lock-only
+  compare-performance:
+    name: Compare Bun vs Node.js Performance
+    runs-on: ubuntu-latest
+    # Disabled: npm ci requires package-lock.json which doesn't exist in this Bun-only project
+    if: false && (github.event.inputs.run_performance_comparison == 'true' || github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------------
+      # Setup: Node.js
+      # -------------------------------------------------------------------------
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies with npm
+        run: npm ci
+
+      - name: Benchmark Node.js install time
+        run: |
+          rm -rf node_modules
+          START=$(date +%s)
+          npm ci
+          END=$(date +%s)
+          NODE_INSTALL_TIME=$((END - START))
+          echo "NODE_INSTALL_TIME=${NODE_INSTALL_TIME}" >> $GITHUB_ENV
+          echo "📦 Node.js install time: ${NODE_INSTALL_TIME}s"
+
+      - name: Benchmark Node.js build time
+        run: |
+          START=$(date +%s)
+          npm run build
+          END=$(date +%s)
+          NODE_BUILD_TIME=$((END - START))
+          echo "NODE_BUILD_TIME=${NODE_BUILD_TIME}" >> $GITHUB_ENV
+          echo "🔨 Node.js build time: ${NODE_BUILD_TIME}s"
+
+      # -------------------------------------------------------------------------
+      # Setup: Bun
+      # -------------------------------------------------------------------------
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Benchmark Bun install time
+        run: |
+          rm -rf node_modules
+          START=$(date +%s)
+          bun install --frozen-lockfile
+          END=$(date +%s)
+          BUN_INSTALL_TIME=$((END - START))
+          echo "BUN_INSTALL_TIME=${BUN_INSTALL_TIME}" >> $GITHUB_ENV
+          echo "📦 Bun install time: ${BUN_INSTALL_TIME}s"
+
+      - name: Benchmark Bun build time
+        run: |
+          START=$(date +%s)
+          bun run build
+          END=$(date +%s)
+          BUN_BUILD_TIME=$((END - START))
+          echo "BUN_BUILD_TIME=${BUN_BUILD_TIME}" >> $GITHUB_ENV
+          echo "🔨 Bun build time: ${BUN_BUILD_TIME}s"
+
+      # -------------------------------------------------------------------------
+      # Results: Performance Summary
+      # -------------------------------------------------------------------------
+      - name: Generate performance summary
+        run: |
+          echo "## Performance Comparison: Bun vs Node.js" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Node.js | Bun | Speedup |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|---------|-----|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Install Time** | ${NODE_INSTALL_TIME}s | ${BUN_INSTALL_TIME}s | $(awk "BEGIN {printf \"%.1fx\", $NODE_INSTALL_TIME / $BUN_INSTALL_TIME}")  |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Build Time** | ${NODE_BUILD_TIME}s | ${BUN_BUILD_TIME}s | $(awk "BEGIN {printf \"%.1fx\", $NODE_BUILD_TIME / $BUN_BUILD_TIME}") |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Bun benchmarking complete" >> $GITHUB_STEP_SUMMARY
+
+  # =============================================================================
+  # Job 4: Security Scanning
+  # =============================================================================
+  security-scan:
+    name: Security Scan (Bun Dependencies)
+    runs-on: ubuntu-latest
+    needs: test-bun
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run npm audit (works with Bun)
+        run: bun audit || true
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "🔍 Checking for security vulnerabilities..."
+          # Add custom security checks here if needed

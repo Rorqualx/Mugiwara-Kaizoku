@@ -1,0 +1,1203 @@
+{
+  "generatedAt": "2025-11-08T04:20:21.735Z",
+  "agent": "Volume & Chapter Specialist",
+  "priority": "P0",
+  "totalFiles": 4,
+  "totalViolations": 195,
+  "files": [
+    {
+      "file": "src/components/volumeChaptersTable.tsx",
+      "count": 131,
+      "violations": [
+        {
+          "line": 417,
+          "column": 46,
+          "message": "Unsafe member access .importProfile on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 418,
+          "column": 28,
+          "message": "Unsafe member access .chapterSource on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 419,
+          "column": 34,
+          "message": "Unsafe member access .chapterSource on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 421,
+          "column": 28,
+          "message": "Unsafe member access .primarySource on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 422,
+          "column": 34,
+          "message": "Unsafe member access .primarySource on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 442,
+          "column": 43,
+          "message": "Unsafe member access .toLowerCase on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 447,
+          "column": 47,
+          "message": "Unsafe member access [`${sourceKey}_chapters`] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 451,
+          "column": 34,
+          "message": "Unsafe member access [\"chapters\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 453,
+          "column": 22,
+          "message": "Unsafe member access .forEach on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 463,
+          "column": 43,
+          "message": "Unsafe member access [sourceKey] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 463,
+          "column": 43,
+          "message": "Computed name [sourceKey] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 490,
+          "column": 28,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 491,
+          "column": 28,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 497,
+          "column": 28,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 498,
+          "column": 28,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 567,
+          "column": 42,
+          "message": "Unsafe member access .importProfile on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 579,
+          "column": 42,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 580,
+          "column": 41,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 581,
+          "column": 41,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 589,
+          "column": 57,
+          "message": "Unsafe member access .volumeTitle on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 589,
+          "column": 79,
+          "message": "Unsafe member access [\"name\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 589,
+          "column": 99,
+          "message": "Unsafe member access .issue_number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 589,
+          "column": 121,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 589,
+          "column": 144,
+          "message": "Unsafe member access [\"name\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 590,
+          "column": 62,
+          "message": "Unsafe member access .coverImage on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 590,
+          "column": 82,
+          "message": "Unsafe member access .image on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 590,
+          "column": 109,
+          "message": "Unsafe member access .image on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 590,
+          "column": 136,
+          "message": "Unsafe member access .image on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 591,
+          "column": 48,
+          "message": "Unsafe member access .volumeSummary on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 591,
+          "column": 71,
+          "message": "Unsafe member access [\"description\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 591,
+          "column": 95,
+          "message": "Unsafe member access .deck on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 592,
+          "column": 48,
+          "message": "Unsafe member access .cover_date on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 592,
+          "column": 68,
+          "message": "Unsafe member access .releaseDate on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 593,
+          "column": 46,
+          "message": "Unsafe member access .store_date on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 593,
+          "column": 66,
+          "message": "Unsafe member access .storeDate on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 594,
+          "column": 48,
+          "message": "Unsafe member access .issue_number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 594,
+          "column": 70,
+          "message": "Unsafe member access .issueNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 595,
+          "column": 46,
+          "message": "Unsafe member access .site_detail_url on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 595,
+          "column": 71,
+          "message": "Unsafe member access .sourceUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 597,
+          "column": 43,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 597,
+          "column": 55,
+          "message": "Unsafe member access .chapterNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 597,
+          "column": 75,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 598,
+          "column": 43,
+          "message": "Unsafe member access .title on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 598,
+          "column": 55,
+          "message": "Unsafe member access .name on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 598,
+          "column": 77,
+          "message": "Unsafe member access .chapterNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 598,
+          "column": 97,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 599,
+          "column": 45,
+          "message": "Unsafe member access .chapterNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 599,
+          "column": 65,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 599,
+          "column": 84,
+          "message": "Unsafe member access .toString on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 624,
+          "column": 31,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 624,
+          "column": 43,
+          "message": "Unsafe member access .chapterNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 624,
+          "column": 63,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 625,
+          "column": 31,
+          "message": "Unsafe member access .title on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 625,
+          "column": 43,
+          "message": "Unsafe member access .name on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 625,
+          "column": 65,
+          "message": "Unsafe member access .chapterNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 625,
+          "column": 85,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 626,
+          "column": 33,
+          "message": "Unsafe member access .chapterNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 626,
+          "column": 53,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 626,
+          "column": 72,
+          "message": "Unsafe member access .toString on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 652,
+          "column": 27,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 653,
+          "column": 41,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 655,
+          "column": 28,
+          "message": "Unsafe member access [issueIndex] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 656,
+          "column": 42,
+          "message": "Unsafe member access [issueIndex] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 659,
+          "column": 54,
+          "message": "Unsafe member access [\"name\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 659,
+          "column": 74,
+          "message": "Unsafe member access .issue_number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 659,
+          "column": 97,
+          "message": "Unsafe member access [\"name\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 660,
+          "column": 58,
+          "message": "Unsafe member access .image on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 660,
+          "column": 85,
+          "message": "Unsafe member access .image on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 660,
+          "column": 112,
+          "message": "Unsafe member access .image on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 661,
+          "column": 44,
+          "message": "Unsafe member access [\"description\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 661,
+          "column": 68,
+          "message": "Unsafe member access .deck on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 662,
+          "column": 44,
+          "message": "Unsafe member access .cover_date on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 663,
+          "column": 42,
+          "message": "Unsafe member access .store_date on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 664,
+          "column": 44,
+          "message": "Unsafe member access .issue_number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 665,
+          "column": 42,
+          "message": "Unsafe member access .site_detail_url on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 676,
+          "column": 47,
+          "message": "Unsafe member access .toLowerCase on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 677,
+          "column": 45,
+          "message": "Unsafe member access [`${sourceKey}_volumes`] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 678,
+          "column": 43,
+          "message": "Unsafe member access [sourceKey] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 678,
+          "column": 43,
+          "message": "Computed name [sourceKey] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 679,
+          "column": 43,
+          "message": "Unsafe member access [sourceKey] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 679,
+          "column": 43,
+          "message": "Computed name [sourceKey] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 716,
+          "column": 27,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 717,
+          "column": 45,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 718,
+          "column": 51,
+          "message": "Unsafe member access .find on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1295,
+          "column": 34,
+          "message": "Unsafe member access .chapterRow on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1546,
+          "column": 39,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1547,
+          "column": 40,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1548,
+          "column": 44,
+          "message": "Unsafe member access .volumeCovers on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1549,
+          "column": 45,
+          "message": "Unsafe member access .volumeCovers on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1588,
+          "column": 31,
+          "message": "Unsafe member access .anilist on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1590,
+          "column": 31,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1590,
+          "column": 54,
+          "message": "Unsafe member access .comicvine_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1592,
+          "column": 31,
+          "message": "Unsafe member access .fandom on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1592,
+          "column": 51,
+          "message": "Unsafe member access .fandom_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1592,
+          "column": 79,
+          "message": "Unsafe member access .fandom_selected on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1594,
+          "column": 31,
+          "message": "Unsafe member access .wikipedia on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1594,
+          "column": 54,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1616,
+          "column": 29,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1616,
+          "column": 62,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1616,
+          "column": 82,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1618,
+          "column": 29,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1619,
+          "column": 50,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1619,
+          "column": 70,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1622,
+          "column": 49,
+          "message": "Unsafe member access .volumeTitle on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1622,
+          "column": 68,
+          "message": "Unsafe member access .title on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1622,
+          "column": 81,
+          "message": "Unsafe member access .name on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1622,
+          "column": 93,
+          "message": "Unsafe member access .volumeName on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1625,
+          "column": 45,
+          "message": "Computed name [volumeNumber] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1650,
+          "column": 51,
+          "message": "Unsafe member access .comicvine on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1651,
+          "column": 31,
+          "message": "Unsafe member access .comicvine_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1652,
+          "column": 31,
+          "message": "Unsafe member access .comicvine_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1655,
+          "column": 57,
+          "message": "Unsafe member access .length on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1656,
+          "column": 55,
+          "message": "Unsafe member access [i] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1657,
+          "column": 49,
+          "message": "Unsafe member access [\"name\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1657,
+          "column": 66,
+          "message": "Unsafe member access [\"title\"] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1658,
+          "column": 51,
+          "message": "Unsafe member access .issue_number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1658,
+          "column": 73,
+          "message": "Unsafe member access .issueNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1669,
+          "column": 61,
+          "message": "Unsafe member access .fandom_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1671,
+          "column": 62,
+          "message": "Unsafe member access .fandom_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1672,
+          "column": 30,
+          "message": "Unsafe member access .fandom_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1673,
+          "column": 30,
+          "message": "Unsafe member access .fandom_volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1674,
+          "column": 56,
+          "message": "Unsafe member access .some on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1679,
+          "column": 35,
+          "message": "Unsafe member access .filter on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1684,
+          "column": 34,
+          "message": "Unsafe member access .forEach on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1693,
+          "column": 64,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1695,
+          "column": 45,
+          "message": "Unsafe member access .wikipedia_chapters on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1696,
+          "column": 28,
+          "message": "Unsafe member access .forEach on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1704,
+          "column": 62,
+          "message": "Unsafe member access .anilist on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1705,
+          "column": 47,
+          "message": "Unsafe member access .anilist on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1929,
+          "column": 112,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 1929,
+          "column": 130,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        }
+      ]
+    },
+    {
+      "file": "src/components/manga/ResponsiveChapterList.tsx",
+      "count": 48,
+      "violations": [
+        {
+          "line": 51,
+          "column": 58,
+          "message": "Unsafe member access .importProfile on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 52,
+          "column": 52,
+          "message": "Unsafe member access .chapterSource on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 52,
+          "column": 84,
+          "message": "Unsafe member access .primarySource on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 60,
+          "column": 62,
+          "message": "Unsafe member access .Chapter on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 69,
+          "column": 66,
+          "message": "Unsafe member access [sourceKey] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 70,
+          "column": 65,
+          "message": "Unsafe member access [sourceKey.toUpperCase()] on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 78,
+          "column": 50,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 78,
+          "column": 73,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 79,
+          "column": 52,
+          "message": "Unsafe member access .title on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 79,
+          "column": 68,
+          "message": "Unsafe member access .volumeTitle on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 79,
+          "column": 90,
+          "message": "Unsafe member access .name on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 79,
+          "column": 105,
+          "message": "Unsafe member access .volumeName on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 82,
+          "column": 42,
+          "message": "Computed name [volumeNum] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 86,
+          "column": 49,
+          "message": "Unsafe member access .coverImageUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 86,
+          "column": 73,
+          "message": "Unsafe member access .coverUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 86,
+          "column": 92,
+          "message": "Unsafe member access .cover on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 88,
+          "column": 42,
+          "message": "Computed name [volumeNum] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 106,
+          "column": 25,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 106,
+          "column": 58,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 107,
+          "column": 46,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 110,
+          "column": 25,
+          "message": "Unsafe member access .volumes on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 111,
+          "column": 46,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 111,
+          "column": 69,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 112,
+          "column": 48,
+          "message": "Unsafe member access .volumeTitle on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 112,
+          "column": 70,
+          "message": "Unsafe member access .title on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 112,
+          "column": 86,
+          "message": "Unsafe member access .name on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 112,
+          "column": 101,
+          "message": "Unsafe member access .volumeName on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 115,
+          "column": 38,
+          "message": "Computed name [volumeNum] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 121,
+          "column": 25,
+          "message": "Unsafe member access .volumeCovers on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 121,
+          "column": 63,
+          "message": "Unsafe member access .volumeCovers on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 122,
+          "column": 25,
+          "message": "Unsafe member access .volumeCovers on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 123,
+          "column": 45,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 123,
+          "column": 67,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 124,
+          "column": 44,
+          "message": "Unsafe member access .url on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 124,
+          "column": 57,
+          "message": "Unsafe member access .coverUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 124,
+          "column": 75,
+          "message": "Unsafe member access .coverImageUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 127,
+          "column": 38,
+          "message": "Computed name [volumeNum] resolves to an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 143,
+          "column": 29,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 143,
+          "column": 60,
+          "message": "Unsafe member access .releaseDate on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 144,
+          "column": 48,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 144,
+          "column": 63,
+          "message": "Unsafe member access .releaseDate on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 150,
+          "column": 28,
+          "message": "Unsafe member access .Chapter on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 150,
+          "column": 60,
+          "message": "Unsafe member access .Chapter on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 151,
+          "column": 28,
+          "message": "Unsafe member access .Chapter on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 153,
+          "column": 37,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 153,
+          "column": 87,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 154,
+          "column": 37,
+          "message": "Unsafe member access .releaseDate on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 154,
+          "column": 78,
+          "message": "Unsafe member access .index on an `any` value.",
+          "severity": 2
+        }
+      ]
+    },
+    {
+      "file": "src/components/manga/VolumeDetailModal.tsx",
+      "count": 8,
+      "violations": [
+        {
+          "line": 159,
+          "column": 68,
+          "message": "Unsafe member access .transmission on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 162,
+          "column": 68,
+          "message": "Unsafe member access .deluge on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 165,
+          "column": 68,
+          "message": "Unsafe member access .qbittorrent on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 168,
+          "column": 68,
+          "message": "Unsafe member access .nzbget on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 189,
+          "column": 63,
+          "message": "Unsafe member access .includes on an `error` typed value.",
+          "severity": 2
+        },
+        {
+          "line": 306,
+          "column": 31,
+          "message": "Unsafe member access .guid on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 309,
+          "column": 49,
+          "message": "Unsafe member access .protocol on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 313,
+          "column": 26,
+          "message": "Unsafe member access .guid on an `any` value.",
+          "severity": 2
+        }
+      ]
+    },
+    {
+      "file": "src/components/virtualizedVolumeList.tsx",
+      "count": 8,
+      "violations": [
+        {
+          "line": 171,
+          "column": 16,
+          "message": "Unsafe member access .volumeNumber on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 171,
+          "column": 52,
+          "message": "Unsafe member access .number on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 188,
+          "column": 51,
+          "message": "Unsafe member access .title on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 188,
+          "column": 79,
+          "message": "Unsafe member access .name on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 188,
+          "column": 106,
+          "message": "Unsafe member access .volumeName on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 189,
+          "column": 51,
+          "message": "Unsafe member access .coverImageUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 189,
+          "column": 87,
+          "message": "Unsafe member access .coverUrl on an `any` value.",
+          "severity": 2
+        },
+        {
+          "line": 189,
+          "column": 118,
+          "message": "Unsafe member access .cover on an `any` value.",
+          "severity": 2
+        }
+      ]
+    }
+  ]
+}

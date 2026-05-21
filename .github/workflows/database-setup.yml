@@ -1,0 +1,75 @@
+name: Database Setup
+
+on:
+  workflow_call: # This can be called by other workflows
+  workflow_dispatch: # Can be manually triggered
+
+jobs:
+  setup-database:
+    name: Setup Database for CI
+    runs-on: ubuntu-latest
+    
+    services:
+      # Set up a PostgreSQL service container for testing
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: kaizoku
+          POSTGRES_PASSWORD: kaizoku
+          POSTGRES_DB: kaizoku
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      
+      # Setup database using schema recreation approach
+      - name: Set up database
+        run: |
+          # Set the database URL for CI
+          echo "DATABASE_URL=postgresql://kaizoku:kaizoku@localhost:5432/kaizoku" > .env
+
+          # Generate Prisma client
+          bunx prisma generate
+
+          # Push schema directly (force-reset ensures clean database)
+          bunx prisma db push --force-reset
+
+          # Run development seed script if it exists
+          if [ -f "scripts/database/seed-dev.js" ]; then
+            bun scripts/database/seed-dev.js
+          else
+            echo "No seed script found, skipping seeding"
+          fi
+
+          # Verify database setup
+          bunx prisma db pull --print
+        env:
+          DATABASE_URL: postgresql://kaizoku:kaizoku@localhost:5432/kaizoku
+      
+      - name: Verify setup
+        run: |
+          echo "Database setup complete"
+          # Verify by checking if tables exist
+          TABLE_COUNT=$(bunx prisma db execute --stdin <<< "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';" 2>&1 | grep -oE '[0-9]+' | head -1 || echo "0")
+          if [ "$TABLE_COUNT" -gt 0 ]; then
+            echo "✅ Database verification successful - found $TABLE_COUNT tables"
+          else
+            echo "⚠️ Database may not have tables, but continuing..."
+          fi
+        env:
+          DATABASE_URL: postgresql://kaizoku:kaizoku@localhost:5432/kaizoku

@@ -1,0 +1,66 @@
+/**
+ * CSS Module for the Add Manga Steps Components
+ * 
+ * This module provides styling for the multi-step form used in the manga addition workflow.
+ * Uses Mantine's CSS variables for consistent theming and spacing across the application.
+ * Implements a fixed-position button group pattern for improved user experience.
+ * 
+ * @module components/addManga/steps/steps.module.css
+ * @see components/addManga/steps/steps.module.css.d.ts for TypeScript definitions
+ */
+
+/**
+ * Wrapper class for the entire steps component
+ * 
+ * Provides consistent margin around the component using Mantine's spacing scale.
+ * Creates visual separation between the steps form and surrounding content.
+ *
+ * @property {string} wrapper - Class name for the outer container
+ */
+.wrapper {
+  margin: var(--mantine-spacing-xl);
+}
+
+/**
+ * Root class for the steps component
+ * 
+ * Ensures the component grows to fill available vertical space using flexbox.
+ * This allows the content to expand appropriately within its container.
+ *
+ * @property {string} root - Class name for the root element
+ */
+.root {
+  flex-grow: 1;
+}
+
+/**
+ * Content class for the main content area of each step
+ * 
+ * Applies consistent vertical margins using Mantine's spacing scale.
+ * Creates visual rhythm and separation between different sections of the form.
+ *
+ * @property {string} content - Class name for the content container
+ */
+.content {
+  margin-top: var(--mantine-spacing-xl);
+  margin-bottom: var(--mantine-spacing-xl);
+}
+
+/**
+ * Button group class for the navigation buttons
+ * 
+ * Fixed positioning at the bottom of the screen ensures consistent button placement.
+ * Uses Mantine's color variables for theme-aware background color.
+ * Maintains accessibility by keeping navigation controls always visible.
+ *
+ * @property {string} buttonGroup - Class name for the button container
+ * @see Mantine's color system documentation for color variable usage
+ */
+.buttonGroup {
+  position: fixed;
+  bottom: 19px;
+  right: 55px;
+  width: calc(100% - 55px);
+  height: 50px;
+  background-color: var(--mantine-color-white);
+}

@@ -1,0 +1,583 @@
+{
+  "summary": {
+    "iterationNumber": 1,
+    "timestamp": "2026-01-25T18:20:25.602Z",
+    "totalPages": 2,
+    "successCount": 0,
+    "successRate": 0,
+    "avgPrecision": 0,
+    "avgRecall": 0,
+    "avgF1": 0,
+    "topErrors": [
+      {
+        "category": "NO_CONTENT",
+        "count": 1
+      },
+      {
+        "category": "PARSER_SELECTION_FAILED",
+        "count": 1
+      }
+    ],
+    "durationMs": 5956
+  },
+  "result": {
+    "iterationNumber": 1,
+    "timestamp": "2026-01-25T18:20:25.602Z",
+    "durationMs": 5956,
+    "targetMet": false,
+    "metrics": {
+      "totalAttempts": 2,
+      "successfulAttempts": 0,
+      "avgPrecision": 0,
+      "avgRecall": 0,
+      "avgF1": 0,
+      "microPrecision": 0,
+      "microRecall": 0,
+      "microF1": 0,
+      "byEntityType": {}
+    },
+    "failures": {
+      "totalFailures": 2,
+      "byCategory": {
+        "PARSER_SELECTION_FAILED": {
+          "count": 1,
+          "percentage": 50,
+          "examples": [
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            }
+          ]
+        },
+        "STRUCTURE_NOT_RECOGNIZED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "ENTITY_EXTRACTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PATTERN_MISMATCH": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "CONFIDENCE_TOO_LOW": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "FETCH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "GROUND_TRUTH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PARSE_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "NO_CONTENT": {
+          "count": 1,
+          "percentage": 50,
+          "examples": [
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            }
+          ]
+        },
+        "TIMEOUT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "UNKNOWN": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        }
+      },
+      "commonPatterns": [],
+      "failedPageIds": [
+        "85821-fandom-VOLUMES",
+        "101583-fandom-CHAPTERS"
+      ]
+    },
+    "suggestions": [
+      {
+        "id": "suggestion-1",
+        "category": "parser",
+        "title": "Improve Parser Selection",
+        "description": "Review static analyzer recommendations and parser matching logic",
+        "expectedImpact": 0.4,
+        "relatedErrors": [
+          "PARSER_SELECTION_FAILED"
+        ],
+        "affectedPageCount": 1,
+        "priority": "critical"
+      },
+      {
+        "id": "suggestion-2",
+        "category": "structure",
+        "title": "Filter Non-Content Pages",
+        "description": "Add detection for pages without extractable content",
+        "expectedImpact": 0.4,
+        "relatedErrors": [
+          "NO_CONTENT"
+        ],
+        "affectedPageCount": 1,
+        "priority": "critical"
+      }
+    ],
+    "attempts": [
+      {
+        "page": {
+          "id": "85821-fandom-VOLUMES",
+          "title": "Sukedachi Nine",
+          "anilistId": 85821,
+          "source": "fandom",
+          "url": "https://sukedachi-nine.fandom.com/wiki/Category:Volumes",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://sukedachi-nine.fandom.com/wiki/Sukedachi%20Nine%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "5",
+            "normalizedValue": "5",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 4",
+            "normalizedValue": "volume 4",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 5",
+            "normalizedValue": "volume 5",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "115",
+            "normalizedValue": "115",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              147
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              23
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "18",
+            "normalizedValue": "18",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              25
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              233,
+              234,
+              235,
+              236,
+              237,
+              238,
+              239,
+              240,
+              241
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Sukedachi 09",
+            "normalizedValue": "sukedachi 09",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "SUKEDACHI NINE",
+            "normalizedValue": "sukedachi nine",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "助太刀09",
+            "normalizedValue": "09",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Seishi Kishimoto",
+            "normalizedValue": "seishi kishimoto",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "5",
+            "normalizedValue": "5",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "25",
+            "normalizedValue": "25",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Psychological",
+            "normalizedValue": "psychological",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Sci-Fi",
+            "normalizedValue": "sci-fi",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Growing murder rates have forced the Japanese government to resurrect a Meiji-era penal code called \"Death by Retaliation,\" allowing criminals to be executed in the same way their victims were killed.",
+            "normalizedValue": "growing murder rates have forced the japanese government to resurrect a meiji-era penal code called death by retaliation allowing criminals to be executed in the same way their victims were killed",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2014",
+            "normalizedValue": "2014",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/55821-6TByN4WAYF8d.png",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/55821-6TByN4WAYF8d.png",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.09090909090909091,
+          "recall": 0.06666666666666667,
+          "f1": 0.07692307692307691,
+          "truePositives": 1,
+          "falsePositives": 10,
+          "falseNegatives": 14
+        },
+        "durationMs": 1435
+      },
+      {
+        "page": {
+          "id": "101583-fandom-CHAPTERS",
+          "title": "My Dress-Up Darling",
+          "anilistId": 101583,
+          "source": "fandom",
+          "url": "https://sono-bisque-doll-wa-koi-wo-suru.fandom.com/wiki/Episodes",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://mydressupdarling.fandom.com/wiki/My_Dress-Up_Darling_Original_Soundtrack_Vol._2"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "93",
+            "normalizedValue": "93",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "TITLE",
+            "value": "Episodes",
+            "normalizedValue": "episodes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              30
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "This is a list of episodes in the My Dress-Up Darling anime.",
+            "normalizedValue": "this is a list of episodes in the my dress-up darling anime",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              291,
+              292,
+              293,
+              294,
+              295,
+              296,
+              297,
+              298,
+              299,
+              300,
+              301,
+              302
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Episodes",
+            "normalizedValue": "episodes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              30
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              29
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              693
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Episodes",
+            "normalizedValue": "episodes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              30
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              29
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Sono Bisque Doll wa Koi wo Suru",
+            "normalizedValue": "sono bisque doll wa koi wo suru",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "My Dress-Up Darling",
+            "normalizedValue": "my dress-up darling",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "その着せ替え人形は恋をする",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Shinichi Fukuda",
+            "normalizedValue": "shinichi fukuda",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "15",
+            "normalizedValue": "15",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "119",
+            "normalizedValue": "119",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Slice of Life",
+            "normalizedValue": "slice of life",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Traumatized by a childhood incident with a friend who took exception to his love of traditional dolls, doll-artisan hopeful Gojou Wakana passes his days as a loner, finding solace in the home ec room ",
+            "normalizedValue": "traumatized by a childhood incident with a friend who took exception to his love of traditional dolls doll-artisan hopeful gojou wakana passes his days as a loner finding solace in the home ec room",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2018",
+            "normalizedValue": "2018",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx101583-VI1PT2QGGT8W.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx101583-VI1PT2QGGT8W.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.09090909090909091,
+          "recall": 0.06666666666666667,
+          "f1": 0.07692307692307691,
+          "truePositives": 1,
+          "falsePositives": 10,
+          "falseNegatives": 14
+        },
+        "durationMs": 4503
+      }
+    ]
+  }
+}

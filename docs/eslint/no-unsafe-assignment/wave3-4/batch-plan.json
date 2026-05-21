@@ -1,0 +1,930 @@
+{
+  "wave": "3-4",
+  "title": "JSON Operations & Function Typing",
+  "totalBatches": 52,
+  "estimatedHours": 26,
+  "status": "ready",
+  "batches": [
+    {
+      "id": "3.0.1",
+      "wave": 3,
+      "name": "Schema Setup - Create Wrapper Utilities",
+      "status": "pending",
+      "priority": "critical",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": [],
+      "tasks": [
+        "Create src/utils/json-parser.ts with wrapper functions",
+        "Create DEFAULT_MONITORING_CONFIG constant",
+        "Create DEFAULT_PROVIDER_METADATA constant",
+        "Add JSDoc documentation",
+        "Export from src/utils/index.ts"
+      ],
+      "validation": [
+        "Type check passes",
+        "Lint passes",
+        "No new errors"
+      ],
+      "files": [
+        "src/utils/json-parser.ts"
+      ]
+    },
+    {
+      "id": "3.1.1",
+      "wave": 3,
+      "name": "JSON.parse - MonitoringConfig",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 90,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 25,
+      "pattern": "JSON.parse(manga.monitoringConfig)",
+      "schema": "MonitoringConfigSchema",
+      "tasks": [
+        "Replace inline JSON.parse with parseMonitoringConfigFromDB()",
+        "Add error handling with fallback to DEFAULT_MONITORING_CONFIG",
+        "Update type annotations"
+      ],
+      "files": [
+        "src/pages/manga/[id].tsx",
+        "src/server/trpc/routers/library.ts",
+        "src/server/trpc/routers/manga.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -25 violations",
+        "Tests: All passing",
+        "Manual: Load manga detail page"
+      ]
+    },
+    {
+      "id": "3.1.2",
+      "wave": 3,
+      "name": "JSON.parse - ProviderMetadata Part 1",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 90,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 24,
+      "pattern": "JSON.parse(manga.providerMetadata)",
+      "schema": "ProviderMetadataSchema",
+      "tasks": [
+        "Replace inline JSON.parse with parseProviderMetadataFromDB()",
+        "Handle conditional parsing (typeof check)",
+        "Add fallback to empty object"
+      ],
+      "files": [
+        "src/pages/manga/[id].tsx",
+        "src/components/volumeChaptersTable.tsx"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -24 violations",
+        "Tests: All passing",
+        "Manual: Check chapter list rendering"
+      ]
+    },
+    {
+      "id": "3.1.3",
+      "wave": 3,
+      "name": "JSON.parse - ProviderMetadata Part 2",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 90,
+      "riskLevel": "medium",
+      "dependencies": ["3.1.2"],
+      "violationCount": 24,
+      "pattern": "JSON.parse(providerMetadata)",
+      "schema": "ProviderMetadataSchema",
+      "files": [
+        "src/components/manga/ResponsiveChapterList.tsx",
+        "src/server/trpc/routers/manga.ts",
+        "src/server/trpc/routers/metadata.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -24 violations",
+        "Tests: All passing"
+      ]
+    },
+    {
+      "id": "3.1.4",
+      "wave": 3,
+      "name": "JSON.parse - RawProviderData",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 90,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 32,
+      "pattern": "JSON.parse(manga.rawProviderData)",
+      "schema": "RawProviderDataSchema",
+      "files": [
+        "src/pages/manga/[id].tsx",
+        "src/components/volumeChaptersTable.tsx",
+        "src/server/trpc/routers/manga.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -32 violations",
+        "Tests: All passing",
+        "Manual: Check volume/chapter data display"
+      ]
+    },
+    {
+      "id": "3.1.5",
+      "wave": 3,
+      "name": "JSON.parse - SelectedSourceId",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 18,
+      "pattern": "JSON.parse(manga.selectedSourceId)",
+      "schema": "SelectedSourceIdSchema",
+      "files": [
+        "src/server/trpc/routers/manga.ts",
+        "src/server/trpc/routers/metadata.ts",
+        "src/components/volumeChaptersTable.tsx"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -18 violations",
+        "Tests: All passing"
+      ]
+    },
+    {
+      "id": "3.1.6",
+      "wave": 3,
+      "name": "JSON.parse - Metadata/ExternalLinks",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 90,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 24,
+      "pattern": "JSON.parse(manga.Metadata.*)",
+      "schema": "Create MetadataSchema if needed",
+      "files": [
+        "src/pages/manga/[id].tsx",
+        "src/server/trpc/routers/manga.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -24 violations",
+        "Tests: All passing"
+      ]
+    },
+    {
+      "id": "3.2.1",
+      "wave": 3,
+      "name": "JSON.parse - EventSettings",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 45,
+      "riskLevel": "low",
+      "dependencies": ["3.0.1"],
+      "violationCount": 8,
+      "pattern": "JSON.parse(settings.eventSettings)",
+      "schema": "Create EventSettingsSchema",
+      "files": [
+        "src/examples/notification-integration-examples.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -8 violations"
+      ]
+    },
+    {
+      "id": "3.2.2",
+      "wave": 3,
+      "name": "JSON.parse - ThemeConfig",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 30,
+      "riskLevel": "low",
+      "dependencies": ["3.0.1"],
+      "violationCount": 4,
+      "pattern": "JSON.parse(storedConfig)",
+      "schema": "ThemeConfigSchema",
+      "files": [
+        "src/client/services/clientThemeService.ts",
+        "src/client/services/themeConfigService.ts",
+        "src/scripts/theme-initializer.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -4 violations",
+        "Manual: Check theme switching"
+      ]
+    },
+    {
+      "id": "3.2.3",
+      "wave": 3,
+      "name": "JSON.parse - ConfigReader",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 12,
+      "pattern": "JSON.parse(value) in configReader",
+      "schema": "Generic validation",
+      "files": [
+        "src/server/utils/configReader.ts",
+        "src/server/services/config/configService.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -12 violations",
+        "Tests: Config tests passing"
+      ]
+    },
+    {
+      "id": "3.2.4",
+      "wave": 3,
+      "name": "JSON.parse - LocalStorage Data",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["3.0.1"],
+      "violationCount": 16,
+      "pattern": "JSON.parse(localStorage.getItem())",
+      "schema": "LocalStorage schemas",
+      "files": [
+        "src/components/mobile/PullToSearch.tsx",
+        "src/components/reader/MobileChapterReader.tsx",
+        "src/hooks/useGenreBlacklist.ts",
+        "src/components/addManga/state/hooks.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -16 violations",
+        "Manual: Check search history, reading progress"
+      ]
+    },
+    {
+      "id": "3.3.1",
+      "wave": 3,
+      "name": "JSON.parse - Test Files Part 1",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 30,
+      "riskLevel": "low",
+      "dependencies": [],
+      "violationCount": 22,
+      "pattern": "JSON.parse in test files",
+      "strategy": "Use type assertions with comments",
+      "files": [
+        "src/server/api/__tests__/api.test.ts",
+        "src/server/api/__tests__/integration/webhooks.test.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -22 violations",
+        "Tests: All passing"
+      ]
+    },
+    {
+      "id": "3.3.2",
+      "wave": 3,
+      "name": "JSON.parse - Test Files Part 2",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 30,
+      "riskLevel": "low",
+      "dependencies": [],
+      "violationCount": 22,
+      "pattern": "JSON.parse in test files",
+      "strategy": "Use type assertions with comments",
+      "files": [
+        "src/server/api/__tests__/integration/metadata.test.ts",
+        "src/server/api/__tests__/integration/manga.test.ts",
+        "src/server/api/__tests__/integration/health.test.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -22 violations",
+        "Tests: All passing"
+      ]
+    },
+    {
+      "id": "3.4.1",
+      "wave": 3,
+      "name": "response.json() - Pattern Learning APIs",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 10,
+      "pattern": "await response.json() for ML APIs",
+      "schema": "PatternLearningSchema, MLMetricsSchema",
+      "files": [
+        "src/hooks/usePatternLearning.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -10 violations",
+        "Manual: Test pattern learning UI"
+      ]
+    },
+    {
+      "id": "3.4.2",
+      "wave": 3,
+      "name": "response.json() - ML Dashboard APIs",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 45,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 5,
+      "pattern": "await response.json() for dashboard",
+      "schema": "MLMetricsSchema, MLTimeSeriesDataSchema",
+      "files": [
+        "src/pages/admin/ml-dashboard.tsx"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -5 violations",
+        "Manual: Load ML dashboard"
+      ]
+    },
+    {
+      "id": "3.4.3",
+      "wave": 3,
+      "name": "response.json() - User/Auth APIs",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 45,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 3,
+      "pattern": "await response.json() for user CRUD",
+      "schema": "UserCrudResponseSchema",
+      "files": [
+        "src/lib/auth/client-actions.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -3 violations",
+        "Manual: Test user creation/deletion"
+      ]
+    },
+    {
+      "id": "3.4.4",
+      "wave": 3,
+      "name": "response.json() - Reader/Search APIs",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 45,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 4,
+      "pattern": "await response.json() for reader/search",
+      "schema": "ChapterInfoResponseSchema, SearchResponseSchema",
+      "files": [
+        "src/hooks/reader/useReader.ts",
+        "src/utils/search/clientSearchProvider.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -4 violations",
+        "Manual: Test chapter reader, search"
+      ]
+    },
+    {
+      "id": "3.5.1",
+      "wave": 3,
+      "name": "response.json() - Kavita Integration",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 45,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 4,
+      "pattern": "await response.json() for Kavita",
+      "schema": "KavitaAuthResponseSchema, KavitaSeriesSchema",
+      "files": [
+        "src/server/utils/integration/kavita.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -4 violations",
+        "Manual: Test Kavita connection if available"
+      ]
+    },
+    {
+      "id": "3.5.2",
+      "wave": 3,
+      "name": "response.json() - Komga Integration",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 45,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 4,
+      "pattern": "await response.json() for Komga",
+      "schema": "KomgaSeriesPageSchema",
+      "files": [
+        "src/server/utils/integration/komga.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -4 violations",
+        "Manual: Test Komga connection if available"
+      ]
+    },
+    {
+      "id": "3.5.3",
+      "wave": 3,
+      "name": "response.json() - Download Clients",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 6,
+      "pattern": "await response.json() for download clients",
+      "schema": "SABnzbdResponseSchema, TransmissionResponseSchema, DelugeResponseSchema",
+      "files": [
+        "src/server/services/download/clients/sabnzbdClient.ts",
+        "src/server/services/download/clients/transmissionClient.ts",
+        "src/server/services/download/clients/delugeClient.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -6 violations"
+      ]
+    },
+    {
+      "id": "3.5.4",
+      "wave": 3,
+      "name": "response.json() - Metadata Providers",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 45,
+      "riskLevel": "medium",
+      "dependencies": ["3.0.1"],
+      "violationCount": 4,
+      "pattern": "await response.json() for metadata providers",
+      "schema": "AniListMediaResponseSchema, ComicVineResponseSchema, FandomSearchResponseSchema",
+      "files": [
+        "src/server/services/calendar/providers/AniListCalendarProvider.ts",
+        "src/server/services/comicvine/modules/fullyProtectedClient.ts",
+        "src/server/services/fandom/FandomAPIClient.ts",
+        "src/server/services/metadata/base/StandardMetadataProvider.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -4 violations"
+      ]
+    },
+    {
+      "id": "3.5.5",
+      "wave": 3,
+      "name": "response.json() - Prowlarr",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 30,
+      "riskLevel": "low",
+      "dependencies": ["3.0.1"],
+      "violationCount": 2,
+      "pattern": "await response.json() for Prowlarr",
+      "schema": "ProwlarrIndexerSchema",
+      "files": [
+        "src/pages/api/prowlarr.ts",
+        "src/utils/prowlarrApi.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -2 violations"
+      ]
+    },
+    {
+      "id": "3.5.6",
+      "wave": 3,
+      "name": "response.json() - SDK & Misc",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 45,
+      "riskLevel": "low",
+      "dependencies": ["3.0.1"],
+      "violationCount": 4,
+      "pattern": "await response.json() misc",
+      "schema": "ApiResponseSchema",
+      "files": [
+        "src/sdk/kaizoku-api-sdk.ts",
+        "src/pages/api-playground.tsx",
+        "src/pages/api-docs.tsx",
+        "src/hooks/useDownloadClientConfig.ts",
+        "src/components/addManga/hooks/useProviderSearch.ts"
+      ],
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: -4 violations"
+      ]
+    },
+    {
+      "id": "4.0.1",
+      "wave": 4,
+      "name": "Function Typing - Detection & Categorization",
+      "status": "pending",
+      "priority": "critical",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["3.5.6"],
+      "tasks": [
+        "Run: eslint . --format json > eslint-output.json",
+        "Filter for @typescript-eslint/no-unsafe-assignment violations",
+        "Categorize by function type (event handlers, callbacks, etc.)",
+        "Generate fix patterns for each category",
+        "Create detailed file list with line numbers"
+      ],
+      "validation": [
+        "JSON output valid",
+        "All violations categorized"
+      ]
+    },
+    {
+      "id": "4.1.1",
+      "wave": 4,
+      "name": "Function Parameters - Event Handlers Part 1",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 90,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 60,
+      "pattern": "onClick={(e) => ...}, onChange={(e) => ...}",
+      "fix": "Add React.MouseEvent, React.ChangeEvent types",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-60 violations",
+        "Manual: Test UI interactions"
+      ]
+    },
+    {
+      "id": "4.1.2",
+      "wave": 4,
+      "name": "Function Parameters - Event Handlers Part 2",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 90,
+      "riskLevel": "low",
+      "dependencies": ["4.1.1"],
+      "estimatedViolations": 60,
+      "pattern": "onSubmit, onKeyDown, etc.",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-60 violations"
+      ]
+    },
+    {
+      "id": "4.1.3",
+      "wave": 4,
+      "name": "Function Parameters - Array Callbacks Part 1",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 50,
+      "pattern": "data.map(item => ...), data.filter(x => ...)",
+      "fix": "Add explicit item types",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-50 violations"
+      ]
+    },
+    {
+      "id": "4.1.4",
+      "wave": 4,
+      "name": "Function Parameters - Array Callbacks Part 2",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.1.3"],
+      "estimatedViolations": 50,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-50 violations"
+      ]
+    },
+    {
+      "id": "4.1.5",
+      "wave": 4,
+      "name": "Function Parameters - Async Functions",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 40,
+      "pattern": "async (param) => { ... }",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.1.6",
+      "wave": 4,
+      "name": "Function Parameters - TanStack Query Callbacks",
+      "status": "pending",
+      priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 40,
+      "pattern": "onSuccess: (data) => ..., onError: (error) => ...",
+      "fix": "Add generic types or explicit parameter types",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.1.7",
+      "wave": 4,
+      "name": "Function Parameters - Custom Hooks Part 1",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 40,
+      "pattern": "export function useHook(param) { ... }",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.1.8",
+      "wave": 4,
+      "name": "Function Parameters - Custom Hooks Part 2",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["4.1.7"],
+      "estimatedViolations": 40,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.1.9",
+      "wave": 4,
+      "name": "Function Parameters - Utility Functions Part 1",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 50,
+      "pattern": "export function utilFunc(param) { ... }",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-50 violations"
+      ]
+    },
+    {
+      "id": "4.1.10",
+      "wave": 4,
+      "name": "Function Parameters - Utility Functions Part 2",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.1.9"],
+      "estimatedViolations": 50,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-50 violations"
+      ]
+    },
+    {
+      "id": "4.2.1",
+      "wave": 4,
+      "name": "Function Returns - Public API Functions",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 60,
+      "pattern": "export function apiFunc() { ... }",
+      "fix": "Add explicit return types",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-60 violations"
+      ]
+    },
+    {
+      "id": "4.2.2",
+      "wave": 4,
+      "name": "Function Returns - tRPC Procedures Part 1",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 50,
+      "pattern": ".query(async () => { ... }), .mutation(async () => { ... })",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-50 violations",
+        "Tests: API tests passing"
+      ]
+    },
+    {
+      "id": "4.2.3",
+      "wave": 4,
+      "name": "Function Returns - tRPC Procedures Part 2",
+      "status": "pending",
+      "priority": "high",
+      "estimatedMinutes": 60,
+      "riskLevel": "medium",
+      "dependencies": ["4.2.2"],
+      "estimatedViolations": 50,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-50 violations"
+      ]
+    },
+    {
+      "id": "4.2.4",
+      "wave": 4,
+      "name": "Function Returns - React Hooks Part 1",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 40,
+      "pattern": "export function useHook() { ... }",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.2.5",
+      "wave": 4,
+      "name": "Function Returns - React Hooks Part 2",
+      "status": "pending",
+      "priority": "medium",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.2.4"],
+      "estimatedViolations": 40,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.2.6",
+      "wave": 4,
+      "name": "Function Returns - Utility Functions Part 1",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 45,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 40,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.2.7",
+      "wave": 4,
+      "name": "Function Returns - Utility Functions Part 2",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 45,
+      "riskLevel": "low",
+      "dependencies": ["4.2.6"],
+      "estimatedViolations": 40,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.2.8",
+      "wave": 4,
+      "name": "Function Returns - Helper Functions Part 1",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 45,
+      "riskLevel": "low",
+      "dependencies": ["4.0.1"],
+      "estimatedViolations": 40,
+      "pattern": "Internal helper functions",
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.2.9",
+      "wave": 4,
+      "name": "Function Returns - Helper Functions Part 2",
+      "status": "pending",
+      "priority": "low",
+      "estimatedMinutes": 45,
+      "riskLevel": "low",
+      "dependencies": ["4.2.8"],
+      "estimatedViolations": 40,
+      "validation": [
+        "Type check: 0 new errors",
+        "ESLint: ~-40 violations"
+      ]
+    },
+    {
+      "id": "4.9.1",
+      "wave": 4,
+      "name": "Wave 4 Final Validation",
+      "status": "pending",
+      "priority": "critical",
+      "estimatedMinutes": 60,
+      "riskLevel": "low",
+      "dependencies": ["4.2.9"],
+      "tasks": [
+        "Run full type check",
+        "Run full ESLint",
+        "Run all tests",
+        "Manual smoke testing",
+        "Verify all function typing violations resolved",
+        "Document any remaining exceptions"
+      ],
+      "validation": [
+        "Type check: 0 errors",
+        "ESLint: -840 violations (Wave 4)",
+        "Tests: 100% passing",
+        "Manual: All features working"
+      ]
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Wave 3 Complete",
+      "afterBatch": "3.5.6",
+      "criteria": [
+        "All JSON operations validated",
+        "-283 violations",
+        "All tests passing",
+        "No runtime errors"
+      ]
+    },
+    {
+      "name": "Wave 4 Complete",
+      "afterBatch": "4.9.1",
+      "criteria": [
+        "All functions properly typed",
+        "-840 violations",
+        "IntelliSense improved",
+        "Type coverage 100%"
+      ]
+    },
+    {
+      "name": "Waves 3-4 Complete",
+      "afterBatch": "4.9.1",
+      "criteria": [
+        "Total -1,123 violations",
+        "All schemas in production",
+        "Full test coverage maintained",
+        "Documentation updated"
+      ]
+    }
+  ],
+  "rollbackPlan": {
+    "perBatch": "git reset --hard HEAD~1",
+    "wholeWave": "git revert <first-batch-commit>..<last-batch-commit>",
+    "triggers": [
+      "Type errors increase",
+      "Test failures increase",
+      "Runtime errors detected",
+      "Build fails"
+    ]
+  },
+  "notes": [
+    "Schemas already created in batch 3.0 (11 files)",
+    "Function typing violations require ESLint JSON export for exact count",
+    "Test files use type assertions, not schemas",
+    "All third-party API schemas include safe parsers",
+    "LocalStorage parsing includes fallback mechanisms"
+  ]
+}

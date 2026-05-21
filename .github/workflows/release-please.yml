@@ -1,0 +1,110 @@
+on:
+  push:
+    branches:
+      - main
+name: release-please
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bun prisma generate
+
+      - name: Build
+        run: bun run build
+
+  release-please:
+    outputs:
+      release_major: ${{ steps.release.outputs.major }}
+      release_minor: ${{ steps.release.outputs.minor }}
+      release_patch: ${{ steps.release.outputs.patch }}
+      release_created: ${{ steps.release.outputs.release_created }}
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release
+        uses: google-github-actions/release-please-action@v4
+        id: release
+        with:
+          release-type: node
+          command: manifest
+
+  build-and-push:
+    needs: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Set up Docker Build
+        uses: docker/setup-buildx-action@v3
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Login to Github Packages
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Login to Docker hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: ${{ needs.release-please.outputs.release_created }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/kaizoku:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/kaizoku:v${{ needs.release-please.outputs.release_major }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/kaizoku:v${{ needs.release-please.outputs.release_major }}.${{ needs.release-please.outputs.release_minor }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/kaizoku:v${{ needs.release-please.outputs.release_major }}.${{ needs.release-please.outputs.release_minor }}.${{ needs.release-please.outputs.release_patch }}
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:v${{ needs.release-please.outputs.release_major }}
+            ghcr.io/${{ github.repository }}:v${{ needs.release-please.outputs.release_major }}.${{ needs.release-please.outputs.release_minor }}
+            ghcr.io/${{ github.repository }}:v${{ needs.release-please.outputs.release_major }}.${{ needs.release-please.outputs.release_minor }}.${{ needs.release-please.outputs.release_patch }}
+        if: ${{ needs.release-please.outputs.release_created }}
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+        if: ${{ needs.release-please.outputs.release_created }}

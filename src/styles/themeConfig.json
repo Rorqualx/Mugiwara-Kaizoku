@@ -1,0 +1,36 @@
+{
+  "documentation": {
+    "description": "This file contains custom theme configurations for Mugiwara-Kaizoku",
+    "usage": "Edit the color values below to customize the application's appearance",
+    "format": "Use standard hex color codes (#RRGGBB)",
+    "theme": "Mugiwara (Straw Hat) themed colors inspired by One Piece"
+  },
+  "themes": {
+    "light": {
+      "primary": "#d32f2f",
+      "secondary": "#ff9800",
+      "accent": "#1976d2",
+      "background": "#f8f9fa",
+      "card": "#ffffff",
+      "surface": "#e9ecef",
+      "text": "#212529",
+      "border": "#dee2e6",
+      "error": "#c62828",
+      "success": "#388e3c",
+      "warning": "#f57c00"
+    },
+    "dark": {
+      "primary": "#e53935",
+      "secondary": "#ffa726",
+      "accent": "#2196f3",
+      "background": "#1a1b1e",
+      "card": "#25262b",
+      "surface": "#2c2e33",
+      "text": "#e9ecef",
+      "border": "#373a40",
+      "error": "#d32f2f",
+      "success": "#4caf50",
+      "warning": "#ff9800"
+    }
+  }
+}

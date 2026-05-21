@@ -1,0 +1,96 @@
+#!/bin/bash
+# Pre-commit hook for documentation compliance
+# Place this in .git/hooks/pre-commit and make executable
+
+echo "🔍 Checking documentation compliance..."
+
+# Check for new markdown files
+NEW_MD_FILES=$(git diff --cached --name-only --diff-filter=A | grep '\.md$')
+
+if [ ! -z "$NEW_MD_FILES" ]; then
+    echo "⚠️  New documentation files detected:"
+    echo "$NEW_MD_FILES"
+    
+    # Check each new file
+    for file in $NEW_MD_FILES; do
+        echo ""
+        echo "Checking: $file"
+        
+        # Check naming convention (must be kebab-case)
+        if echo "$file" | grep -E '[A-Z]|_' > /dev/null; then
+            echo "❌ ERROR: File name must use kebab-case: $file"
+            echo "   Fix: Use lowercase with hyphens only"
+            exit 1
+        fi
+        
+        # Check for prohibited patterns
+        if echo "$file" | grep -E '(-final-final|-v[0-9]+-|-temp|-old|-backup)\.md$' > /dev/null; then
+            echo "❌ ERROR: Prohibited file name pattern: $file"
+            echo "   These patterns are not allowed: -final-final, -v2-, -temp, -old, -backup"
+            exit 1
+        fi
+        
+        # Check for standard header
+        if ! head -n 10 "$file" | grep -q "Status:" || ! head -n 10 "$file" | grep -q "Author:" || ! head -n 10 "$file" | grep -q "Canonical:"; then
+            echo "❌ ERROR: Missing standard header in $file"
+            echo "   Required fields: *Status:*, *Author:*, *Canonical:*"
+            echo ""
+            echo "   Use this template:"
+            echo "   # [Title]"
+            echo "   "
+            echo "   *Status: [Active|Draft|Deprecated]*"
+            echo "   *Author: [Your Name/Team]*"
+            echo "   *Canonical: [Yes|No]*"
+            echo "   "
+            echo "   ## Overview"
+            echo "   [Description]"
+            echo "   ---"
+            exit 1
+        fi
+        
+        # Warning for new files
+        echo "⚠️  WARNING: Creating new documentation file"
+        echo "   Have you checked if this content could be added to an existing guide?"
+        echo "   Primary guides to check:"
+        echo "   - /docs/database/database-guide.md"
+        echo "   - /docs/architecture/architecture-overview.md"
+        echo "   - /docs/testing/testing-guide.md"
+        echo "   - /docs/adapters-clients/*-guide.md"
+        echo ""
+        read -p "   Have you verified this needs to be a new file? (y/n) " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "❌ Commit aborted. Please update existing documentation instead."
+            exit 1
+        fi
+        
+        # Ask for justification
+        echo ""
+        read -p "   Brief justification for new file (required): " JUSTIFICATION
+        if [ -z "$JUSTIFICATION" ]; then
+            echo "❌ ERROR: Justification required for new documentation files"
+            exit 1
+        fi
+        
+        # Log the justification
+        echo "$file: $JUSTIFICATION" >> .git/new-docs-justification.log
+        echo "✅ Justification recorded"
+    done
+fi
+
+# Run compliance check on all staged markdown files
+STAGED_MD=$(git diff --cached --name-only | grep '\.md$')
+if [ ! -z "$STAGED_MD" ]; then
+    # Check if compliance tool exists
+    if [ -f "docs/check-template-compliance.js" ]; then
+        echo ""
+        echo "Running template compliance check..."
+        node docs/check-template-compliance.js $STAGED_MD
+        if [ $? -ne 0 ]; then
+            echo "❌ Template compliance check failed"
+            exit 1
+        fi
+    fi
+fi
+
+echo "✅ Documentation compliance check passed"

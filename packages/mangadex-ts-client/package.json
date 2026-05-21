@@ -1,0 +1,52 @@
+{
+  "name": "mangadex-ts-client",
+  "version": "1.0.0",
+  "description": "A strictly typed, safe, and secure TypeScript client for the MangaDex API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "demo": "ts-node src/examples/demo.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mangadex",
+    "api",
+    "client",
+    "typescript",
+    "manga",
+    "anime",
+    "comics"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/mangadex-ts-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/mangadex-ts-client/issues"
+  },
+  "homepage": "https://github.com/your-username/mangadex-ts-client#readme",
+  "dependencies": {
+    "axios": "^1.13.2",
+    "cheerio": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ]
+}
