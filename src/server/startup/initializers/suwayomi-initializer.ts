@@ -26,11 +26,13 @@ import { formatError } from '../error-utils';
  */
 export async function initializeSuwayomi(): Promise<void> {
   try {
-    // Skip if running in Docker (handled separately in Docker environment)
-    if (process.env['DOCKER'] === 'true') {
-      logger.info('Running in Docker environment, Suwayomi initialization handled by container');
-      return;
-    }
+    // NOTE: a previous version of this file early-returned when DOCKER=true
+    // because Suwayomi ran as a sidecar container in the legacy compose
+    // stack. The bundled architecture puts the JVM inside the same image
+    // (see services/suwayomi/lifecycle-manager.ts — child process), so this
+    // initializer is the correct entry point in Docker too. The early-return
+    // was the reason the JVM never auto-started on container restart and
+    // the user had to click Start manually after every reboot.
 
     // Check if Java is installed
     const javaAvailable = await checkJavaInstalled();
