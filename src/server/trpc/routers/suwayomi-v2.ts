@@ -174,7 +174,14 @@ export const suwayomiV2Router = router({
    */
   getServerStatus: publicProcedure.query(async () => {
     const isRunning = await suwayomiService.isServerRunning();
-    return { isRunning, port: suwayomiService.getPort() };
+    return {
+      isRunning,
+      // Lets the UI render a "Starting…" alert when the page is opened
+      // mid-startup. Realtime events handle the live case; this handles
+      // the cold-load / late-arrival case.
+      isStarting: !isRunning && suwayomiService.isStartInFlight(),
+      port: suwayomiService.getPort(),
+    };
   }),
 
   /**
