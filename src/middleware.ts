@@ -78,7 +78,13 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL(`/login?callbackUrl=${callbackUrl}`, req.url));
   }
 
-  if (startsWithAny(pathname, ADMIN_PATH_PREFIXES) && token.role !== 'ADMIN') {
+  // Case-insensitive role check. Other layers (validate-request.ts /
+  // actions.ts) already .toUpperCase() the role before comparing, so the
+  // value flowing through this codebase is not consistently cased. A
+  // strict `=== 'ADMIN'` check here bounced legitimate admins to `/` for
+  // any path under /admin, /settings, /system, /api/protected.
+  const role = typeof token.role === 'string' ? token.role.toUpperCase() : null;
+  if (startsWithAny(pathname, ADMIN_PATH_PREFIXES) && role !== 'ADMIN') {
     return NextResponse.redirect(new URL('/', req.url));
   }
 

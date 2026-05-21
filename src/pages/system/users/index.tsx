@@ -48,7 +48,12 @@ const checkAdminAccess = async (context: GetServerSidePropsContext): Promise<Gua
     };
   }
 
-  if (session.user.role !== UserRole.ADMIN) {
+  // Case-insensitive check — other layers (validate-request.ts /
+  // actions.ts) normalize via .toUpperCase() and the value is not
+  // consistently cased across the codebase. A strict `!==` against the
+  // 'ADMIN' enum can bounce legitimate admins to '/'.
+  const role = typeof session.user.role === 'string' ? session.user.role.toUpperCase() : '';
+  if (role !== UserRole.ADMIN) {
     return {
       redirect: { destination: '/', permanent: false },
     };
