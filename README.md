@@ -29,7 +29,7 @@ Next.js 14 · React 18 · Mantine v7 · TanStack Query · Zustand · tRPC v11 ·
 - ~2 GB free RAM, plus whatever your library needs on disk
 
 Optional (only if you want those features):
-- **FlareSolverr** for Cloudflare-protected sources
+- **FlareSolverr** for Cloudflare-protected sources. Not bundled in the Docker image — run [`ghcr.io/flaresolverr/flaresolverr:latest`](https://github.com/FlareSolverr/FlareSolverr) as a sidecar container. A commented-out service block is included in `docker-compose.yml`; uncomment it and set `FLARESOLVERR_ENABLED=true` on the `app` service to enable.
 - **Prowlarr + a torrent client** (Transmission / Deluge / qBittorrent) or **Usenet client** (SABnzbd / NZBGet) for download automation
 
 ## Quick start (local)

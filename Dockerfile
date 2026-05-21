@@ -1,182 +1,118 @@
-# Kaizoku Multi-Stage Dockerfile
+# Mugiwara-Kaizoku Dockerfile
 #
-# This Dockerfile uses a multi-stage build process to create an optimized
-# production image for the Kaizoku manga management application.
+# Clean multi-stage Bun-based build. FlareSolverr is NOT bundled — run
+# `ghcr.io/flaresolverr/flaresolverr:latest` as a sidecar container if you
+# need Cloudflare bypass (see docker-compose.yml).
 #
 # Stages:
-# 1. Base: Common dependencies and system setup
-# 2. Dependencies: Node.js package installation
-# 3. Build: Application compilation
-# 4. Runner: Final production image
-#
-# Features:
-# - Multi-stage optimization
-# - Dependency caching
-# - Security considerations
-# - Health monitoring
-# - User permissions
+#   base   — Ubuntu 22.04 + system deps + Java 21 (Suwayomi) + Bun
+#   deps   — `bun install --frozen-lockfile`
+#   build  — Prisma client + `next build`
+#   runner — Slim final image, non-root user
 
-# syntax = docker/dockerfile:experimental
+# syntax=docker/dockerfile:1.7
 
-### BASE STAGE ###
-# Sets up common dependencies and system configuration
-FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy AS base
+###############################################################################
+# Base stage
+###############################################################################
+FROM ubuntu:22.04 AS base
 
-# Install Node.js and system dependencies
-# - Node.js for running the application
-# - Python for FlareSolverr subprocess
-# - Chromium for FlareSolverr browser automation
-# - System libraries for browser support
-# - FFmpeg for audiobook format conversion
-# - Utility packages for operations
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get update && \
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8
+
+# Core system dependencies (small layer, rarely changes)
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        nodejs \
-        postgresql-client \
-        python3 \
-        python3-pip \
-        python3-venv \
-        chromium-browser \
-        ffmpeg \
-        libglib2.0-0 \
-        libnss3 \
-        libatk1.0-0 \
-        libatk-bridge2.0-0 \
-        libcups2 \
-        libdrm2 \
-        libxcb1 \
-        libxkbcommon0 \
-        libxcomposite1 \
-        libxdamage1 \
-        libxfixes3 \
-        libxrandr2 \
-        libgbm1 \
-        libpango-1.0-0 \
-        libcairo2 \
-        libasound2 \
-        dos2unix \
-        netcat \
-        software-properties-common \
+        curl \
+        ca-certificates \
+        gnupg \
         wget \
-        gnupg && \
-    # Add Adoptium repository for Java 21
-    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null && \
-    echo "deb https://packages.adoptium.net/artifactory/deb jammy main" | tee /etc/apt/sources.list.d/adoptium.list && \
-    apt-get update && \
-    apt-get install -y temurin-21-jre && \
-    npm install -g typescript ts-node && \
-    # Install Bun (project uses Bun as the package manager + runtime)
-    curl -fsSL https://bun.sh/install | bash && \
-    ln -sf /root/.bun/bin/bun /usr/local/bin/bun && \
-    ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx && \
-    # Install FlareSolverr for Cloudflare bypass subprocess
-    # NOTE: PyPI flaresolverr is maxed at v3.3.21 - using GitHub source for v3.3.25
-    # v3.4.x requires Python 3.10+ which isn't available in Ubuntu Jammy base image
-    # For latest version, use sidecar container: ghcr.io/flaresolverr/flaresolverr:latest
-    pip3 install --no-cache-dir flaresolverr && \
+        netcat \
+        postgresql-client \
+        ffmpeg \
+        dos2unix && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN getent group abc || groupadd -r abc && \
-    getent passwd abc || useradd -r -g abc abc
+# Adoptium Temurin Java 21 — required by the bundled Suwayomi engine
+RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor > /etc/apt/trusted.gpg.d/adoptium.gpg && \
+    echo "deb https://packages.adoptium.net/artifactory/deb jammy main" > /etc/apt/sources.list.d/adoptium.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends temurin-21-jre && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy utility scripts
+# Bun runtime + package manager
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -sf /root/.bun/bin/bun /usr/local/bin/bun && \
+    ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx
+ENV PATH="/root/.bun/bin:${PATH}"
+
+###############################################################################
+# Dependencies stage
+###############################################################################
+FROM base AS deps
+WORKDIR /app
+
+COPY package.json bun.lock ./
+COPY prisma ./prisma/
+
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
+
+###############################################################################
+# Build stage
+###############################################################################
+FROM base AS build
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production
+
+RUN bun run generate && bun run build
+
+###############################################################################
+# Runner stage
+###############################################################################
+FROM base AS runner
+WORKDIR /app
+
+# Non-root app user
+RUN useradd -m -u 1000 app && \
+    mkdir -p /logs /config /data && \
+    chown -R app:app /app /logs /config /data
+
+# Entrypoint + helper scripts
 COPY scripts/database/wait-for-db.sh /usr/local/bin/wait-for-db.sh
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/wait-for-db.sh /usr/local/bin/docker-entrypoint.sh && \
     dos2unix /usr/local/bin/wait-for-db.sh /usr/local/bin/docker-entrypoint.sh
 
-### DEPENDENCIES STAGE ###
-# Installs and caches Node.js dependencies
-FROM base AS deps
-WORKDIR /app
+# Application artifacts from the build stage (owned by app user)
+COPY --from=build --chown=app:app /app/next.config.mjs ./
+COPY --from=build --chown=app:app /app/public ./public
+COPY --from=build --chown=app:app /app/package.json ./
+COPY --from=build --chown=app:app /app/tsconfig.json ./
+COPY --from=build --chown=app:app /app/.next ./.next
+COPY --from=build --chown=app:app /app/prisma ./prisma
+COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
+COPY --from=build --chown=app:app /app/node_modules ./node_modules
+COPY --from=build --chown=app:app /app/src ./src
 
-# Copy package files and install dependencies
-COPY package.json bun.lock ./
-COPY prisma ./prisma/
+USER app
 
-# Build arguments for environment configuration
-ARG NODE_ENV=production
-ARG DATABASE_URL
-
-# Set environment variables for build
-ENV NODE_ENV=${NODE_ENV}
-ENV DATABASE_URL=${DATABASE_URL}
-
-# Install dependencies with Bun, using cache mount
-RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
-
-### BUILD STAGE ###
-# Compiles the application and generates necessary assets
-FROM base AS build
-WORKDIR /app
-
-# Copy dependencies and source code
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/prisma ./prisma
-COPY . .
-
-# Set build environment variables
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-ENV NODE_PATH=./node_modules
-ENV PATH="/app/node_modules/.bin:${PATH}"
-
-# Generate Prisma client and build Next.js application
-# Suwayomi is downloaded at runtime by the lifecycle manager — no install step.
-RUN bun run generate && \
-    bun run build
-
-### RUNNER STAGE ###
-# Final production image with minimal footprint
-FROM base AS runner
-WORKDIR /app
-
-# Set runtime environment variables
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    DATABASE_URL="${DATABASE_URL:-postgresql://kaizoku:kaizoku@db:5432/kaizoku}" \
-    KAIZOKU_LOG_PATH="/logs" \
-    HOME="/config" \
-    DOCKER="true"
+    DOCKER=true \
+    KAIZOKU_LOG_PATH=/logs \
+    HOME=/config
 
-# Create necessary directories with proper permissions
-RUN mkdir -p /logs /config /data /data/Media/Downloads
-
-# Bun is already installed in the base stage and on PATH.
-
-# Copy built application from build stage
-COPY --from=build /app/next.config.mjs ./
-COPY --from=build /app/public ./public
-COPY --from=build /app/package.json ./
-COPY --from=build /app/tsconfig.json ./
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/prisma.config.ts ./prisma.config.ts
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/src ./src
-# Suwayomi data dir is created at first run by the lifecycle manager.
-
-# Set up permissions for non-root user
-RUN chown -R abc:abc /app /logs /config /data /data/Media/Downloads
-
-# Create Next.js pages symlink if needed
-RUN mkdir -p /app/pages && \
-    ln -s /app/src/pages/* /app/pages/ 2>/dev/null || true && \
-    chown -R abc:abc /app/pages
-
-# Switch to non-root user for security
-USER abc
-
-# Configure health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD nc -z localhost ${KAIZOKU_PORT:-3000} || exit 1
 
-# Set entrypoint for database readiness check
-ENTRYPOINT ["/usr/local/bin/wait-for-db.sh", "db"]
-
-# Start unified server (all services + WebSocket)
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["bun", "src/server/index.ts"]

@@ -87,7 +87,10 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          # amd64-only for v0.9. Re-add linux/arm64 once the amd64 build
+          # is reliably green; QEMU emulation of arm64 is the slow path
+          # and we don't want to bottleneck iteration on it yet.
+          platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

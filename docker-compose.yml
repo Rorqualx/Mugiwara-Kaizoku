@@ -73,10 +73,12 @@ services:
       # DOWNLOAD_FOLDER: "/downloads"
       # For path mappings between remote and local paths:
       # PATH_MAPPINGS: "/remote/downloads:/local/downloads,/remote/completed:/local/completed"
-      # FlareSolverr - runs as subprocess inside this container
-      FLARESOLVERR_ENABLED: "true"
-      FLARESOLVERR_URL: "http://localhost:8191/v1"
-      # Optional: FLARESOLVERR_EXTERNAL_URL for external instance
+      # FlareSolverr (optional — only needed for Cloudflare-protected sources)
+      # Disabled by default. To enable, uncomment the `flaresolverr` service below
+      # AND set FLARESOLVERR_ENABLED to "true" + point FLARESOLVERR_URL at the
+      # sidecar hostname (http://flaresolverr:8191/v1).
+      FLARESOLVERR_ENABLED: "false"
+      FLARESOLVERR_URL: "http://flaresolverr:8191/v1"
       FLARESOLVERR_TIMEOUT: "60000"
       FLARESOLVERR_SESSION_TTL: "1800000"
       FLARESOLVERR_DISABLE_MEDIA: "true"
@@ -100,6 +102,19 @@ services:
       retries: 3         # Allow 3 retries before marking unhealthy
       start_period: 40s  # Initial grace period for startup
     entrypoint: ["/usr/local/bin/wait-for-db.sh", "db", "./scripts/docker-entrypoint.sh"]
+
+  # FlareSolverr sidecar (OPTIONAL — Cloudflare bypass for ComicVine/Fandom scrapes)
+  # Uncomment this block AND set FLARESOLVERR_ENABLED=true on the `app` service
+  # above to enable.
+  # flaresolverr:
+  #   image: ghcr.io/flaresolverr/flaresolverr:latest
+  #   container_name: kaizoku_flaresolverr
+  #   restart: unless-stopped
+  #   environment:
+  #     LOG_LEVEL: info
+  #     TZ: UTC
+  #   ports:
+  #     - "8191:8191"
 
 # Persistent Volume Definitions
 volumes:
