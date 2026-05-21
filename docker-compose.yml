@@ -62,6 +62,12 @@ services:
       TZ: UTC
       IS_DOCKER: "true"
       IN_DOCKER: "true"
+      # NEXTAUTH_SECRET and AUTH_SECRET are AUTO-GENERATED on first boot
+      # and persisted under /app/config (mounted to ./config below).
+      # To override (e.g. share a JWT secret across multiple instances),
+      # uncomment and set explicit values:
+      # NEXTAUTH_SECRET: ""
+      # AUTH_SECRET: ""
       # Backup configuration for Docker
       BACKUP_DIR: /config/backups
       BACKUP_UPLOAD_DIR: /config/backups/uploads
