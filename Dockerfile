@@ -30,7 +30,8 @@ RUN apt-get update && \
         netcat \
         postgresql-client \
         ffmpeg \
-        dos2unix && \
+        dos2unix \
+        unzip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
