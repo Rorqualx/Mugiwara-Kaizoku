@@ -279,10 +279,28 @@ class SuwayomiService {
       logger.info('Suwayomi-Server start already in flight; awaiting existing attempt');
       return this.startInFlight;
     }
+    // Announce the start so the UI can show a "Starting…" banner without
+    // waiting for the 5–30s health-check loop to finish. Critical for
+    // boot-time autostart, where there's no user-initiated mutation to
+    // hook a "loading" spinner onto.
+    void realtimeEmitter.emitSystemEvent({
+      eventType: 'suwayomi:server:starting',
+      source: 'SuwayomiService',
+      message: 'Suwayomi Server is starting',
+      data: { port: this.port }
+    });
     this.startInFlight = this.doStartServer().finally(() => {
       this.startInFlight = null;
     });
     return this.startInFlight;
+  }
+
+  /** True while a start attempt is in flight. Surfaced by getServerStatus
+   *  so the UI can show a "Starting…" indicator even for callers who
+   *  missed the realtime `server:starting` event (e.g. they loaded the
+   *  page mid-boot). */
+  isStartInFlight(): boolean {
+    return this.startInFlight !== null;
   }
 
   /**

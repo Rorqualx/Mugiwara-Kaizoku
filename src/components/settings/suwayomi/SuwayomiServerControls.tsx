@@ -83,17 +83,29 @@ function InflightStatus({ action, elapsed }: InflightStatusProps): React.ReactEl
 
 interface StatusBadgesProps {
   isRunning: boolean;
+  isStarting: boolean;
   port: number | undefined;
   javaAvailable: boolean | undefined;
   javaVersion: string | null | undefined;
 }
 
-function StatusBadges({ isRunning, port, javaAvailable, javaVersion }: StatusBadgesProps): React.ReactElement {
-  const serverLabel = isRunning ? `Server up on :${port ?? 4567}` : 'Server stopped';
+function StatusBadges({ isRunning, isStarting, port, javaAvailable, javaVersion }: StatusBadgesProps): React.ReactElement {
+  let serverLabel: string;
+  let serverColor: 'teal' | 'blue' | 'gray';
+  if (isRunning) {
+    serverLabel = `Server up on :${port ?? 4567}`;
+    serverColor = 'teal';
+  } else if (isStarting) {
+    serverLabel = 'Server starting…';
+    serverColor = 'blue';
+  } else {
+    serverLabel = 'Server stopped';
+    serverColor = 'gray';
+  }
   const javaLabel = javaAvailable ? `Java ${javaVersion ?? ''}` : 'Java not detected';
   return (
     <Group gap="xs">
-      <Badge color={isRunning ? 'teal' : 'gray'} variant="dot" size="lg">{serverLabel}</Badge>
+      <Badge color={serverColor} variant="dot" size="lg">{serverLabel}</Badge>
       <Badge color={javaAvailable ? 'teal' : 'red'} variant="dot" size="lg">{javaLabel}</Badge>
     </Group>
   );
@@ -175,6 +187,10 @@ function useSuwayomiRealtimeFeedback(
         ? String((event.data as { message?: unknown }).message ?? '')
         : '';
       switch (type) {
+        case 'system:suwayomi:server:starting':
+          invalidateStatus();
+          setBanner({ color: 'blue', title: 'Starting Suwayomi…', message: message || 'JVM cold start typically takes 5–30s.' });
+          break;
         case 'system:suwayomi:server:started':
           invalidateStatus();
           setBanner(null);
@@ -187,7 +203,12 @@ function useSuwayomiRealtimeFeedback(
           break;
         case 'system:suwayomi:server:start:failed':
           invalidateStatus();
-          notify({ severity: 'ERROR', title: 'Suwayomi failed to start', message: message || 'The JVM could not be started.', persist: false });
+          // Supervisor will fire `restart-scheduled` immediately after if a
+          // retry is queued; that overwrites this banner. We still surface
+          // the failure here so the user sees something even if the retry
+          // event arrives late.
+          setBanner({ color: 'orange', title: 'Suwayomi start failed', message: message || 'Supervisor will retry shortly.' });
+          notify({ severity: 'WARNING', title: 'Suwayomi failed to start', message: message || 'The JVM could not be started. Supervisor will retry.', persist: false });
           break;
         case 'system:suwayomi:supervisor:restart-scheduled':
           setBanner({ color: 'orange', title: 'Suwayomi restart scheduled', message: message || 'The supervisor will retry shortly.' });
@@ -231,18 +252,24 @@ export function SuwayomiServerControls(): React.ReactElement {
   const { banner, dismissBanner } = useSuwayomiRealtimeFeedback(invalidateStatus);
 
   const javaStatus = javaQuery.data as { available?: boolean; version?: string | null } | undefined;
-  const status = statusQuery.data as { isRunning?: boolean; port?: number } | undefined;
-  const isRunning = status?.isRunning === true;
-  const startElapsed = useElapsedSeconds(startMutation.isPending);
+  const status = (statusQuery.data ?? {}) as { isRunning?: boolean; isStarting?: boolean; port?: number };
+  const isRunning = status.isRunning === true;
+  // `isStarting` covers boot-time autostart and any server-side start the
+  // user didn't trigger themselves — without it the page reads "Server
+  // stopped" with no other signal during the 5–30s cold-start window.
+  const isStartingFromServer = status.isStarting === true && !isRunning;
+  const showStarting = startMutation.isPending || isStartingFromServer;
+  const startElapsed = useElapsedSeconds(showStarting);
   const stopElapsed = useElapsedSeconds(stopMutation.isPending);
-  const busy = startMutation.isPending || stopMutation.isPending;
+  const busy = startMutation.isPending || stopMutation.isPending || isStartingFromServer;
 
   return (
     <Box>
       <Stack gap="md">
         <StatusBadges
           isRunning={isRunning}
-          port={status?.port}
+          isStarting={isStartingFromServer}
+          port={status.port}
           javaAvailable={javaStatus?.available}
           javaVersion={javaStatus?.version}
         />
@@ -261,7 +288,7 @@ export function SuwayomiServerControls(): React.ReactElement {
 
         <SupervisorBanner banner={banner} onDismiss={dismissBanner} />
 
-        {startMutation.isPending && <InflightStatus action="starting" elapsed={startElapsed} />}
+        {showStarting && <InflightStatus action="starting" elapsed={startElapsed} />}
         {stopMutation.isPending && <InflightStatus action="stopping" elapsed={stopElapsed} />}
 
         <Group>
