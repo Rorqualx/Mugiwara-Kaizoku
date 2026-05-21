@@ -194,10 +194,39 @@ done
 if [[ "$NODE_ENV" == "production" ]]; then
   echo -e "${BLUE}🔄 Running Prisma migrations${NC}"
 
+  # Helper: drop+recreate the public schema. SAFE only when there's no
+  # user data (fresh / aborted install). The caller verifies that first.
+  reset_public_schema() {
+    if [ "$start_bundled_postgres" != "true" ]; then
+      echo -e "${RED}❌ Schema reset is only attempted for the bundled DB${NC}"
+      return 1
+    fi
+    echo -e "${YELLOW}⚠️  Resetting public schema (no user data detected)${NC}"
+    gosu postgres /usr/lib/postgresql/15/bin/psql \
+      -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+      -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO \"$POSTGRES_USER\";"
+  }
+
+  # Helper: returns "safe" if either the User table doesn't exist or has 0
+  # rows (i.e. /setup never finished, so no real data exists). Caller uses
+  # this before destructive recovery actions.
+  reset_is_safe() {
+    [ "$start_bundled_postgres" = "true" ] || return 1
+    HAS_USERS=$(gosu postgres /usr/lib/postgresql/15/bin/psql \
+      -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+      "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='User') AS has_table, (SELECT count(*) FROM \"User\") AS user_count;" \
+      2>/dev/null || echo "false|0")
+    USER_COUNT=$(echo "$HAS_USERS" | awk -F'|' '{print $2}' | tr -d '[:space:]')
+    [ -z "$USER_COUNT" ] || [ "$USER_COUNT" = "0" ]
+  }
+
   # Auto-recover from P3009 — a previous container exit (e.g. SIGILL) can
   # leave a migration marked "started but not finished" in _prisma_migrations,
   # after which `prisma migrate deploy` refuses to proceed. Detect the stuck
-  # row, mark it rolled-back, retry once.
+  # row, mark it rolled-back, retry. If the retry then fails with
+  # "relation already exists" (the failed migration had partially-created
+  # tables before crashing), reset the public schema IF the DB has no
+  # real user data and retry from scratch.
   if ! gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy; then
     STUCK_MIG=""
     if [ "$start_bundled_postgres" = "true" ]; then
@@ -209,10 +238,28 @@ if [[ "$NODE_ENV" == "production" ]]; then
     if [ -n "$STUCK_MIG" ]; then
       echo -e "${YELLOW}⚠️  Found stuck migration '$STUCK_MIG' — marking rolled-back and retrying${NC}"
       gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate resolve --rolled-back "$STUCK_MIG"
-      gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy
+      if ! gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy; then
+        # Retry failed too — likely partial-table garbage from the original
+        # crash (P3018 / "relation already exists"). Reset if safe.
+        if reset_is_safe; then
+          reset_public_schema
+          gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy
+        else
+          echo -e "${RED}❌ Migration failed twice and user data exists — refusing to reset; manual intervention required${NC}"
+          exit 1
+        fi
+      fi
     else
-      echo -e "${RED}❌ Migration failed and no stuck row found — manual intervention needed${NC}"
-      exit 1
+      # No stuck migration row, but deploy still failed. If the DB is empty
+      # (no user data), it's a fresh install with garbage from a partial
+      # boot — safe to reset and retry.
+      if reset_is_safe; then
+        reset_public_schema
+        gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy
+      else
+        echo -e "${RED}❌ Migration failed and no recovery path is safe — manual intervention required${NC}"
+        exit 1
+      fi
     fi
   fi
 
