@@ -20,7 +20,7 @@
  * Styling:
  * - Flexbox-based layout
  * - Column direction for content flow
- * - Neutral background color (#f8f9fa)
+ * - Theme-aware background (follows Mantine color scheme)
  * - Responsive container width
  * 
  * @example
@@ -58,7 +58,8 @@ export function AuthLayout({ children }: AuthLayoutProps): React.ReactElement {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          backgroundColor: '#f8f9fa',
+          backgroundColor: 'var(--mantine-color-body)',
+          color: 'var(--mantine-color-text)',
         }}
       >
         <Container size="md">
