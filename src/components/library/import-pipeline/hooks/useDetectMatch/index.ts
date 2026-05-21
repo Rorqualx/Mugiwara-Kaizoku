@@ -26,6 +26,7 @@ import type {
 } from '@/components/library/import-pipeline/types';
 import type { MangaSearchResult } from '@/types/search.types';
 import { logger } from '@/utils/logger';
+import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client';
 
 type TrpcUtils = ReturnType<typeof trpc.useUtils>;
@@ -346,6 +347,15 @@ export function useDetectMatch(params: UseDetectMatchParams): UseDetectMatchRetu
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start scan';
       addError({ code: 'DETECT_MATCH_START_FAILED', message, stage: 'detect_match' });
+      // The error array is collected in state.errors but no stage currently
+      // renders it — so without a toast here, the button silently does
+      // nothing on failures like "Scan path is not accessible".
+      notify({
+        severity: 'ERROR',
+        title: 'Could not start scan',
+        message,
+      });
+      logger.error('[DetectMatch] startDetectMatch failed', { message, scanPath });
     }
   }, [selectedLibraryId, scanPath, isActive, scanMutation, dispatch, addError]);
 
