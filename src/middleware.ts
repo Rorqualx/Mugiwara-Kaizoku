@@ -33,8 +33,13 @@ const ADMIN_PATH_PREFIXES = ['/admin', '/settings', '/system', '/api/protected']
  * Keep this list tight — adding routes here exposes them to the public
  * web. `/api/auth/*` and `/api/trpc/*` are excluded at the matcher
  * level, not here.
+ *
+ * `/setup` is public because first-time installs have zero users yet —
+ * gating it would create an unreachable bootstrap page. `setup.tsx`
+ * self-gates: when users already exist it redirects to /login, so the
+ * exposure is only on a truly empty install.
  */
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/setup'];
 
 function startsWithAny(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
