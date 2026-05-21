@@ -83,7 +83,7 @@ RUN getent group abc || groupadd -r abc && \
     getent passwd abc || useradd -r -g abc abc
 
 # Copy utility scripts
-COPY scripts/wait-for-db.sh /usr/local/bin/wait-for-db.sh
+COPY scripts/database/wait-for-db.sh /usr/local/bin/wait-for-db.sh
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/wait-for-db.sh /usr/local/bin/docker-entrypoint.sh && \
     dos2unix /usr/local/bin/wait-for-db.sh /usr/local/bin/docker-entrypoint.sh
