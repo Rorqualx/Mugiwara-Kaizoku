@@ -51,16 +51,21 @@ First time you open it, you'll be redirected to `/setup` to create the admin acc
 ## Quick start (Docker)
 
 ```bash
-git clone https://github.com/Rorqualx/Mugiwara-Kaizoku.git
-cd Mugiwara-Kaizoku
-docker compose up -d
+# Single-container — Postgres, Suwayomi, and FlareSolverr all bundled.
+curl -O https://raw.githubusercontent.com/Rorqualx/Mugiwara-Kaizoku/main/docker-compose.yml
+MANGA_LIBRARY_PATH=/path/to/your/manga docker compose up -d
 ```
 
-That's it. The bundled compose brings up the app + Postgres with healthchecks. Session secrets are **auto-generated on first boot** and persisted under `./config/secrets.env`. Visit `http://localhost:3000` and complete `/setup`.
+That's it. Session secrets are **auto-generated on first boot** and persisted to the `kaizoku_config` volume. Visit `http://localhost:3000` and complete `/setup`. First boot takes 60–90s while Postgres initializes; subsequent boots are fast.
 
-**Production note:** the default Postgres credentials in `docker-compose.yml` (`kaizoku:kaizoku`) are fine for a local-only setup. If you expose this beyond your LAN, change both sides (`POSTGRES_PASSWORD` on the `db` service and the password in `DATABASE_URL` on the `app` service).
+| Volume | What it stores |
+|---|---|
+| `kaizoku_config` | Auto-generated session secrets, user prefs |
+| `kaizoku_data` | Postgres data, Suwayomi state, downloads cache |
+| `kaizoku_logs` | App logs (`/logs` inside container) |
+| `${MANGA_LIBRARY_PATH}` | Your manga library (host bind-mount) |
 
-For an extended stack with external torrent clients, see `docker-compose.example.yml`.
+**Want external Postgres / sidecar containers?** See [`docker-compose.advanced.yml`](docker-compose.advanced.yml) for the multi-container layout (separate `db` + `flaresolverr` services). Both compose files use the same image — the entrypoint detects which mode based on `DATABASE_URL`.
 
 ## First run
 
