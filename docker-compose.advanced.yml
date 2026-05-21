@@ -91,9 +91,10 @@ services:
       FLARESOLVERR_DEFAULT_WAIT_SECS: "0"
       FLARESOLVERR_LOG_LEVEL: "info"
     volumes:
-      # Persistent storage mappings
-      - ./data:/app/data:rw             # Application data
-      - ./config:/app/config:rw         # Configuration files
+      # Persistent storage mappings — paths align with the single-container
+      # layout so the same image can be used in either mode.
+      - ./data:/data:rw                 # Application data (libraries, downloads, suwayomi)
+      - ./config:/config:rw             # Auto-generated secrets + user config
       - ./config/backups:/config/backups:rw  # Backup storage
       - ./logs:/app/logs:rw             # Log files
       - node_modules:/app/node_modules  # Dependencies
