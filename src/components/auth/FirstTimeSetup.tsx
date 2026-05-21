@@ -62,6 +62,7 @@ export function FirstTimeSetup(): React.ReactElement {
     const [active, setActive] = useState(0);
     const [formKey] = useState(Date.now()); // Used to reset form
     const router = useRouter();
+    const firstTimeSetupMutation = trpc.users.firstTimeSetup.useMutation();
     const form = useForm({
         initialValues: {
             userName: '',
@@ -119,7 +120,7 @@ export function FirstTimeSetup(): React.ReactElement {
                 password: '******' // Mask password in logs
             });
             // Submit the form data via tRPC mutation
-            const result = await trpc.users.firstTimeSetup.useMutation().mutateAsync({
+            const result = await firstTimeSetupMutation.mutateAsync({
                 userName: data.userName,
                 email: data.email,
                 password: data.password
