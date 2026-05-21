@@ -98,11 +98,10 @@ RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
 # AVX2-optimized and SIGILL's on older / virtualized CPUs.
 # Installed to /usr/local so the unprivileged `app` user can execute it.
 ARG BUN_VERSION=bun-v1.3.0
-RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/bun-linux-x64-baseline.zip" -o /tmp/bun.zip && \
-    unzip -q /tmp/bun.zip -d /tmp && \
-    install -m 0755 /tmp/bun-linux-x64-baseline/bun /usr/local/bin/bun && \
-    ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
-    rm -rf /tmp/bun.zip /tmp/bun-linux-x64-baseline
+RUN curl -fsSL https://bun.sh/install -o /tmp/bun-install.sh && \
+    BUN_INSTALL=/usr/local bash /tmp/bun-install.sh "${BUN_VERSION}" --baseline && \
+    rm /tmp/bun-install.sh && \
+    chmod 755 /usr/local/bin/bun /usr/local/bin/bunx
 
 ###############################################################################
 # Dependencies stage
