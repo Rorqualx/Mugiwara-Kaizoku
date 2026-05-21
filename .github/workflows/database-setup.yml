@@ -49,9 +49,11 @@ jobs:
           # Push schema directly (force-reset ensures clean database)
           bunx prisma db push --force-reset
 
-          # Run development seed script if it exists
+          # Run development seed script if it exists. Non-fatal: Prisma 7's
+          # driver adapter has occasional Rust-borrow issues in CI; tests
+          # create their own fixtures so a failed seed shouldn't block them.
           if [ -f "scripts/database/seed-dev.js" ]; then
-            bun scripts/database/seed-dev.js
+            bun scripts/database/seed-dev.js || echo "⚠️  Seed step failed (non-fatal in CI)"
           else
             echo "No seed script found, skipping seeding"
           fi
