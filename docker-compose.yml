@@ -1,132 +1,54 @@
-# Docker Compose Configuration for Kaizoku
+# Mugiwara-Kaizoku — single-container Docker Compose
 #
-# This file defines the multi-container Docker application setup for Kaizoku,
-# including database and application services with proper networking, volumes,
-# and health checks.
+# Everything bundled in one image: app + Postgres + Suwayomi + FlareSolverr.
+# Session secrets are auto-generated on first boot.
 #
-# Services:
-# - db: PostgreSQL database server
-# - app: Kaizoku application server
-#
-# Features:
-# - Automatic container restart
-# - Health monitoring
-# - Volume persistence
-# - Environment configuration
-# - Container dependencies
-
-version: '3.8'
+# For an external Postgres / sidecar layout (advanced), see
+# docker-compose.advanced.yml.
 
 services:
-  # PostgreSQL Database Service
-  # Provides persistent storage and management of manga metadata
-  db:
-    image: postgres:15-alpine
-    container_name: kaizoku_db
-    restart: unless-stopped
-    environment:
-      # Database configuration
-      POSTGRES_USER: kaizoku
-      POSTGRES_PASSWORD: kaizoku
-      POSTGRES_DB: kaizoku
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      # Persistent database storage
-      - postgres_data:/var/lib/postgresql/data/pgdata
-    ports:
-      # Port mapping for development database access
-      - "5432:5432"
-    healthcheck:
-      # Regular health monitoring
-      test: ["CMD-SHELL", "pg_isready -U kaizoku -d kaizoku"]
-      interval: 10s      # Check every 10 seconds
-      timeout: 5s        # Fail if check takes > 5 seconds
-      retries: 5         # Allow 5 retries before marking unhealthy
-      start_period: 30s  # Initial grace period for startup
-
-  # Kaizoku Application Service
-  # Main application server handling manga management and user interactions
-  app:
+  kaizoku:
+    image: ghcr.io/rorqualx/mugiwara-kaizoku:latest
+    # To build locally instead of pulling, comment the line above and uncomment:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: kaizoku
-    build:
-      context: .
-      dockerfile: Dockerfile
     restart: unless-stopped
-    depends_on:
-      - db  # Ensures database is started first
-    environment:
-      # Application configuration
-      NODE_ENV: production
-      DATABASE_URL: postgresql://kaizoku:kaizoku@db:5432/kaizoku
-      KAIZOKU_PORT: 3000
-      TZ: UTC
-      IS_DOCKER: "true"
-      IN_DOCKER: "true"
-      # NEXTAUTH_SECRET and AUTH_SECRET are AUTO-GENERATED on first boot
-      # and persisted under /app/config (mounted to ./config below).
-      # To override (e.g. share a JWT secret across multiple instances),
-      # uncomment and set explicit values:
-      # NEXTAUTH_SECRET: ""
-      # AUTH_SECRET: ""
-      # Backup configuration for Docker
-      BACKUP_DIR: /config/backups
-      BACKUP_UPLOAD_DIR: /config/backups/uploads
-      BACKUP_MAX_SIZE_MB: 2000
-      BACKUP_RETENTION_DAYS: 30
-      BACKUP_MAX_COUNT: 10
-      # Download client folder configuration
-      # Set this to your download client's completed folder path
-      # DOWNLOAD_FOLDER: "/downloads"
-      # For path mappings between remote and local paths:
-      # PATH_MAPPINGS: "/remote/downloads:/local/downloads,/remote/completed:/local/completed"
-      # FlareSolverr (optional — only needed for Cloudflare-protected sources)
-      # Disabled by default. To enable, uncomment the `flaresolverr` service below
-      # AND set FLARESOLVERR_ENABLED to "true" + point FLARESOLVERR_URL at the
-      # sidecar hostname (http://flaresolverr:8191/v1).
-      FLARESOLVERR_ENABLED: "false"
-      FLARESOLVERR_URL: "http://flaresolverr:8191/v1"
-      FLARESOLVERR_TIMEOUT: "60000"
-      FLARESOLVERR_SESSION_TTL: "1800000"
-      FLARESOLVERR_DISABLE_MEDIA: "true"
-      FLARESOLVERR_DEFAULT_WAIT_SECS: "0"
-      FLARESOLVERR_LOG_LEVEL: "info"
-    volumes:
-      # Persistent storage mappings
-      - ./data:/app/data:rw             # Application data
-      - ./config:/app/config:rw         # Configuration files
-      - ./config/backups:/config/backups:rw  # Backup storage
-      - ./logs:/app/logs:rw             # Log files
-      - node_modules:/app/node_modules  # Dependencies
     ports:
-      # Port mapping for web access
       - "3000:3000"
+    environment:
+      # Adjust to your timezone (IANA format).
+      TZ: UTC
+      # The defaults below are wired into the bundled Postgres on first boot.
+      # Override them only if you're sharing the DB with something else.
+      # POSTGRES_USER: kaizoku
+      # POSTGRES_PASSWORD: kaizoku
+      # POSTGRES_DB: kaizoku
+      # NEXTAUTH_SECRET / AUTH_SECRET are auto-generated on first boot and
+      # persisted to the `kaizoku_config` volume. Override here only if you
+      # need to share secrets across multiple instances.
+      # NEXTAUTH_URL: http://localhost:3000   # set to your public URL
+    volumes:
+      # App config volume — session secrets (auto-generated), user prefs.
+      - kaizoku_config:/config
+      # Data volume — Postgres data, Suwayomi server state, downloads cache.
+      # DO NOT delete this volume without a backup; it holds all app state.
+      - kaizoku_data:/data
+      # Logs (optional — comment out to keep logs only in container stdout).
+      - kaizoku_logs:/logs
+      # YOUR MANGA LIBRARY — bind-mount the directory you want the app to scan.
+      # Add additional libraries inside the app under Settings → Libraries.
+      # The host directory should be owned by UID 1000 (the in-container user).
+      - "${MANGA_LIBRARY_PATH:-./manga}:/data/manga"
     healthcheck:
-      # Application health monitoring
       test: ["CMD", "nc", "-z", "localhost", "3000"]
-      interval: 30s      # Check every 30 seconds
-      timeout: 10s       # Fail if check takes > 10 seconds
-      retries: 3         # Allow 3 retries before marking unhealthy
-      start_period: 40s  # Initial grace period for startup
-    entrypoint: ["/usr/local/bin/wait-for-db.sh", "db", "./scripts/docker-entrypoint.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s   # postgres init + migrations take a bit on first boot
 
-  # FlareSolverr sidecar (OPTIONAL — Cloudflare bypass for ComicVine/Fandom scrapes)
-  # Uncomment this block AND set FLARESOLVERR_ENABLED=true on the `app` service
-  # above to enable.
-  # flaresolverr:
-  #   image: ghcr.io/flaresolverr/flaresolverr:latest
-  #   container_name: kaizoku_flaresolverr
-  #   restart: unless-stopped
-  #   environment:
-  #     LOG_LEVEL: info
-  #     TZ: UTC
-  #   ports:
-  #     - "8191:8191"
-
-# Persistent Volume Definitions
 volumes:
-  # Database storage
-  postgres_data:
-    # Persists across container restarts
-  # Node.js dependencies
-  node_modules:
-    # Prevents host node_modules from conflicting with container
+  kaizoku_config:
+  kaizoku_data:
+  kaizoku_logs:
