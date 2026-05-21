@@ -193,7 +193,28 @@ done
 # =============================================================================
 if [[ "$NODE_ENV" == "production" ]]; then
   echo -e "${BLUE}🔄 Running Prisma migrations${NC}"
-  gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy
+
+  # Auto-recover from P3009 — a previous container exit (e.g. SIGILL) can
+  # leave a migration marked "started but not finished" in _prisma_migrations,
+  # after which `prisma migrate deploy` refuses to proceed. Detect the stuck
+  # row, mark it rolled-back, retry once.
+  if ! gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy; then
+    STUCK_MIG=""
+    if [ "$start_bundled_postgres" = "true" ]; then
+      STUCK_MIG=$(gosu postgres /usr/lib/postgresql/15/bin/psql \
+        -h /var/run/postgresql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+        "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL ORDER BY started_at DESC LIMIT 1;" \
+        2>/dev/null | tr -d '[:space:]' || true)
+    fi
+    if [ -n "$STUCK_MIG" ]; then
+      echo -e "${YELLOW}⚠️  Found stuck migration '$STUCK_MIG' — marking rolled-back and retrying${NC}"
+      gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate resolve --rolled-back "$STUCK_MIG"
+      gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy
+    else
+      echo -e "${RED}❌ Migration failed and no stuck row found — manual intervention needed${NC}"
+      exit 1
+    fi
+  fi
 
   echo -e "${GREEN}✅ Database setup complete. Starting application${NC}"
   # exec into the app under the 'app' user. If bundled postgres is running,
