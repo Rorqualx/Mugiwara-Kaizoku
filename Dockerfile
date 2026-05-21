@@ -57,6 +57,8 @@ WORKDIR /app
 
 COPY package.json bun.lock ./
 COPY prisma ./prisma/
+# Workspace packages (mangadex-ts-client is referenced as workspace:* in package.json)
+COPY packages ./packages
 
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
