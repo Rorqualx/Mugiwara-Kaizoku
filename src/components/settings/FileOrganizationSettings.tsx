@@ -34,8 +34,12 @@ export function FileOrganizationSettings(): React.ReactElement | null {
     const [customFolderTemplate, setCustomFolderTemplate] = useState<string>('');
     const [volumeNamingTemplate, setVolumeNamingTemplate] = useState<string>('{title} Vol {volume}');
     const [chapterNamingTemplate, setChapterNamingTemplate] = useState<string>('{title} V{volume} C{chapter}');
-    // State for library base path
-    const [libraryBasePath, setLibraryBasePath] = useState<string>('/manga');
+    // State for library base path. Default is empty so a fresh install
+    // doesn't ship a misleading "/manga" value that doesn't exist in the
+    // bundled container's filesystem — users pick the real path via the
+    // Browse dialog before anything is written. Placeholder text in the
+    // input still shows "/manga" as a format hint.
+    const [libraryBasePath, setLibraryBasePath] = useState<string>('');
     // State for organization options
     const [createMetadataFiles, setCreateMetadataFiles] = useState<boolean>(true);
     const [fileMode, setFileMode] = useState<FileMode>('move');
