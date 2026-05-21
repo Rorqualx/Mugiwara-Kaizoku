@@ -36,9 +36,16 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# PostgreSQL 15 — bundled DB server + client. Postgres process runs as the
-# `postgres` system user; the entrypoint orchestrates init + startup.
-RUN apt-get update && \
+# PostgreSQL 15 — bundled DB server + client. Postgres-15 isn't in the
+# Ubuntu 22.04 default repos, so we add the official PGDG repo first.
+# The postgres process runs as the `postgres` system user; the entrypoint
+# orchestrates init + startup.
+RUN install -d /usr/share/postgresql-common/pgdg && \
+    curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+        https://www.postgresql.org/media/keys/ACCC4CF8.asc && \
+    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt jammy-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
         postgresql-15 \
         postgresql-client-15 && \
