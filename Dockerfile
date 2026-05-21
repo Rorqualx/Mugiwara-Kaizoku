@@ -114,7 +114,10 @@ COPY prisma ./prisma/
 # Workspace packages (mangadex-ts-client is referenced as workspace:* in package.json)
 COPY packages ./packages
 
-RUN --mount=type=cache,target=/root/.bun/install/cache \
+# Cache id bumped after switching to bun-baseline — the previous cache had
+# entries hashed against the standard (AVX2) bun and confused subsequent
+# --frozen-lockfile runs ("Cannot find module domhandler").
+RUN --mount=type=cache,target=/root/.bun/install/cache,id=bun-install-baseline-v2 \
     bun install --frozen-lockfile
 
 ###############################################################################
