@@ -105,6 +105,9 @@ if [ "$start_bundled_postgres" = "true" ]; then
   chown -R postgres:postgres "$PGDATA"
   chmod 700 "$PGDATA"
 
+  # Ensure unix socket dir exists on every boot (lost on container recreate)
+  mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
+
   if [ ! -s "$PGDATA/PG_VERSION" ]; then
     echo -e "${YELLOW}🐘 First-run: initializing PostgreSQL cluster at $PGDATA${NC}"
     PW_FILE="$(mktemp)"
@@ -125,23 +128,37 @@ if [ "$start_bundled_postgres" = "true" ]; then
       echo "listen_addresses = 'localhost'"
       echo "unix_socket_directories = '/var/run/postgresql'"
     } >> "$PGDATA/postgresql.conf"
-
-    # Bootstrap the kaizoku database (initdb already created the superuser)
-    echo -e "${BLUE}🐘 Bootstrapping database '$POSTGRES_DB'${NC}"
-    mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
-    gosu postgres /usr/lib/postgresql/15/bin/pg_ctl -D "$PGDATA" -l /tmp/pg-init.log -w start
-    gosu postgres /usr/lib/postgresql/15/bin/psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\" OWNER \"$POSTGRES_USER\";"
-    gosu postgres /usr/lib/postgresql/15/bin/pg_ctl -D "$PGDATA" -m fast -w stop
     echo -e "${GREEN}✅ PostgreSQL cluster initialized${NC}"
   fi
-
-  # Ensure unix socket dir exists on every boot (lost on container recreate)
-  mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
 
   # Start postgres in the background — runs for the lifetime of the container
   echo -e "${BLUE}🐘 Starting bundled PostgreSQL${NC}"
   gosu postgres /usr/lib/postgresql/15/bin/postgres -D "$PGDATA" &
   POSTGRES_PID=$!
+
+  # Wait for postgres to accept connections before any psql work
+  for i in $(seq 1 30); do
+    if gosu postgres pg_isready -h /var/run/postgresql -q; then
+      break
+    fi
+    if [ "$i" -eq 30 ]; then
+      echo -e "${RED}❌ PostgreSQL failed to become ready within 30s${NC}"
+      exit 1
+    fi
+    sleep 1
+  done
+
+  # Idempotent database + role bootstrap (runs every boot — safe to re-run).
+  # initdb creates a superuser matching POSTGRES_USER but the application
+  # database is created separately so a fresh cluster + an existing cluster
+  # both land in the same state here.
+  DB_EXISTS=$(gosu postgres /usr/lib/postgresql/15/bin/psql -h /var/run/postgresql -tAc \
+    "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" 2>/dev/null || echo "")
+  if [ "$DB_EXISTS" != "1" ]; then
+    echo -e "${BLUE}🐘 Creating database '$POSTGRES_DB'${NC}"
+    gosu postgres /usr/lib/postgresql/15/bin/psql -h /var/run/postgresql -v ON_ERROR_STOP=1 -d postgres \
+      -c "CREATE DATABASE \"${POSTGRES_DB}\" OWNER \"${POSTGRES_USER}\";"
+  fi
 
   # Trap SIGTERM/SIGINT to bring postgres down cleanly when the container stops
   cleanup() {
