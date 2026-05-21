@@ -36,6 +36,38 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Google Chrome + GUI libraries — required by the bundled FlareSolverr
+# subprocess (flaresolverr-go) which the app downloads + manages itself
+# at boot. The UI's "Cloudflare bypass" toggle controls autoStart.
+# Using google-chrome-stable from Google's apt repo because Ubuntu 22.04's
+# chromium-browser is a snap shim that doesn't work in containers.
+# amd64-only — Google does not ship an arm64 Linux build.
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | \
+        gpg --dearmor > /etc/apt/trusted.gpg.d/google-chrome.gpg && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        google-chrome-stable \
+        libglib2.0-0 \
+        libnss3 \
+        libatk1.0-0 \
+        libatk-bridge2.0-0 \
+        libcups2 \
+        libdrm2 \
+        libxcb1 \
+        libxkbcommon0 \
+        libxcomposite1 \
+        libxdamage1 \
+        libxfixes3 \
+        libxrandr2 \
+        libgbm1 \
+        libpango-1.0-0 \
+        libcairo2 \
+        libasound2 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # PostgreSQL 15 — bundled DB server + client. Postgres-15 isn't in the
 # Ubuntu 22.04 default repos, so we add the official PGDG repo first.
 # The postgres process runs as the `postgres` system user; the entrypoint
