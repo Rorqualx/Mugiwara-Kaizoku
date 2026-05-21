@@ -36,14 +36,16 @@ jobs:
           set -euo pipefail
           GHCR_IMG="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "ghcr=${GHCR_IMG}" >> "$GITHUB_OUTPUT"
+          if [ -n "${DH_USER}" ]; then
+            echo "hub_enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hub_enabled=false" >> "$GITHUB_OUTPUT"
+          fi
           {
             echo "list<<EOF"
             echo "${GHCR_IMG}"
             if [ -n "${DH_USER}" ]; then
               echo "${DH_USER}/mugiwara-kaizoku"
-              echo "hub_enabled=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "hub_enabled=false" >> "$GITHUB_OUTPUT"
             fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
