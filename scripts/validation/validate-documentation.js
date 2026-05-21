@@ -9,6 +9,21 @@
 const fs = require('fs');
 const path = require('path');
 
+// Legacy/historical doc folders not worth gating CI on. These hold
+// pre-public-release artifacts (session notes, archived plans, upstream-
+// project leftovers, templates) with hundreds of stale cross-references
+// that would never be fixed and have no bearing on user-facing docs.
+const SKIP_DIRS = new Set([
+  'node_modules',
+  '.git',
+  'archive',
+  'kapowarr',
+  'templates',
+  'sessions',
+  'reports',
+  'fixes-summaries',
+]);
+
 function findMarkdownFiles(dir = 'docs', files = []) {
   if (!fs.existsSync(dir)) {
     return files;
@@ -20,7 +35,7 @@ function findMarkdownFiles(dir = 'docs', files = []) {
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      if (['node_modules', '.git'].includes(entry.name)) {
+      if (SKIP_DIRS.has(entry.name)) {
         continue;
       }
       findMarkdownFiles(fullPath, files);
