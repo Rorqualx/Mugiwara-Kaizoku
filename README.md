@@ -58,12 +58,14 @@ MANGA_LIBRARY_PATH=/path/to/your/manga docker compose up -d
 
 That's it. Session secrets are **auto-generated on first boot** and persisted to the `kaizoku_config` volume. Visit `http://localhost:3000` and complete `/setup`. First boot takes 60–90s while Postgres initializes; subsequent boots are fast.
 
-| Volume | What it stores |
-|---|---|
-| `kaizoku_config` | Auto-generated session secrets, user prefs |
-| `kaizoku_data` | Postgres data, Suwayomi state, downloads cache |
-| `kaizoku_logs` | App logs (`/logs` inside container) |
-| `${MANGA_LIBRARY_PATH}` | Your manga library (host bind-mount) |
+**After first boot:** go to **Settings → Libraries** and add `/library` (or a subdirectory of it) as a scan path. That's where your bind-mounted manga lives inside the container.
+
+| Mount | Type | What's inside |
+|---|---|---|
+| `kaizoku_config` → `/config` | Named volume | Auto-generated session secrets, user-set config overrides |
+| `kaizoku_data` → `/data` | Named volume | **All internal state** — Postgres DB, library scan metadata, download cache, Suwayomi server. Back this up. |
+| `kaizoku_logs` → `/logs` | Named volume | App logs (optional — remove to keep logs only in container stdout) |
+| `${MANGA_LIBRARY_PATH}` → `/library` | Host bind-mount | **Your actual manga files.** Kept separate from `/data` so internal state and library files never share a tree. |
 
 **Want external Postgres / sidecar containers?** See [`docker-compose.advanced.yml`](docker-compose.advanced.yml) for the multi-container layout (separate `db` + `flaresolverr` services). Both compose files use the same image — the entrypoint detects which mode based on `DATABASE_URL`.
 
