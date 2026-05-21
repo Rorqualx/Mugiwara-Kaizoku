@@ -54,6 +54,23 @@ function getAdapter(): SuwayomiSourceAdapter {
 }
 
 /**
+ * Wipe the publicProcedure query caches that depend on the installed
+ * extension set. Install/uninstall mutations call this so the UI's
+ * post-mutation refetch returns fresh state instead of the 30s-cached
+ * snapshot from before the change — without it, the Install button
+ * keeps showing "Install" until the cache TTL expires (the user
+ * sees this as "I have to refresh the page").
+ */
+async function invalidateExtensionCaches(): Promise<void> {
+  const { cache } = await import('@/server/cache/cache-adapter');
+  await Promise.all([
+    cache.clear('trpc:suwayomiV2.getExtensions:*'),
+    cache.clear('trpc:suwayomiV2.getSources:*'),
+    cache.clear('trpc:suwayomiV2.getInfrastructureStatus:*'),
+  ]);
+}
+
+/**
  * Ensure server is running before operations.
  *
  * Probes the health endpoint first; if the JVM is down AND the integration
@@ -306,6 +323,13 @@ export const suwayomiV2Router = router({
         return { success: false, error: null };
       }
 
+      // publicProcedure caches query results for 30s; without clearing
+      // the getExtensions/getSources cache the UI's post-install refetch
+      // returns the stale "not installed" snapshot, so the Install button
+      // doesn't flip to the Installed badge until a hard reload. Wipe
+      // the cached entries the UI re-queries.
+      await invalidateExtensionCaches();
+
       return { success: result.data, error: null };
     }),
 
@@ -329,6 +353,11 @@ export const suwayomiV2Router = router({
       if (!isSuccess(result)) {
         return { success: false, error: null };
       }
+
+      // Same publicProcedure 30s cache as install — without invalidation
+      // the badges + browse-catalog rows keep showing the pre-uninstall
+      // state on the next refetch.
+      await invalidateExtensionCaches();
 
       return { success: result.data, error: null };
     }),
