@@ -1,4 +1,4 @@
-# Mugiwara-Kaizoku — single-container Docker Compose
+ # Mugiwara-Kaizoku — single-container Docker Compose
 #
 # Everything bundled in one image: app + Postgres + Suwayomi + FlareSolverr.
 # Session secrets are auto-generated on first boot.
@@ -30,17 +30,24 @@ services:
       # need to share secrets across multiple instances.
       # NEXTAUTH_URL: http://localhost:3000   # set to your public URL
     volumes:
-      # App config volume — session secrets (auto-generated), user prefs.
+      # === App-managed state (don't touch from the host) ===
+      # Auto-generated session secrets + user-set config overrides.
       - kaizoku_config:/config
-      # Data volume — Postgres data, Suwayomi server state, downloads cache.
-      # DO NOT delete this volume without a backup; it holds all app state.
+      # Everything internal: Postgres data, library/scan metadata,
+      # download cache, Suwayomi server state. Single source of truth
+      # for "user data + metadata + DB" — back this volume up.
       - kaizoku_data:/data
-      # Logs (optional — comment out to keep logs only in container stdout).
+      # App logs (optional — remove to keep logs only in container stdout).
       - kaizoku_logs:/logs
-      # YOUR MANGA LIBRARY — bind-mount the directory you want the app to scan.
-      # Add additional libraries inside the app under Settings → Libraries.
-      # The host directory should be owned by UID 1000 (the in-container user).
-      - "${MANGA_LIBRARY_PATH:-./manga}:/data/manga"
+
+      # === Your manga library (bind-mount) ===
+      # Host directory where your actual manga files live. Mounted at
+      # /library inside the container — kept SEPARATE from /data so the
+      # app's internal state and your files never share a directory tree.
+      # After first boot, go to Settings → Libraries and add /library
+      # (or a subdirectory of it) as a scan path.
+      # The host directory should be owned by UID 1000.
+      - "${MANGA_LIBRARY_PATH:-./manga}:/library"
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "3000"]
       interval: 30s
