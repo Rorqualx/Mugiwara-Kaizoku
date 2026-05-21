@@ -171,6 +171,7 @@ COPY --from=build --chown=app:app /app/.next ./.next
 COPY --from=build --chown=app:app /app/prisma ./prisma
 COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
+COPY --from=build --chown=app:app /app/packages ./packages
 COPY --from=build --chown=app:app /app/src ./src
 
 # Entrypoint runs as root so it can chown volume mounts and start postgres
