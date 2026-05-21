@@ -2,43 +2,45 @@
 # =============================================================================
 # DOCKER ENTRYPOINT SCRIPT
 # =============================================================================
-# This script runs inside the Docker container as the entrypoint
-# It handles database setup and application startup
+# Runs as root. Orchestrates:
+#   1. Secrets bootstrap   — auto-generate NEXTAUTH_SECRET / AUTH_SECRET
+#   2. Postgres bootstrap  — initdb + start bundled PG if DATABASE_URL points
+#                            at localhost (skipped if external DB configured)
+#   3. Migrations          — `bunx prisma migrate deploy`
+#   4. App launch          — gosu app exec bun src/server/index.ts
+#
+# Single-container mode (default): DATABASE_URL unset or localhost → bundled
+# postgres starts internally.
+# Multi-container mode: DATABASE_URL points to external host → bundled
+# postgres is skipped; we just wait for the external DB to be reachable.
 # =============================================================================
 
-set -e  # Exit on any error
+set -e
 
-# Color output for better readability
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${BLUE}🐳 Starting Kaizoku in Docker container${NC}"
 
 # =============================================================================
-# SECRETS BOOTSTRAP
+# 1. SECRETS BOOTSTRAP
 # =============================================================================
-# Auto-generate NEXTAUTH_SECRET / AUTH_SECRET on first boot and persist to
-# the config volume. Explicit env vars always win — this only kicks in
-# when both are unset or empty.
-#
-# Path resolution: prefer /config (linuxserver convention, used post-Phase-B)
-# but fall back to /app/config which is what the current compose mounts.
-# =============================================================================
+# Auto-generate NEXTAUTH_SECRET / AUTH_SECRET on first boot and persist them.
+# Explicit env vars always win — this only kicks in when both are empty.
 if [ -d "/config" ] && [ -w "/config" ]; then
   SECRETS_FILE="/config/secrets.env"
 elif [ -d "/app/config" ]; then
   mkdir -p /app/config 2>/dev/null || true
   SECRETS_FILE="/app/config/secrets.env"
 else
-  # Last-resort: write inside the container (won't persist across recreates)
   mkdir -p /app/config 2>/dev/null || true
   SECRETS_FILE="/app/config/secrets.env"
 fi
 
-# Pull in already-persisted secrets if env doesn't override them
 if [ -f "$SECRETS_FILE" ]; then
   echo -e "${BLUE}🔑 Loading persisted secrets from $SECRETS_FILE${NC}"
   # shellcheck disable=SC1090
@@ -46,7 +48,7 @@ if [ -f "$SECRETS_FILE" ]; then
 fi
 
 if [ -z "${NEXTAUTH_SECRET:-}" ] || [ -z "${AUTH_SECRET:-}" ]; then
-  echo -e "${YELLOW}🔑 No secrets found — generating and persisting to $SECRETS_FILE${NC}"
+  echo -e "${YELLOW}🔑 No secrets found — generating and persisting${NC}"
   mkdir -p "$(dirname "$SECRETS_FILE")"
   : "${NEXTAUTH_SECRET:=$(openssl rand -base64 32)}"
   : "${AUTH_SECRET:=$(openssl rand -base64 32)}"
@@ -61,42 +63,137 @@ if [ -z "${NEXTAUTH_SECRET:-}" ] || [ -z "${AUTH_SECRET:-}" ]; then
   echo -e "${GREEN}✅ Secrets generated. Persisted to $SECRETS_FILE (chmod 600).${NC}"
 fi
 
-# Check environment
-if [[ "$NODE_ENV" == "production" ]]; then
-  echo -e "${YELLOW}Production mode detected - using migration-based setup${NC}"
-  
-  # In production, use the migration-based approach
-  echo -e "${BLUE}🔄 Running migrations...${NC}"
-  bunx prisma migrate deploy
-  
-  # Start the unified server (all services + WebSocket)
-  echo -e "${GREEN}✅ Database setup complete. Starting application...${NC}"
-  exec bun src/server/index.ts
-else
-  echo -e "${YELLOW}Development mode detected - using schema recreation${NC}"
-  
-  # In development, use the schema recreation approach
-  echo -e "${BLUE}📋 Setting up development database...${NC}"
-  
-  # Ensure we're using the consolidated schema
-  if [[ -f "prisma/schema-consolidated.prisma" ]]; then
-    echo -e "${BLUE}🔄 Using consolidated schema...${NC}"
-    cp prisma/schema-consolidated.prisma prisma/schema.prisma
+# =============================================================================
+# 2. POSTGRES BOOTSTRAP (bundled DB)
+# =============================================================================
+# Defaults:
+#   DATABASE_URL=postgresql://kaizoku:kaizoku@localhost:5432/kaizoku
+#   PGDATA=/data/postgres
+#
+# If DATABASE_URL is already set to an EXTERNAL host (anything that's not
+# localhost / 127.0.0.1), we skip starting the bundled postgres entirely.
+: "${PGDATA:=/data/postgres}"
+: "${POSTGRES_USER:=kaizoku}"
+: "${POSTGRES_PASSWORD:=kaizoku}"
+: "${POSTGRES_DB:=kaizoku}"
+: "${DATABASE_URL:=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:5432/${POSTGRES_DB}}"
+export PGDATA DATABASE_URL
+
+POSTGRES_PID=""
+db_host_from_url() {
+  # Extract host between "@" and ":"/"/" in postgresql://user:pass@host:port/db
+  echo "$DATABASE_URL" | sed -nE 's|^postgres(ql)?://[^@]+@([^:/]+).*|\2|p'
+}
+DB_HOST="$(db_host_from_url)"
+
+start_bundled_postgres=false
+case "$DB_HOST" in
+  localhost|127.0.0.1|"")
+    start_bundled_postgres=true
+    ;;
+  *)
+    echo -e "${BLUE}🐘 External database detected ($DB_HOST) — skipping bundled postgres${NC}"
+    ;;
+esac
+
+if [ "$start_bundled_postgres" = "true" ]; then
+  # Ensure data dir exists with the right owner
+  mkdir -p "$PGDATA"
+  chown -R postgres:postgres "$PGDATA"
+  chmod 700 "$PGDATA"
+
+  if [ ! -s "$PGDATA/PG_VERSION" ]; then
+    echo -e "${YELLOW}🐘 First-run: initializing PostgreSQL cluster at $PGDATA${NC}"
+    PW_FILE="$(mktemp)"
+    echo "$POSTGRES_PASSWORD" > "$PW_FILE"
+    chown postgres:postgres "$PW_FILE"
+    gosu postgres /usr/lib/postgresql/15/bin/initdb \
+      -D "$PGDATA" \
+      --auth-local=trust \
+      --auth-host=md5 \
+      --username="$POSTGRES_USER" \
+      --pwfile="$PW_FILE" \
+      --encoding=UTF8 \
+      --locale=C.UTF-8
+    rm -f "$PW_FILE"
+
+    # Listen only on localhost (no external surface) + use Unix socket dir
+    {
+      echo "listen_addresses = 'localhost'"
+      echo "unix_socket_directories = '/var/run/postgresql'"
+    } >> "$PGDATA/postgresql.conf"
+
+    # Bootstrap the kaizoku database (initdb already created the superuser)
+    echo -e "${BLUE}🐘 Bootstrapping database '$POSTGRES_DB'${NC}"
+    mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
+    gosu postgres /usr/lib/postgresql/15/bin/pg_ctl -D "$PGDATA" -l /tmp/pg-init.log -w start
+    gosu postgres /usr/lib/postgresql/15/bin/psql -v ON_ERROR_STOP=1 -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\" OWNER \"$POSTGRES_USER\";"
+    gosu postgres /usr/lib/postgresql/15/bin/pg_ctl -D "$PGDATA" -m fast -w stop
+    echo -e "${GREEN}✅ PostgreSQL cluster initialized${NC}"
   fi
-  
-  # Generate Prisma client
-  echo -e "${BLUE}⚙️  Generating Prisma client...${NC}"
-  bunx prisma generate
-  
-  # Reset database (drops all data and recreates from schema)
-  echo -e "${YELLOW}⚠️  Recreating database from schema...${NC}"
-  bunx prisma db push --force-reset
-  
-  # Run the development seed script
-  echo -e "${BLUE}🌱 Running development seed script...${NC}"
-  node scripts/database/seed-dev.js
-  
-  # Start the application in development mode
-  echo -e "${GREEN}✅ Development database setup complete. Starting application...${NC}"
-  bun run dev
+
+  # Ensure unix socket dir exists on every boot (lost on container recreate)
+  mkdir -p /var/run/postgresql && chown postgres:postgres /var/run/postgresql
+
+  # Start postgres in the background — runs for the lifetime of the container
+  echo -e "${BLUE}🐘 Starting bundled PostgreSQL${NC}"
+  gosu postgres /usr/lib/postgresql/15/bin/postgres -D "$PGDATA" &
+  POSTGRES_PID=$!
+
+  # Trap SIGTERM/SIGINT to bring postgres down cleanly when the container stops
+  cleanup() {
+    if [ -n "$POSTGRES_PID" ] && kill -0 "$POSTGRES_PID" 2>/dev/null; then
+      echo -e "${YELLOW}📡 Stopping PostgreSQL (pid $POSTGRES_PID)${NC}"
+      kill -TERM "$POSTGRES_PID" 2>/dev/null || true
+      wait "$POSTGRES_PID" 2>/dev/null || true
+    fi
+  }
+  trap cleanup SIGTERM SIGINT EXIT
+fi
+
+# Wait for the database (bundled or external) to be reachable
+echo -e "${BLUE}⏳ Waiting for database${NC}"
+for i in $(seq 1 60); do
+  if pg_isready -d "$DATABASE_URL" >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Database is ready${NC}"
+    break
+  fi
+  if [ "$i" -eq 60 ]; then
+    echo -e "${RED}❌ Database failed to become ready within 60s${NC}"
+    exit 1
+  fi
+  sleep 1
+done
+
+# =============================================================================
+# 3. MIGRATIONS + APP LAUNCH
+# =============================================================================
+if [[ "$NODE_ENV" == "production" ]]; then
+  echo -e "${BLUE}🔄 Running Prisma migrations${NC}"
+  gosu app env DATABASE_URL="$DATABASE_URL" bunx prisma migrate deploy
+
+  echo -e "${GREEN}✅ Database setup complete. Starting application${NC}"
+  # exec into the app under the 'app' user. If bundled postgres is running,
+  # it stays as a child of this process (PID 1 is the entrypoint shell).
+  if [ "$start_bundled_postgres" = "true" ]; then
+    # Keep postgres as a sibling — run app in foreground, NOT exec
+    gosu app env DATABASE_URL="$DATABASE_URL" \
+      NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
+      AUTH_SECRET="$AUTH_SECRET" \
+      "$@"
+    APP_EXIT=$?
+    cleanup
+    exit $APP_EXIT
+  else
+    exec gosu app env DATABASE_URL="$DATABASE_URL" \
+      NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
+      AUTH_SECRET="$AUTH_SECRET" \
+      "$@"
+  fi
+else
+  echo -e "${YELLOW}Development mode detected${NC}"
+  gosu app bunx prisma generate
+  gosu app bunx prisma db push --force-reset
+  [ -f scripts/database/seed-dev.js ] && gosu app bun scripts/database/seed-dev.js || true
+  exec gosu app "$@"
 fi
