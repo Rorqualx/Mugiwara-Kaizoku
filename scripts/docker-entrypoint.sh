@@ -136,9 +136,12 @@ if [ "$start_bundled_postgres" = "true" ]; then
   gosu postgres /usr/lib/postgresql/15/bin/postgres -D "$PGDATA" &
   POSTGRES_PID=$!
 
-  # Wait for postgres to accept connections before any psql work
+  # Wait for postgres to accept connections before any psql work.
+  # initdb created the cluster with --username=$POSTGRES_USER, so there is
+  # NO 'postgres' role — every psql / pg_isready call must explicitly
+  # pass -U "$POSTGRES_USER".
   for i in $(seq 1 30); do
-    if gosu postgres pg_isready -h /var/run/postgresql -q; then
+    if gosu postgres pg_isready -h /var/run/postgresql -U "$POSTGRES_USER" -q; then
       break
     fi
     if [ "$i" -eq 30 ]; then
@@ -148,15 +151,15 @@ if [ "$start_bundled_postgres" = "true" ]; then
     sleep 1
   done
 
-  # Idempotent database + role bootstrap (runs every boot — safe to re-run).
-  # initdb creates a superuser matching POSTGRES_USER but the application
-  # database is created separately so a fresh cluster + an existing cluster
-  # both land in the same state here.
-  DB_EXISTS=$(gosu postgres /usr/lib/postgresql/15/bin/psql -h /var/run/postgresql -tAc \
+  # Idempotent database bootstrap (runs every boot — safe to re-run).
+  # Connects to the built-in 'postgres' maintenance database as the
+  # superuser created by initdb ($POSTGRES_USER, not the system 'postgres'
+  # role which doesn't exist in this cluster).
+  DB_EXISTS=$(gosu postgres /usr/lib/postgresql/15/bin/psql -h /var/run/postgresql -U "$POSTGRES_USER" -d postgres -tAc \
     "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" 2>/dev/null || echo "")
   if [ "$DB_EXISTS" != "1" ]; then
     echo -e "${BLUE}🐘 Creating database '$POSTGRES_DB'${NC}"
-    gosu postgres /usr/lib/postgresql/15/bin/psql -h /var/run/postgresql -v ON_ERROR_STOP=1 -d postgres \
+    gosu postgres /usr/lib/postgresql/15/bin/psql -h /var/run/postgresql -U "$POSTGRES_USER" -d postgres -v ON_ERROR_STOP=1 \
       -c "CREATE DATABASE \"${POSTGRES_DB}\" OWNER \"${POSTGRES_USER}\";"
   fi
 
