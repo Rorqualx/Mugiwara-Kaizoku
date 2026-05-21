@@ -28,6 +28,13 @@ export const runtime = 'nodejs';
 
 const ADMIN_PATH_PREFIXES = ['/admin', '/settings', '/system', '/api/protected'];
 
+// Routes that exist only for ML training-data development. They surface
+// raw annotation editing, quality reports, and dataset exports — useful
+// in dev, but no place in a release build. Returning a redirect to "/"
+// here keeps the routes silently inaccessible without leaking their
+// existence via a 404 page.
+const DEV_ONLY_PATH_PREFIXES = ['/annotation'];
+
 /**
  * Paths anonymous users may visit. Everything else requires a session.
  * Keep this list tight — adding routes here exposes them to the public
@@ -50,6 +57,17 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 
   if (startsWithAny(pathname, PUBLIC_PATHS)) {
     return NextResponse.next();
+  }
+
+  // Dev-only routes (annotation editor + ML dataset tools) are gated to
+  // NODE_ENV !== 'production'. The corresponding nav entries are hidden
+  // by the navbar; this is the defense-in-depth so direct URL access
+  // can't reach them in a release build either.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    startsWithAny(pathname, DEV_ONLY_PATH_PREFIXES)
+  ) {
+    return NextResponse.redirect(new URL('/', req.url));
   }
 
   const secret = process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'];
