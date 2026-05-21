@@ -41,7 +41,14 @@ export function SyncTab({
             label="Enable Automatic Sync"
             description="Automatically sync libraries at regular intervals"
             disabled={!form.values.enabled}
-            {...form.getInputProps('autoSync', { type: 'checkbox' })}
+            checked={form.values.autoSync}
+            onChange={(event): void => {
+              const next = event.currentTarget.checked;
+              form.setFieldValue('autoSync', next);
+              // Auto-save: the toggle is meaningful on its own and users
+              // shouldn't have to also hit Save Sync Settings.
+              onSubmit({ ...form.values, autoSync: next });
+            }}
           />
 
           <NumberInput
