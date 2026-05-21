@@ -1,0 +1,118 @@
+/**
+ * CSS Module for the Events Panel Component
+ * 
+ * This module provides styling for the events panel that displays system events
+ * and API calls at the bottom of the application. It includes animations for
+ * showing/hiding the panel and individual events.
+ * 
+ * @module components/events/EventsPanel.module.css
+ */
+
+/**
+ * Main container for the events panel
+ * Positioned at the bottom of the screen with dynamic height
+ */
+.container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: 0;
+  max-height: 400px; /* Increased to accommodate API call details */
+  overflow: hidden;
+  transition: min-height 0.3s ease;
+  pointer-events: none; /* Allow clicks to pass through to navigation items */
+}
+
+/**
+ * Active state for the container
+ * Applied when events are present and panel is expanded
+ */
+.containerActive {
+  min-height: 100px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/**
+ * Individual event item styling
+ * Includes animation for sliding in from the left
+ */
+.event {
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  transform: translateX(-20px);
+  animation: slideIn 0.3s ease forwards;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+  pointer-events: auto; /* Restore click handling for event items */
+}
+
+/**
+ * Hover state for event items
+ * Provides visual feedback when hovering over an event
+ */
+.event:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/**
+ * Event message text styling
+ * Truncates long messages with ellipsis
+ */
+.message {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--mantine-font-size-xs);
+  color: var(--mantine-color-gray-0);
+}
+
+/**
+ * Container for API call information
+ * Provides spacing and layout for API call items
+ */
+.apiCallsContainer {
+  padding: 0 12px;
+  margin-bottom: 8px;
+  pointer-events: auto; /* Restore click handling for API call details */
+}
+
+/**
+ * Individual API call item styling
+ * Includes subtle background and animation
+ */
+.apiCall {
+  padding: 8px;
+  margin-bottom: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/**
+ * Animation for sliding in events from the left
+ * Creates a smooth entrance effect for new events
+ */
+@keyframes slideIn {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/**
+ * Animation for fading in API call items
+ * Creates a smooth appearance effect for API call details
+ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,99 @@
+[0;34m[INFO][0m Creating backup of api/ directory...
+[0;32m[SUCCESS][0m Backup created at backup/api-consolidation-20250901-165932
+[0;34m[INFO][0m Phase 1: Migrating base classes...
+[0;32m[SUCCESS][0m Moved ApiClient.ts to server/base/
+[0;32m[SUCCESS][0m Moved CalendarProviderMixin.ts to server/base/
+[0;32m[SUCCESS][0m Moved CalendarSupportedProvider.ts to server/base/
+[0;32m[SUCCESS][0m Moved DownloadClient.ts to server/base/
+[0;32m[SUCCESS][0m Moved HttpClient.ts to server/base/
+[0;32m[SUCCESS][0m Moved index.ts to server/base/
+[0;32m[SUCCESS][0m Moved MetadataClient.ts to server/base/
+[0;32m[SUCCESS][0m Moved MetadataProvider.ts to server/base/
+[0;32m[SUCCESS][0m Moved types.ts to server/base/
+[0;34m[INFO][0m Phase 2: Migrating download clients...
+[0;32m[SUCCESS][0m Moved delugeClient.ts to server/services/download/clients/
+[0;32m[SUCCESS][0m Moved index.ts to server/services/download/clients/
+[0;32m[SUCCESS][0m Moved nzbgetClient.ts to server/services/download/clients/
+[0;32m[SUCCESS][0m Moved sabnzbdClient.ts to server/services/download/clients/
+[0;32m[SUCCESS][0m Moved transmissionClient.ts to server/services/download/clients/
+[0;32m[SUCCESS][0m Moved types.ts to server/services/download/clients/
+[0;32m[SUCCESS][0m Removed duplicate transmission.ts from server/adapters/download/
+[0;34m[INFO][0m Phase 3: Migrating notification system...
+[0;32m[SUCCESS][0m Moved discordAdapter.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved emailAdapter.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved event-mappings.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved notification-types-adapter.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved slackAdapter.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved telegramAdapter.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved webhookAdapter.ts to server/services/notifications/adapters/
+[0;32m[SUCCESS][0m Moved BaseNotificationAdapter.ts to server/services/notifications/base/
+[0;32m[SUCCESS][0m Moved types.ts to server/services/notifications/base/
+[0;32m[SUCCESS][0m Moved notificationFactory.ts to server/services/notifications/factory/
+[0;32m[SUCCESS][0m Moved event-helpers.ts to server/services/notifications/utils/
+[0;32m[SUCCESS][0m Removed duplicate notification adapters from server/adapters/
+[0;34m[INFO][0m Phase 4: Migrating metadata providers...
+[0;32m[SUCCESS][0m Moved anilist/adaptiveRateLimiter.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved anilist/advancedQueries.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved anilist/conditionalQueries.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved anilist/fieldInclusion.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved anilist/fragments.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved anilist/pagination.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved anilist/sorting.ts to server/services/anilist/modules/
+[0;32m[SUCCESS][0m Moved AniList tests
+[0;32m[SUCCESS][0m Moved comicvine/circuitBreaker.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved comicvine/fieldOptimizer.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved comicvine/fullyProtectedClient.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved comicvine/multiTierCache.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved comicvine/rateLimiter.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved comicvine/retryHandler.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved comicvine/velocityDetector.ts to server/services/comicvine/modules/
+[0;32m[SUCCESS][0m Moved ComicVine tests
+[0;32m[SUCCESS][0m Moved suwayomiAdapter.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved wikipediaAdapter.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved websiteProviderAdapter.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved baseKapowarrAdapter.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved adapter-template.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved exampleMangaAdapter.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved unifiedParserAdapter.ts to server/adapters/metadata/
+[0;32m[SUCCESS][0m Moved adapter tests
+[0;32m[SUCCESS][0m Moved scrapers to server/services/metadata/scrapers/
+[0;32m[SUCCESS][0m Moved utils/fandomTableParser.ts to server/services/metadata/utils/
+[0;32m[SUCCESS][0m Removed duplicate client files
+[0;32m[SUCCESS][0m Removed duplicate/enhanced adapters
+[0;34m[INFO][0m Phase 5: Moving remaining API files...
+[1;33m[WARNING][0m Utils file already exists: auth.ts
+[0;32m[SUCCESS][0m Moved utils/caching.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/errorHandling.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/httpClient.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/index.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/provider-health-monitor.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/provider-registry.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/rateLimit.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/retry.ts to server/utils/
+[0;32m[SUCCESS][0m Moved utils/string.ts to server/utils/
+[0;32m[SUCCESS][0m Moved index.ts to server/services/
+[0;32m[SUCCESS][0m Moved prowlarrClient.ts to server/services/
+[0;32m[SUCCESS][0m Moved suwayomiApi.ts to server/services/
+[0;34m[INFO][0m Phase 6: Updating imports...
+node:internal/modules/cjs/loader:1408
+  throw err;
+  ^
+
+Error: Cannot find module 'glob'
+Require stack:
+- /private/tmp/update-imports.js
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1405:15)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1061:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1066:22)
+    at Function._load (node:internal/modules/cjs/loader:1215:37)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1491:12)
+    at require (node:internal/modules/helpers:135:16)
+    at Object.<anonymous> (/private/tmp/update-imports.js:3:14)
+    at Module._compile (node:internal/modules/cjs/loader:1734:14) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/private/tmp/update-imports.js' ]
+}
+
+Node.js v23.11.0

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Fandom Image URLs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #2a2a2a;
+            border-radius: 8px;
+        }
+        .test-image {
+            max-width: 300px;
+            height: auto;
+            border: 2px solid #444;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: block;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #22c55e20;
+            color: #22c55e;
+        }
+        .error {
+            background: #ef444420;
+            color: #ef4444;
+        }
+        h2 {
+            color: #60a5fa;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Testing Fandom Image URL Formats</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Original URL with scale parameter</h2>
+        <pre>https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest/scale-to-width-down/250?cb=20161108083419</pre>
+        <img class="test-image" 
+             src="https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest/scale-to-width-down/250?cb=20161108083419" 
+             alt="Test 1">
+        <div class="status" id="status1">Loading...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Without scale parameter</h2>
+        <pre>https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest</pre>
+        <img class="test-image" 
+             src="https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest" 
+             alt="Test 2">
+        <div class="status" id="status2">Loading...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: With timestamp parameter</h2>
+        <pre>https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest?cb=20161108083419</pre>
+        <img class="test-image" 
+             src="https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png/revision/latest?cb=20161108083419" 
+             alt="Test 3">
+        <div class="status" id="status3">Loading...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: Without revision parameter</h2>
+        <pre>https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png</pre>
+        <img class="test-image" 
+             src="https://static.wikia.nocookie.net/fire-brigade-of-flames/images/9/98/Shinra_Kusakabe_Joins_the_Force.png" 
+             alt="Test 4">
+        <div class="status" id="status4">Loading...</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Volume image (for comparison)</h2>
+        <pre>https://static.wikia.nocookie.net/fire-brigade-of-flames/images/0/0e/Volume_1.png</pre>
+        <img class="test-image" 
+             src="https://static.wikia.nocookie.net/fire-brigade-of-flames/images/0/0e/Volume_1.png" 
+             alt="Test 5">
+        <div class="status" id="status5">Loading...</div>
+    </div>
+    
+    <script>
+        // Test each image
+        document.querySelectorAll('.test-image').forEach((img, index) => {
+            const statusEl = document.getElementById(`status${index + 1}`);
+            
+            img.onload = function() {
+                statusEl.textContent = '✓ Image loaded successfully!';
+                statusEl.className = 'status success';
+                console.log(`Test ${index + 1} successful:`, img.src);
+            };
+            
+            img.onerror = function() {
+                statusEl.textContent = '✗ Failed to load image';
+                statusEl.className = 'status error';
+                console.error(`Test ${index + 1} failed:`, img.src);
+            };
+        });
+    </script>
+</body>
+</html>

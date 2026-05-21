@@ -1,0 +1,624 @@
+import { toNumericId, toStringId } from "../../../utils/id-conversion";
+/**
+ * Adapter Template
+ * 
+ * This file serves as a template for creating new integration adapters.
+ * It follows the standardized patterns and includes all required methods
+ * with proper AsyncResult pattern implementation and error handling.
+ * 
+ * TO USE THIS TEMPLATE:
+ * 1. Copy this file and rename it to your adapter (e.g., myProviderAdapter.ts)
+ * 2. Replace "Template" with your provider name throughout the file
+ * 3. Implement each method with your provider-specific logic
+ * 4. Update configuration interface with provider-specific options
+ * 5. Implement proper error handling and mapping
+ */
+
+import type { ExtendedMangaSearchResult } from '../../../types/search.types';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { logger } from '../../../utils/logger';
+import { IntegrationAdapter, SearchOptions, BaseIntegrationAdapter, IntegrationMangaData, MetadataSourceInfo } from '../../../utils/integration-adapter';
+import { BaseIntegrationConfig } from '../../../types/config.types';
+import { MangaSearchResult, MangaMetadata } from '../../../types/search.types';
+import { MangaPublicationStatus } from '@prisma/client';
+import { Chapter as ChapterEntity, ChapterStatus } from '@prisma/client';
+import { AsyncResult, createSuccessResult, createErrorResult, isSuccess, isError, isIdle, isLoading } from '../../../utils/async-result';
+import { validateConfig, createConfigFactory } from '../../../utils/validation/validators/config';
+import { mapToMangaStatus } from '../../../utils/status-mapper';
+import { mapStatusToDomain, safeAccess } from '../../../utils/adapters/common-patterns';
+
+/**
+ * Configuration interface for Template adapter
+ */
+export interface TemplateAdapterConfig extends BaseIntegrationConfig {
+  // Base adapter fields
+  baseUrl?: string;
+  retryAttempts?: number;
+  cacheEnabled?: boolean;
+  cacheTTL?: number;
+  rateLimit?: number; // requests per second
+
+  /**
+   * API endpoint URL
+   */
+  apiEndpoint?: string;
+
+  /**
+   * API key for authentication
+   */
+  apiKey?: string;
+
+  /**
+   * Throttle time between requests in milliseconds
+   */
+  throttleMs?: number;
+}
+
+/**
+ * Default configuration for Template adapter
+ */
+export const DEFAULT_TEMPLATE_CONFIG: Partial<TemplateAdapterConfig> = {
+  enabled: true,
+  apiEndpoint: 'https://api.example.com/v1',
+  throttleMs: 500
+};
+
+/**
+ * Required fields for Template adapter configuration
+ */
+export const REQUIRED_TEMPLATE_CONFIG_FIELDS: (keyof TemplateAdapterConfig)[] = ['enabled', 'apiEndpoint'];
+
+/**
+ * Creates a validated Template adapter configuration
+ * 
+ * @param config - Partial configuration
+ * @returns Validated configuration
+ */
+export const createTemplateAdapterConfig = createConfigFactory<TemplateAdapterConfig>(DEFAULT_TEMPLATE_CONFIG, REQUIRED_TEMPLATE_CONFIG_FIELDS);
+
+/**
+ * Template Client Adapter class
+ * 
+ * Standard adapter implementation that follows the BaseIntegrationAdapter pattern.
+ * Provides a consistent interface for integration throughout the application.
+ */
+export class TemplateAdapter extends BaseIntegrationAdapter<TemplateAdapterConfig> implements IntegrationAdapter<TemplateAdapterConfig> {
+  private prisma: PrismaClient;
+  private loggerInstance = logger.child ? logger.child('TemplateAdapter', {
+    module: 'TemplateAdapter'
+  }) : logger;
+
+  /**
+   * Creates a new Template adapter
+   * 
+   * @param config - Client configuration
+   * @param prisma - Optional PrismaClient instance
+   */
+  constructor(config: Partial<TemplateAdapterConfig> = {}, prisma?: PrismaClient) {
+    // Validate and apply default configuration
+    const validatedConfig = createTemplateAdapterConfig(config);
+
+    // Initialize base adapter with configuration and source name
+    super(validatedConfig, 'template');
+
+    // Initialize Prisma client
+    this.prisma = prisma || new PrismaClient();
+
+    // Initialize API client or other dependencies
+    // ...
+  }
+
+  /**
+   * Override the log method to use the logger instance
+   * 
+   * @param message - The message to log
+   * @param error - Optional error object
+   */
+  protected override log(message: string, error?: unknown): void {
+    this.loggerInstance.error(message, error ? String(error) : undefined);
+  }
+
+  /**
+   * Checks if the adapter is enabled
+   */
+  public override isEnabled(): boolean {
+    return this.config.enabled;
+  }
+
+  /**
+   * Search for manga by query string
+   * 
+   * @param query - Search query
+   * @param options - Search options
+   * @returns Promise resolving to list of search results
+   */
+  public async search(query: string, options?: SearchOptions): Promise<AsyncResult<MangaSearchResult[], Error>> {
+    try {
+      // Implementation goes here
+      // ...
+
+      // Example implementation (replace with actual API call)
+      const results: MangaSearchResult[] = [{
+        id: '1',
+        title: 'Example Manga',
+        coverImage: 'https://example.com/cover.jpg',
+        source: 'template',
+        sourceId: '1',
+        provider: 'template',
+        description: 'This is an example manga',
+        status: MangaPublicationStatus.ONGOING
+      }];
+      return createSuccessResult(results);
+    } catch (error) {
+      this.log('Template search failed', error);
+      return createErrorResult(this.createError(`Failed to search Template API: ${error instanceof Error ? error.message : String(error)}`, error));
+    }
+  }
+
+  /**
+   * Gets manga by ID using AsyncResult pattern
+   * 
+   * @param id - Manga ID (string or number)
+   * @returns Promise resolving to AsyncResult with manga data
+   */
+  public async getMangaByIdAsync(id: string | number): Promise<AsyncResult<IntegrationMangaData, Error>> {
+    try {
+      // Convert id to string if it's a number, for consistent handling
+      const idStr = toStringId(id);
+
+      // Implementation goes here
+      // ...
+
+      // Example implementation (replace with actual API call)
+      const manga: IntegrationMangaData = {
+        id,
+        // Keep the original ID type
+        title: `Example Manga ${idStr}`,
+        description: 'This is an example manga',
+        coverUrl: 'https://example.com/cover.jpg',
+        status: MangaPublicationStatus.ONGOING,
+        genres: ['Action', 'Adventure'],
+        tags: ['Fantasy', 'Magic'],
+        authors: ['Author Name']
+      };
+      return createSuccessResult(manga);
+    } catch (error) {
+      this.log('Template get manga details failed', error);
+      return createErrorResult(this.createError(`Failed to get manga details from Template API: ${error instanceof Error ? error.message : String(error)}`, error));
+    }
+  }
+
+  /**
+   * Gets manga by ID
+   * 
+   * @param id - Manga ID (string or number)
+   * @returns Promise resolving to manga data
+   */
+  public async getMangaById(id: string | number): Promise<AsyncResult<IntegrationMangaData, Error>> {
+    return this.getMangaByIdAsync(id);
+  }
+
+  /**
+   * Gets manga by title using AsyncResult pattern
+   * 
+   * @param title - Manga title
+   * @returns Promise resolving to AsyncResult with manga data
+   */
+  public async getMangaByTitleAsync(title: string): Promise<AsyncResult<IntegrationMangaData, Error>> {
+    try {
+      // Implementation goes here
+      // ...
+
+      // Example implementation (replace with actual API call)
+      const manga: IntegrationMangaData = {
+        id: '1',
+        title,
+        description: 'This is an example manga',
+        coverUrl: 'https://example.com/cover.jpg',
+        status: MangaPublicationStatus.ONGOING,
+        genres: ['Action', 'Adventure'],
+        tags: ['Fantasy', 'Magic'],
+        authors: ['Author Name']
+      };
+      return createSuccessResult(manga);
+    } catch (error) {
+      this.log('Template get manga by title failed', error);
+      return createErrorResult(this.createError(`Failed to get manga by title from Template API: ${error instanceof Error ? error.message : String(error)}`, error));
+    }
+  }
+
+  /**
+   * Gets manga by title
+   * 
+   * @param title - Manga title
+   * @returns Promise resolving to manga data
+   */
+  public async getMangaByTitle(title: string): Promise<AsyncResult<IntegrationMangaData, Error>> {
+    return this.getMangaByTitleAsync(title);
+  }
+
+  /**
+   * Gets the adapter status using AsyncResult pattern
+   * 
+   * @returns Promise resolving to AsyncResult with adapter status
+   */
+  public async getStatusAsync(): Promise<AsyncResult<{
+    status: 'ok' | 'error';
+    message?: string;
+  }, Error>> {
+    try {
+      // Implementation goes here - e.g., ping API to check status
+      // ...
+
+      // Example implementation (replace with actual API check)
+      return createSuccessResult({
+        status: 'ok'
+      });
+    } catch (error) {
+      return createSuccessResult({
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Gets the adapter status
+   * 
+   * @returns Promise resolving to adapter status
+   */
+  public async getStatus(): Promise<AsyncResult<{ status: 'ok' | 'error'; message?: string; }, Error>> {
+    return this.getStatusAsync();
+  }
+
+  /**
+   * Search for manga by query string using AsyncResult pattern
+   * 
+   * @param query - Search query
+   * @param options - Search options
+   * @returns Promise resolving to AsyncResult with list of search results
+   */
+  public async searchAsync(query: string, options?: SearchOptions): Promise<AsyncResult<MangaSearchResult[], Error>> {
+    // searchAsync is just an alias for search since search already returns AsyncResult
+    return this.search(query, options);
+  }
+
+  /**
+   * Gets information about this metadata source
+   * @returns MetadataSourceInfo with source capabilities
+   */
+  public override getSourceInfo(): MetadataSourceInfo {
+    return {
+      id: 'template',
+      name: 'Template Provider',
+      type: 'metadata'
+    };
+  }
+
+  /**
+   * Search for manga matching the query using AsyncResult pattern
+   * 
+   * @param query - Search query
+   * @param options - Search options
+   * @returns Promise resolving to AsyncResult with list of manga metadata
+   */
+  public async searchMangaAsync(query: string, options?: SearchOptions): Promise<AsyncResult<MangaMetadata[], Error>> {
+    try {
+      const resultsAsync = await this.search(query, options);
+      
+      if (!isSuccess(resultsAsync)) {
+        return resultsAsync as AsyncResult<MangaMetadata[], Error>;
+      }
+
+      // Convert search results to MangaMetadata format
+      const mangaList = resultsAsync.data.map(result => {
+        const domainStatus = result.status || MangaPublicationStatus.UNKNOWN;
+
+        // Create proper MangaMetadata objects
+        return {
+          title: result.title,
+          alternativeTitles: result.alternativeTitles || [],
+          description: result.description,
+          coverImage: result.coverImage || '',
+          coverUrl: result.coverImage || '',
+          status: domainStatus,
+          year: result.year,
+          genres: result.genres || [],
+          tags: result.tags || [],
+          chapters: result.chapters,
+          volumes: result.volumes
+        } as MangaMetadata;
+      });
+      return createSuccessResult(mangaList);
+    } catch (error) {
+      this.log('Template search manga failed', error);
+      return createErrorResult(this.createError(`Failed to search manga on Template API: ${error instanceof Error ? error.message : String(error)}`, error));
+    }
+  }
+
+  /**
+   * Search for manga matching the query (implements IntegrationAdapter.searchManga)
+   * 
+   * @param query - Search query
+   * @param options - Search options
+   * @returns Promise resolving to list of manga metadata
+   */
+  public async searchManga(query: string, options?: SearchOptions): Promise<AsyncResult<MangaMetadata[], Error>> {
+    return this.searchMangaAsync(query, options);
+  }
+
+  /**
+   * Configure the adapter with new settings
+   * 
+   * @param config - Partial configuration to update
+   */
+  public override configure(config: Partial<TemplateAdapterConfig>): void {
+    // Validate new configuration
+    const newConfig = validateConfig<TemplateAdapterConfig>({
+      ...this.config,
+      ...config
+    }, REQUIRED_TEMPLATE_CONFIG_FIELDS, DEFAULT_TEMPLATE_CONFIG);
+    this.config = newConfig;
+
+    // Update client configuration if needed
+    // ...
+  }
+
+  /**
+   * Get the current adapter configuration
+   * 
+   * @returns The current configuration
+   */
+  public override getConfig(): TemplateAdapterConfig {
+    return {
+      ...this.config
+    };
+  }
+
+  /**
+   * Disposes of the client resources
+   */
+  public override dispose(): void {
+
+    // Clean up resources
+    // ...
+  } /**
+    * Maps a provider status to a standardized MangaStatus
+    * Override the base implementation to use provider-specific mapping
+    */
+  protected override mapStatus(providerStatus: unknown): MangaPublicationStatus {
+    // Implementation goes here - map provider-specific status values
+    if (typeof providerStatus === 'string') {
+      return this.mapStringToPublicationStatus(providerStatus);
+    }
+    return MangaPublicationStatus.UNKNOWN;
+  }
+
+  /**
+   * Maps string status values to MangaPublicationStatus enum
+   */
+  protected mapStringToPublicationStatus(status: string): MangaPublicationStatus {
+    const upperStatus = status.toUpperCase();
+    return mapToMangaStatus(upperStatus);
+  }
+
+  /**
+   * Updates manga metadata with information from the provider using AsyncResult pattern
+   * 
+   * @param mangaId - Manga database ID (string or number)
+   * @returns Promise resolving to AsyncResult indicating success or failure
+   */
+  public async updateMangaMetadataAsync(mangaId: string | number): Promise<AsyncResult<void, Error>> {
+    try {
+      // Convert to number if it's a string
+      const numericId = typeof mangaId === 'string' ? toNumericId(mangaId) : mangaId;
+
+      // Find manga in the database
+      const manga = await this.prisma.manga.findUnique({
+        where: {
+          id: numericId
+        },
+        include: {
+          metadata: true
+        }
+      });
+
+      // Check if manga exists and has a source ID
+      if (!manga || !manga.metadata?.sourceId) {
+        return createErrorResult(new Error('Manga not found or missing source ID'));
+      }
+
+      // Get updated metadata using AsyncResult pattern
+      const mangaDataResult = await this.getMangaByIdAsync(manga.metadata.sourceId);
+
+      // Handle the AsyncResult properly
+      if (!isSuccess(mangaDataResult)) {
+        return createErrorResult(isError(mangaDataResult) ? new Error(`Failed to get manga data: ${mangaDataResult.error.message}`) : new Error('Failed to get manga data - unknown state'));
+      }
+
+      // Extract data from successful result
+      const mangaData = mangaDataResult.data;
+
+      // Safely determine the status with proper type handling
+      let status: MangaPublicationStatus;
+      if (mangaData.status) {
+        if (typeof mangaData.status === 'string') {
+          // Convert string status to domain status
+          status = this.mapStatus(mangaData.status);
+        } else {
+          // It's already a MangaStatus enum value
+          status = mangaData.status as MangaPublicationStatus;
+        }
+      } else {
+        status = MangaPublicationStatus.UNKNOWN;
+      }
+
+      // Create a properly typed update input
+      const updateData: Prisma.MetadataUpdateInput = {
+        cover: mangaData.coverUrl ?? '/cover-not-found.jpg',
+        summary: mangaData.description ?? null,
+        genres: Array.isArray(mangaData.genres) ? mangaData.genres : [],
+        authors: Array.isArray(mangaData.authors) ? mangaData.authors : [],
+        status: status as MangaPublicationStatus,
+        // Cast to correct enum type
+        tags: Array.isArray(mangaData.tags) ? mangaData.tags : [],
+        lastFetch: new Date()
+      };
+
+      // Update metadata in the database
+      await this.prisma.metadata.update({
+        where: {
+          id: manga.metadata.id
+        },
+        data: updateData
+      });
+      return createSuccessResult(undefined);
+    } catch (error) {
+      this.log('Failed to update manga metadata', error);
+      return createErrorResult(this.createError(`Failed to update manga metadata: ${error instanceof Error ? error.message : String(error)}`, error));
+    }
+  }
+
+  /**
+   * Updates manga metadata with information from the provider
+   * 
+   * @param mangaId - Manga database ID (string or number)
+   * @returns Promise resolving when update is complete
+   */
+  public async updateMangaMetadata(mangaId: string | number): Promise<AsyncResult<void, Error>> {
+    return this.updateMangaMetadataAsync(mangaId);
+  }
+
+  /**
+   * Gets chapters for a manga using AsyncResult pattern
+   *
+   * @param mangaId - Manga ID (string or number)
+   * @param options - Optional parameters for filtering chapters
+   * @returns Promise resolving to AsyncResult with list of chapters
+   */
+  public async getChaptersAsync(mangaId: string | number, options?: {
+    limit?: number;
+    offset?: number;
+    translatedLanguage?: string[];
+  }): Promise<AsyncResult<ChapterEntity[], Error>> {
+    try {
+      // Validate input parameters
+      if (mangaId === undefined || mangaId === null) {
+        return createErrorResult(new Error('Manga ID must be provided'));
+      }
+      const mangaIdStr = toStringId(mangaId);
+      const numericId = typeof mangaId === 'string' ? toNumericId(mangaId) : mangaId;
+
+      // Implementation goes here - call API to get chapters
+      // ...
+
+      // Example implementation (replace with actual API call)
+      const chapters: ChapterEntity[] = [{
+        id: 1,
+        // Use numeric ID for Prisma compatibility
+        title: 'Chapter 1',
+        fileName: 'chapter-1.cbz',
+        mangaId: numericId,
+        index: 1,
+        chapterNumber: 1,
+        number: 1,
+        size: 0,
+        pageCount: null,
+        pages: null,
+        resolutionWidth: null,
+        resolutionHeight: null,
+        resolutionLabel: null,
+        language: null,
+        downloadStatus: ChapterStatus.AVAILABLE,
+        downloadUrl: null,
+        coverImage: null,
+        description: null,
+        hash: null,
+        mimeType: null,
+        volume: null,
+        filePath: null,
+        fileFormat: null,
+        releaseDate: null,
+        isRead: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }, {
+        id: 2,
+        // Use numeric ID for Prisma compatibility
+        title: 'Chapter 2',
+        fileName: 'chapter-2.cbz',
+        mangaId: numericId,
+        index: 2,
+        chapterNumber: 2,
+        number: 2,
+        size: 0,
+        pageCount: null,
+        pages: null,
+        resolutionWidth: null,
+        resolutionHeight: null,
+        resolutionLabel: null,
+        language: null,
+        downloadStatus: ChapterStatus.AVAILABLE,
+        downloadUrl: null,
+        coverImage: null,
+        description: null,
+        hash: null,
+        mimeType: null,
+        volume: null,
+        filePath: null,
+        fileFormat: null,
+        releaseDate: null,
+        isRead: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }];
+
+      // Apply filtering based on options
+      let filteredChapters = [...chapters];
+
+      // Apply offset if provided
+      if (options?.offset !== undefined && options.offset > 0) {
+        filteredChapters = filteredChapters.slice(options.offset);
+      }
+
+      // Apply limit if provided
+      if (options?.limit !== undefined && options.limit > 0) {
+        filteredChapters = filteredChapters.slice(0, options.limit);
+      }
+
+      // Apply language filter if provided
+      if (options?.translatedLanguage && options.translatedLanguage.length > 0) {
+        filteredChapters = filteredChapters.filter(chapter => chapter.language !== null && chapter.language !== undefined && options.translatedLanguage?.includes(chapter.language));
+      }
+      return createSuccessResult(filteredChapters);
+    } catch (error) {
+      this.log(`Template get chapters failed for manga ${mangaId}`, error);
+      return createErrorResult(this.createError(`Failed to get chapters from Template API: ${error instanceof Error ? error.message : String(error)}`, error));
+    }
+  }
+
+  /**
+   * Gets chapters for a manga
+   *
+   * @param mangaId - Manga ID (string or number)
+   * @param options - Optional parameters for filtering chapters
+   * @returns Promise resolving to list of chapters
+   */
+  public async getChapters(mangaId: string | number, options?: {
+    limit?: number;
+    offset?: number;
+    translatedLanguage?: string[];
+  }): Promise<AsyncResult<ChapterEntity[], Error>> {
+    return this.getChaptersAsync(mangaId, options);
+  }
+}
+
+/**
+ * Creates a Template adapter with the given configuration
+ * 
+ * @param config - Adapter configuration
+ * @returns Configured Template adapter
+ */
+export function createTemplateAdapter(config: Partial<TemplateAdapterConfig> = {}): TemplateAdapter {
+  return new TemplateAdapter(config);
+}

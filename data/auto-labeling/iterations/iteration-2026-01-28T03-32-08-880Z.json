@@ -1,0 +1,4000 @@
+{
+  "summary": {
+    "iterationNumber": 28,
+    "timestamp": "2026-01-28T03:32:08.880Z",
+    "totalPages": 15,
+    "successCount": 3,
+    "successRate": 0.2,
+    "avgPrecision": 0.5517012227538544,
+    "avgRecall": 0.5555555555555555,
+    "avgF1": 0.5494786543379894,
+    "topErrors": [
+      {
+        "category": "PATTERN_MISMATCH",
+        "count": 9
+      },
+      {
+        "category": "PARSER_SELECTION_FAILED",
+        "count": 2
+      },
+      {
+        "category": "NO_CONTENT",
+        "count": 1
+      }
+    ],
+    "durationMs": 57351
+  },
+  "result": {
+    "iterationNumber": 28,
+    "timestamp": "2026-01-28T03:32:08.880Z",
+    "durationMs": 57351,
+    "targetMet": false,
+    "metrics": {
+      "totalAttempts": 15,
+      "successfulAttempts": 3,
+      "avgPrecision": 0.5517012227538544,
+      "avgRecall": 0.5555555555555555,
+      "avgF1": 0.5494786543379894,
+      "microPrecision": 0.5476190476190477,
+      "microRecall": 0.5609756097560976,
+      "microF1": 0.5542168674698796,
+      "byEntityType": {
+        "PAGE_TYPE": {
+          "entityType": "PAGE_TYPE",
+          "truePositives": 3,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "precision": 1,
+          "recall": 1,
+          "f1": 1
+        },
+        "TITLE": {
+          "entityType": "TITLE",
+          "truePositives": 2,
+          "falsePositives": 4,
+          "falseNegatives": 1,
+          "precision": 0.3333333333333333,
+          "recall": 0.6666666666666666,
+          "f1": 0.4444444444444444
+        },
+        "AUTHOR": {
+          "entityType": "AUTHOR",
+          "truePositives": 2,
+          "falsePositives": 0,
+          "falseNegatives": 1,
+          "precision": 1,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "STATUS": {
+          "entityType": "STATUS",
+          "truePositives": 2,
+          "falsePositives": 0,
+          "falseNegatives": 1,
+          "precision": 1,
+          "recall": 0.6666666666666666,
+          "f1": 0.8
+        },
+        "VOLUME_COUNT": {
+          "entityType": "VOLUME_COUNT",
+          "truePositives": 2,
+          "falsePositives": 1,
+          "falseNegatives": 0,
+          "precision": 0.6666666666666666,
+          "recall": 1,
+          "f1": 0.8
+        },
+        "GENRE": {
+          "entityType": "GENRE",
+          "truePositives": 8,
+          "falsePositives": 0,
+          "falseNegatives": 2,
+          "precision": 1,
+          "recall": 0.8,
+          "f1": 0.888888888888889
+        },
+        "ALT_TITLE": {
+          "entityType": "ALT_TITLE",
+          "truePositives": 3,
+          "falsePositives": 0,
+          "falseNegatives": 3,
+          "precision": 1,
+          "recall": 0.5,
+          "f1": 0.6666666666666666
+        },
+        "CHAPTER_COUNT": {
+          "entityType": "CHAPTER_COUNT",
+          "truePositives": 1,
+          "falsePositives": 1,
+          "falseNegatives": 1,
+          "precision": 0.5,
+          "recall": 0.5,
+          "f1": 0.5
+        },
+        "RELEASE_DATE": {
+          "entityType": "RELEASE_DATE",
+          "truePositives": 0,
+          "falsePositives": 7,
+          "falseNegatives": 3,
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
+        },
+        "COVER_IMAGE": {
+          "entityType": "COVER_IMAGE",
+          "truePositives": 0,
+          "falsePositives": 2,
+          "falseNegatives": 3,
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
+        },
+        "ARTIST": {
+          "entityType": "ARTIST",
+          "truePositives": 0,
+          "falsePositives": 2,
+          "falseNegatives": 0,
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
+        },
+        "SUMMARY": {
+          "entityType": "SUMMARY",
+          "truePositives": 0,
+          "falsePositives": 2,
+          "falseNegatives": 3,
+          "precision": 0,
+          "recall": 0,
+          "f1": 0
+        }
+      }
+    },
+    "failures": {
+      "totalFailures": 12,
+      "byCategory": {
+        "PARSER_SELECTION_FAILED": {
+          "count": 2,
+          "percentage": 16.666666666666664,
+          "examples": [
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            }
+          ]
+        },
+        "STRUCTURE_NOT_RECOGNIZED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "ENTITY_EXTRACTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PATTERN_MISMATCH": {
+          "count": 9,
+          "percentage": 75,
+          "examples": [
+            {
+              "category": "PATTERN_MISMATCH",
+              "message": "Extracted 30 entities but F1 too low (48% < 50%). TP=5, FP=4, FN=7"
+            },
+            {
+              "category": "PATTERN_MISMATCH",
+              "message": "Extracted 12 entities but F1 too low (11% < 50%). TP=1, FP=7, FN=10"
+            },
+            {
+              "category": "PATTERN_MISMATCH",
+              "message": "Extracted 15 entities but F1 too low (33% < 50%). TP=4, FP=7, FN=9"
+            }
+          ]
+        },
+        "CONFIDENCE_TOO_LOW": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "FETCH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "GROUND_TRUTH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PARSE_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "NO_CONTENT": {
+          "count": 1,
+          "percentage": 8.333333333333332,
+          "examples": [
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            }
+          ]
+        },
+        "TIMEOUT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "UNKNOWN": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        }
+      },
+      "commonPatterns": [
+        {
+          "pattern": "PATTERN_MISMATCH:fandom:MANGA_PAGE",
+          "count": 9,
+          "affectedPages": [
+            "127008-fandom-MANGA_PAGE",
+            "131822-fandom-MANGA_PAGE",
+            "144861-fandom-MANGA_PAGE",
+            "31169-fandom-MANGA_PAGE",
+            "44790-fandom-MANGA_PAGE",
+            "101808-fandom-MANGA_PAGE",
+            "98543-fandom-MANGA_PAGE",
+            "74347-fandom-MANGA_PAGE",
+            "95098-fandom-MANGA_PAGE"
+          ],
+          "suggestedFix": "Add pattern mappings for this format"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:MANGA_PAGE",
+          "count": 2,
+          "affectedPages": [
+            "94905-fandom-MANGA_PAGE",
+            "44721-fandom-MANGA_PAGE"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        }
+      ],
+      "failedPageIds": [
+        "31675-fandom-MANGA_PAGE",
+        "127008-fandom-MANGA_PAGE",
+        "131822-fandom-MANGA_PAGE",
+        "94905-fandom-MANGA_PAGE",
+        "144861-fandom-MANGA_PAGE",
+        "31169-fandom-MANGA_PAGE",
+        "44790-fandom-MANGA_PAGE",
+        "101808-fandom-MANGA_PAGE",
+        "98543-fandom-MANGA_PAGE",
+        "74347-fandom-MANGA_PAGE",
+        "95098-fandom-MANGA_PAGE",
+        "44721-fandom-MANGA_PAGE"
+      ]
+    },
+    "suggestions": [
+      {
+        "id": "suggestion-2",
+        "category": "pattern",
+        "title": "Add Pattern Mappings",
+        "description": "Expand pattern detector with new label mappings",
+        "expectedImpact": 0.48,
+        "relatedErrors": [
+          "PATTERN_MISMATCH"
+        ],
+        "affectedPageCount": 9,
+        "priority": "critical"
+      },
+      {
+        "id": "suggestion-1",
+        "category": "parser",
+        "title": "Improve Parser Selection",
+        "description": "Review static analyzer recommendations and parser matching logic",
+        "expectedImpact": 0.10666666666666667,
+        "relatedErrors": [
+          "PARSER_SELECTION_FAILED"
+        ],
+        "affectedPageCount": 2,
+        "priority": "medium"
+      },
+      {
+        "id": "suggestion-3",
+        "category": "structure",
+        "title": "Filter Non-Content Pages",
+        "description": "Add detection for pages without extractable content",
+        "expectedImpact": 0.05333333333333334,
+        "relatedErrors": [
+          "NO_CONTENT"
+        ],
+        "affectedPageCount": 1,
+        "priority": "low"
+      }
+    ],
+    "attempts": [
+      {
+        "page": {
+          "id": "31675-fandom-MANGA_PAGE",
+          "title": "Tantei Gakuen Q",
+          "anilistId": 31675,
+          "source": "fandom",
+          "url": "https://tanteigakuenq.fandom.com/wiki/Tantei_Gakuen_Q_(manga)",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://tanteigakuenq.fandom.com/wiki/Tantei_Gakuen_Q_(anime)"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Tantei Gakuen Q (manga)",
+            "normalizedValue": "tantei gakuen q manga",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              99,
+              100,
+              101,
+              102
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              144
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              32
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Detective School Q is a manga written by Seimaru Amagi, and illustrated by Fumiya Satō.",
+            "normalizedValue": "detective school q is  manga written by seimaru amagi and illustrated by fumiya sat",
+            "confidence": 0.2727272727272727,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Tantei Gakuen Q",
+            "normalizedValue": "tantei gakuen q",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "探偵学園Q",
+            "normalizedValue": "q",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Shin Kibayashi",
+            "normalizedValue": "shin kibayashi",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Fumiya Satou",
+            "normalizedValue": "fumiya satou",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "22",
+            "normalizedValue": "22",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "172",
+            "normalizedValue": "172",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Mystery",
+            "normalizedValue": "mystery",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Detective School Q is the story of a group of young students from Class Q of Dan Detective School (D",
+            "normalizedValue": "detective school q is  story of  group of young students from class q of dan detective school d",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2001",
+            "normalizedValue": "2001",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 1,
+          "recall": 0.16666666666666666,
+          "f1": 0.2857142857142857,
+          "truePositives": 2,
+          "falsePositives": 0,
+          "falseNegatives": 10
+        },
+        "durationMs": 1101
+      },
+      {
+        "page": {
+          "id": "101583-fandom-MANGA_PAGE",
+          "title": "My Dress-Up Darling",
+          "anilistId": 101583,
+          "source": "fandom",
+          "url": "https://sono-bisque-doll-wa-koi-wo-suru.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://mydressupdarling.fandom.com/wiki/My_Dress-Up_Darling_Original_Soundtrack_Vol._2"
+        },
+        "success": true,
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "My Dress-Up Darling",
+            "normalizedValue": "my dress-up darling",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "January 19, 2018&#91;1&#93;",
+            "normalizedValue": "january 19 201891193",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Slice of Life",
+            "normalizedValue": "slice of life",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "15",
+            "normalizedValue": "15",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "110",
+            "normalizedValue": "110",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "20",
+            "normalizedValue": "20",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "2 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              298
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "My Dress-Up Darling",
+            "normalizedValue": "my dress-up darling",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Sono Bisque Doll wa Koi wo Suru",
+            "normalizedValue": "sono bisque doll wa koi wo suru",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "その着せ替え人形は恋をする",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Shinichi Fukuda",
+            "normalizedValue": "shinichi fukuda",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "15",
+            "normalizedValue": "15",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "119",
+            "normalizedValue": "119",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Slice of Life",
+            "normalizedValue": "slice of life",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Traumatized by a childhood incident with a friend who took exception to his love of traditional doll",
+            "normalizedValue": "traumatized by  childhood incident with  friend who took exception to his love of traditional doll",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2018",
+            "normalizedValue": "2018",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.5263157894736842,
+          "recall": 0.6666666666666666,
+          "f1": 0.5882352941176471,
+          "truePositives": 10,
+          "falsePositives": 9,
+          "falseNegatives": 5
+        },
+        "durationMs": 2387
+      },
+      {
+        "page": {
+          "id": "127008-fandom-MANGA_PAGE",
+          "title": "7th Time Loop",
+          "anilistId": 127008,
+          "source": "fandom",
+          "url": "https://7th-time-loop.fandom.com/wiki/7th_Time_Loop_(Manga)",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://7th-time-loop.fandom.com/wiki/7th%20Time%20Loop%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 30 entities but F1 too low (48% < 50%). TP=5, FP=4, FN=7",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "7th Time Loop: The Villainess Enjoys a Carefree Life Married to Her Worst Enemy!",
+            "normalizedValue": "7th time loop  villainess enjoys  carefree life married to her worst enemy",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Tōko Amekawa",
+            "normalizedValue": "tko amekawa",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Hinoki Kino",
+            "normalizedValue": "hinoki kino",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "Overlap",
+            "normalizedValue": "overlap",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "DEMOGRAPHIC",
+            "value": "Shōjo",
+            "normalizedValue": "shjo",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/7th-time-loop/images/3/3b/7th_Time_Loop_Manga_Volume_3_Cover_Japanese.jpg/revision/latest/scale-to-width-down/250?cb=20240217035333",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "SEVENTH TIME IS NOT THE CHARM!\n\nEvery time Rishe turns twenty, she dies and is reincarnated to the day she gets dumped. She has been a merchant, an apothecary, and even a maid. For her seventh life, she has one goal: to live a long and lazy life. But then she gets a marriage proposal from the Crown Prince–the man who killed her in her previous life as a knight. Despite her determination to avoid drama, here she goes again!",
+            "normalizedValue": "seventh time is not  charm every time rishe turns twenty she dies and is reincarnated to  day she gets dumped she has been  merchant  apothecary and even  maid for her seventh life she has one goal to live  long and lazy life but then she gets  marriage proposal from  crown prince man who killed her in her previous life as  knight despite her determination to avoid drama here she goes again",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "June 25, 2021",
+            "normalizedValue": "june 25 2021",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "KEEP YOUR HANDMAIDENS CLOSE, AND YOUR ENEMIES CLOSER\n\nEvery time Rishe turns twenty, she dies and is reincarnated to the day her engagement is broken off. This time around, she winds up the fiancée of the man who killed her in her previous life: the crown prince of the Galkhein Empire, Arnold! Knowing from her past lives that Galkhein is on the path to war, Rishe is determined to prevent it. She starts by turning the royal villa into a training ground… for handmaidens! Will her unorthodox plans be enough to keep disaster at bay?",
+            "normalizedValue": "keep your handmaidens close and your enemies closer every time rishe turns twenty she dies and is reincarnated to  day her engagement is broken off this time around she winds up  fiance of  man who killed her in her previous life  crown prince of  galkhein empire arnold knowing from her past lives that galkhein is on  path to war rishe is determined to prevent it she starts by turning  royal villa into  training ground for handmaidens will her unorthodox plans be enough to keep disaster at bay",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "November 25, 2021",
+            "normalizedValue": "november 25 2021",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "CONNECTIONS AND CONSPIRACIES\n\nRishe’s attempt to make a deal with her benefactor from a previous life, Kaine Tully, has backfired, and now she’s forced to come up with a new plan. Determined to secure the Aria Trading Company’s connections and resources though, Rishe rolls up her sleeves and gets to work. Her mission? Convince Tully of her value as a trading partner by establishing a business of her very own! Yet just when things seem to be looking up for her, she’s kidnapped and brought to the slums! Who exactly is behind her abduction and what do they want?",
+            "normalizedValue": "connections and conspiracies rishes attempt to make  deal with her benefactor from  previous life kaine tully has backfired and now shes forced to come up with  new plan determined to secure  aria trading companys connections and resources though rishe rolls up her sleeves and gets to work her mission convince tully of her value as  trading partner by establishing  business of her very own yet just when things seem to be looking up for her shes kidnapped and brought to  slums who exactly is behind her abduction and what do they want",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "June 25, 2022",
+            "normalizedValue": "june 25 2022",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "32",
+            "normalizedValue": "32",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Manga Chapter 1",
+            "normalizedValue": "manga chapter 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Manga Chapter 2",
+            "normalizedValue": "manga chapter 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Manga Chapter 3",
+            "normalizedValue": "manga chapter 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "7th Time Loop: The Villainess Enjoys a Carefree Life Married to Her Worst Enemy!",
+            "normalizedValue": "7th time loop  villainess enjoys  carefree life married to her worst enemy",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Loop 7-kaime no Akuyaku Reijou wa, Moto Tekikoku de Jiyuu Kimama na Hanayome Seikatsu wo Mankitsu Suru",
+            "normalizedValue": "loop 7-kaime no akuyaku reijou wa moto tekikoku de jiyuu kimama na hanayome seikatsu wo mankitsu suru",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ループ7回目の悪役令嬢は、元敵国で自由気ままな花嫁生活を満喫する",
+            "normalizedValue": "7",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Touko Amekawa",
+            "normalizedValue": "touko amekawa",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Hinoki Kino",
+            "normalizedValue": "hinoki kino",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "If you think being reincarnated once is a big deal, try seven times. From lowly pharmacist to embatt",
+            "normalizedValue": "if you think being reincarnated once is  big deal try seven times from lowly pharmacist to embatt",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2020",
+            "normalizedValue": "2020",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.5555555555555556,
+          "recall": 0.4166666666666667,
+          "f1": 0.4761904761904762,
+          "truePositives": 5,
+          "falsePositives": 4,
+          "falseNegatives": 7
+        },
+        "durationMs": 1026
+      },
+      {
+        "page": {
+          "id": "131822-fandom-MANGA_PAGE",
+          "title": "Tonikaku Kawaii",
+          "anilistId": 131822,
+          "source": "fandom",
+          "url": "https://tonikaku-kawaii.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://tonikaku-kawaii.fandom.com/wiki/Tonikaku%20Kawaii"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 12 entities but F1 too low (11% < 50%). TP=1, FP=7, FN=10",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Tonikaku Kawaii",
+            "normalizedValue": "tonikaku kawaii",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "34",
+            "normalizedValue": "34",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "340",
+            "normalizedValue": "340",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              341
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: 1]",
+            "normalizedValue": "image 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              342
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              567
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "271",
+            "normalizedValue": "271",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              345
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              601
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              329
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.7272727272727273,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "FLY ME TO THE MOON",
+            "normalizedValue": "fly me to  moon",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "FLY ME TO THE MOON",
+            "normalizedValue": "fly me to  moon",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kenjirou Hata",
+            "normalizedValue": "kenjirou hata",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "4",
+            "normalizedValue": "4",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The prequel to Tonikaku Kawaii.",
+            "normalizedValue": "prequel to tonikaku kawaii",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2021",
+            "normalizedValue": "2021",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.125,
+          "recall": 0.09090909090909091,
+          "f1": 0.10526315789473685,
+          "truePositives": 1,
+          "falsePositives": 7,
+          "falseNegatives": 10
+        },
+        "durationMs": 12061
+      },
+      {
+        "page": {
+          "id": "94905-fandom-MANGA_PAGE",
+          "title": "Houshin Engi",
+          "anilistId": 94905,
+          "source": "fandom",
+          "url": "https://houshinengi.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://houshinengi.fandom.com/wiki/Houshin_Engi_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Manga vol01]",
+            "normalizedValue": "image manga vol01",
+            "confidence": 0.85,
+            "source": "bootstrap",
+            "tokenIndices": [
+              386
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "\"The story is set in legendary China. A beautiful female fox spirit named Dakki, is controlling the Emperor Chuu Ou and the ruling Yin dynasty, and is using her power over him to do evil in the nation. An immortal-in-training named Taikoubou, is chosen by the great immortal sages for the Houshin Project — to seal away or destroy the evil demons that infest the world. In the course of his adventures, Taikoubou gathers other powerful companions and sets out to seal away the demons and eventually destroy the fox-spirit Dakki.\"",
+            "normalizedValue": "story is set in legendary china  beautiful female fox spirit named dakki is controlling  emperor chuu ou and  ruling yin dynasty and is using her power over him to do evil in  nation  immortal-in-training named taikoubou is chosen by  great immortal sages for  houshin project  to seal away or destroy  evil demons that infest  world in  course of his adventures taikoubou gathers other powerful companions and sets out to seal away  demons and eventually destroy  fox-spirit dakki",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              439,
+              440,
+              441,
+              442,
+              443,
+              444,
+              445,
+              446,
+              447,
+              448,
+              449,
+              450,
+              451,
+              452,
+              453,
+              454,
+              455,
+              456,
+              457,
+              458,
+              459,
+              460,
+              461,
+              462,
+              463,
+              464,
+              465,
+              466,
+              467,
+              468,
+              469,
+              470,
+              471,
+              472,
+              473,
+              474,
+              475,
+              476,
+              477,
+              478,
+              479,
+              480,
+              481,
+              482,
+              483,
+              484,
+              485,
+              486,
+              487,
+              488,
+              489,
+              490,
+              491,
+              492,
+              493,
+              494,
+              495,
+              496,
+              497,
+              498,
+              499,
+              500,
+              501,
+              502,
+              503,
+              504,
+              505,
+              506,
+              507,
+              508,
+              509,
+              510,
+              511,
+              512,
+              513,
+              514,
+              515,
+              516,
+              517,
+              518,
+              519,
+              520,
+              521,
+              522,
+              523,
+              524,
+              525,
+              526,
+              527,
+              528,
+              529
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              604
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              128
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              18
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Chinese Romance",
+            "normalizedValue": "chinese romance",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Houshin Engi",
+            "normalizedValue": "houshin engi",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "封神演戯",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kisetsu Morita",
+            "normalizedValue": "kisetsu morita",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "16",
+            "normalizedValue": "16",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2015",
+            "normalizedValue": "2015",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 1,
+          "falseNegatives": 13
+        },
+        "durationMs": 2832
+      },
+      {
+        "page": {
+          "id": "109422-fandom-MANGA_PAGE",
+          "title": "Mamahaha no Tsurego ga Motokano datta",
+          "anilistId": 109422,
+          "source": "fandom",
+          "url": "https://my-stepmoms-daughter-is-my-ex.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://mamahaha-no-tsurego-ga-motokano-datta.fandom.com/wiki/Mamahaha%20no%20Tsurego%20ga%20Motokano%20datta"
+        },
+        "success": true,
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1 (Light Novel)",
+            "normalizedValue": "volume 1 light novel",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2 (Light Novel)",
+            "normalizedValue": "volume 2 light novel",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3 (Light Novel)",
+            "normalizedValue": "volume 3 light novel",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "32",
+            "normalizedValue": "32",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "3 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Mamahaha no Tsurego ga Motokano datta (Manga)",
+            "normalizedValue": "mamahaha no tsurego ga motokano datta manga",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              289,
+              290,
+              291,
+              292,
+              293,
+              294,
+              295
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: JP]",
+            "normalizedValue": "image jp",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              296
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              28
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              36
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              765
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              23
+            ]
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "継母の連れ子が元カノだった",
+            "normalizedValue": "",
+            "confidence": 0.5318181818181819,
+            "source": "bootstrap"
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kyousuke Kamishiro",
+            "normalizedValue": "kyousuke kamishiro",
+            "confidence": 0.5909090909090909,
+            "source": "bootstrap"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Sakaisuke",
+            "normalizedValue": "sakaisuke",
+            "confidence": 0.5909090909090909,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "My Stepmom's Daughter Is My Ex",
+            "normalizedValue": "my stepmoms daughter is my ex",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Mamahaha no Tsurego ga Motokano datta",
+            "normalizedValue": "mamahaha no tsurego ga motokano datta",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "継母の連れ子が元カノだった",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Kyousuke Kamishiro",
+            "normalizedValue": "kyousuke kamishiro",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Ah, high school. Is there any better place to start fresh after a horrible middle school relationshi",
+            "normalizedValue": "ah high school is there any better place to start fresh after  horrible middle school relationshi",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2018",
+            "normalizedValue": "2018",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.5454545454545454,
+          "recall": 0.5,
+          "f1": 0.5217391304347826,
+          "truePositives": 6,
+          "falsePositives": 5,
+          "falseNegatives": 6
+        },
+        "durationMs": 3974
+      },
+      {
+        "page": {
+          "id": "144861-fandom-MANGA_PAGE",
+          "title": "Earthchild",
+          "anilistId": 144861,
+          "source": "fandom",
+          "url": "https://earth-child.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://earthchild.fandom.com/wiki/Earthchild"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 15 entities but F1 too low (33% < 50%). TP=4, FP=7, FN=9",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Earthchild",
+            "normalizedValue": "earthchild",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Hideo Shinkai",
+            "normalizedValue": "hideo shinkai",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "MAGAZINE",
+            "value": "Weekly Shonen Jump",
+            "normalizedValue": "weekly shonen jump",
+            "confidence": 0.81,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "February 21, 2022 - ongoing",
+            "normalizedValue": "february 21 2022 - ongoing",
+            "confidence": 0.765,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance / Sci-Fi / Shounen",
+            "normalizedValue": "romance  sci-fi  shounen",
+            "confidence": 0.7200000000000001,
+            "source": "parser"
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Chikyū no ko",
+            "normalizedValue": "chiky no ko",
+            "confidence": 0.765,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "2 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: WSJ Issue 2022 12 Cover]",
+            "normalizedValue": "image wsj issue 2022 12 cover",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              176
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "4",
+            "normalizedValue": "4",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              253
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              250
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              18
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.8181818181818182,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Earthchild",
+            "normalizedValue": "earthchild",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Chikyuu no Ko",
+            "normalizedValue": "chikyuu no ko",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "地球の子",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Hideo Shinkai",
+            "normalizedValue": "hideo shinkai",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "27",
+            "normalizedValue": "27",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "A regular person falls in love with a superhero who protects Earth! In terms of circumstances, abili",
+            "normalizedValue": "regular person falls in love with  superhero who protects earth in terms of circumstances abili",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2022",
+            "normalizedValue": "2022",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.36363636363636365,
+          "recall": 0.3076923076923077,
+          "f1": 0.33333333333333337,
+          "truePositives": 4,
+          "falsePositives": 7,
+          "falseNegatives": 9
+        },
+        "durationMs": 1761
+      },
+      {
+        "page": {
+          "id": "31169-fandom-MANGA_PAGE",
+          "title": "Versus",
+          "anilistId": 31169,
+          "source": "fandom",
+          "url": "https://versus.fandom.com/wiki/Versus_(manga)",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://versus.fandom.com/wiki/Versus_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 35 entities but F1 too low (12% < 50%). TP=2, FP=18, FN=12",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Versus_(manga)",
+            "normalizedValue": "versus_manga",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "AUTHOR",
+            "value": "ONE (Story)Kyoutarou Azuma (Art)bose (Composition)",
+            "normalizedValue": "one storykyoutarou azuma artbose composition",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "November 26th, 2022",
+            "normalizedValue": "november 26th 2022",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Sci-Fi",
+            "normalizedValue": "sci-fi",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "6",
+            "normalizedValue": "6",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/versus-one/images/f/f4/Volume_003.png/revision/latest/scale-to-width-down/160?cb=20240325191615",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Humanity has been oppressed for hundreds of years due to the rise and invasion of its natural enemy \"demons\". The world was ruled by the \"Great Demon King\" and his 47 subordinate \"47 Demon Kings\".\n\nWhile people live in fear, 47 people selected from all over the world have been named \"Heroes\" and are preparing to fight against the Great Demon King's army.\n\nAnd now, a desperate operation was about to begin that would put the very survival of the human race at stake.[1]",
+            "normalizedValue": "humanity has been oppressed for hundreds of years due to  rise and invasion of its natural enemy demons  world was ruled by  great demon king and his 47 subordinate 47 demon kings while people live in fear 47 people selected from all over  world have been named heroes and are preparing to fight against  great demon kings army and now  desperate operation was about to begin that would put  very survival of  human race at stake1",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "April 7th, 2023",
+            "normalizedValue": "april 7th 2023",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Thirteen worlds are connected with their respective \"natural enemies\".\n\nSurrounded by an army of \"demons\" and \"robots,\" the hero Hallow of the \"Sorcerion\" and the soldier Keila of the \"Mecha Ordinance\" are in dire straits when their \"natural enemies\" clash with each other. They were saved from their predicament by a clash between their respective \"natural enemies.\n\nSeeing a ray of light in this situation, the human race devised a tremendous plan to \"Combat each other's natural enemies and crush them together\"...[1]",
+            "normalizedValue": "thirteen worlds are connected with their respective natural enemies surrounded by  army of demons and robots  hero hallow of  sorcerion and  soldier keila of  mecha ordinance are in dire straits when their natural enemies clash with each other they were saved from their predicament by  clash between their respective natural enemies seeing  ray of light in this situation  human race devised  tremendous plan to combat each others natural enemies and crush them together1",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "November 9th, 2023",
+            "normalizedValue": "november 9th 2023",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "In a world that has fused together with 13 kinds of natural enemies, humanity, the ultimate weakling, has been searching for a way to survive.\nThe \"natural enemy\" of the Titan's Crown, the Titans have put them in danger, but they are able to escape for the time being thanks to the sacrifice of the heroic Ario and others from Sorcerion.\nHowever, their short-lived peace is about to be broken again by the attack of Kiva and his army of demons from Sorcerion...[1]",
+            "normalizedValue": "in  world that has fused together with 13 kinds of natural enemies humanity  ultimate weakling has been searching for  way to survive  natural enemy of  titans crown  titans have put them in danger but they are able to escape for  time being thanks to  sacrifice of  heroic ario and others from sorcerion however their short-lived peace is about to be broken again by  attack of kiva and his army of demons from sorcerion1",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "May 9th, 2024",
+            "normalizedValue": "may 9th 2024",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "31",
+            "normalizedValue": "31",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Last Hope",
+            "normalizedValue": "last hope",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Humanity Caught In-Between",
+            "normalizedValue": "humanity caught in-between",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Fused Worlds",
+            "normalizedValue": "fused worlds",
+            "confidence": 0.855,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "VS.",
+            "normalizedValue": "vs",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "VS.",
+            "normalizedValue": "vs",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "VS バーサス",
+            "normalizedValue": "vs",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Keiko Yamada",
+            "normalizedValue": "keiko yamada",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "7",
+            "normalizedValue": "7",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "31",
+            "normalizedValue": "31",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Music",
+            "normalizedValue": "music",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Yamada'’s passionate storytelling is realized through her star character, Reiji, a violin prodigy wi",
+            "normalizedValue": "yamadas passionate storytelling is realized through her star character reiji  violin prodigy wi",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "1999",
+            "normalizedValue": "1999",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.1,
+          "recall": 0.14285714285714285,
+          "f1": 0.11764705882352941,
+          "truePositives": 2,
+          "falsePositives": 18,
+          "falseNegatives": 12
+        },
+        "durationMs": 1568
+      },
+      {
+        "page": {
+          "id": "44790-fandom-MANGA_PAGE",
+          "title": "Magi",
+          "anilistId": 44790,
+          "source": "fandom",
+          "url": "https://magi.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://magi.fandom.com/wiki/Magi"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 19 entities but F1 too low (15% < 50%). TP=2, FP=8, FN=14",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Magi",
+            "normalizedValue": "magi",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "67",
+            "normalizedValue": "67",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "File:AoS Volume 1.png",
+            "normalizedValue": "fileaos volume 1png",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/magi/images/0/0e/Volume_1.png/revision/latest/smart/width/40/height/30?cb=20120628192243",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "AoS: Volume 1",
+            "normalizedValue": "aos volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "162",
+            "normalizedValue": "162",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "3 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "2013",
+            "normalizedValue": "2013",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              3274
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              626
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Pages using ISBN magic links",
+            "normalizedValue": "pages using isbn magic links",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              516,
+              517,
+              518,
+              519,
+              520
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              4409
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              134
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Pages using ISBN magic links",
+            "normalizedValue": "pages using isbn magic links",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              516,
+              517,
+              518,
+              519,
+              520
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              17
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Magi (マギ) has been published in the manga magazine Weekly Shōnen Sunday since June 2009. Magi is written and illustrated by Shinobu Ohtaka with 37 volumes. Adventure of Sinbad (シンドバッドの冒険) was published in the manga magazine Weekly Shōnen Sunday from May 2013 - June 2013, and has been re-serialized in Ura Sunday since September 2013. Adventure of Sinbad is written by Shinobu Ohtaka and illustrated by Yoshifumi Ohtera, and its first volume was released in September 2013.",
+            "normalizedValue": "magi  has been published in  manga magazine weekly shnen sunday since june 2009 magi is written and illustrated by shinobu ohtaka with 37 volumes adventure of sinbad  was published in  manga magazine weekly shnen sunday from may 2013 - june 2013 and has been re-serialized in ura sunday since september 2013 adventure of sinbad is written by shinobu ohtaka and illustrated by yoshifumi ohtera and its first volume was released in september 2013",
+            "confidence": 0.2727272727272727,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Magi: The Labyrinth of Magic",
+            "normalizedValue": "magi  labyrinth of magic",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Magi",
+            "normalizedValue": "magi",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "マギ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Shinobu Ootaka",
+            "normalizedValue": "shinobu ootaka",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Steve Dutro",
+            "normalizedValue": "steve dutro",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "37",
+            "normalizedValue": "37",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "369",
+            "normalizedValue": "369",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Adventure",
+            "normalizedValue": "adventure",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Drama",
+            "normalizedValue": "drama",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Deep within the deserts lie the mysterious Dungeons, vast stores of riches there for the taking by a",
+            "normalizedValue": "deep within  deserts lie  mysterious dungeons vast stores of riches there for  taking by",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2009",
+            "normalizedValue": "2009",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.2,
+          "recall": 0.125,
+          "f1": 0.15384615384615385,
+          "truePositives": 2,
+          "falsePositives": 8,
+          "falseNegatives": 14
+        },
+        "durationMs": 6326
+      },
+      {
+        "page": {
+          "id": "101808-fandom-MANGA_PAGE",
+          "title": "Combatants Will Be Dispatched!",
+          "anilistId": 101808,
+          "source": "fandom",
+          "url": "https://sentouin-hakenshimasu.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://combatantswillbedispatched.fandom.com/wiki/Combatants_Will_Be_Dispatched!_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 17 entities but F1 too low (8% < 50%). TP=1, FP=6, FN=16",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Combat Agent Six",
+            "normalizedValue": "combat agent six",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "5",
+            "normalizedValue": "5",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "After a career spent slapping down superheroes as an evil minion of the Kisaragi Corporation, Agent Six has his next assignment-invade a fantasy world! With his pluck new partner, the \"pretty-girl android\" Alice, Agent Six sets out to bring his target planet to heel. What better way to accomplish that than by partnering with the locals?! Alongside Royal Guard Captain Snow, Battle Chimera Rose, and Archbishop Grimm, Alice and Six will square off against demon hordes-even if it's just a means of taking down the competition! Let the battle to be baddest begin!",
+            "normalizedValue": "after  career spent slapping down superheroes as  evil minion of  kisaragi corporation agent six has his next assignment-invade  fantasy world with his pluck new partner  pretty-girl android alice agent six sets out to bring his target planet to heel what better way to accomplish that than by partnering with  locals alongside royal guard captain snow battle chimera rose and archbishop grimm alice and six will square off against demon hordes-even if its just  means of taking down  competition let  battle to be baddest begin",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Serving as mercenaries for the Kingdom of Grace, Snow and friends find themselves at war with the Demon King's army. Six launches an all-out assault...but how will his modern weapons fare against such unorthodox foes?",
+            "normalizedValue": "serving as mercenaries for  kingdom of grace snow and friends find themselves at war with  demon kings army six launches  all-out assaultbut how will his modern weapons fare against such unorthodox foes",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Agent Six's utterly unchivalrous tactics had been working wonders, but that all comes to an end when he and Alice are outed as spies and banished from the kingdom of Grace. How unfortunate that the Demon Army is preparing for all-out war at that very moment... Six might still be able to save his feckless former squadmates from certain doom-but only if he's willing to gain an unfortunate nickname in the process!",
+            "normalizedValue": "agent sixs utterly unchivalrous tactics had been working wonders but that all comes to  end when he and alice are outed as spies and banished from  kingdom of grace how unfortunate that  demon army is preparing for all-out war at that very moment six might still be able to save his feckless former squadmates from certain doom-but only if hes willing to gain  unfortunate nickname in  process",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "66",
+            "normalizedValue": "66",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              22
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "18",
+            "normalizedValue": "18",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              79
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The Combatants will be dispatched manga began serialization on March 27th, 2018 and is currently ongoing as of 2023. The medium is written by Natsume Akatsuki and illustrated by Misaaki Kiasa, and follows the events of the light novel. The series has been collected in 9 tankōbon volumes and is published in North America by Yen Press.",
+            "normalizedValue": "combatants will be dispatched manga began serialization on march 27th 2018 and is currently ongoing as of 2023  medium is written by natsume akatsuki and illustrated by misaaki kiasa and follows  events of  light novel  series has been collected in 9 tankbon volumes and is published in north america by yen press",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              246,
+              247,
+              248,
+              249,
+              250,
+              251,
+              252,
+              253,
+              254,
+              255,
+              256,
+              257,
+              258,
+              259,
+              260,
+              261,
+              262,
+              263,
+              264,
+              265,
+              266,
+              267,
+              268,
+              269,
+              270,
+              271,
+              272,
+              273,
+              274,
+              275,
+              276,
+              277,
+              278,
+              279,
+              280,
+              281,
+              282,
+              283,
+              284,
+              285,
+              286,
+              287,
+              288,
+              289,
+              290,
+              291,
+              292,
+              293,
+              294,
+              295,
+              296,
+              297,
+              298,
+              299,
+              300,
+              301,
+              302
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              335
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              232
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              31
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Combatants Will Be Dispatched!",
+            "normalizedValue": "combatants will be dispatched",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Sentouin, Hakenshimasu!",
+            "normalizedValue": "sentouin hakenshimasu",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "戦闘員、派遣します！",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Masaaki Kiasa",
+            "normalizedValue": "masaaki kiasa",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "12",
+            "normalizedValue": "12",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "73",
+            "normalizedValue": "73",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Adventure",
+            "normalizedValue": "adventure",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Sci-Fi",
+            "normalizedValue": "sci-fi",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "After a career spent slapping down superheroes as an evil minion of the Kisaragi Corporation, Agent ",
+            "normalizedValue": "after  career spent slapping down superheroes as  evil minion of  kisaragi corporation agent",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2018",
+            "normalizedValue": "2018",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.14285714285714285,
+          "recall": 0.058823529411764705,
+          "f1": 0.08333333333333333,
+          "truePositives": 1,
+          "falsePositives": 6,
+          "falseNegatives": 16
+        },
+        "durationMs": 5222
+      },
+      {
+        "page": {
+          "id": "98543-fandom-MANGA_PAGE",
+          "title": "Parallel Paradise",
+          "anilistId": 98543,
+          "source": "fandom",
+          "url": "https://parallel-paradise.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://parallelparadise.fandom.com/wiki/Parallel_Paradise"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 19 entities but F1 too low (21% < 50%). TP=2, FP=4, FN=11",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Parallel Paradise",
+            "normalizedValue": "parallel paradise",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "30",
+            "normalizedValue": "30",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/parallel-paradise/images/d/d4/Volume_3.jpg/revision/latest/smart/width/40/height/30?cb=20191004154055",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "190",
+            "normalizedValue": "190",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Chapter 20",
+            "normalizedValue": "chapter 20",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Chapter 21",
+            "normalizedValue": "chapter 21",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Chapter 22",
+            "normalizedValue": "chapter 22",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "2 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "YYYY-MM-DD",
+            "normalizedValue": "yyyy-mm-dd",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              185
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "List of all the manga volumes and the chapters in which they are respectively collected in the Parallel Paradise series. The manga began its serialization in Weekly Young Magazine in its sixteenth issue of 2017.",
+            "normalizedValue": "list of all  manga volumes and  chapters in which they are respectively collected in  parallel paradise series  manga began its serialization in weekly young magazine in its sixteenth issue of 2017",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              133,
+              134,
+              135,
+              136,
+              137,
+              138,
+              139,
+              140,
+              141,
+              142,
+              143,
+              144,
+              145,
+              146,
+              147,
+              148,
+              149,
+              150,
+              151,
+              152,
+              153,
+              154,
+              155,
+              156,
+              157,
+              158,
+              159,
+              160,
+              161,
+              162,
+              163,
+              164,
+              165,
+              166,
+              167
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1276
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              21
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              28
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Parallel Paradise",
+            "normalizedValue": "parallel paradise",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Parallel Paradise",
+            "normalizedValue": "parallel paradise",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "パラレルパラダイス",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Lynn Okamoto",
+            "normalizedValue": "lynn okamoto",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Adventure",
+            "normalizedValue": "adventure",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Ecchi",
+            "normalizedValue": "ecchi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Tada Youta, a seemingly normal young man with a background in martial arts, has his life upended whe",
+            "normalizedValue": "tada youta  seemingly normal young man with  background in martial arts has his life upended whe",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2017",
+            "normalizedValue": "2017",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.3333333333333333,
+          "recall": 0.15384615384615385,
+          "f1": 0.21052631578947367,
+          "truePositives": 2,
+          "falsePositives": 4,
+          "falseNegatives": 11
+        },
+        "durationMs": 1866
+      },
+      {
+        "page": {
+          "id": "107282-fandom-MANGA_PAGE",
+          "title": "Shikimori's Not Just a Cutie",
+          "anilistId": 107282,
+          "source": "fandom",
+          "url": "https://shikimoris-not-just-a-cutie.fandom.com/wiki/Shikimori%27s_Not_Just_a_Cutie_(Manga)",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://shikimoris-not-just-a-cutie.fandom.com/wiki/Shikimori's%20Not%20Just%20a%20Cutie%20(Manga)"
+        },
+        "success": true,
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Shikimori's Not Just a Cutie (Anime)",
+            "normalizedValue": "shikimoris not just  cutie anime",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2022-04-09",
+            "normalizedValue": "2022-04-09",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Slice of Life",
+            "normalizedValue": "slice of life",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "20",
+            "normalizedValue": "20",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1 (1.63 MB)",
+            "normalizedValue": "volume 1 163 mb",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/shikimoris-not-just-a-cutie/images/7/75/Volume_3.png/revision/latest/scale-to-width-down/129?cb=20210106182607",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2 (1.49 MB)",
+            "normalizedValue": "volume 2 149 mb",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3 (1.36 MB)",
+            "normalizedValue": "volume 3 136 mb",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "219",
+            "normalizedValue": "219",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Shikimori's Not Just a Cutie",
+            "normalizedValue": "shikimoris not just  cutie",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              524
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              23
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Shikimori's Not Just a Cutie (可 (か) 愛 (わい) いだけじゃない式 (しき) 守 (もり) さん, Kawaii dake ja Nai Shikimori-san?) is a Japanese manga series written and illustrated by Keigo Maki that is published in Magazine Pocket. It originated as a series of shorts that Maki released on his Twitter, the first 10 chapters having been first posted there.",
+            "normalizedValue": "shikimoris not just  cutie          kawaii dake ja nai shikimori-san is  japanese manga series written and illustrated by keigo maki that is published in magazine pocket it originated as  series of shorts that maki released on his twitter  first 10 chapters having been first posted there",
+            "confidence": 0.4090909090909091,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Shikimori's Not Just a Cutie",
+            "normalizedValue": "shikimoris not just  cutie",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Kawaii dake ja Nai Shikimori-san",
+            "normalizedValue": "kawaii dake ja nai shikimori-san",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "可愛いだけじゃない式守さん",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Keigo Maki",
+            "normalizedValue": "keigo maki",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "20",
+            "normalizedValue": "20",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "203",
+            "normalizedValue": "203",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Romance",
+            "normalizedValue": "romance",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Slice of Life",
+            "normalizedValue": "slice of life",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Shikimori seems like the perfect girlfriend: cute, fun to be around, sweet when she wants to be… but",
+            "normalizedValue": "shikimori seems like  perfect girlfriend cute fun to be around sweet when she wants to be but",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2018",
+            "normalizedValue": "2018",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.5833333333333334,
+          "recall": 0.5,
+          "f1": 0.5384615384615384,
+          "truePositives": 7,
+          "falsePositives": 5,
+          "falseNegatives": 7
+        },
+        "durationMs": 4636
+      },
+      {
+        "page": {
+          "id": "74347-fandom-MANGA_PAGE",
+          "title": "One-Punch Man",
+          "anilistId": 74347,
+          "source": "fandom",
+          "url": "https://onepunchman.fandom.com/wiki/One-Punch_Man_(manga)",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://onepunchman.fandom.com/wiki/One-Punch_Man"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 30 entities but F1 too low (39% < 50%). TP=6, FP=11, FN=8",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "One-Punch Man",
+            "normalizedValue": "one-punch man",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "35",
+            "normalizedValue": "35",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/onepunchman/images/d/d4/Volume_3.jpg/revision/latest/scale-to-width-down/120?cb=20191019045350",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Nothing about Saitama passes the eyeball test when it comes to superheroes, from his lifeless expression to his bald head to his unimpressive physique. However, this average-looking guy has a not-so-average problem—he just can’t seem to find an opponent strong enough to take on!\n\nEvery time a promising villain appears, he beats the snot out of them with one punch! Can Saitama finally find an opponent who can go toe-to-toe with him and give his life some meaning? Or is he doomed to a life of superpowered boredom?",
+            "normalizedValue": "nothing about saitama passes  eyeball test when it comes to superheroes from his lifeless expression to his bald head to his unimpressive physique however this average-looking guy has  not-so-average problemhe just cant seem to find  opponent strong enough to take on every time  promising villain appears he beats  snot out of them with one punch can saitama finally find  opponent who can go toe-to-toe with him and give his life some meaning or is he doomed to  life of superpowered boredom",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "December 4, 2012",
+            "normalizedValue": "december 4 2012",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "He's easily taken out a number of monsters, including a crabby creature, a malicious mosquito girl and a muscly meathead. But his humdrum life takes a drastic turn when he meets Genos, a cyborg who wants to uncover the secret behind his strength!",
+            "normalizedValue": "hes easily taken out  number of monsters including  crabby creature  malicious mosquito girl and  muscly meathead but his humdrum life takes  drastic turn when he meets genos  cyborg who wants to uncover  secret behind his strength",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "For three years, Saitama has defeated countless monsters, but no one knows about him... That's because he isn't in the Hero Association's registry! Together with Genos, Saitama decides to take the Hero Association's test! But can they pass?!",
+            "normalizedValue": "for three years saitama has defeated countless monsters but no one knows about him thats because he isnt in  hero associations registry together with genos saitama decides to take  hero associations test but can they pass",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "April 4, 2013",
+            "normalizedValue": "april 4 2013",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "222",
+            "normalizedValue": "222",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "YYYY-MM-DD",
+            "normalizedValue": "yyyy-mm-dd",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Volume 1]",
+            "normalizedValue": "image volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              463
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "One-Punch Man English Français Русский One-Punch Man (manga)",
+            "normalizedValue": "one-punch man english franais  one-punch man manga",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              412,
+              413,
+              414,
+              415,
+              416,
+              417,
+              418,
+              419
+            ]
+          },
+          {
+            "type": "AUTHOR",
+            "value": "One",
+            "normalizedValue": "one",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              150
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1255,
+              1256,
+              1257,
+              1258,
+              1259,
+              1260,
+              1261,
+              1262,
+              1263
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "action",
+            "normalizedValue": "action",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              802
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1247
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "One-Punch Man",
+            "normalizedValue": "one-punch man",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              3,
+              4
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "One-Punch Man",
+            "normalizedValue": "one-punch man",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "One Punch-Man",
+            "normalizedValue": "one punch-man",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ワンパンマン",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "ONE",
+            "normalizedValue": "one",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Yuusuke Murata",
+            "normalizedValue": "yuusuke murata",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Sci-Fi",
+            "normalizedValue": "sci-fi",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Supernatural",
+            "normalizedValue": "supernatural",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "In this new action-comedy, everything about a young man named Saitama screams \"AVERAGE,&rdquo; from ",
+            "normalizedValue": "in this new action-comedy everything about  young man named saitama screams averagerdquo from",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2012",
+            "normalizedValue": "2012",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.35294117647058826,
+          "recall": 0.42857142857142855,
+          "f1": 0.3870967741935484,
+          "truePositives": 6,
+          "falsePositives": 11,
+          "falseNegatives": 8
+        },
+        "durationMs": 4493
+      },
+      {
+        "page": {
+          "id": "95098-fandom-MANGA_PAGE",
+          "title": "Isekai Tensei Soudouki",
+          "anilistId": 95098,
+          "source": "fandom",
+          "url": "https://soudouki.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://isekai-tensei-soudouki.fandom.com/wiki/Isekai%20Tensei%20Soudouki"
+        },
+        "success": false,
+        "errorCategory": "PATTERN_MISMATCH",
+        "error": "Extracted 20 entities but F1 too low (10% < 50%). TP=1, FP=6, FN=12",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Urraca de Parma",
+            "normalizedValue": "urraca de parma",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/isekai-tensei-soudouki/images/2/28/ITS-Manga-v03-Cover.png/revision/latest/scale-to-width-down/260?cb=20201029104914",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "February 29, 2016",
+            "normalizedValue": "february 29 2016",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "November 30, 2016",
+            "normalizedValue": "november 30 2016",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "August 31, 2017",
+            "normalizedValue": "august 31 2017",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "9",
+            "normalizedValue": "9",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "2 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Pages using duplicate arguments in template calls",
+            "normalizedValue": "pages using duplicate arguments in template calls",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              212,
+              213,
+              214,
+              215,
+              216,
+              217,
+              218
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Pages using ISBN magic links",
+            "normalizedValue": "pages using isbn magic links",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              228,
+              229,
+              230,
+              231,
+              232
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              73
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Pages using duplicate arguments in template calls",
+            "normalizedValue": "pages using duplicate arguments in template calls",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              212,
+              213,
+              214,
+              215,
+              216,
+              217,
+              218
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Pages using ISBN magic links",
+            "normalizedValue": "pages using isbn magic links",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              228,
+              229,
+              230,
+              231,
+              232
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Pages with broken file links",
+            "normalizedValue": "pages with broken file links",
+            "confidence": 0,
+            "source": "bootstrap"
+          },
+          {
+            "type": "SUMMARY",
+            "value": "\"Isekai Tensei Soudouki\" (異世界 (いせかい)転生 (てんせい)騒動記 (そうどうき), lit. Different World Reincarnation Riot Report), also known as \"Multi-Mind Mayhem: Isekai Tensei Soudouki\" in English is a Manga adaptation based on the Light Novel of the same name written by \"Ryousen Takami\". The manga is being drawn by \"Honoji\" and in publication since May 8, 2015 by \"Alphapolis\".",
+            "normalizedValue": "isekai tensei soudouki     lit different world reincarnation riot report also known as multi-mind mayhem isekai tensei soudouki in english is  manga adaptation based on  light novel of  same name written by ryousen takami  manga is being drawn by honoji and in publication since may 8 2015 by alphapolis",
+            "confidence": 0,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Multi-Mind Mayhem: Isekai Tensei Soudouki",
+            "normalizedValue": "multi-mind mayhem isekai tensei soudouki",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Isekai Tensei Soudouki",
+            "normalizedValue": "isekai tensei soudouki",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "異世界転生騒動記",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Ryousen Takami",
+            "normalizedValue": "ryousen takami",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Honoji",
+            "normalizedValue": "honoji",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Adventure",
+            "normalizedValue": "adventure",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Bard Cornelius: the son of a nobleman of Mauricia, an empire located in a parallel universe. But Bar",
+            "normalizedValue": "bard cornelius  son of  nobleman of mauricia  empire located in  parallel universe but bar",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2015",
+            "normalizedValue": "2015",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.14285714285714285,
+          "recall": 0.07692307692307693,
+          "f1": 0.1,
+          "truePositives": 1,
+          "falsePositives": 6,
+          "falseNegatives": 12
+        },
+        "durationMs": 6666
+      },
+      {
+        "page": {
+          "id": "44721-fandom-MANGA_PAGE",
+          "title": "D-Frag!",
+          "anilistId": 44721,
+          "source": "fandom",
+          "url": "https://d-frag.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://d-frag.fandom.com/wiki/D-Frag!"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: 112487]",
+            "normalizedValue": "image 112487",
+            "confidence": 0.85,
+            "source": "bootstrap",
+            "tokenIndices": [
+              287
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "19",
+            "normalizedValue": "19",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              290
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              76
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1675
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "content",
+            "normalizedValue": "content",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              144
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "D-Frag!",
+            "normalizedValue": "d-frag",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "D-Frag!",
+            "normalizedValue": "d-frag",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ディーふらぐ!",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Tomoya Haruno",
+            "normalizedValue": "tomoya haruno",
+            "required": true
+          },
+          {
+            "type": "ARTIST",
+            "value": "Carolina Hernández Mendoza",
+            "normalizedValue": "carolina hernndez mendoza",
+            "required": false
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Comedy",
+            "normalizedValue": "comedy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Kazama Kenji thinks he’s a delinquent. He’s got the look, the style and the attitude to match-he eve",
+            "normalizedValue": "kazama kenji thinks hes  delinquent hes got  look  style and  attitude to match-he eve",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2008",
+            "normalizedValue": "2008",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "image_present",
+            "normalizedValue": "image_present",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 1,
+          "falseNegatives": 11
+        },
+        "durationMs": 1389
+      }
+    ]
+  }
+}

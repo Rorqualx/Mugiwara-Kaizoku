@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE "Settings" ADD COLUMN     "autoSelectClient" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "delugeBaseURL" TEXT DEFAULT 'http://localhost:8112',
+ADD COLUMN     "delugeEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "delugePassword" TEXT,
+ADD COLUMN     "nzbgetBaseURL" TEXT DEFAULT 'http://localhost:6789',
+ADD COLUMN     "nzbgetEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "nzbgetPassword" TEXT,
+ADD COLUMN     "nzbgetUsername" TEXT,
+ADD COLUMN     "preferredTorrentClient" TEXT,
+ADD COLUMN     "preferredUsenetClient" TEXT,
+ADD COLUMN     "sabnzbdApiKey" TEXT,
+ADD COLUMN     "sabnzbdBaseURL" TEXT DEFAULT 'http://localhost:8080',
+ADD COLUMN     "sabnzbdEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "transmissionApiKey" TEXT,
+ADD COLUMN     "transmissionBaseURL" TEXT DEFAULT 'http://localhost:9091',
+ADD COLUMN     "transmissionEnabled" BOOLEAN NOT NULL DEFAULT false;

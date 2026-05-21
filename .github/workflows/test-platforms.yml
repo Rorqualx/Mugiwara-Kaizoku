@@ -1,0 +1,551 @@
+name: Platform Compatibility Testing
+
+# ============================================================================
+# Comprehensive platform compatibility testing for Bun + Next.js + SWC
+# ============================================================================
+# Tests across multiple combinations:
+# - Operating Systems: Ubuntu 22.04, macOS 14 (Intel), macOS 14 (ARM64)
+# - Package Managers: pnpm, npm, yarn, bun
+# - Architectures: x86_64, ARM64 (where supported)
+#
+# This workflow validates that the application builds and runs correctly
+# across all supported platforms and package managers, with special attention
+# to Next.js SWC binary compatibility issues.
+#
+# Author: Development Team
+# Status: Active
+# ============================================================================
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'package.json'
+      - 'bun.lock'
+      - 'pnpm-lock.yaml'
+      - 'package-lock.json'
+      - 'yarn.lock'
+      - 'scripts/bun/**'
+      - '.github/workflows/test-platforms.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'package.json'
+      - 'bun.lock'
+      - 'pnpm-lock.yaml'
+      - 'package-lock.json'
+      - 'yarn.lock'
+      - 'scripts/bun/**'
+      - '.github/workflows/test-platforms.yml'
+  workflow_dispatch:  # Allow manual triggering
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+
+env:
+  NODE_VERSION: '20'
+  BUN_VERSION: '1.3.0'
+  PNPM_VERSION: '10.7.1'
+
+jobs:
+  # ==========================================================================
+  # Matrix Strategy Definition
+  # ==========================================================================
+  setup-matrix:
+    name: Setup Test Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Define test matrix
+        id: set-matrix
+        run: |
+          cat << 'EOF' > matrix.json
+          {
+            "include": [
+              {
+                "os": "ubuntu-22.04",
+                "arch": "x64",
+                "pm": "pnpm",
+                "pm_version": "10.7.1",
+                "node_version": "20"
+              },
+              {
+                "os": "ubuntu-22.04",
+                "arch": "x64",
+                "pm": "npm",
+                "pm_version": "latest",
+                "node_version": "20"
+              },
+              {
+                "os": "ubuntu-22.04",
+                "arch": "x64",
+                "pm": "yarn",
+                "pm_version": "1.22.19",
+                "node_version": "20"
+              },
+              {
+                "os": "ubuntu-22.04",
+                "arch": "x64",
+                "pm": "bun",
+                "pm_version": "1.3.0",
+                "node_version": "20"
+              },
+              {
+                "os": "macos-14",
+                "arch": "arm64",
+                "pm": "pnpm",
+                "pm_version": "10.7.1",
+                "node_version": "20"
+              },
+              {
+                "os": "macos-14",
+                "arch": "arm64",
+                "pm": "npm",
+                "pm_version": "latest",
+                "node_version": "20"
+              },
+              {
+                "os": "macos-14",
+                "arch": "arm64",
+                "pm": "yarn",
+                "pm_version": "1.22.19",
+                "node_version": "20"
+              },
+              {
+                "os": "macos-14",
+                "arch": "arm64",
+                "pm": "bun",
+                "pm_version": "1.3.0",
+                "node_version": "20"
+              },
+              {
+                "os": "macos-13",
+                "arch": "x64",
+                "pm": "pnpm",
+                "pm_version": "10.7.1",
+                "node_version": "20"
+              },
+              {
+                "os": "macos-13",
+                "arch": "x64",
+                "pm": "bun",
+                "pm_version": "1.3.0",
+                "node_version": "20"
+              }
+            ]
+          }
+          EOF
+
+          echo "matrix=$(jq -c . matrix.json)" >> $GITHUB_OUTPUT
+
+  # ==========================================================================
+  # Platform Compatibility Tests
+  # ==========================================================================
+  test-platform:
+    name: ${{ matrix.os }} (${{ matrix.arch }}) - ${{ matrix.pm }}
+    needs: setup-matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+
+    steps:
+      # ======================================================================
+      # Checkout and Setup
+      # ======================================================================
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node_version }}
+
+      # ======================================================================
+      # Package Manager Installation
+      # ======================================================================
+      - name: Install pnpm
+        if: matrix.pm == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ matrix.pm_version }}
+
+      - name: Install Yarn
+        if: matrix.pm == 'yarn'
+        run: |
+          npm install -g yarn@${{ matrix.pm_version }}
+          yarn --version
+
+      - name: Install Bun
+        if: matrix.pm == 'bun'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.pm_version }}
+
+      # ======================================================================
+      # Platform Detection
+      # ======================================================================
+      - name: Run platform detection
+        id: platform-detect
+        run: |
+          chmod +x scripts/bun/platform-detect.sh
+          scripts/bun/platform-detect.sh --verbose
+
+          # Capture JSON output for later use
+          scripts/bun/platform-detect.sh --json > platform-info.json
+
+          # Extract key information
+          cat platform-info.json | jq -r '
+            "detected-os=\(.os)",
+            "detected-arch=\(.arch)",
+            "bun-installed=\(.bunInstalled)",
+            "required-swc=\(.requiredSwcBinary)",
+            "swc-exists=\(.swcBinaryExists)"
+          ' >> $GITHUB_OUTPUT
+
+      - name: Display platform information
+        run: |
+          echo "Expected: ${{ matrix.os }} (${{ matrix.arch }})"
+          echo "Detected OS: ${{ steps.platform-detect.outputs.detected-os }}"
+          echo "Detected Arch: ${{ steps.platform-detect.outputs.detected-arch }}"
+          echo "Required SWC: ${{ steps.platform-detect.outputs.required-swc }}"
+
+      # ======================================================================
+      # Dependency Installation
+      # ======================================================================
+      - name: Get package manager cache directory
+        id: cache-dir
+        run: |
+          if [ "${{ matrix.pm }}" = "pnpm" ]; then
+            echo "dir=$(pnpm store path)" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.pm }}" = "yarn" ]; then
+            echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.pm }}" = "npm" ]; then
+            echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.pm }}" = "bun" ]; then
+            echo "dir=$HOME/.bun/install/cache" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup package manager cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.cache-dir.outputs.dir }}
+          key: ${{ matrix.os }}-${{ matrix.pm }}-${{ hashFiles('**/package.json') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.pm }}-
+
+      - name: Clean previous installation
+        run: |
+          rm -rf node_modules
+          rm -f bun.lock pnpm-lock.yaml package-lock.json yarn.lock
+
+      - name: Install dependencies with ${{ matrix.pm }}
+        run: |
+          case "${{ matrix.pm }}" in
+            pnpm)
+              pnpm install --frozen-lockfile=false
+              ;;
+            npm)
+              npm install
+              ;;
+            yarn)
+              yarn install
+              ;;
+            bun)
+              bun install
+              ;;
+          esac
+
+      # ======================================================================
+      # SWC Binary Validation and Auto-Fix
+      # ======================================================================
+      - name: Check SWC binaries
+        id: check-swc
+        run: |
+          chmod +x scripts/bun/fix-swc-binaries.sh
+
+          echo "Running SWC binary check..."
+          if scripts/bun/fix-swc-binaries.sh --verbose; then
+            echo "swc-status=ok" >> $GITHUB_OUTPUT
+          else
+            echo "swc-status=fixed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify SWC binary after fix
+        run: |
+          REQUIRED_SWC="${{ steps.platform-detect.outputs.required-swc }}"
+          if [ -d "node_modules/$REQUIRED_SWC" ]; then
+            echo "✅ SWC binary verified: $REQUIRED_SWC"
+            ls -la "node_modules/$REQUIRED_SWC" || true
+          else
+            echo "❌ SWC binary still missing: $REQUIRED_SWC"
+            exit 1
+          fi
+
+      # ======================================================================
+      # Build and Type Check
+      # ======================================================================
+      - name: Generate Prisma client
+        run: |
+          case "${{ matrix.pm }}" in
+            pnpm) pnpm exec prisma generate ;;
+            npm) npx prisma generate ;;
+            yarn) yarn prisma generate ;;
+            bun) bun prisma generate ;;
+          esac
+
+      - name: Run type check
+        run: |
+          case "${{ matrix.pm }}" in
+            pnpm) pnpm run type-check ;;
+            npm) npm run type-check ;;
+            yarn) yarn type-check ;;
+            bun) bun run type-check ;;
+          esac
+
+      - name: Build application
+        run: |
+          case "${{ matrix.pm }}" in
+            pnpm) pnpm run build ;;
+            npm) npm run build ;;
+            yarn) yarn build ;;
+            bun) bun run build ;;
+          esac
+
+      # ======================================================================
+      # Verify Build Output
+      # ======================================================================
+      - name: Verify build artifacts
+        run: |
+          # Check for essential build outputs
+          if [ ! -d ".next" ]; then
+            echo "❌ .next directory not found"
+            exit 1
+          fi
+
+          if [ ! -d ".next/standalone" ]; then
+            echo "❌ Standalone build not found"
+            exit 1
+          fi
+
+          if [ ! -f ".next/standalone/server.js" ]; then
+            echo "❌ Server entry point not found"
+            exit 1
+          fi
+
+          echo "✅ Build artifacts verified"
+          echo "Build size: $(du -sh .next | cut -f1)"
+
+      # ======================================================================
+      # Run Bun-Specific Tests
+      # ======================================================================
+      - name: Test with Bun runtime (if available)
+        if: matrix.pm == 'bun'
+        run: |
+          echo "Testing Bun runtime compatibility..."
+
+          # Test that Bun can execute the build
+          if command -v bun >/dev/null 2>&1; then
+            echo "✅ Bun runtime available"
+            echo "Bun version: $(bun --version)"
+
+            # Try to start the server with timeout
+            timeout 10s bun .next/standalone/server.js &
+            SERVER_PID=$!
+            sleep 5
+
+            if kill -0 $SERVER_PID 2>/dev/null; then
+              echo "✅ Server started successfully with Bun"
+              kill $SERVER_PID
+            else
+              echo "❌ Server failed to start with Bun"
+              exit 1
+            fi
+          fi
+
+      # ======================================================================
+      # Compatibility Report
+      # ======================================================================
+      - name: Run compatibility hook
+        run: |
+          chmod +x .claude/hooks/check-bun-compatibility.sh
+          .claude/hooks/check-bun-compatibility.sh --fix
+
+      - name: Generate compatibility report
+        if: always()
+        run: |
+          echo "# Platform Compatibility Report" > compatibility-report.md
+          echo "" >> compatibility-report.md
+          echo "## Configuration" >> compatibility-report.md
+          echo "- OS: ${{ matrix.os }}" >> compatibility-report.md
+          echo "- Architecture: ${{ matrix.arch }}" >> compatibility-report.md
+          echo "- Package Manager: ${{ matrix.pm }} ${{ matrix.pm_version }}" >> compatibility-report.md
+          echo "- Node.js: ${{ matrix.node_version }}" >> compatibility-report.md
+          echo "" >> compatibility-report.md
+          echo "## Detection Results" >> compatibility-report.md
+          echo '```json' >> compatibility-report.md
+          cat platform-info.json >> compatibility-report.md
+          echo '```' >> compatibility-report.md
+          echo "" >> compatibility-report.md
+          echo "## SWC Binary Status" >> compatibility-report.md
+          echo "- Status: ${{ steps.check-swc.outputs.swc-status }}" >> compatibility-report.md
+          echo "- Required: ${{ steps.platform-detect.outputs.required-swc }}" >> compatibility-report.md
+
+      - name: Upload compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-report-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.pm }}
+          path: |
+            compatibility-report.md
+            platform-info.json
+
+      # ======================================================================
+      # Upload Build Artifacts (for debugging)
+      # ======================================================================
+      - name: Upload build artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-failure-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.pm }}
+          path: |
+            .next/
+            node_modules/${{ steps.platform-detect.outputs.required-swc }}/
+          retention-days: 7
+
+  # ==========================================================================
+  # Summary Report
+  # ==========================================================================
+  test-summary:
+    name: Test Summary
+    needs: test-platform
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all compatibility reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+
+      - name: Generate summary
+        run: |
+          echo "# Platform Compatibility Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Count successes and failures
+          TOTAL=0
+          SUCCESS=0
+          FAILURE=0
+
+          for report in reports/*/compatibility-report.md; do
+            if [ -f "$report" ]; then
+              ((TOTAL++))
+              # Check if build was successful (basic heuristic)
+              if grep -q "Build artifacts verified" "$report" 2>/dev/null; then
+                ((SUCCESS++))
+              else
+                ((FAILURE++))
+              fi
+            fi
+          done
+
+          echo "- Total Platforms: $TOTAL" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Successful: $SUCCESS" >> $GITHUB_STEP_SUMMARY
+          echo "- ❌ Failed: $FAILURE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # List all reports
+          echo "## Platform Reports" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for report in reports/*/compatibility-report.md; do
+            if [ -f "$report" ]; then
+              dir=$(dirname "$report")
+              name=$(basename "$dir" | sed 's/compatibility-report-//')
+              echo "### $name" >> $GITHUB_STEP_SUMMARY
+              cat "$report" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+      - name: Check if all tests passed
+        run: |
+          if [ "${{ needs.test-platform.result }}" != "success" ]; then
+            echo "❌ Some platform tests failed"
+            exit 1
+          fi
+          echo "✅ All platform tests passed"
+
+  # ==========================================================================
+  # Notify on Failure
+  # ==========================================================================
+  notify-failure:
+    name: Notify on Failure
+    needs: [test-platform, test-summary]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create failure issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Platform Compatibility Test Failed - ${context.payload.head_commit?.message || 'Manual Run'}`;
+            const body = `
+            ## Platform Compatibility Test Failure
+
+            **Workflow Run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+            **Commit:** ${context.sha}
+            **Branch:** ${context.ref}
+
+            One or more platform compatibility tests have failed. Please review the workflow logs and compatibility reports.
+
+            ### Quick Links
+            - [View Workflow Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            - [View Commit](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/commit/${context.sha})
+
+            ### Troubleshooting
+            - Review platform detection logs
+            - Check SWC binary installation
+            - Verify package manager compatibility
+            - See docs/migration/TROUBLESHOOTING_SWC.md
+
+            ---
+            *This issue was automatically created by GitHub Actions*
+            `;
+
+            // Check if a similar issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['ci', 'platform-compatibility']
+            });
+
+            const existingIssue = issues.data.find(issue =>
+              issue.title.includes('Platform Compatibility Test Failed')
+            );
+
+            if (existingIssue) {
+              // Add comment to existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `Another failure occurred:\n\n${body}`
+              });
+            } else {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+                labels: ['ci', 'platform-compatibility', 'bug']
+              });
+            }

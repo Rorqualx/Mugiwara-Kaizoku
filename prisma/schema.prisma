@@ -1,0 +1,2720 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Account {
+  id                String  @id
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  User              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Backup {
+  id        Int             @id @default(autoincrement())
+  name      String          @unique
+  createdAt DateTime        @default(now())
+  size      BigInt
+  path      String
+  status    BackupStatus    @default(PENDING)
+  type      BackupType      @default(MANUAL)
+  contents  BackupContent[]
+  items     BackupItem[]
+  hash      String?
+  notes     String?
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([type])
+  @@index([status, createdAt])
+  @@index([hash])
+}
+
+model BackupItem {
+  id        Int      @id @default(autoincrement())
+  backupId  Int
+  itemType  String // e.g., "database", "manga_files", "config", "metadata"
+  itemPath  String // Path or identifier of the backed up item
+  itemSize  BigInt // Size in bytes
+  checksum  String? // Optional hash/checksum for verification
+  createdAt DateTime @default(now())
+  Backup    Backup   @relation(fields: [backupId], references: [id], onDelete: Cascade)
+
+  @@index([backupId])
+  @@index([itemType])
+  @@index([checksum])
+}
+
+model Chapter {
+  id                Int                      @id @default(autoincrement())
+  fileName          String                   @db.VarChar(255)
+  index             Int
+  size              Int                      @default(0)
+  mangaId           Int
+  title             String                   @db.VarChar(255)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime
+  downloadStatus    ChapterStatus            @default(PENDING)
+  downloadUrl       String?
+  hash              String?                  @unique
+  mimeType          String?                  @db.VarChar(100)
+  pageCount         Int?
+  resolutionWidth   Int?
+  resolutionHeight  Int?
+  resolutionLabel   String?
+  language          String?
+  alternativeTitles String[]                 @default([])
+  chapterNumber     Float?
+  coverImage        String?
+  description       String?
+  fileFormat        String?                  @db.VarChar(10)
+  filePath          String?                  @db.VarChar(500)
+  isRead            Boolean                  @default(false)
+  monitored         Boolean                  @default(false)
+  number            Float?
+  packDownloadId    BigInt?
+  pages             Int?
+  releaseDate       DateTime?
+  volume            Int?
+  volumeId          Int?
+  mangadexId        String?                  @unique // MangaDex chapter UUID
+  suwayomiChapterId String?                  @unique // Suwayomi-internal chapter id (numeric, stored as string)
+  pageCountAttempts Int                      @default(0) // ghost-recount retry counter; rows >=3 are skipped permanently
+  Manga             Manga                    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  Volume            Volume?                  @relation(fields: [volumeId], references: [id], onDelete: SetNull)
+  PackDownload      PackDownload?            @relation(fields: [packDownloadId], references: [id], onDelete: SetNull)
+  CalendarEvent     CalendarEvent[]
+  jobs              jobs[]
+  ReadingProgress   ReadingProgress[]
+  ReaderBookmark    ReaderBookmark[]
+  ReadingHistory    ReadingHistory[]
+  WantedItem        WantedItem[]
+  DownloadHistory   DownloadHistory[]
+  scanlationGroups  ChapterScanlationGroup[]
+  chapterFiles      ChapterFile[]
+  NativeDownload    NativeDownload[]
+
+  // Audio Player Relations
+  AudioPlaybackProgress AudioPlaybackProgress[]
+  AudioBookmark         AudioBookmark[]
+  ListeningHistory      ListeningHistory[]
+
+  @@unique([mangaId, chapterNumber], map: "Chapter_mangaId_chapterNumber_unique", where: raw("(\"chapterNumber\" IS NOT NULL)"))
+  // Phantom-row guard lives in prisma/migrations/chapter_one_null_per_volume.sql (applied via psql,
+  // not Prisma — `db push` doesn't recognize the partial WHERE clause and flags it as data loss).
+  @@unique([mangaId, index])
+  @@index([createdAt])
+  @@index([downloadStatus])
+  @@index([packDownloadId])
+  @@index([volumeId])
+  @@index([mangadexId])
+  @@index([suwayomiChapterId])
+  @@index([mangaId, chapterNumber])
+  @@index([mangaId, volume])
+}
+
+model ChapterFile {
+  id         Int      @id @default(autoincrement())
+  chapterId  Int
+  filePath   String   @db.VarChar(500)
+  fileName   String   @db.VarChar(255)
+  fileSize   Int      @default(0)
+  isActive   Boolean  @default(false)
+  sourceType String   @db.VarChar(20)
+  pageStart  Int?
+  pageEnd    Int?
+  pageCount  Int?
+  importedAt DateTime @default(now())
+
+  Chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, filePath])
+  @@index([chapterId])
+  @@index([filePath])
+  @@index([chapterId, isActive])
+}
+
+model Library {
+  id         Int       @id @default(autoincrement())
+  name       String
+  path       String
+  createdAt  DateTime  @default(now())
+  lastScanAt DateTime?
+  Manga      Manga[]
+}
+
+model Manga {
+  id                   Int                    @id @default(autoincrement())
+  title                String                 @unique
+  source               String
+  libraryId            Int
+  metadataId           Int?                   @unique
+  lastChecked          DateTime?
+  libraryPath          String?
+  mangaTitle           String?
+  createdAt            DateTime               @default(now())
+  errorMessage         String?
+  lastErrorAt          DateTime?
+  lastSyncAt           DateTime?
+  summary              String?
+  syncCount            Int                    @default(0)
+  updatedAt            DateTime
+  searchProvider       String                 @default("anilist")
+  providerMetadata     Json?
+  monitoringConfig     Json?
+  suwayomiPluginConfig Json? // Per-manga Suwayomi library-source plugin config
+  fileStatus           MangaFileStatus        @default(PENDING)
+  libraryStatus        MangaLibraryStatus     @default(ACTIVE)
+  metadataConfidence   Float?
+  mlCorrected          Boolean?               @default(false)
+  publicationStatus    MangaPublicationStatus @default(UNKNOWN)
+  rawProviderData      Json?
+  selectedSourceId     String?
+  sourceId             String?
+  mediaType            MediaType              @default(MANGA)
+  Chapter              Chapter[]
+  Library              Library                @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  Metadata             Metadata?              @relation(fields: [metadataId], references: [id])
+  PackDownload         PackDownload[]
+  ReleaseBlocklist     ReleaseBlocklist[]
+  CalendarEvent        CalendarEvent[]
+  ReleaseSchedule      ReleaseSchedule[]
+  ReleaseHistory       ReleaseHistory[]
+  jobs                 jobs[]
+  ReadingProgress      ReadingProgress[]
+  ReaderBookmark       ReaderBookmark[]
+  ReadingHistory       ReadingHistory[]
+  WantedItem           WantedItem[]
+  DownloadHistory      DownloadHistory[]
+  autoDownloadRule     AutoDownloadRule?
+  BookmarkedVolume     BookmarkedVolume[]
+  BookmarkedManga      BookmarkedManga[]
+  Volume               Volume[]
+  VolumeProgress       VolumeProgress[]
+  scanlationGroups     MangaScanlationGroup[]
+
+  // Audio Player Relations
+  AudioPlaybackProgress AudioPlaybackProgress[]
+  AudioBookmark         AudioBookmark[]
+  ListeningHistory      ListeningHistory[]
+
+  // Pipeline Relations
+  PendingRelease PendingRelease[]
+
+  @@unique([libraryId, libraryPath])
+  @@index([createdAt])
+  @@index([lastChecked])
+  @@index([searchProvider])
+  @@index([mediaType, createdAt])
+}
+
+model Metadata {
+  id                Int                    @id @default(autoincrement())
+  coverExtraLarge   String?
+  coverLarge        String?
+  coverMedium       String?
+  coverSmall        String?
+  summary           String?
+  genres            String[]               @default([])
+  authors           String[]               @default([])
+  tags              String[]               @default([])
+  themes            String[]               @default([])
+  characters        String[]               @default([])
+  startDate         DateTime?
+  endDate           DateTime?
+  synonyms          String[]               @default([])
+  urls              String[]               @default([])
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime?
+  cover             String                 @default("/cover-not-found.jpg")
+  lastFetch         DateTime?
+  source            String?                @db.VarChar(100)
+  sourceId          String?                @db.VarChar(100)
+  language          String?
+  languages         String[]               @default([])
+  qualityProfile    String?
+  averageResolution String?
+  pageCount         Int?
+  chapters          Int?
+  volumes           Int?
+  artists           String[]               @default([])
+  averageScore      Float?
+  bannerImage       String?
+  countryOfOrigin   String?
+  coverUrl          String?
+  externalLinks     Json?
+  format            String?
+  idMal             Int?
+  popularity        Int?
+  publisher         String?
+  rating            Float?
+  status            MangaPublicationStatus @default(UNKNOWN)
+  galleryImages     String[]               @default([])
+  Manga             Manga?
+
+  @@index([createdAt])
+  @@index([source, sourceId])
+}
+
+model ParseFailureLog {
+  id          String   @id @default(cuid())
+  source      String
+  url         String
+  stage       String
+  mangaId     Int?
+  reason      String
+  contextJson Json?
+  createdAt   DateTime @default(now())
+
+  @@index([source, createdAt])
+  @@index([mangaId])
+  @@index([stage, createdAt])
+}
+
+// ============================================================================
+// Volume Models - Multi-Tiered Volume Data Storage
+// ============================================================================
+
+model Volume {
+  id               Int     @id @default(autoincrement())
+  mangaId          Int
+  number           Int
+  title            String? @db.VarChar(500)
+  subtitle         String? @db.VarChar(500)
+  alternativeTitle String? @db.VarChar(500)
+  description      String?
+  summary          String?
+
+  // Publication details
+  isbn        String?      @db.VarChar(20)
+  isbn13      String?      @db.VarChar(20)
+  publisher   String?      @db.VarChar(255)
+  pageCount   Int?
+  format      VolumeFormat @default(TANKOBON)
+  releaseDate DateTime?
+  coverImage  String?      @db.VarChar(1000)
+
+  // Chapter range
+  chapterStart  Float?
+  chapterEnd    Float?
+  totalChapters Int?
+
+  // Source tracking
+  source         String?   @db.VarChar(50)
+  sourceId       String?   @db.VarChar(100)
+  sourceUrl      String?   @db.VarChar(1000)
+  fetchedAt      DateTime?
+  lastEnriched   DateTime?
+  enrichmentTier Int?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  manga      Manga              @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapters   Chapter[]
+  creators   VolumeCreator[]
+  characters VolumeCharacter[]
+  themes     VolumeTheme[]
+  genres     VolumeGenre[]
+  storyArcs  VolumeStoryArc[]
+  progress   VolumeProgress[]
+  bookmarks  BookmarkedVolume[]
+
+  @@unique([mangaId, number])
+  @@index([mangaId])
+  @@index([releaseDate])
+  @@index([source, sourceId])
+  @@index([isbn])
+  @@index([isbn13])
+}
+
+model VolumeCreator {
+  id       Int         @id @default(autoincrement())
+  volumeId Int
+  name     String      @db.VarChar(255)
+  role     CreatorRole
+  volume   Volume      @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([volumeId, name, role])
+  @@index([volumeId])
+  @@index([name])
+  @@index([role])
+}
+
+model VolumeCharacter {
+  id       Int     @id @default(autoincrement())
+  volumeId Int
+  name     String  @db.VarChar(255)
+  isMain   Boolean @default(false)
+  volume   Volume  @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([volumeId, name])
+  @@index([volumeId])
+  @@index([name])
+}
+
+model VolumeTheme {
+  id       Int    @id @default(autoincrement())
+  volumeId Int
+  theme    String @db.VarChar(100)
+  volume   Volume @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([volumeId, theme])
+  @@index([volumeId])
+  @@index([theme])
+}
+
+model VolumeGenre {
+  id       Int    @id @default(autoincrement())
+  volumeId Int
+  genre    String @db.VarChar(100)
+  volume   Volume @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([volumeId, genre])
+  @@index([volumeId])
+  @@index([genre])
+}
+
+model VolumeStoryArc {
+  id       Int    @id @default(autoincrement())
+  volumeId Int
+  arcName  String @db.VarChar(255)
+  arcOrder Int?
+  volume   Volume @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([volumeId, arcName])
+  @@index([volumeId])
+  @@index([arcName])
+}
+
+model VolumeProgress {
+  id       Int    @id @default(autoincrement())
+  userId   String
+  mangaId  Int
+  volumeId Int
+
+  // Progress tracking
+  chaptersRead    Int       @default(0)
+  totalChapters   Int
+  percentComplete Float     @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  lastReadAt      DateTime  @default(now())
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga  Manga  @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  volume Volume @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId, volumeId])
+  @@index([userId])
+  @@index([mangaId])
+  @@index([volumeId])
+  @@index([lastReadAt])
+}
+
+model Notification {
+  id               Int                   @id @default(autoincrement())
+  userId           String
+  type             NotificationEventType
+  severity         NotificationSeverity  @default(INFO)
+  title            String
+  message          String
+  read             Boolean               @default(false)
+  createdAt        DateTime              @default(now())
+  readAt           DateTime?
+  relatedMangaId   Int?
+  relatedChapterId Int?
+  relatedJobId     BigInt?
+  actionUrl        String?
+  metadata         Json?
+  User             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+  @@index([type])
+  @@index([severity])
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ParserCache {
+  id             String    @id @default(dbgenerated("gen_random_uuid()"))
+  namespace      String
+  key            String
+  data           Json
+  compressed     Boolean   @default(false)
+  size           Int       @default(0)
+  metadata       Json?
+  hits           Int       @default(0)
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+  lastAccessedAt DateTime?
+
+  @@unique([namespace, key])
+  @@index([expiresAt])
+  @@index([lastAccessedAt])
+  @@index([namespace])
+  @@index([size])
+}
+
+model Session {
+  id           String   @id
+  userId       String
+  expires      DateTime
+  sessionToken String
+  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemEvent {
+  id                String   @id
+  timestamp         DateTime @default(now())
+  type              String
+  source            String
+  level             String
+  message           String
+  details           Json?
+  relatedEntityId   String?
+  relatedEntityType String?
+
+  @@index([level])
+  @@index([relatedEntityId, relatedEntityType])
+  @@index([source])
+  @@index([timestamp])
+  @@index([type])
+}
+
+model User {
+  id               String             @id
+  userName         String             @unique
+  email            String             @unique
+  hashedPassword   String
+  avatar           String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  role             UserRole           @default(USER)
+  emailVerified    DateTime?
+  image            String?
+  name             String?
+  lastLogin        DateTime?
+  Account          Account[]
+  Session          Session[]
+  Notification     Notification[]
+  ReadingProgress  ReadingProgress[]
+  ReadingAnalytics ReadingAnalytics[]
+  ReaderBookmark   ReaderBookmark[]
+  ReaderSettings   ReaderSettings?
+  ReadingHistory   ReadingHistory[]
+  ApiKey           ApiKey[]
+  Webhook          Webhook[]
+  BookmarkedVolume BookmarkedVolume[]
+  BookmarkedManga  BookmarkedManga[]
+  VolumeProgress   VolumeProgress[]
+
+  // Audio Player Relations
+  AudioPlaybackProgress AudioPlaybackProgress[]
+  AudioBookmark         AudioBookmark[]
+  AudioPlayerSettings   AudioPlayerSettings?
+  ListeningHistory      ListeningHistory[]
+  ListeningAnalytics    ListeningAnalytics[]
+
+  // ML Annotation Relations
+  AnnotatedPage     AnnotatedPage[]
+  AnnotationSession AnnotationSession[]
+
+  NotificationPreference NotificationPreference[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// Per-user opt-in/opt-out for a (NotificationEventType × channel) pair.
+/// Channels: 'bell' | 'email' | 'discord' | 'slack' | 'telegram' | 'webhook'.
+/// Absence of a row means "use the default" — written defaults live in
+/// notification-preferences.ts. Writing `enabled: false` is an explicit opt-out.
+model NotificationPreference {
+  id        Int                   @id @default(autoincrement())
+  userId    String
+  eventType NotificationEventType
+  channel   String
+  enabled   Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime               @updatedAt
+  User      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventType, channel])
+  @@index([userId])
+}
+
+// ============================================================================
+// Reader Models - Native Manga Reader Functionality
+// ============================================================================
+
+model ReadingProgress {
+  id          Int       @id @default(autoincrement())
+  userId      String
+  mangaId     Int
+  chapterId   Int
+  currentPage Int
+  totalPages  Int
+  lastReadAt  DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId, chapterId])
+  @@index([userId])
+  @@index([mangaId])
+  @@index([lastReadAt])
+}
+
+model ReadingAnalytics {
+  id                Int      @id @default(autoincrement())
+  userId            String
+  date              DateTime @db.Date
+  pagesRead         Int      @default(0)
+  chaptersCompleted Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([date])
+}
+
+model ReaderBookmark {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  mangaId    Int
+  chapterId  Int
+  pageNumber Int
+  note       String?
+  createdAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mangaId])
+  @@index([chapterId])
+}
+
+model ReaderSettings {
+  userId           String   @id
+  readingMode      String   @default("single")
+  readingDirection String   @default("rtl")
+  backgroundColor  String   @default("#000000")
+  fitMode          String   @default("fit-width")
+  showToolbar      Boolean  @default(true)
+  preloadPages     Int      @default(3)
+  doublePageOffset Boolean  @default(false)
+  brightness       Float    @default(1.0)
+  contrast         Float    @default(1.0)
+  enableGestures   Boolean  @default(true)
+  enableKeyboard   Boolean  @default(true)
+  clickNavigation  Boolean  @default(true)
+  smoothScrolling  Boolean  @default(true)
+  panelDetection   Boolean  @default(false)
+  ocrEnabled       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReadingHistory {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  mangaId   Int
+  chapterId Int
+  pagesRead Int
+  totalTime Int // in seconds
+  startedAt DateTime @default(now())
+  endedAt   DateTime
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mangaId])
+  @@index([startedAt])
+}
+
+// ============================================================================
+// Audio Player Models - Native Audiobook Player Functionality
+// ============================================================================
+
+model AudioPlaybackProgress {
+  id            Int       @id @default(autoincrement())
+  userId        String
+  mangaId       Int
+  chapterId     Int
+  currentTime   Float // Current playback position in seconds
+  duration      Float // Total duration in seconds
+  playbackSpeed Float     @default(1.0)
+  volume        Float     @default(1.0)
+  lastPlayedAt  DateTime  @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId, chapterId])
+  @@index([userId])
+  @@index([mangaId])
+  @@index([lastPlayedAt])
+}
+
+model AudioBookmark {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  mangaId   Int
+  chapterId Int
+  timestamp Float // Position in seconds
+  note      String?
+  label     String?  @db.VarChar(100) // Optional short label
+  color     String?  @db.VarChar(7) // Hex color for visual distinction
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mangaId])
+  @@index([chapterId])
+}
+
+model AudioPlayerSettings {
+  userId               String   @id
+  defaultPlaybackSpeed Float    @default(1.0)
+  defaultSkipForward   Int      @default(30) // seconds
+  defaultSkipBackward  Int      @default(10) // seconds
+  sleepTimerDefault    Int? // default sleep timer in minutes
+  rememberPosition     Boolean  @default(true)
+  autoPlayNext         Boolean  @default(true)
+  showRemainingTime    Boolean  @default(false)
+  hapticFeedback       Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ListeningHistory {
+  id            Int      @id @default(autoincrement())
+  userId        String
+  mangaId       Int
+  chapterId     Int
+  timeListened  Int // Total time in seconds for this session
+  startTime     Float // Where playback started (seconds)
+  endTime       Float // Where playback ended (seconds)
+  playbackSpeed Float    @default(1.0)
+  startedAt     DateTime @default(now())
+  endedAt       DateTime
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mangaId])
+  @@index([startedAt])
+}
+
+model ListeningAnalytics {
+  id                  Int      @id @default(autoincrement())
+  userId              String
+  date                DateTime @db.Date
+  minutesListened     Int      @default(0)
+  chaptersCompleted   Int      @default(0)
+  audiobooksCompleted Int      @default(0)
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+
+model ApiKey {
+  id         String    @id @default(dbgenerated("gen_random_uuid()"))
+  userId     String
+  name       String
+  key        String    @unique
+  enabled    Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([key])
+}
+
+model Webhook {
+  id           String   @id @default(dbgenerated("gen_random_uuid()"))
+  userId       String
+  url          String
+  secret       String
+  events       String[] // Array of event types
+  enabled      Boolean  @default(true)
+  failureCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+}
+
+model WebhookDelivery {
+  id          String   @id @default(dbgenerated("gen_random_uuid()"))
+  webhookId   String
+  event       String
+  payload     Json
+  statusCode  Int?
+  success     Boolean  @default(false)
+  error       String?
+  attemptedAt DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([attemptedAt])
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model jobs {
+  id                  BigInt      @default(autoincrement())
+  queue_name          String      @default("default")
+  job_type            JobType
+  priority            JobPriority @default(normal)
+  payload             Json        @default("{}")
+  result              Json?
+  metadata            Json?       @default("{}")
+  status              JobStatus   @default(pending)
+  progress            Int?        @default(0)
+  created_at          DateTime    @default(now()) @db.Timestamptz(6)
+  scheduled_for       DateTime    @default(now()) @db.Timestamptz(6)
+  started_at          DateTime?   @db.Timestamptz(6)
+  completed_at        DateTime?   @db.Timestamptz(6)
+  attempt_count       Int         @default(0)
+  max_attempts        Int         @default(3)
+  retry_delay_seconds Int?        @default(60)
+  last_error          Json?
+  worker_id           String?
+  lease_expires_at    DateTime?   @db.Timestamptz(6)
+  hard_timeout_at     DateTime?   @db.Timestamptz(6) // Absolute deadline for job completion
+  processing_time_ms  Int?
+  wait_time_ms        Int?
+  manga_id            Int?
+  chapter_id          Int?
+  partition_key       String      @default("active")
+  manga               Manga?      @relation(fields: [manga_id], references: [id], onDelete: SetNull)
+  chapter             Chapter?    @relation(fields: [chapter_id], references: [id], onDelete: SetNull)
+
+  @@id([id, partition_key])
+}
+
+model queue_config {
+  queue_name                  String    @id
+  is_active                   Boolean?  @default(true)
+  max_concurrent_jobs         Int?      @default(10)
+  default_priority            Int?      @default(50)
+  default_max_attempts        Int?      @default(3)
+  default_retry_delay_seconds Int?      @default(60)
+  rate_limit_per_second       Int?
+  metadata                    Json?     @default("{}")
+  created_at                  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                  DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model workers {
+  worker_id         String   @id
+  hostname          String
+  pid               Int
+  queue_names       String[] @default(["default"])
+  status            String   @default("active")
+  started_at        DateTime @default(now()) @db.Timestamptz(6)
+  last_heartbeat_at DateTime @default(now()) @db.Timestamptz(6)
+  jobs_processed    Int?     @default(0)
+  jobs_failed       Int?     @default(0)
+  metadata          Json?    @default("{}")
+
+  @@index([last_heartbeat_at], map: "idx_workers_heartbeat")
+  @@index([status, queue_names], map: "idx_workers_status")
+}
+
+// ============================================================================
+// Native Download Models
+// ============================================================================
+
+// NativeDownload tracks individual download tasks
+// sourceType identifies the download source ('MANGADEX', 'GETCOMICS', etc.)
+model NativeDownload {
+  id              String               @id @default(cuid())
+  sourceId        String? // Optional: legacy field, use sourceType instead
+  mangaId         Int
+  chapterId       Int? // Internal Chapter.id when one already exists
+  sourceChapterId String? // Source-side chapter identifier (e.g. MangaDex UUID, GetComics issue id)
+  chapterNumber   Float
+  status          NativeDownloadStatus @default(QUEUED)
+  progress        Int                  @default(0)
+  destinationPath String?
+  error           String?
+  startTime       DateTime             @default(now())
+  endTime         DateTime?
+  sourceType      String? // 'MANGADEX', 'GETCOMICS', 'NYAA', etc.
+
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+
+  @@index([mangaId])
+  @@index([status])
+  @@index([startTime])
+  @@index([sourceChapterId])
+  @@index([chapterId])
+}
+
+// ============================================================================
+// GetComics Integration Models
+// ============================================================================
+
+model GetComicsSettings {
+  id              String   @id @default("default")
+  enabled         Boolean  @default(true)
+  rateLimit       Int      @default(1) // Requests per second
+  timeout         Int      @default(30000) // Timeout in milliseconds
+  useFlareSolverr Boolean  @default(true) // Use FlareSolverr for Cloudflare bypass
+  preferredHosts  String[] @default(["mediafire", "mega", "direct", "dropapk", "userscloud", "zippyshare"])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================================================
+// MangaDex Scanlation Group Models
+// ============================================================================
+
+model ScanlationGroup {
+  id               String    @id // MangaDex UUID
+  name             String
+  description      String?
+  website          String?
+  discord          String?
+  twitter          String?
+  focusedLanguages String[]  @default([])
+  isOfficial       Boolean   @default(false)
+  isInactive       Boolean   @default(false)
+  uploadDelay      Int? // Seconds
+  totalUploads     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  lastFetchedAt    DateTime?
+
+  mangaGroups MangaScanlationGroup[]
+  chapters    ChapterScanlationGroup[]
+
+  @@index([name])
+}
+
+model MangaScanlationGroup {
+  id           Int       @id @default(autoincrement())
+  mangaId      Int
+  groupId      String
+  language     String    @default("en")
+  isPreferred  Boolean   @default(false)
+  isExcluded   Boolean   @default(false)
+  lastActivity DateTime?
+  chapterCount Int       @default(0)
+
+  manga Manga           @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  group ScanlationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([mangaId, groupId, language])
+  @@index([mangaId])
+  @@index([groupId])
+}
+
+model ChapterScanlationGroup {
+  id        Int    @id @default(autoincrement())
+  chapterId Int
+  groupId   String
+
+  chapter Chapter         @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  group   ScanlationGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([chapterId, groupId])
+  @@index([chapterId])
+  @@index([groupId])
+}
+
+model PackDownload {
+  id           BigInt             @id @default(autoincrement())
+  releaseTitle String
+  volumeStart  Int?
+  volumeEnd    Int?
+  mangaId      Int
+  jobId        BigInt
+  downloadId   String
+  clientType   String
+  indexer      String?
+  protocol     String
+  status       PackDownloadStatus @default(DOWNLOADING)
+  fileSize     BigInt?
+  filePath     String?
+  downloadUrl  String? /// Original torrent/magnet/NZB URL for re-download
+  errorMessage String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  completedAt  DateTime?
+
+  manga    Manga     @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapters Chapter[]
+
+  @@index([mangaId])
+  @@index([status])
+  @@index([downloadId])
+  @@index([jobId])
+  @@map("pack_download")
+}
+
+// ============================================================================
+// Wanted Items & Download History
+// ============================================================================
+
+model WantedItem {
+  id           Int            @id @default(autoincrement())
+  mangaId      Int
+  chapterId    Int?
+  priority     WantedPriority @default(NORMAL)
+  status       WantedStatus   @default(PENDING)
+  dateAdded    DateTime       @default(now())
+  dateModified DateTime       @updatedAt
+  retryCount   Int            @default(0)
+  metadata     Json?
+
+  Manga   Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  Chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([mangaId, chapterId])
+  @@index([mangaId])
+  @@index([chapterId])
+  @@index([status])
+  @@index([priority])
+  @@index([dateAdded])
+}
+
+model DownloadHistory {
+  id             Int                   @id @default(autoincrement())
+  mangaId        Int
+  chapterId      Int?
+  status         DownloadHistoryStatus
+  startTime      DateTime              @default(now())
+  endTime        DateTime?
+  downloadSize   BigInt?
+  downloadSpeed  Float?
+  source         String?
+  downloadClient String?
+  metadata       Json?
+  error          String?
+
+  Manga   Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  Chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([mangaId])
+  @@index([chapterId])
+  @@index([status])
+  @@index([startTime])
+  @@index([source])
+  @@index([downloadClient])
+}
+
+// ============================================================================
+// Configuration Management
+// ============================================================================
+
+model Config {
+  key       String          @id
+  value     String
+  valueType ConfigValueType @default(STRING)
+  scope     ConfigScope     @default(SYSTEM)
+  source    ConfigSource    @default(DATABASE)
+  metadata  Json?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([scope])
+  @@index([source])
+}
+
+model AutoDownloadRule {
+  mangaId         Int       @id
+  enabled         Boolean   @default(true)
+  lastChecked     DateTime?
+  checkInterval   Int       @default(3600)
+  minQuality      String?
+  maxSize         Int?
+  preferredGroups String[]  @default([])
+  excludeGroups   String[]  @default([])
+  language        String?
+  format          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  manga           Manga     @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@index([enabled])
+  @@index([lastChecked])
+}
+
+// ============================================================================
+// File Conversion
+// ============================================================================
+
+model ConversionJob {
+  id             String           @id @default(cuid())
+  mangaId        Int
+  chapterId      Int?
+  sourceFilePath String
+  sourceFormat   String
+  targetFilePath String?
+  targetFormat   String
+  status         ConversionStatus @default(PENDING)
+  progress       Int              @default(0)
+  priority       Int              @default(50)
+  attempts       Int              @default(0)
+  maxAttempts    Int              @default(3)
+  errorMessage   String?
+  // Per-job overrides — when null, conversion service falls back to global
+  // config defaults from /settings/file-conversion.
+  quality        Int?
+  compression    Int?
+  bitrate        String?
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  completedAt    DateTime?
+
+  @@index([mangaId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// FlareSolverr Configuration
+// ============================================================================
+
+model FlareSolverrConfig {
+  id                   String   @id @default("default") // Singleton pattern
+  enabled              Boolean  @default(true)
+  autoStart            Boolean  @default(false) // Auto-start internal instance on app launch
+  url                  String   @default("http://localhost:8191/v1")
+  timeout              Int      @default(60000) // Request timeout in ms
+  sessionTTL           Int      @default(1800000) // Session TTL in ms (30 min)
+  disableMedia         Boolean  @default(true) // Block images/CSS/fonts - we only need HTML
+  defaultWaitSecs      Int      @default(0) // Post-challenge delay in seconds
+  // Metrics configuration
+  metricsEnabled       Boolean  @default(true)
+  metricsRetentionDays Int      @default(7) // Raw metrics retention
+  hourlyRetentionDays  Int      @default(30) // Hourly aggregation retention
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// ============================================================================
+// FlareSolverr Metrics - Health Monitoring
+// ============================================================================
+
+model FlareSolverrMetrics {
+  id             String                  @id @default(cuid())
+  timestamp      DateTime                @default(now())
+  healthy        Boolean
+  responseTimeMs Int?
+  version        String?
+  sessionCount   Int                     @default(0)
+  requestType    FlareSolverrRequestType @default(HEALTH_CHECK)
+  success        Boolean
+  errorMessage   String?
+  hour           DateTime                @db.Timestamptz(6)
+
+  @@index([timestamp])
+  @@index([hour])
+  @@index([healthy])
+}
+
+model FlareSolverrMetricsHourly {
+  id              String   @id @default(cuid())
+  hour            DateTime @unique @db.Timestamptz(6)
+  totalRequests   Int      @default(0)
+  successfulReqs  Int      @default(0)
+  failedReqs      Int      @default(0)
+  avgResponseTime Float?
+  minResponseTime Int?
+  maxResponseTime Int?
+  p95ResponseTime Int?
+  uptimePercent   Float?
+  avgSessionCount Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([hour])
+}
+
+enum FlareSolverrRequestType {
+  HEALTH_CHECK
+  FETCH_REQUEST
+  SESSION_CREATE
+  SESSION_DESTROY
+  SESSION_LIST
+}
+
+// ============================================================================
+// ML Annotation System - Training Data for Transformer-CRF
+// ============================================================================
+
+model AnnotatedPage {
+  id              String               @id @default(cuid())
+  url             String               @unique
+  mangaTitle      String? // Optional: Associated manga title for reference
+  sourceType      AnnotationSourceType // fandom, wikipedia, anilist, comicvine
+  htmlSnapshot    String // Stored HTML at annotation time (can be large)
+  tokens          Json // Linearized token array [{id, text, tagName, xpath...}]
+  labels          Json // BIO label array (same length as tokens)
+  selections      Json? // TextSelection[] - source of truth for user annotations
+  features        Json? // Pre-extracted features for training
+  annotatorId     String? // User who annotated (null for bootstrap)
+  annotator       User?                @relation(fields: [annotatorId], references: [id], onDelete: SetNull)
+  status          AnnotationStatus     @default(BOOTSTRAP)
+  confidence      Float? // Average model confidence if ML-assisted
+  entityCounts    Json? // {TITLE: 1, AUTHOR: 2, ...} for quick stats
+  urlAnnotations  Json? // [{label: "CHAPTERS_LIST_URL", url: "...", text: "..."}]
+  notes           String? // Annotator notes
+  version         Int                  @default(0) // Optimistic locking version
+  previousVersion Json? // Backup of previous state for rollback
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  reviewedAt      DateTime? // When it was reviewed
+  exportedAt      DateTime? // When it was exported for training
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Agent Review Fields - LLM-based label verification
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  agentReviewedAt   DateTime? // When agent reviewed this page
+  agentReviewNotes  String?   @db.Text // Agent's summary of findings
+  agentCorrections  Json? // { added: [], removed: [], modified: [] }
+  agentConfidence   Float? // 0-1 overall agent confidence in corrections
+  agentIssuesFound  Json? // { errors: [], warnings: [], suggestions: [] }
+  agentModelVersion String? // Track which model version did the review (e.g., "claude-3-5-sonnet")
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LLM Training Data Fields (Phase 1 Addition)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Document-level classification
+  documentCategory DocumentCategory? // synopsis, review, reference, etc.
+  qualityTier      QualityTier? // high, medium, low, exclude
+  useCases         UseCaseLabel[]    @default([]) // instruction_tuning, qa, etc.
+
+  // Segments (derived from tokens, cached for performance)
+  segments Json? // { paragraphs[], sections[], markdown, plainText }
+
+  // Image-specific labels (extends existing image tokens)
+  imageLabels Json? // ImageLabel[] for image tokens
+
+  // Auto quality scoring (complements IAA)
+  autoQualityScore Float? // 0-1 composite score
+  qualityFactors   Json? // Breakdown of score factors
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Provider Discovery URLs (Cross-Reference Fields)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  comicVineId             String? // ComicVine volume/series ID
+  fandomDiscoveredUrls    Json? // Discovered Fandom URLs [{url, type, discoveredAt}]
+  wikipediaDiscoveredUrls Json? // Discovered Wikipedia URLs [{url, type, discoveredAt}]
+  comicVineDiscoveredUrls Json? // Discovered ComicVine URLs [{url, type, discoveredAt}]
+
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  qualityMetrics AnnotationQualityMetric[]
+
+  // List page relationship extraction
+  listPageRecord ListPageRecord?
+
+  @@index([sourceType])
+  @@index([status])
+  @@index([annotatorId])
+  @@index([mangaTitle])
+  @@index([createdAt])
+  @@index([documentCategory])
+  @@index([qualityTier])
+  @@index([autoQualityScore])
+  @@index([agentReviewedAt])
+  @@index([agentConfidence])
+}
+
+/// Quality metrics for annotation pages
+/// Stores IAA (Inter-Annotator Agreement) calculations
+model AnnotationQualityMetric {
+  id           String        @id @default(cuid())
+  pageId       String
+  page         AnnotatedPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  alpha        Float // Krippendorff's alpha coefficient
+  qualityLevel String // 'excellent' | 'good' | 'fair' | 'poor'
+  entityScores Json // Per-entity alpha scores [{entity, alpha, count}]
+  annotators   Json // List of annotator IDs compared
+  calculatedAt DateTime      @default(now())
+
+  @@index([pageId])
+  @@index([calculatedAt])
+  @@index([qualityLevel])
+}
+
+model AnnotationSession {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pagesLabeled  Int       @default(0)
+  tokensLabeled Int       @default(0)
+  timeSpent     Int       @default(0) // Total seconds spent annotating
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  sourceTypes   String[]  @default([]) // Which sources were annotated
+  notes         String?
+
+  @@index([userId])
+  @@index([startedAt])
+}
+
+model TrainingDataExport {
+  id           String   @id @default(cuid())
+  version      String // Semantic version e.g., "1.0.0"
+  pageCount    Int // Number of pages included
+  tokenCount   Int // Total tokens
+  entityCounts Json // {TITLE: X, AUTHOR: Y, ...}
+  splitRatios  Json // {train: 0.8, val: 0.1, test: 0.1}
+  filePath     String // Path to exported data file
+  fileSize     BigInt // Size in bytes
+  format       String   @default("json") // json, conll, etc.
+  modelVersion String? // Associated model version if trained
+  notes        String?
+  createdAt    DateTime @default(now())
+  createdById  String?
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LLM Training Data Export Fields (Phase 1 Addition)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Document-level filters used for this export
+  categoryFilter DocumentCategory[] @default([])
+  qualityFilter  QualityTier[]      @default([])
+  useCaseFilter  UseCaseLabel[]     @default([])
+  minAutoQuality Float? // Minimum auto quality score filter
+
+  // Export configuration
+  exportFormat       ExportFormat? // Typed format (replaces string format long-term)
+  includeSegments    Boolean       @default(false)
+  includeMarkdown    Boolean       @default(false)
+  includeImageLabels Boolean       @default(false)
+
+  // Statistics for LLM training formats
+  recordCount     Int? // Number of training records (may differ from pageCount)
+  avgQualityScore Float? // Average auto quality score of exported pages
+
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  @@index([version])
+  @@index([createdAt])
+  @@index([exportFormat])
+}
+
+model MLModelVersion {
+  id             String      @id @default(cuid())
+  version        String      @unique // e.g., "1.0.0"
+  modelType      String      @default("transformer-crf") // transformer-crf, layoutlmv3, etc.
+  backbone       String      @default("layoutlmv3-base") // Transformer backbone
+  trainingDataId String? // Link to TrainingDataExport
+  metrics        Json? // {micro_f1: 0.88, per_entity: {...}}
+  config         Json? // Training config/hyperparameters
+  onnxPath       String? // Path to ONNX model file
+  status         ModelStatus @default(TRAINING)
+  trainedAt      DateTime?
+  deployedAt     DateTime?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([version])
+  @@index([status])
+  @@index([modelType])
+}
+
+enum AnnotationSourceType {
+  FANDOM
+  WIKIPEDIA
+  ANILIST
+  COMICVINE
+}
+
+enum AnnotationStatus {
+  BOOTSTRAP // Auto-labeled by existing extractors
+  AGENT_REVIEWED // Verified/corrected by LLM agent
+  IN_PROGRESS // Currently being annotated
+  REVIEWED // Reviewed by human annotator
+  GOLD // High-quality, verified annotation
+  REJECTED // Rejected/problematic page
+}
+
+// ============================================================================
+// List Page Relationship Extraction Models
+// ============================================================================
+
+/// Master record for list pages containing chapter-volume relationships
+/// Used for ML training to extract explicit relationship ground truth
+model ListPageRecord {
+  id              String        @id @default(cuid())
+  annotatedPageId String        @unique
+  annotatedPage   AnnotatedPage @relation(fields: [annotatedPageId], references: [id], onDelete: Cascade)
+
+  // Counts for validation
+  tableCount   Int @default(0)
+  volumeCount  Int @default(0)
+  chapterCount Int @default(0)
+
+  // Relationships
+  volumeRecords  VolumeListRecord[]
+  chapterRecords ChapterListRecord[]
+
+  // Validation status
+  validationStatus ListValidationStatus @default(UNVALIDATED)
+  validationNotes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([validationStatus])
+}
+
+/// Volume entry from a list page (ground truth for ML)
+model VolumeListRecord {
+  id         String         @id @default(cuid())
+  listPageId String
+  listPage   ListPageRecord @relation(fields: [listPageId], references: [id], onDelete: Cascade)
+
+  // Core data
+  volumeNumber Int
+  volumeTitle  String? @db.VarChar(500)
+
+  // Token positions (for training span mapping)
+  numberTokenIndex Int?
+  titleTokenStart  Int?
+  titleTokenEnd    Int?
+
+  // Extracted metadata
+  volumeUrl     String? @db.VarChar(1000)
+  coverImageUrl String? @db.VarChar(1000)
+  isbn          String? @db.VarChar(20)
+  releaseDate   String? @db.VarChar(50)
+
+  // Chapter range
+  chapterStart Float?
+  chapterEnd   Float?
+
+  // Table position
+  tableId  String? @db.VarChar(50)
+  tableRow Int?
+
+  // Confidence
+  confidence Float @default(1.0)
+
+  // Related chapters
+  chapters ChapterListRecord[]
+
+  @@unique([listPageId, volumeNumber])
+  @@index([listPageId])
+}
+
+/// Chapter entry with explicit volume relationship
+model ChapterListRecord {
+  id         String         @id @default(cuid())
+  listPageId String
+  listPage   ListPageRecord @relation(fields: [listPageId], references: [id], onDelete: Cascade)
+
+  // Parent volume (EXPLICIT RELATIONSHIP)
+  volumeRecordId String?
+  volumeRecord   VolumeListRecord? @relation(fields: [volumeRecordId], references: [id], onDelete: SetNull)
+  volumeNumber   Int? // Denormalized for quick access
+
+  // Core data
+  chapterNumber Float
+  chapterTitle  String? @db.VarChar(500)
+
+  // Token positions
+  numberTokenIndex Int?
+  titleTokenStart  Int?
+  titleTokenEnd    Int?
+  urlTokenIndex    Int?
+
+  // Extracted metadata
+  chapterUrl  String? @db.VarChar(1000)
+  releaseDate String? @db.VarChar(50)
+
+  // Table position
+  tableId  String? @db.VarChar(50)
+  tableRow Int?
+
+  // Relationship source
+  relationSource RelationSource @default(INFERRED)
+  confidence     Float          @default(1.0)
+
+  @@unique([listPageId, chapterNumber])
+  @@index([listPageId])
+  @@index([volumeRecordId])
+}
+
+/// Validation status for list page records
+enum ListValidationStatus {
+  UNVALIDATED
+  VALIDATED
+  NEEDS_REVIEW
+  REJECTED
+}
+
+/// Source of chapter-volume relationship determination
+enum RelationSource {
+  SAME_TABLE_ROW // Chapter and volume in same row
+  VOLUME_SECTION // Chapter under volume header
+  EXPLICIT_LABEL // "Vol. X" text in chapter row
+  SPANNING_ROW // Chapter in colspan row below volume (Wikipedia pattern)
+  INFERRED // Derived from context
+}
+
+enum ModelStatus {
+  TRAINING
+  TRAINED
+  VALIDATING
+  DEPLOYED
+  ARCHIVED
+  FAILED
+}
+
+// ============================================================================
+// LLM Training Data Enums (Phase 1 Addition)
+// ============================================================================
+
+/// Document-level category classification for LLM training data
+enum DocumentCategory {
+  SYNOPSIS // Plot summaries
+  REVIEW // Reviews and opinions
+  ANALYSIS // Deep analysis/essays
+  NEWS // News and announcements
+  REFERENCE // Wiki/reference content
+  DISCUSSION // Community discussions
+  METADATA // Pure metadata
+  MIXED // Multiple categories
+}
+
+/// Quality tier for filtering training data
+enum QualityTier {
+  HIGH // Well-written, comprehensive
+  MEDIUM // Acceptable quality
+  LOW // Poor quality, may need filtering
+  EXCLUDE // Should not be used for training
+}
+
+/// Use case labels for LLM training data routing
+enum UseCaseLabel {
+  INSTRUCTION_TUNING // Good for instruction following
+  SUMMARIZATION // Good for summarization training
+  QA // Good for Q&A pairs
+  CLASSIFICATION // Good for genre/tag classification
+  ENTITY_EXTRACTION // Good for NER training
+  RECOMMENDATION // Good for recommendation systems
+  TRANSLATION // Good for translation training
+}
+
+/// Export format for training data
+enum ExportFormat {
+  JSON // Existing - NER training
+  CONLL // Existing - Sequence labeling
+  JSONL // NEW - Streaming format
+  PARQUET // NEW - Columnar analytics
+  ALPACA // NEW - Instruction tuning
+  SHAREGPT // NEW - Conversation format
+  QA // NEW - Q&A pairs
+  MARKDOWN // NEW - Clean text
+  NER_SPANS // NEW - Span-based NER
+}
+
+enum ApiMangaStatus {
+  ONGOING
+  COMPLETED
+  HIATUS
+  CANCELLED
+  UNKNOWN
+}
+
+enum BackupContent {
+  DATABASE
+  CONFIGURATION
+  MEDIA_FILES
+}
+
+enum BackupStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum BackupType {
+  MANUAL
+  SCHEDULED
+}
+
+enum CalendarEventStatus {
+  UPCOMING
+  RELEASED
+  DELAYED
+}
+
+enum CalendarEventType {
+  CHAPTER_RELEASE
+  VOLUME_RELEASE
+  HIATUS_START
+  HIATUS_END
+  SPECIAL_RELEASE
+  ANNOUNCEMENT
+}
+
+enum ChapterStatus {
+  PENDING
+  DOWNLOADING
+  COMPLETED
+  ERROR
+  DELETED
+  AVAILABLE
+}
+
+enum ClientMangaStatus {
+  PENDING
+  DOWNLOADING
+  SEEDING
+  PAUSED
+  COMPLETED
+  ERROR
+  QUEUED
+}
+
+enum ConfigScope {
+  GLOBAL
+  LIBRARY
+  MANGA
+  USER
+  SYSTEM
+  INTEGRATION
+  FEATURE
+}
+
+enum ConfigSource {
+  DEFAULT
+  ENV
+  FILE
+  DATABASE
+  OVERRIDE
+}
+
+enum ConfigValueType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+  DATE
+  ARRAY
+  OBJECT
+}
+
+enum ContentRating {
+  ALL_AGES
+  TEEN
+  TEEN_PLUS
+  MATURE
+  ADULTS_ONLY
+  UNKNOWN
+}
+
+enum ConversionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CreatorRole {
+  AUTHOR
+  ARTIST
+  EDITOR
+  COLORIST
+  LETTERER
+  COVER_ARTIST
+  TRANSLATOR
+}
+
+enum DomainMangaStatus {
+  ACTIVE
+  INACTIVE
+  COMPLETED
+  DROPPED
+  PLANNED
+  READING
+  ON_HOLD
+  ARCHIVED
+}
+
+enum DownloadHistoryStatus {
+  COMPLETED
+  FAILED
+  CANCELLED
+  PARTIAL
+}
+
+enum DownloadMethod {
+  DIRECT
+  DIRECT_URL
+  PROWLARR
+  TORRENT
+  NZB
+  HTTP
+  GETCOMICS
+}
+
+enum DownloadMode {
+  AUTOMATIC
+  MANUAL
+  SCHEDULED
+  BULK
+  PACK
+  AUTO
+}
+
+enum DownloadStatus {
+  QUEUED
+  DOWNLOADING
+  PAUSED
+  COMPLETED
+  ERROR
+  SEEDING
+  UNKNOWN
+}
+
+enum EventStatus {
+  SCHEDULED
+  RELEASED
+  DELAYED
+  CANCELLED
+  CONFIRMED
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  SYNCING
+  PENDING
+}
+
+enum JobPriority {
+  critical
+  high
+  normal
+  low
+}
+
+enum JobStatus {
+  pending
+  active
+  completed
+  failed
+  cancelled
+  retrying
+}
+
+enum JobType {
+  metadata_refresh
+  metadata_update
+  metadata_sync
+  chapter_check
+  chapter_download
+  chapter_sync
+  backup_create
+  backup_restore
+  library_scan
+  library_import
+  notification_send
+  notification_batch
+  maintenance_cleanup
+  maintenance_vacuum
+  maintenance_reindex
+  download_manga
+  download_volume
+  download_pack
+  native_download
+  native_sync
+  suwayomi_sync
+  prowlarr_search
+  mangadex_download
+  getcomics_download
+  suwayomi_download
+}
+
+enum NativeDownloadStatus {
+  QUEUED
+  DOWNLOADING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PackDownloadStatus {
+  DOWNLOADING
+  COMPLETED
+  IMPORTING
+  IMPORTED
+  FAILED
+  CANCELLED
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  FATAL
+}
+
+enum MangaFileStatus {
+  PENDING
+  DOWNLOADING
+  IMPORTING
+  PROCESSING
+  COMPLETED
+  FAILED
+  DELETED
+  MISSING
+  QUEUED
+}
+
+enum MangaFormat {
+  MANGA
+  MANHWA
+  MANHUA
+  NOVEL
+  ONE_SHOT
+  DOUJIN
+  COMIC
+  UNKNOWN
+}
+
+enum MangaLibraryStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+  DROPPED
+  PLAN_TO_READ
+  READING
+  ON_HOLD
+  DELETED
+}
+
+enum MangaProcessingStatus {
+  IDLE
+  PENDING
+  ACTIVE
+  PROCESSING
+  COMPLETED
+  ERROR
+  DELETED
+}
+
+enum MangaPublicationStatus {
+  ONGOING
+  COMPLETED
+  HIATUS
+  CANCELLED
+  NOT_YET_PUBLISHED
+  UPCOMING
+  UNKNOWN
+  NOT_YET_RELEASED
+}
+
+/// Discriminator for the kind of long-form work tracked under a Manga row.
+/// MANGA covers Japanese/Korean serialized comics tracked at the chapter
+/// level; COMICBOOK covers Western comicbooks tracked at the issue level
+/// using ComicVine as the data source.
+enum MediaType {
+  MANGA
+  COMICBOOK
+}
+
+enum MangaStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  ERROR
+  DELETED
+}
+
+enum MetadataProvider {
+  ANILIST
+  COMICVINE
+  FANDOM
+  WIKIPEDIA
+  PROWLARR
+  NATIVE_DOWNLOAD
+  SUWAYOMI
+  MANGAUPDATES
+  MYANIMELIST
+  NAUTILJON
+  NOVELUPDATES
+  MANGADEX
+}
+
+enum NotificationEventType {
+  MANGA_ADDED
+  MANGA_UPDATED
+  MANGA_DELETED
+  CHAPTER_ADDED
+  CHAPTER_DOWNLOADED
+  CHAPTER_FAILED
+  VOLUME_ADDED
+  VOLUME_DOWNLOADED
+  METADATA_UPDATED
+  SYNC_STARTED
+  SYNC_COMPLETED
+  SYNC_FAILED
+  BACKUP_STARTED
+  BACKUP_COMPLETED
+  BACKUP_FAILED
+  SYSTEM_ERROR
+  SYSTEM_WARNING
+  SYSTEM_INFO
+  USER_ACTION
+  SUWAYOMI_SERVER_CONNECTED
+  SUWAYOMI_SERVER_DISCONNECTED
+  SUWAYOMI_SERVER_HEALTH_CHECK_FAILED
+  SUWAYOMI_SOURCE_INSTALLED
+  SUWAYOMI_SOURCE_UNINSTALLED
+  SUWAYOMI_SEARCH_STARTED
+  SUWAYOMI_SEARCH_COMPLETED
+  SUWAYOMI_SEARCH_FAILED
+  SUWAYOMI_CHAPTER_DOWNLOAD_STARTED
+  SUWAYOMI_CHAPTER_DOWNLOAD_COMPLETED
+  SUWAYOMI_CHAPTER_DOWNLOAD_FAILED
+  SUWAYOMI_MANGA_FETCHED
+  SUWAYOMI_CHAPTERS_FETCHED
+  NATIVE_DOWNLOAD_SOURCE_INITIALIZED
+  NATIVE_DOWNLOAD_SOURCE_VALIDATION_STARTED
+  NATIVE_DOWNLOAD_SOURCE_VALIDATION_COMPLETED
+  NATIVE_DOWNLOAD_SOURCE_VALIDATION_FAILED
+  NATIVE_DOWNLOAD_SOURCE_ERROR
+  NATIVE_DOWNLOAD_QUEUED
+  NATIVE_DOWNLOAD_STARTED
+  NATIVE_DOWNLOAD_PROGRESS
+  NATIVE_DOWNLOAD_COMPLETED
+  NATIVE_DOWNLOAD_FAILED
+  NATIVE_DOWNLOAD_MANAGER_INITIALIZED
+  PROWLARR_CONNECTED
+  PROWLARR_DISCONNECTED
+  PROWLARR_CONNECTION_TEST_SUCCESSFUL
+  PROWLARR_CONNECTION_TEST_FAILED
+  PROWLARR_INDEXER_TEST_FAILED
+  PROWLARR_SEARCH_STARTED
+  PROWLARR_SEARCH_COMPLETED
+  PROWLARR_SEARCH_FAILED
+  UPDATE_AVAILABLE
+  DOWNLOAD_FAILED
+  TASK_FAILED
+  SUWAYOMI_EXTENSION_UPDATED
+  SUWAYOMI_EXTENSION_INSTALLED
+  SUWAYOMI_EXTENSION_UNINSTALLED
+  SUWAYOMI_BACKUP_CREATED
+  SUWAYOMI_BACKUP_RESTORED
+  SUWAYOMI_BACKUP_FAILED
+  SUWAYOMI_LIBRARY_UPDATED
+  SUWAYOMI_UPDATE_CHECK_STARTED
+  SUWAYOMI_UPDATE_CHECK_COMPLETED
+  SUWAYOMI_UPDATE_CHECK_FAILED
+  SUWAYOMI_DOWNLOAD_QUEUE_UPDATED
+  SUWAYOMI_SETTING_CHANGED
+  SUWAYOMI_CATEGORY_CREATED
+  SUWAYOMI_CATEGORY_DELETED
+  SUWAYOMI_CATEGORY_UPDATED
+  SUWAYOMI_MANGA_MIGRATED
+  SUWAYOMI_TRACKER_LOGIN_SUCCESS
+  SUWAYOMI_TRACKER_LOGIN_FAILED
+  SUWAYOMI_TRACKER_UPDATE_SUCCESS
+  SUWAYOMI_TRACKER_UPDATE_FAILED
+  TASK_STARTED
+  TASK_COMPLETED
+  DOWNLOAD_STARTED
+  DOWNLOAD_COMPLETED
+  UPDATE_INSTALLED
+  UPDATE_FAILED
+  LIBRARY_SCAN_STARTED
+  LIBRARY_SCAN_COMPLETED
+  LIBRARY_SCAN_FAILED
+  USER_LOGIN
+  USER_LOGOUT
+  USER_REGISTERED
+  SETTINGS_CHANGED
+  API_ERROR
+  API_WARNING
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+enum PersonRole {
+  AUTHOR
+  ARTIST
+  WRITER
+  PENCILER
+  INKER
+  COLORIST
+  LETTERER
+  COVER_ARTIST
+  EDITOR
+  TRANSLATOR
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+  URGENT
+}
+
+enum ProviderCapability {
+  SEARCH
+  METADATA
+  CHAPTERS
+  VOLUMES
+  CALENDAR
+  DOWNLOAD
+  STREAMING
+  READING
+  SYNC
+}
+
+enum ProviderErrorType {
+  NETWORK
+  AUTHENTICATION
+  RATE_LIMIT
+  PARSING
+  NOT_FOUND
+  UNSUPPORTED
+  TIMEOUT
+  UNKNOWN
+}
+
+enum ProviderStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  MAINTENANCE
+  DEPRECATED
+  DEGRADED
+  UNHEALTHY
+  READY
+}
+
+enum ProviderType {
+  METADATA
+  DOWNLOAD
+  READER
+  ALL
+}
+
+enum PublicationDemographic {
+  SHOUNEN
+  SHOUJO
+  SEINEN
+  JOSEI
+  UNKNOWN
+}
+
+enum ReleaseBlocklistReason {
+  QUALITY_POOR
+  WRONG_LANGUAGE
+  INCOMPLETE
+  WATERMARKED
+  DUPLICATE
+  CORRUPTED
+  WRONG_CONTENT
+  RELEASE_GROUP
+  USER_PREFERENCE
+  AUTO_QUALITY
+  DMCA
+  DOWNLOAD_FAILED
+  OTHER
+}
+
+model ReleaseBlocklist {
+  id          String                 @id @default(uuid())
+  hash        String?                @unique
+  title       String?
+  pattern     String?
+  group       String?
+  reason      ReleaseBlocklistReason
+  details     String?
+  isActive    Boolean                @default(true)
+  autoBlocked Boolean                @default(false)
+  expiryDate  DateTime?
+  dateAdded   DateTime               @default(now())
+  mangaId     Int?
+  /// Optional source scoping (e.g. 'getcomics', 'prowlarr', 'mangadex'). When
+  /// NULL the entry matches releases from any source (legacy / manga-agnostic
+  /// blocks). When set the entry only matches releases whose `source` is the
+  /// same OR `NULL`. See `release-blocklist/blocklist-checker.ts`.
+  source      String?
+  manga       Manga?                 @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@index([isActive])
+  @@index([mangaId])
+  @@index([title, source, isActive])
+  @@index([hash])
+  @@index([dateAdded])
+}
+
+model CalendarEvent {
+  id            Int               @id @default(autoincrement())
+  mangaId       Int
+  chapterId     Int?
+  eventType     CalendarEventType
+  scheduledDate DateTime
+  actualDate    DateTime?
+  status        EventStatus       @default(SCHEDULED)
+  confidence    Float?
+  title         String
+  description   String?
+  color         String?
+  source        String?
+  metadata      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  manga   Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([mangaId])
+  @@index([chapterId])
+  @@index([scheduledDate])
+  @@index([status])
+  @@index([eventType])
+}
+
+model ReleaseSchedule {
+  id          Int         @id @default(autoincrement())
+  mangaId     Int
+  releaseType ReleaseType @default(IRREGULAR)
+  dayOfWeek   Int?
+  dayOfMonth  Int?
+  frequency   String?
+  confidence  Float       @default(0)
+  source      String      @default("manual")
+  isConfirmed Boolean     @default(false)
+  timezone    String      @default("UTC")
+  releaseTime String?
+  metadata    Json?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  lastUpdated DateTime?
+
+  manga Manga @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@unique([mangaId, source])
+  @@index([mangaId])
+  @@index([releaseType])
+  @@index([confidence])
+}
+
+model ReleaseHistory {
+  id               Int      @id @default(autoincrement())
+  mangaId          Int
+  chapterId        Int?
+  chapterNumber    String
+  releaseDate      DateTime
+  detectedDate     DateTime
+  dayOfWeek        Int
+  daysFromPrevious Int?
+  isOnSchedule     Boolean  @default(true)
+  source           String?
+  confidence       Float    @default(1.0)
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  manga Manga @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@index([mangaId])
+  @@index([releaseDate])
+  @@index([dayOfWeek])
+}
+
+model ImageCache {
+  id           Int      @id @default(autoincrement())
+  originalUrl  String
+  proxyPath    String   @unique
+  imageData    Bytes
+  contentType  String
+  size         Int
+  source       String
+  lastAccessed DateTime @default(now())
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([proxyPath])
+  @@index([lastAccessed])
+  @@index([source])
+}
+
+// ============================================================================
+// Bookmark Models - Manga/Volume Bookmarking Functionality
+// ============================================================================
+
+model BookmarkedVolume {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  mangaId      Int
+  volumeNumber Int
+  volumeId     Int?
+  createdAt    DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga  Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  volume Volume? @relation(fields: [volumeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId, volumeNumber])
+  @@unique([userId, volumeId])
+  @@index([userId])
+  @@index([mangaId])
+  @@index([volumeId])
+}
+
+model BookmarkedManga {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  mangaId   Int
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga Manga @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId])
+  @@index([userId])
+  @@index([mangaId])
+}
+
+// ============================================================================
+// Rate Limiting State - For persistent rate limits across restarts
+// ============================================================================
+
+/// Rate limit state for calendar providers and other services
+/// Used to persist rate limit counters across server restarts
+model RateLimitState {
+  id               String    @id @default(dbgenerated("gen_random_uuid()"))
+  /// Provider name (e.g., 'mangadex', 'anilist', 'calendar-sync')
+  provider         String
+  /// Rate limit bucket key (e.g., 'api-requests', 'search-requests')
+  bucket           String
+  /// Current token count
+  tokens           Int       @default(0)
+  /// Maximum tokens allowed in bucket
+  maxTokens        Int
+  /// Tokens refilled per interval
+  refillRate       Int
+  /// Refill interval in milliseconds
+  refillIntervalMs Int
+  /// Timestamp of last refill
+  lastRefillAt     DateTime  @default(now())
+  /// Timestamp of last request
+  lastRequestAt    DateTime  @default(now())
+  /// Whether rate limit is currently exceeded
+  isLimited        Boolean   @default(false)
+  /// When the rate limit will reset (if limited)
+  resetsAt         DateTime?
+  /// Additional metadata
+  metadata         Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([provider, bucket])
+  @@index([provider])
+  @@index([isLimited])
+  @@index([resetsAt])
+}
+
+model PendingRelease {
+  id              Int                  @id @default(autoincrement())
+  mangaId         Int
+  chapterId       Int?
+  releaseTitle    String
+  indexer         String
+  downloadUrl     String
+  size            BigInt?
+  seeders         Int?
+  score           Float
+  rejectionReason String
+  prowlarrResult  Json
+  addedAt         DateTime             @default(now())
+  expiresAt       DateTime
+  status          PendingReleaseStatus @default(PENDING)
+  manga           Manga                @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@index([mangaId, status])
+  @@index([expiresAt])
+}
+
+enum PendingReleaseStatus {
+  PENDING
+  APPROVED
+  DISMISSED
+  EXPIRED
+  GRABBED
+}
+
+enum ReleaseScheduleType {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  IRREGULAR
+}
+
+enum ReleaseType {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  IRREGULAR
+  HIATUS
+  REGULAR
+}
+
+enum SortCriteria {
+  RELEVANCE
+  TITLE
+  YEAR
+  RATING
+  POPULARITY
+  UPDATED
+  SCORE
+  START_DATE
+  END_DATE
+  DATE_ADDED
+  DATE_UPDATED
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum TaskErrorCode {
+  NETWORK_ERROR
+  PARSE_ERROR
+  AUTH_ERROR
+  RATE_LIMIT
+  TIMEOUT
+  UNKNOWN
+  INVALID_STATE
+  DATABASE_ERROR
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum VolumeFormat {
+  TANKOBON
+  OMNIBUS
+  DIGITAL
+  MAGAZINE
+  SPECIAL
+  UNKNOWN
+}
+
+enum WantedPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum WantedStatus {
+  PENDING
+  SEARCHING
+  FOUND
+  BLOCKED
+  DOWNLOADED
+  FAILED
+}
+
+enum WebSocketMessageType {
+  PING
+  PONG
+  SUBSCRIBE
+  UNSUBSCRIBE
+  EVENT
+  ERROR
+  DATA
+}
+
+enum WebSocketState {
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+  ERROR
+}
+
+enum job_priority {
+  critical
+  high
+  normal
+  low
+}
+
+enum job_status {
+  pending
+  active
+  completed
+  failed
+  cancelled
+  retrying
+}
+
+enum job_type {
+  metadata_refresh
+  metadata_update
+  metadata_sync
+  chapter_check
+  chapter_download
+  chapter_sync
+  backup_create
+  backup_restore
+  library_scan
+  library_import
+  notification_send
+  notification_batch
+  maintenance_cleanup
+  maintenance_vacuum
+  maintenance_reindex
+  download_manga
+  download_volume
+  download_pack
+  native_download
+  native_sync
+  suwayomi_sync
+  prowlarr_search
+}
+
+// ============================================================================
+// Cache, WebSocket & rate-limit infrastructure tables
+// ============================================================================
+// These tables back the realtime/WebSocket layer, multi-tier cache, rate
+// limiting, and the volatile job queue (jobs_volatile, separate from the
+// partitioned `jobs` model above). They're created/maintained outside the
+// normal Prisma migration flow (raw-SQL setup scripts in
+// src/server/services/realtime/, cache layers, etc.) but modeled here so
+// `prisma generate` produces typed clients and `prisma migrate diff` reports
+// a clean DB-vs-schema state.
+
+model cache_unified {
+  cache_key        String    @id
+  cache_value      Json
+  data_type        String?
+  namespace        String?   @default("default")
+  expires_at       DateTime? @db.Timestamptz(6)
+  access_count     Int?      @default(0)
+  access_frequency Float?    @default(1.0) @db.Real
+  last_accessed_at DateTime? @default(now()) @db.Timestamptz(6)
+  tags             String[]  @default([])
+  size_bytes       Int?      @default(0)
+  metadata         Json?     @default("{}")
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([expires_at], map: "idx_cache_unified_expires", where: raw("(expires_at IS NOT NULL)"))
+  @@index([cache_value], map: "idx_cache_unified_gin", type: Gin)
+  @@index([cache_key], map: "idx_cache_unified_hash", type: Hash)
+  @@index([access_frequency, last_accessed_at], map: "idx_cache_unified_lru")
+  @@index([namespace], map: "idx_cache_unified_namespace")
+  @@index([tags], map: "idx_cache_unified_tags", type: Gin)
+}
+
+model channel_subscriptions {
+  connection_id         String                @db.Uuid
+  channel               String
+  subscribed_at         DateTime?             @default(now()) @db.Timestamptz(6)
+  filters               Json?                 @default("{}")
+  websocket_connections websocket_connections @relation(fields: [connection_id], references: [connection_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([connection_id, channel])
+  @@index([channel], map: "idx_chan_sub_channel")
+  @@index([connection_id], map: "idx_chan_sub_conn")
+}
+
+model hot_data_cache {
+  entity_type   String
+  entity_id     String
+  cache_data    Json
+  hit_count     Int?      @default(0)
+  heat_score    Float?    @default(1.0) @db.Real
+  last_accessed DateTime? @default(now()) @db.Timestamptz(6)
+  expires_at    DateTime? @db.Timestamptz(6)
+  tags          String[]  @default([])
+
+  @@id([entity_type, entity_id])
+  @@index([last_accessed], map: "idx_hot_data_accessed")
+  @@index([expires_at], map: "idx_hot_data_expires", where: raw("(expires_at IS NOT NULL)"))
+  @@index([heat_score(sort: Desc)], map: "idx_hot_data_heat")
+}
+
+model jobs_volatile {
+  id                 BigInt    @id @default(autoincrement())
+  queue_name         String    @default("volatile")
+  job_type           String
+  priority           Int?      @default(50)
+  payload            Json?     @default("{}")
+  result             Json?
+  metadata           Json?     @default("{}")
+  status             String?   @default("PENDING")
+  progress           Int?      @default(0)
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+  scheduled_for      DateTime? @default(now()) @db.Timestamptz(6)
+  started_at         DateTime? @db.Timestamptz(6)
+  completed_at       DateTime? @db.Timestamptz(6)
+  attempt_count      Int?      @default(0)
+  max_attempts       Int?      @default(1)
+  worker_id          String?
+  lease_expires_at   DateTime? @db.Timestamptz(6)
+  processing_time_ms Int?
+  wait_time_ms       Int?
+
+  @@index([queue_name, priority(sort: Desc), scheduled_for], map: "idx_jobs_volatile_queue")
+  @@index([status, queue_name], map: "idx_jobs_volatile_status")
+  @@index([worker_id, lease_expires_at], map: "idx_jobs_volatile_worker")
+}
+
+model message_routing {
+  id                BigInt    @id @default(autoincrement())
+  target_server     String
+  channel           String
+  payload           Json
+  published_at      DateTime? @default(now()) @db.Timestamptz(6)
+  delivered         Boolean?  @default(false)
+  delivery_attempts Int?      @default(0)
+  last_attempt_at   DateTime? @db.Timestamptz(6)
+  expires_at        DateTime? @default(dbgenerated("(now() + '00:05:00'::interval)")) @db.Timestamptz(6)
+
+  @@index([channel], map: "idx_msg_routing_channel")
+  @@index([expires_at], map: "idx_msg_routing_expires", where: raw("(NOT delivered)"))
+  @@index([target_server, delivered], map: "idx_msg_routing_pending", where: raw("((NOT delivered) AND (delivery_attempts < 3))"))
+}
+
+model presence_tracking {
+  channel               String
+  user_id               String
+  connection_id         String?                @db.Uuid
+  status                String
+  last_seen             DateTime?              @default(now()) @db.Timestamptz(6)
+  metadata              Json?                  @default("{}")
+  websocket_connections websocket_connections? @relation(fields: [connection_id], references: [connection_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([channel, user_id])
+  @@index([channel], map: "idx_presence_channel", where: raw("(status <> 'offline'::text)"))
+  @@index([last_seen], map: "idx_presence_last_seen")
+  @@index([user_id], map: "idx_presence_user")
+}
+
+model rate_limits {
+  limit_key    String   @id
+  count        Int      @default(0)
+  window_start DateTime @default(now()) @db.Timestamptz(6)
+  expires_at   DateTime @default(dbgenerated("(now() + '00:01:00'::interval)")) @db.Timestamptz(6)
+}
+
+model sessions_cache {
+  session_id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String?
+  session_data          Json                    @default("{}")
+  ip_address            String?                 @db.Inet
+  user_agent            String?
+  created_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  expires_at            DateTime                @db.Timestamptz(6)
+  last_accessed         DateTime?               @default(now()) @db.Timestamptz(6)
+  access_count          Int?                    @default(1)
+  metadata              Json?                   @default("{}")
+  websocket_connections websocket_connections[]
+
+  @@index([last_accessed], map: "idx_sessions_accessed")
+  @@index([expires_at], map: "idx_sessions_expires")
+  @@index([user_id], map: "idx_sessions_user_id")
+}
+
+model websocket_connections {
+  connection_id         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  server_id             String
+  session_id            String?                 @db.Uuid
+  user_id               String?
+  connected_at          DateTime?               @default(now()) @db.Timestamptz(6)
+  last_activity         DateTime?               @default(now()) @db.Timestamptz(6)
+  client_metadata       Json?                   @default("{}")
+  channel_subscriptions channel_subscriptions[]
+  presence_tracking     presence_tracking[]
+  sessions_cache        sessions_cache?         @relation(fields: [session_id], references: [session_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_session")
+
+  @@index([last_activity], map: "idx_ws_conn_activity")
+  @@index([session_id], map: "idx_ws_conn_session")
+  @@index([user_id], map: "idx_ws_conn_user", where: raw("(user_id IS NOT NULL)"))
+}
+
+model websocket_servers {
+  server_id        String    @id
+  hostname         String
+  port             Int
+  started_at       DateTime? @default(now()) @db.Timestamptz(6)
+  last_heartbeat   DateTime? @default(now()) @db.Timestamptz(6)
+  connection_count Int?      @default(0)
+  status           String    @default("active")
+  metadata         Json?     @default("{}")
+
+  @@index([last_heartbeat], map: "idx_ws_server_heartbeat", where: raw("(status = 'active'::text)"))
+  @@index([status], map: "idx_ws_server_status")
+}
+
+/// iter-D1: Live-dispatch claim-vs-fulfilled telemetry. One row per
+/// Prowlarr release picked by dispatchProwlarrManual / maybeTriggerProwlarr.
+/// Resolved later by prowlarr-handler completion to record which of the
+/// claimed chapters actually landed on disk. Used to drive the coverage-
+/// parser improvement loop's per-iter accuracy metric.
+model ProwlarrCoverageAttempt {
+  id                  BigInt    @id @default(autoincrement())
+  mangaId             Int
+  releaseTitle        String
+  indexer             String?
+  /// Volume numbers the release-title parser claimed
+  claimedVolumes      Json      @default("[]")
+  /// Chapter numbers the release-title parser claimed
+  claimedChapters     Json      @default("[]")
+  /// Chapter ids included in the dispatch scope at claim time
+  scopedChapterIds    Json      @default("[]")
+  /// Chapter ids that actually transitioned to COMPLETED for this attempt
+  fulfilledChapterIds Json      @default("[]")
+  /// 'claimed' = pending resolution; 'fulfilled' = all claimed landed;
+  /// 'partial' = some landed; 'empty' = none landed; 'orphan' = no completion match
+  status              String    @default("claimed")
+  /// (fulfilled ∩ claimed).size / claimed.size  — set on resolution
+  claimAccuracy       Float?
+  createdAt           DateTime  @default(now())
+  resolvedAt          DateTime?
+
+  @@index([mangaId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// iter-EX: Per-chapter per-source dispatch history. One row per attempt
+/// to dispatch a specific chapter through a specific source. The dispatch
+/// pipeline reads recent failures to skip sources that have already failed
+/// for a chapter, and the UI can surface "all sources exhausted" once
+/// every known source has been tried+failed.
+model ChapterDispatchAttempt {
+  id            BigInt    @id @default(autoincrement())
+  chapterId     Int
+  mangaId       Int
+  /// 'mangadex' | 'suwayomi' | 'getcomics' | 'prowlarr'
+  source        String
+  releaseTitle  String?
+  indexer       String?
+  jobId         BigInt?
+  /// 'dispatched' = pending resolution; 'completed' = file landed;
+  /// 'failed' = chapter went back to PENDING or ERROR; 'orphan' = no transition
+  /// observed within the 24h window
+  outcome       String    @default("dispatched")
+  failureReason String?
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  @@index([chapterId, createdAt])
+  @@index([mangaId, source, createdAt])
+  @@index([outcome, createdAt])
+}
+
+/// iter-CDB-0.2: Per-host download telemetry. One row per attempt by the
+/// GetComics handler to stream a file from a file host (MediaFire, MEGA,
+/// GoFile, etc.). Drives the per-iter scorecard for the comic-host
+/// download improvement loop and surfaces host-level failure modes.
+model HostDownloadAttempt {
+  id           BigInt   @id @default(autoincrement())
+  chapterId    Int?
+  jobId        BigInt?
+  /// 'mediafire' | 'mega' | 'gofile' | 'dropapk' | 'direct' | 'userscloud' | ...
+  host         String
+  /// Resolved binary URL the handler tried to fetch.
+  url          String
+  /// 'success' = file landed; 'failed' = generic; 'cloudflare_blocked' = challenge persisted;
+  /// 'expired' = link no longer valid; 'quota' = host bandwidth exhausted; 'parse_failed' = couldn't extract direct URL.
+  outcome      String
+  durationMs   Int?
+  fileBytes    Int?
+  retries      Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  @@index([host, createdAt])
+  @@index([outcome, createdAt])
+}

@@ -1,0 +1,108 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: '1.3.0'
+
+    - name: Install dependencies
+      run: bun install --frozen-lockfile
+
+    - name: Generate Prisma client
+      run: bun prisma generate
+
+    - name: Run TypeScript checks
+      run: |
+        # Increase memory for TypeScript check to avoid OOM
+        NODE_OPTIONS="--max-old-space-size=4096" bun run type-check > ts-errors.log 2>&1 || true
+        bun scripts/ts-error-categorizer.js ts-errors.log || echo "Type check analysis skipped"
+
+    - name: Run ESLint validation
+      run: bun scripts/eslint-validator.js || echo "ESLint validation found issues - see artifacts"
+      continue-on-error: true
+
+    - name: Run type safety analysis
+      # This is a quality check, not a gate - allow workflow to continue
+      run: bun scripts/strict-typing-enforcer.js || echo "Type safety issues found - see artifacts"
+      continue-on-error: true
+
+    - name: Upload TypeScript error report
+      uses: actions/upload-artifact@v4
+      with:
+        name: typescript-error-report
+        path: ts-error-report/
+        if-no-files-found: warn
+
+    - name: Upload ESLint report
+      uses: actions/upload-artifact@v4
+      with:
+        name: eslint-report
+        path: eslint-report/
+        if-no-files-found: warn
+
+    - name: Upload type safety report
+      uses: actions/upload-artifact@v4
+      with:
+        name: type-safety-report
+        path: type-safety-report/
+        if-no-files-found: warn
+
+    - name: Check for high severity issues
+      # Report but don't fail the build - quality analysis is informational
+      run: |
+        if [ -f "type-safety-report/report.md" ] && grep -q "severity: high" type-safety-report/report.md; then
+          echo "⚠️ High severity type safety issues found!"
+          echo "See the type-safety-report artifact for details"
+        else
+          echo "✅ No high severity type safety issues"
+        fi
+
+    - name: Post results comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          
+          // Read reports
+          const tsReport = fs.readFileSync('ts-error-report/report.md', 'utf8');
+          const eslintReport = fs.readFileSync('eslint-report/eslint-analysis.md', 'utf8');
+          const typeReport = fs.readFileSync('type-safety-report/report.md', 'utf8');
+          
+          // Create comment body
+          const body = `## Code Quality Report
+
+          ### TypeScript Errors
+          ${tsReport.split('\n').slice(0, 10).join('\n')}
+          ${tsReport.split('\n').length > 10 ? '\n... (see full report in artifacts)' : ''}
+
+          ### ESLint Configuration
+          ${eslintReport.split('\n').slice(0, 10).join('\n')}
+          ${eslintReport.split('\n').length > 10 ? '\n... (see full report in artifacts)' : ''}
+
+          ### Type Safety Analysis
+          ${typeReport.split('\n').slice(0, 10).join('\n')}
+          ${typeReport.split('\n').length > 10 ? '\n... (see full report in artifacts)' : ''}
+
+          Full reports are available in the workflow artifacts.`;
+          
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: body
+          });

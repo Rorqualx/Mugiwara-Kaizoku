@@ -1,0 +1,541 @@
+/**
+ * Metadata Persistence Service
+ *
+ * Handles persisting unified metadata to the database with proper type safety.
+ *
+ * This service:
+ * - Saves UnifiedMangaMetadata to database (Manga + Metadata models)
+ * - Removes all `as any` type casts from original implementation
+ * - Supports transactional updates
+ * - Returns AsyncResult for type-safe error handling
+ * - Preserves existing metadata when new data is partial
+ *
+ * @module MetadataPersistenceService
+ */
+
+import { prisma } from '@/server/db';
+import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import type { UnifiedMangaMetadata } from '@/types/search.types';
+import { AsyncResult, createSuccessResult, createErrorResult } from '@/utils/async-result';
+import { ValidationError } from '@/utils/errors';
+import { logger } from '@/utils/logger';
+
+import type { Manga, Metadata, MangaPublicationStatus } from '@prisma/client';
+
+/**
+ * Input for persisting metadata
+ */
+export interface PersistMetadataInput {
+  /** Database manga ID */
+  mangaId: number;
+  /** Unified metadata to persist */
+  metadata: UnifiedMangaMetadata;
+  /** Metadata provenance (which provider supplied which field) */
+  metadataProvenance: Record<string, string>;
+}
+
+/**
+ * Result of metadata persistence
+ */
+export interface PersistMetadataResult {
+  /** Updated manga with metadata */
+  manga: Manga & { Metadata: Metadata | null };
+  /** Whether metadata was created (true) or updated (false) */
+  created: boolean;
+}
+
+/**
+ * Type-safe metadata update data matching Prisma's Metadata model
+ */
+interface MetadataUpdateData {
+  coverExtraLarge?: string;
+  coverLarge?: string;
+  coverMedium?: string;
+  coverSmall?: string;
+  cover: string;
+  summary: string;
+  genres: string[];
+  authors: string[];
+  artists: string[];
+  tags: string[];
+  themes: string[];
+  characters: string[];
+  startDate?: Date;
+  endDate?: Date;
+  synonyms: string[];
+  urls: string[];
+  chapters?: number;
+  volumes?: number;
+  bannerImage?: string;
+  format?: string;
+  idMal?: number;
+  averageScore?: number;
+  popularity?: number;
+  countryOfOrigin?: string;
+  publisher?: string;
+  source?: string;
+  sourceId?: string;
+  status: MangaPublicationStatus;
+  lastFetch: Date;
+}
+
+/**
+ * Metadata Persistence Service
+ *
+ * Responsible for saving unified metadata to the database with full type safety
+ */
+export class MetadataPersistenceService {
+  private logger = logger.child('MetadataPersistenceService', {
+    module: 'MetadataPersistenceService'
+  });
+
+  /**
+   * Persist unified metadata to database
+   *
+   * Updates or creates Metadata record and links it to Manga.
+   * Preserves existing values when new metadata doesn't provide them.
+   *
+   * @param input - Persistence input with manga ID, metadata, and provenance
+   * @returns AsyncResult with updated manga including metadata
+   */
+  async persistMetadata(
+    input: PersistMetadataInput
+  ): Promise<AsyncResult<PersistMetadataResult>> {
+    try {
+      const { mangaId, metadata, metadataProvenance } = input;
+
+      this.logger.info(`Persisting metadata for manga ${mangaId}`);
+
+      // Use transaction to ensure atomicity
+      const result = await prisma.$transaction(async (tx) => {
+        // Get manga with existing metadata
+        const manga = await tx.manga.findUnique({
+          where: { id: mangaId },
+          include: { Metadata: true }
+        });
+
+        if (!manga) {
+          throw new ValidationError(`Manga with ID ${mangaId} not found`);
+        }
+
+        // iter-MM-9-A: read existing field-level provenance so a non-AL
+        // provider (e.g. Wikipedia mis-bound to a parent series article)
+        // can't clobber an AL-anchored numeric field. Was previously
+        // wholesale-replaced; now merged per-field.
+        const existingProvenance = this.extractExistingProvenance(manga.providerMetadata);
+
+        // Build type-safe metadata update data
+        const metadataData = this.buildMetadataUpdateData(metadata, manga.Metadata);
+
+        // Apply provenance guards: drop fields where a non-anchor provider
+        // is trying to drift an AL-sourced numeric value beyond tolerance.
+        const refused = this.applyProvenanceGuards(
+          metadataData, manga.Metadata, existingProvenance, metadataProvenance, mangaId,
+        );
+
+        // Merge provenance per-field. Refused fields keep their prior source.
+        const mergedProvenance: Record<string, string> = { ...existingProvenance };
+        for (const [k, v] of Object.entries(metadataProvenance)) {
+          if (!refused.has(k)) mergedProvenance[k] = v;
+        }
+
+        // Prepare provider metadata with merged provenance
+        const providerMetadata = {
+          ...(typeof manga.providerMetadata === 'object' && manga.providerMetadata !== null ? manga.providerMetadata : {}),
+          metadataProvenance: mergedProvenance
+        };
+
+        let updatedMetadata: Metadata;
+        let created = false;
+
+        if (manga.metadataId && manga.Metadata) {
+          // Update existing metadata
+          this.logger.info(`Updating existing metadata for manga ${mangaId}`);
+          updatedMetadata = await tx.metadata.update({
+            where: { id: manga.metadataId },
+            data: metadataData
+          });
+        } else {
+          // Create new metadata
+          this.logger.info(`Creating new metadata for manga ${mangaId}`);
+          created = true;
+          updatedMetadata = await tx.metadata.create({
+            data: {
+              ...metadataData,
+              Manga: {
+                connect: { id: mangaId }
+              }
+            }
+          });
+
+          // Link metadata to manga if not already linked
+          if (!manga.metadataId) {
+            await tx.manga.update({
+              where: { id: mangaId },
+              data: { metadataId: updatedMetadata.id }
+            });
+          }
+        }
+
+        // Update manga provider metadata
+        await tx.manga.update({
+          where: { id: mangaId },
+          data: { providerMetadata }
+        });
+
+        // Fetch final updated manga
+        const updatedManga = await tx.manga.findUnique({
+          where: { id: mangaId },
+          include: { Metadata: true }
+        });
+
+        if (!updatedManga) {
+          throw new ValidationError(`Failed to fetch updated manga ${mangaId}`);
+        }
+
+        return {
+          manga: updatedManga,
+          created
+        };
+      });
+
+      this.logger.info(`Successfully persisted metadata for manga ${mangaId} (${result.created ? 'created' : 'updated'})`);
+
+      // Emit WebSocket event for real-time UI sync
+      void realtimeEmitter.emitMangaUpdate({
+        mangaId,
+        action: 'updated',
+        data: {
+          metadataPersisted: true,
+          metadataCreated: result.created,
+          source: 'metadata-persister'
+        }
+      });
+
+      return createSuccessResult(result);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error persisting metadata for manga ${input.mangaId}:`, error);
+      return createErrorResult(new Error(`Failed to persist metadata: ${errorMessage}`));
+    }
+  }
+
+  /**
+   * iter-MM-9-A: extract per-field provenance from a manga's persisted
+   * `providerMetadata.metadataProvenance` object. Returns an empty record
+   * when the manga has never had provenance written.
+   */
+  private extractExistingProvenance(providerMetadata: unknown): Record<string, string> {
+    if (typeof providerMetadata !== 'object' || providerMetadata === null) return {};
+    const root = providerMetadata as Record<string, unknown>;
+    const prov = root['metadataProvenance'];
+    if (typeof prov !== 'object' || prov === null) return {};
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(prov as Record<string, unknown>)) {
+      if (typeof v === 'string') result[k] = v;
+    }
+    return result;
+  }
+
+  /**
+   * iter-MM-9-A: refuse to overwrite numeric Metadata fields when a
+   * non-anchor provider would drift them more than 20% from an
+   * AL-anchored value. Mutates `metadataData` in place by deleting
+   * the refused fields. Returns the set of refused field names so the
+   * caller can preserve their prior provenance entry.
+   *
+   * Anchor priority: anilist > mal (both authoritative for vol/chapter
+   * counts). Other sources (wikipedia, fandom, comicvine, mangadex,
+   * mangaupdates) cannot overwrite an anchor's value unless the drift
+   * is small or there is no prior value.
+   *
+   * Guards apply to: `volumes`, `chapters`.
+   */
+  private applyProvenanceGuards(
+    metadataData: MetadataUpdateData,
+    existingMetadata: Metadata | null,
+    existingProvenance: Record<string, string>,
+    incomingProvenance: Record<string, string>,
+    mangaId: number,
+  ): Set<string> {
+    const refused = new Set<string>();
+    const guardedFields: Array<'volumes' | 'chapters'> = ['volumes', 'chapters'];
+    const anchorSources = new Set(['anilist', 'mal']);
+    const DRIFT_TOLERANCE = 0.2;
+
+    for (const field of guardedFields) {
+      const incoming = metadataData[field];
+      const existing = existingMetadata?.[field];
+      if (incoming === undefined) continue;
+      if (existing === undefined || existing === null) continue;
+
+      const existingSource = existingProvenance[field];
+      const incomingSource = incomingProvenance[field];
+      if (!existingSource || !incomingSource) continue;
+      if (existingSource === incomingSource) continue;
+      if (!anchorSources.has(existingSource)) continue;
+      if (anchorSources.has(incomingSource)) continue;
+
+      const drift = Math.abs(incoming - existing) / Math.max(existing, 1);
+      if (drift <= DRIFT_TOLERANCE) continue;
+
+      // Refuse this write (intentional in-place mutation, see JSDoc above)
+      refused.add(field);
+      // eslint-disable-next-line no-param-reassign -- documented: this guard mutates metadataData in place
+      delete metadataData[field];
+      this.logger.warn(
+        `[iter-MM-9-A] Refused ${field} overwrite for manga ${mangaId}: ` +
+        `anchor=${existingSource}(${existing}) incoming=${incomingSource}(${incoming}) drift=${(drift * 100).toFixed(0)}%`,
+      );
+    }
+    return refused;
+  }
+
+  /**
+   * Build type-safe metadata update data
+   *
+   * Converts UnifiedMangaMetadata to Prisma Metadata model format,
+   * preserving existing values when new metadata doesn't provide them.
+   *
+   * @param metadata - New unified metadata
+   * @param existingMetadata - Existing metadata from database (nullable)
+   * @returns Type-safe metadata update data
+   */
+  private buildMetadataUpdateData(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): MetadataUpdateData {
+    // Build required fields
+    const requiredFields = this.buildRequiredFields(metadata, existingMetadata);
+
+    // Build optional fields
+    const optionalFields = this.buildOptionalFields(metadata, existingMetadata);
+
+    return { ...requiredFields, ...optionalFields };
+  }
+
+  /**
+   * Build required metadata fields
+   */
+  private buildRequiredFields(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): Pick<MetadataUpdateData, 'cover' | 'summary' | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'characters' | 'synonyms' | 'urls' | 'status' | 'lastFetch'> {
+    const getValue = <T>(newValue: T | undefined, existingValue: T | null | undefined, defaultValue: T): T => {
+      if (newValue !== undefined && newValue !== null) return newValue;
+      if (existingValue !== undefined && existingValue !== null) return existingValue;
+      return defaultValue;
+    };
+
+    const getArrayValue = (newArray: string[] | undefined, existingArray: string[] | null | undefined): string[] => {
+      if (newArray && newArray.length > 0) return newArray;
+      if (existingArray && existingArray.length > 0) return existingArray;
+      return [];
+    };
+
+    // Main cover
+    const cover = getValue(metadata['coverImage'] as string | undefined, existingMetadata?.cover, '/cover-not-found.jpg');
+
+    // Description/summary
+    const summary = getValue(metadata['description'] as string | undefined, existingMetadata?.summary, '');
+
+    // Arrays
+    const genres = getArrayValue(metadata['genres'] as string[] | undefined, existingMetadata?.genres);
+    const authors = getArrayValue(metadata['authors'] as string[] | undefined, existingMetadata?.authors);
+    const artists = getArrayValue(metadata['artists'] as string[] | undefined, existingMetadata?.artists);
+    const tags = getArrayValue(
+      (metadata['tags'] as Array<string | { name: string }> | undefined)?.map(t => typeof t === 'string' ? t : t.name),
+      existingMetadata?.tags
+    );
+    const themes = getArrayValue(
+      (metadata['themes'] as Array<string | { name: string }> | undefined)?.map(t => typeof t === 'string' ? t : t.name),
+      existingMetadata?.themes
+    );
+    const characters = getArrayValue(
+      (metadata['characters'] as Array<string | { name: string }> | undefined)?.map(c => typeof c === 'string' ? c : c.name),
+      existingMetadata?.characters
+    );
+    const synonyms = getArrayValue(metadata['alternativeTitles'] as string[] | undefined, existingMetadata?.synonyms);
+
+    // URLs
+    const extractedUrls = Array.isArray(metadata['externalLinks'])
+      ? (metadata['externalLinks'] as Array<{ url: string }>).map(link => link.url)
+      : undefined;
+    const urls = getArrayValue(extractedUrls, existingMetadata?.urls);
+
+    // Status (required field with fallback to UNKNOWN)
+    const status = (metadata['status'] ?? existingMetadata?.status ?? 'UNKNOWN') as MangaPublicationStatus;
+
+    return {
+      cover,
+      summary,
+      genres,
+      authors,
+      artists,
+      tags,
+      themes,
+      characters,
+      synonyms,
+      urls,
+      status,
+      lastFetch: new Date()
+    };
+  }
+
+  /**
+   * Build optional metadata fields
+   */
+  private buildOptionalFields(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): Partial<Omit<MetadataUpdateData, 'cover' | 'summary' | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'characters' | 'synonyms' | 'urls' | 'status' | 'lastFetch'>> {
+    return {
+      ...this.buildCoverVariants(metadata, existingMetadata),
+      ...this.buildDateFields(metadata, existingMetadata),
+      ...this.buildNumericFields(metadata, existingMetadata),
+      ...this.buildStringFields(metadata, existingMetadata)
+    };
+  }
+
+  /**
+   * Build cover variant fields
+   */
+  private buildCoverVariants(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): Partial<Pick<MetadataUpdateData, 'coverExtraLarge' | 'coverLarge' | 'coverMedium' | 'coverSmall'>> {
+    const getOptionalValue = <T>(newValue: T | undefined, existingValue: T | null | undefined): T | undefined => {
+      if (newValue !== undefined && newValue !== null) return newValue;
+      if (existingValue !== undefined && existingValue !== null) return existingValue;
+      return undefined;
+    };
+
+    const result: Partial<MetadataUpdateData> = {};
+    const covers = metadata.covers;
+
+    const coverExtraLarge = getOptionalValue(covers?.extraLarge, existingMetadata?.coverExtraLarge);
+    const coverLarge = getOptionalValue(covers?.large, existingMetadata?.coverLarge);
+    const coverMedium = getOptionalValue(covers?.medium, existingMetadata?.coverMedium);
+    const coverSmall = getOptionalValue(covers?.small, existingMetadata?.coverSmall);
+
+    if (coverExtraLarge !== undefined) result.coverExtraLarge = coverExtraLarge;
+    if (coverLarge !== undefined) result.coverLarge = coverLarge;
+    if (coverMedium !== undefined) result.coverMedium = coverMedium;
+    if (coverSmall !== undefined) result.coverSmall = coverSmall;
+
+    return result;
+  }
+
+  /**
+   * Build date fields
+   */
+  private buildDateFields(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): Partial<Pick<MetadataUpdateData, 'startDate' | 'endDate'>> {
+    const getOptionalValue = <T>(newValue: T | undefined, existingValue: T | null | undefined): T | undefined => {
+      if (newValue !== undefined && newValue !== null) return newValue;
+      if (existingValue !== undefined && existingValue !== null) return existingValue;
+      return undefined;
+    };
+
+    const result: Partial<MetadataUpdateData> = {};
+
+    const startDate = getOptionalValue(
+      metadata['startDate'] ? new Date(metadata['startDate']) : undefined,
+      existingMetadata?.startDate
+    );
+    const endDate = getOptionalValue(
+      metadata['endDate'] ? new Date(metadata['endDate']) : undefined,
+      existingMetadata?.endDate
+    );
+
+    if (startDate !== undefined) result.startDate = startDate;
+    if (endDate !== undefined) result.endDate = endDate;
+
+    return result;
+  }
+
+  /**
+   * Build numeric fields
+   */
+  private buildNumericFields(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): Partial<Pick<MetadataUpdateData, 'chapters' | 'volumes' | 'idMal' | 'averageScore' | 'popularity'>> {
+    const getOptionalValue = <T>(newValue: T | undefined, existingValue: T | null | undefined): T | undefined => {
+      if (newValue !== undefined && newValue !== null) return newValue;
+      if (existingValue !== undefined && existingValue !== null) return existingValue;
+      return undefined;
+    };
+
+    const result: Partial<MetadataUpdateData> = {};
+
+    const chapters = getOptionalValue(metadata['chapterCount'], existingMetadata?.chapters);
+    const volumes = getOptionalValue(metadata['volumeCount'], existingMetadata?.volumes);
+    const idMal = getOptionalValue(metadata['externalIds']?.malId, existingMetadata?.idMal);
+    const averageScore = getOptionalValue(metadata['averageScore'] as number | undefined, existingMetadata?.averageScore);
+    const popularity = getOptionalValue(metadata['popularity'] as number | undefined, existingMetadata?.popularity);
+
+    if (chapters !== undefined) result.chapters = chapters;
+    if (volumes !== undefined) result.volumes = volumes;
+    if (idMal !== undefined) result.idMal = idMal;
+    if (averageScore !== undefined) result.averageScore = averageScore;
+    if (popularity !== undefined) result.popularity = popularity;
+
+    return result;
+  }
+
+  /**
+   * Build string fields
+   */
+  private buildStringFields(
+    metadata: UnifiedMangaMetadata,
+    existingMetadata: Metadata | null
+  ): Partial<Pick<MetadataUpdateData, 'bannerImage' | 'format' | 'countryOfOrigin' | 'publisher' | 'source' | 'sourceId'>> {
+    const getOptionalValue = <T>(newValue: T | undefined, existingValue: T | null | undefined): T | undefined => {
+      if (newValue !== undefined && newValue !== null) return newValue;
+      if (existingValue !== undefined && existingValue !== null) return existingValue;
+      return undefined;
+    };
+
+    const result: Partial<MetadataUpdateData> = {};
+
+    const bannerImage = getOptionalValue(metadata['bannerImage'] as string | undefined, existingMetadata?.bannerImage);
+    const format = getOptionalValue(metadata['format'] as string | undefined, existingMetadata?.format);
+    const countryOfOrigin = getOptionalValue(metadata['countryOfOrigin'] as string | undefined, existingMetadata?.countryOfOrigin);
+    const publisher = getOptionalValue(metadata['publisher'] as string | undefined, existingMetadata?.publisher);
+
+    // sourceId ties the Metadata row back to the canonical provider record
+    // (e.g. AniList ID). Previously never persisted despite being surfaced elsewhere.
+    const source = getOptionalValue(metadata['source'] as string | undefined, existingMetadata?.source);
+    const sourceId = getOptionalValue(
+      (metadata['sourceId'] ?? metadata['providerId']) as string | undefined,
+      existingMetadata?.sourceId,
+    );
+
+    if (bannerImage !== undefined) result.bannerImage = bannerImage;
+    if (format !== undefined) result.format = format;
+    if (countryOfOrigin !== undefined) result.countryOfOrigin = countryOfOrigin;
+    if (publisher !== undefined) result.publisher = publisher;
+    if (source !== undefined) result.source = source;
+    if (sourceId !== undefined) result.sourceId = sourceId;
+
+    return result;
+  }
+}
+
+/**
+ * Get singleton instance of MetadataPersistenceService
+ */
+let metadataPersistenceServiceInstance: MetadataPersistenceService | null = null;
+
+export function getMetadataPersistenceService(): MetadataPersistenceService {
+  metadataPersistenceServiceInstance ??= new MetadataPersistenceService();
+  return metadataPersistenceServiceInstance;
+}
+
+/**
+ * Export singleton instance
+ */
+export const metadataPersistenceService = getMetadataPersistenceService();

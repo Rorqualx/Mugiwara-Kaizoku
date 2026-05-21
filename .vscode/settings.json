@@ -1,0 +1,7 @@
+{
+    "workbench.editor.enablePreview": false,
+    "npm.packageManager": "bun",
+    "css.lint.unknownAtRules": "ignore",
+    "scss.lint.unknownAtRules": "ignore",
+    "less.lint.unknownAtRules": "ignore"
+}

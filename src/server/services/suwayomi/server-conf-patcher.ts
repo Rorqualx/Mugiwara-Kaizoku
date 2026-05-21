@@ -1,0 +1,189 @@
+/**
+ * Suwayomi server.conf patcher.
+ *
+ * Suwayomi-Server reads its config from a HOCON-format file at
+ * `<configPath>/server.conf` which it auto-expands on first start. To
+ * bootstrap sane defaults — keiyoushi extension repo, FlareSolverr routing
+ * — Kaizoku patches the file just before each JVM start. Patches are
+ * idempotent (we never clobber user-customized values); we only touch a key
+ * when its current value differs (or, for the repos array, when it's empty).
+ */
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+
+import { logger } from '@/utils/logger';
+
+const log = logger.child('SuwayomiConfPatcher');
+
+/** Keiyoushi catalog (community-maintained Mihon extension index). */
+export const KEIYOUSHI_REPO_URL =
+  'https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json';
+
+export interface ServerConfPatch {
+  /** URLs to ensure are present in `server.extensionRepos`. We only inject
+   *  when the array is currently empty / comments-only. Existing user URLs
+   *  are preserved. */
+  ensureExtensionRepos?: string[];
+  /** Set `server.flareSolverrEnabled` to this value. */
+  flareSolverrEnabled?: boolean;
+  /** Set `server.flareSolverrUrl`. */
+  flareSolverrUrl?: string;
+  /** Set `server.flareSolverrAsResponseFallback`. */
+  flareSolverrAsResponseFallback?: boolean;
+}
+
+export interface PatchResult {
+  /** The (possibly modified) HOCON content. */
+  content: string;
+  /** Keys we successfully wrote. */
+  applied: string[];
+  /** Keys we couldn't find in the file (missing scalar slots). */
+  missing: string[];
+}
+
+function quote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/** Match a HOCON scalar line: `server.<key> = <value>` (with optional
+ *  trailing comment). Captures prefix / value / suffix groups. */
+function buildScalarRegex(key: string): RegExp {
+  return new RegExp(
+    `^(\\s*server\\.${key.replace(/\./g, '\\.')}\\s*=\\s*)([^\\n#]*?)(\\s*(?:#.*)?)$`,
+    'm',
+  );
+}
+
+/** Match `server.extensionRepos = [ ... ]` even when the array spans lines. */
+const REPOS_REGEX = /^(\s*server\.extensionRepos\s*=\s*)\[([\s\S]*?)\]/m;
+
+function reposArrayIsEmpty(arrayBody: string): boolean {
+  const stripped = arrayBody
+    .split('\n')
+    .map((line) => line.replace(/#.*/, '').trim())
+    .filter(Boolean)
+    .join('');
+  return stripped === '';
+}
+
+/** Patch a scalar line if it exists AND its current value differs from
+ *  desired. Returns the modified content; mutates `applied`/`missing`. */
+function applyScalar(
+  content: string,
+  key: string,
+  hoconValue: string,
+  applied: string[],
+  missing: string[],
+): string {
+  const re = buildScalarRegex(key);
+  const match = re.exec(content);
+  if (!match) {
+    missing.push(key);
+    return content;
+  }
+  const current = match[2]?.trim() ?? '';
+  if (current === hoconValue.trim()) return content;
+  applied.push(key);
+  return content.replace(re, (_full, prefix: string, _val: string, suffix: string) => {
+    return `${prefix}${hoconValue}${suffix}`;
+  });
+}
+
+/** Inject extension-repo URLs only if the array is currently empty. */
+function applyExtensionRepos(
+  content: string,
+  urls: string[],
+  applied: string[],
+  missing: string[],
+): string {
+  const match = REPOS_REGEX.exec(content);
+  if (!match) {
+    missing.push('extensionRepos');
+    return content;
+  }
+  const body = match[2] ?? '';
+  if (!reposArrayIsEmpty(body)) return content; // user-set; leave alone
+  const formatted = urls.map((u) => `  ${quote(u)}`).join(',\n');
+  applied.push('extensionRepos');
+  return content.replace(REPOS_REGEX, (_full, prefix: string) => {
+    return `${prefix}[\n${formatted}\n]`;
+  });
+}
+
+/** Apply the patch in-memory. Pure — does not touch disk. */
+export function applyServerConfPatch(content: string, patch: ServerConfPatch): PatchResult {
+  let next = content;
+  const applied: string[] = [];
+  const missing: string[] = [];
+
+  if (patch.ensureExtensionRepos && patch.ensureExtensionRepos.length > 0) {
+    next = applyExtensionRepos(next, patch.ensureExtensionRepos, applied, missing);
+  }
+  if (patch.flareSolverrEnabled !== undefined) {
+    next = applyScalar(next, 'flareSolverrEnabled', String(patch.flareSolverrEnabled), applied, missing);
+  }
+  if (patch.flareSolverrUrl !== undefined) {
+    next = applyScalar(next, 'flareSolverrUrl', quote(patch.flareSolverrUrl), applied, missing);
+  }
+  if (patch.flareSolverrAsResponseFallback !== undefined) {
+    next = applyScalar(
+      next, 'flareSolverrAsResponseFallback',
+      String(patch.flareSolverrAsResponseFallback), applied, missing,
+    );
+  }
+
+  return { content: next, applied, missing };
+}
+
+/** Default minimal HOCON config when server.conf doesn't exist yet.
+ *  Suwayomi will expand this to the full default set on first start while
+ *  preserving the values we wrote. */
+export function buildMinimalServerConf(opts: ServerConfPatch & { port?: number }): string {
+  const lines: string[] = [
+    '# Auto-generated by Kaizoku on first Suwayomi start.',
+    `server.port = ${opts.port ?? 4567}`,
+    'server.ip = "0.0.0.0"',
+    'server.webUIEnabled = false',
+    'server.initialOpenInBrowserEnabled = false',
+  ];
+  if (opts.ensureExtensionRepos && opts.ensureExtensionRepos.length > 0) {
+    lines.push('server.extensionRepos = [');
+    for (const url of opts.ensureExtensionRepos) {
+      lines.push(`  ${quote(url)},`);
+    }
+    lines.push(']');
+  }
+  if (opts.flareSolverrEnabled !== undefined) {
+    lines.push(`server.flareSolverrEnabled = ${String(opts.flareSolverrEnabled)}`);
+  }
+  if (opts.flareSolverrUrl !== undefined) {
+    lines.push(`server.flareSolverrUrl = ${quote(opts.flareSolverrUrl)}`);
+  }
+  if (opts.flareSolverrAsResponseFallback !== undefined) {
+    lines.push(`server.flareSolverrAsResponseFallback = ${String(opts.flareSolverrAsResponseFallback)}`);
+  }
+  return lines.join('\n') + '\n';
+}
+
+/** Read server.conf, patch it idempotently, write back. Creates the file
+ *  with `buildMinimalServerConf` if it doesn't exist yet. */
+export function patchServerConfFile(
+  confFilePath: string,
+  patch: ServerConfPatch,
+  port?: number,
+): PatchResult {
+  if (!existsSync(confFilePath)) {
+    const initial = buildMinimalServerConf({ ...patch, port: port ?? 4567 });
+    writeFileSync(confFilePath, initial, 'utf8');
+    log.info('server.conf bootstrapped', { confFilePath });
+    return { content: initial, applied: ['initialBootstrap'], missing: [] };
+  }
+  const current = readFileSync(confFilePath, 'utf8');
+  const result = applyServerConfPatch(current, patch);
+  if (result.content !== current) {
+    writeFileSync(confFilePath, result.content, 'utf8');
+    log.info('server.conf patched', {
+      confFilePath, applied: result.applied, missing: result.missing,
+    });
+  }
+  return result;
+}

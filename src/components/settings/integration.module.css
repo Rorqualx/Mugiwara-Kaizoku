@@ -1,0 +1,70 @@
+/**
+ * CSS Module for Integration Settings Components
+ * 
+ * Provides styling for various integration settings interfaces.
+ * Uses Mantine theme variables for consistent theming and spacing.
+ *
+ * @module components/settings/integration.module.css
+ */
+
+/**
+ * Individual settings item container
+ * Provides consistent padding and spacing between settings options
+ */
+.item {
+  padding: var(--mantine-spacing-md) 0;
+}
+
+/**
+ * Group spacing for related settings
+ * Adds extra spacing between grouped settings items
+ */
+.groupSpacing {
+  margin-top: var(--mantine-spacing-md);
+  margin-bottom: var(--mantine-spacing-md);
+}
+
+/**
+ * Root container for breadcrumb navigation
+ * Provides bottom margin for spacing from content
+ */
+.breadcrumbRoot {
+  margin-bottom: var(--mantine-spacing-xs);
+}
+
+/**
+ * Breadcrumb separator styling
+ * Applies consistent spacing using Mantine's spacing scale
+ */
+.separator {
+  margin-left: var(--mantine-spacing-xs);
+  margin-right: var(--mantine-spacing-xs);
+}
+
+/**
+ * Individual breadcrumb item styling
+ * Applies text capitalization and consistent typography
+ */
+.breadcrumb {
+  text-transform: capitalize;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+}
+
+/**
+ * Divider styling for sections
+ * Adds theme-aware borders between major sections
+ */
+.divider {
+  margin: var(--mantine-spacing-xl) 0;
+  border-color: var(--mantine-color-default-border);
+}
+
+/**
+ * Accordion item styling
+ * Provides consistent spacing and borders for accordion items
+ */
+.accordionItem {
+  border-radius: var(--mantine-radius-md);
+  margin-bottom: var(--mantine-spacing-md);
+}

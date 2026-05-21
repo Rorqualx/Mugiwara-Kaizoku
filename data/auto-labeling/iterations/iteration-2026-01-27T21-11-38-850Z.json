@@ -1,0 +1,3114 @@
+{
+  "summary": {
+    "iterationNumber": 4,
+    "timestamp": "2026-01-27T21:11:38.850Z",
+    "totalPages": 15,
+    "successCount": 0,
+    "successRate": 0,
+    "avgPrecision": 0,
+    "avgRecall": 0,
+    "avgF1": 0,
+    "topErrors": [
+      {
+        "category": "PARSER_SELECTION_FAILED",
+        "count": 15
+      }
+    ],
+    "durationMs": 59358
+  },
+  "result": {
+    "iterationNumber": 4,
+    "timestamp": "2026-01-27T21:11:38.850Z",
+    "durationMs": 59358,
+    "targetMet": false,
+    "metrics": {
+      "totalAttempts": 15,
+      "successfulAttempts": 0,
+      "avgPrecision": 0,
+      "avgRecall": 0,
+      "avgF1": 0,
+      "microPrecision": 0,
+      "microRecall": 0,
+      "microF1": 0,
+      "byEntityType": {}
+    },
+    "failures": {
+      "totalFailures": 15,
+      "byCategory": {
+        "PARSER_SELECTION_FAILED": {
+          "count": 15,
+          "percentage": 100,
+          "examples": [
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser category-page was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            }
+          ]
+        },
+        "STRUCTURE_NOT_RECOGNIZED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "ENTITY_EXTRACTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PATTERN_MISMATCH": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "CONFIDENCE_TOO_LOW": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "FETCH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "GROUND_TRUTH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PARSE_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "NO_CONTENT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "TIMEOUT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "UNKNOWN": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        }
+      },
+      "commonPatterns": [
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:CHAPTERS",
+          "count": 7,
+          "affectedPages": [
+            "85611-fandom-CHAPTERS",
+            "118644-fandom-CHAPTERS",
+            "85922-fandom-CHAPTERS",
+            "78151-fandom-CHAPTERS",
+            "51124-fandom-CHAPTERS",
+            "55132-fandom-CHAPTERS",
+            "85939-fandom-CHAPTERS"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:ARCS",
+          "count": 3,
+          "affectedPages": [
+            "101583-fandom-ARCS",
+            "55297-fandom-ARCS",
+            "103884-fandom-ARCS"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:OTHER",
+          "count": 2,
+          "affectedPages": [
+            "127008-fandom-OTHER",
+            "128896-fandom-OTHER"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:MANGA_PAGE",
+          "count": 2,
+          "affectedPages": [
+            "97466-fandom-MANGA_PAGE",
+            "35157-fandom-MANGA_PAGE"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        }
+      ],
+      "failedPageIds": [
+        "127008-fandom-OTHER",
+        "85611-fandom-CHAPTERS",
+        "97466-fandom-MANGA_PAGE",
+        "35157-fandom-MANGA_PAGE",
+        "118644-fandom-CHAPTERS",
+        "128896-fandom-OTHER",
+        "85922-fandom-CHAPTERS",
+        "101583-fandom-ARCS",
+        "117207-fandom-VOLUMES",
+        "78151-fandom-CHAPTERS",
+        "51124-fandom-CHAPTERS",
+        "55132-fandom-CHAPTERS",
+        "85939-fandom-CHAPTERS",
+        "55297-fandom-ARCS",
+        "103884-fandom-ARCS"
+      ]
+    },
+    "suggestions": [
+      {
+        "id": "suggestion-1",
+        "category": "parser",
+        "title": "Improve Parser Selection",
+        "description": "Review static analyzer recommendations and parser matching logic",
+        "expectedImpact": 0.8,
+        "relatedErrors": [
+          "PARSER_SELECTION_FAILED"
+        ],
+        "affectedPageCount": 15,
+        "priority": "critical"
+      }
+    ],
+    "attempts": [
+      {
+        "page": {
+          "id": "127008-fandom-OTHER",
+          "title": "7th Time Loop",
+          "anilistId": 127008,
+          "source": "fandom",
+          "url": "https://7th-time-loop.fandom.com/wiki/Manga_Volume_1",
+          "urlType": "OTHER",
+          "baseUrl": "https://7th-time-loop.fandom.com/wiki/7th%20Time%20Loop%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 1",
+            "normalizedValue": "light novel volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Manga Volume 1",
+            "normalizedValue": "manga volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 2",
+            "normalizedValue": "light novel volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Manga Volume 2",
+            "normalizedValue": "manga volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Light Novel Volume 3",
+            "normalizedValue": "light novel volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "65",
+            "normalizedValue": "65",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "5 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "OTHER",
+            "normalizedValue": "other",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              247,
+              248
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Japanese]",
+            "normalizedValue": "image japanese",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              251
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              52
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              339
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Manga Manga Volume 1",
+            "normalizedValue": "manga manga volume 1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              234,
+              235,
+              236,
+              237
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              230
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              46
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              90
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "OTHER",
+            "normalizedValue": "other",
+            "required": false
+          },
+          {
+            "type": "TITLE",
+            "value": "Loop 7-kaime no Akuyaku Reijou wa, Moto Tekikoku de Jiyuu Kimama na Hanayome Seikatsu wo Mankitsu Suru",
+            "normalizedValue": "loop 7-kaime no akuyaku reijou wa moto tekikoku de jiyuu kimama na hanayome seikatsu wo mankitsu suru",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.038461538461538464,
+          "recall": 0.5,
+          "f1": 0.07142857142857144,
+          "truePositives": 1,
+          "falsePositives": 25,
+          "falseNegatives": 1
+        },
+        "durationMs": 3434
+      },
+      {
+        "page": {
+          "id": "85611-fandom-CHAPTERS",
+          "title": "Tokyo Ghoul:re",
+          "anilistId": 85611,
+          "source": "fandom",
+          "url": "https://tokyoghoul.fandom.com/wiki/Category:Chapters",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://tokyoghoulre.fandom.com/wiki/Tokyo_Ghoul%3Are"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser category-page was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              628
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "125",
+            "normalizedValue": "125",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              685
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "High use categories",
+            "normalizedValue": "high use categories",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              623,
+              624,
+              625
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              34
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              625
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              34
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.5,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Tokyo Ghoul:re",
+            "normalizedValue": "tokyo ghoulre",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Tokyo Ghoul:re",
+            "normalizedValue": "tokyo ghoulre",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "東京喰種-トーキョーグール-:re",
+            "normalizedValue": "--re",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "181",
+            "normalizedValue": "181",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 7,
+          "falseNegatives": 5
+        },
+        "durationMs": 2860
+      },
+      {
+        "page": {
+          "id": "97466-fandom-MANGA_PAGE",
+          "title": "Reincarnated as a Sword",
+          "anilistId": 97466,
+          "source": "fandom",
+          "url": "https://ten-ken.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://reincarnated-as-a-sword.fandom.com/wiki/Reincarnated%20as%20a%20Sword"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "14",
+            "normalizedValue": "14",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 4",
+            "normalizedValue": "volume 4",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 5",
+            "normalizedValue": "volume 5",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "132",
+            "normalizedValue": "132",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "confidence": 0.9,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "LATEST NEWS",
+            "normalizedValue": "latest news",
+            "confidence": 0.8,
+            "source": "bootstrap",
+            "tokenIndices": [
+              6,
+              7
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "16",
+            "normalizedValue": "16",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              22
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              122
+            ]
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "September 29, 2023 00:00:00 GMT+5:30",
+            "normalizedValue": "september 29 2023 000000 gmt530",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              10,
+              11,
+              12,
+              13,
+              14
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              224
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              122
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              832
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              224
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              122
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Tensei Shitara Ken Deshita",
+            "normalizedValue": "tensei shitara ken deshita",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Reincarnated as a Sword",
+            "normalizedValue": "reincarnated as a sword",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "転生したら剣でした",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Yuu Tanaka",
+            "normalizedValue": "yuu tanaka",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "ongoing",
+            "normalizedValue": "ongoing",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Adventure",
+            "normalizedValue": "adventure",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Fantasy",
+            "normalizedValue": "fantasy",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "When a 30-year-old salaryman and games enthusiast is suddenly killed in a car accident, he finds himself reborn into a fantasy world…but in the form of a sword! Now he’s in search of a beautiful woman",
+            "normalizedValue": "when a 30-year-old salaryman and games enthusiast is suddenly killed in a car accident he finds himself reborn into a fantasy worldbut in the form of a sword now hes in search of a beautiful woman",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2016",
+            "normalizedValue": "2016",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "NOVEL",
+            "normalizedValue": "novel",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx97466-W6l3O260srMZ.jpg",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx97466-W6l3O260srMZ.jpg",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.047619047619047616,
+          "recall": 0.07692307692307693,
+          "f1": 0.058823529411764705,
+          "truePositives": 1,
+          "falsePositives": 20,
+          "falseNegatives": 12
+        },
+        "durationMs": 4524
+      },
+      {
+        "page": {
+          "id": "35157-fandom-MANGA_PAGE",
+          "title": "Baki",
+          "anilistId": 35157,
+          "source": "fandom",
+          "url": "https://baki.fandom.com/wiki/Manga",
+          "urlType": "MANGA_PAGE",
+          "baseUrl": "https://baki.fandom.com/wiki/Baki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              120
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Disambiguations",
+            "normalizedValue": "disambiguations",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              895
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1017
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Disambiguations",
+            "normalizedValue": "disambiguations",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              895
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.2727272727272727,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "MANGA_PAGE",
+            "normalizedValue": "manga_page",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "New Grappler Baki: In Search of Our Strongest Hero",
+            "normalizedValue": "new grappler baki in search of our strongest hero",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Baki: The Search of our Strongest Hero",
+            "normalizedValue": "baki the search of our strongest hero",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "バキ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Keisuke Itagaki",
+            "normalizedValue": "keisuke itagaki",
+            "required": true
+          },
+          {
+            "type": "STATUS",
+            "value": "completed",
+            "normalizedValue": "completed",
+            "required": true
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "31",
+            "normalizedValue": "31",
+            "required": true
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "276",
+            "normalizedValue": "276",
+            "required": true
+          },
+          {
+            "type": "GENRE",
+            "value": "Action",
+            "normalizedValue": "action",
+            "required": false
+          },
+          {
+            "type": "GENRE",
+            "value": "Sports",
+            "normalizedValue": "sports",
+            "required": false
+          },
+          {
+            "type": "SUMMARY",
+            "value": "BAKI: THE SEARCH OF OUR STRONGEST HERO is the official name of the 4th saga in which Baki will find strongest enemies in his path, and the way to challenge his dad once again, and this time&hellip; To",
+            "normalizedValue": "baki the search of our strongest hero is the official name of the 4th saga in which baki will find strongest enemies in his path and the way to challenge his dad once again and this timehellip to",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "1999",
+            "normalizedValue": "1999",
+            "required": false
+          },
+          {
+            "type": "FORMAT",
+            "value": "MANGA",
+            "normalizedValue": "manga",
+            "required": false
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx35157-trkQLXrIhY2s.png",
+            "normalizedValue": "https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx35157-trkQLXrIhY2s.png",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 5,
+          "falseNegatives": 14
+        },
+        "durationMs": 1845
+      },
+      {
+        "page": {
+          "id": "118644-fandom-CHAPTERS",
+          "title": "Time Paradox Ghostwriter",
+          "anilistId": 118644,
+          "source": "fandom",
+          "url": "https://time-paradox-ghostwriter.fandom.com/wiki/Chapter_3",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://time-paradox-ghostwriter.fandom.com/wiki/Time%20Paradox%20Ghostwriter%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Kenji Ichima",
+            "normalizedValue": "kenji ichima",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Tsunehiro Date",
+            "normalizedValue": "tsunehiro date",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "Weekly Shonen Jump",
+            "normalizedValue": "weekly shonen jump",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Two of a Kind",
+            "normalizedValue": "two of a kind",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              204,
+              205,
+              206,
+              207
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Chapter 3]",
+            "normalizedValue": "image chapter 3",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              208
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              223
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              193
+            ]
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Dōrui",
+            "normalizedValue": "drui",
+            "confidence": 0.7,
+            "source": "bootstrap",
+            "tokenIndices": [
+              219
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              51
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1456
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Time Paradox Ghostwriter",
+            "normalizedValue": "time paradox ghostwriter",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Time Paradox Ghostwriter",
+            "normalizedValue": "time paradox ghostwriter",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "タイムパラドックスゴーストライター",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "15",
+            "normalizedValue": "15",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0.043478260869565216,
+          "recall": 0.2,
+          "f1": 0.07142857142857142,
+          "truePositives": 1,
+          "falsePositives": 22,
+          "falseNegatives": 4
+        },
+        "durationMs": 1173
+      },
+      {
+        "page": {
+          "id": "128896-fandom-OTHER",
+          "title": "Witch Watch",
+          "anilistId": 128896,
+          "source": "fandom",
+          "url": "https://witch-watch.fandom.com/wiki/List_of_Episodes",
+          "urlType": "OTHER",
+          "baseUrl": "https://witch-watch.fandom.com/wiki/Witch%20Watch%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Kenta Shinohara",
+            "normalizedValue": "kenta shinohara",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "Shueisha (Weekly Shonen Jump)",
+            "normalizedValue": "shueisha weekly shonen jump",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "24",
+            "normalizedValue": "24",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "233",
+            "normalizedValue": "233",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "OTHER",
+            "normalizedValue": "other",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "List of Episodes",
+            "normalizedValue": "list of episodes",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              177,
+              178,
+              179
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "This is the list of all episodes for Witch Watch anime.",
+            "normalizedValue": "this is the list of all episodes for witch watch anime",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              190,
+              191,
+              192,
+              193,
+              194,
+              195,
+              196,
+              197,
+              198,
+              199,
+              200
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              25
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1584
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              25
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "OTHER",
+            "normalizedValue": "other",
+            "required": false
+          },
+          {
+            "type": "TITLE",
+            "value": "Witch Watch",
+            "normalizedValue": "witch watch",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.08333333333333333,
+          "recall": 0.5,
+          "f1": 0.14285714285714285,
+          "truePositives": 1,
+          "falsePositives": 11,
+          "falseNegatives": 1
+        },
+        "durationMs": 4104
+      },
+      {
+        "page": {
+          "id": "85922-fandom-CHAPTERS",
+          "title": "I Hear the Sunspot",
+          "anilistId": 85922,
+          "source": "fandom",
+          "url": "https://i-hear-the-sunspot.fandom.com/wiki/Chapter_1",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://i-hear-the-sunspot.fandom.com/wiki/I%20Hear%20the%20Sunspot"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Yūki Fumino",
+            "normalizedValue": "yki fumino",
+            "confidence": 0.6649999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Yūki Fumino",
+            "normalizedValue": "yki fumino",
+            "confidence": 0.6649999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "One Peace Books",
+            "normalizedValue": "one peace books",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.7999999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "I Hear the Sunspot: Limit Volume 1",
+            "normalizedValue": "i hear the sunspot limit volume 1",
+            "confidence": 0.73,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "I Hear the Sunspot: Limit Volume 2",
+            "normalizedValue": "i hear the sunspot limit volume 2",
+            "confidence": 0.73,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "I Hear the Sunspot: Limit Volume 3",
+            "normalizedValue": "i hear the sunspot limit volume 3",
+            "confidence": 0.73,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapter 1",
+            "normalizedValue": "chapter 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              137,
+              138
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Volume 1 Chapter 1]",
+            "normalizedValue": "image volume 1 chapter 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              139
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              26
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              128
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              126
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              400
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              126
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Hidamari ga Kikoeru",
+            "normalizedValue": "hidamari ga kikoeru",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "I Hear the Sunspot",
+            "normalizedValue": "i hear the sunspot",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ひだまりが聴こえる",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "6",
+            "normalizedValue": "6",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0.05263157894736842,
+          "recall": 0.2,
+          "f1": 0.08333333333333333,
+          "truePositives": 1,
+          "falsePositives": 18,
+          "falseNegatives": 4
+        },
+        "durationMs": 5042
+      },
+      {
+        "page": {
+          "id": "101583-fandom-ARCS",
+          "title": "My Dress-Up Darling",
+          "anilistId": 101583,
+          "source": "fandom",
+          "url": "https://sono-bisque-doll-wa-koi-wo-suru.fandom.com/wiki/Story_Arcs",
+          "urlType": "ARCS",
+          "baseUrl": "https://mydressupdarling.fandom.com/wiki/My_Dress-Up_Darling_Original_Soundtrack_Vol._2"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser arc-based was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "108",
+            "normalizedValue": "108",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              2049
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "14",
+            "normalizedValue": "14",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              531
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              33,
+              34
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "This is a list of story arcs in the My Dress-Up Darling manga series. Most of the arcs are named after the characters that Marin cosplays or if cosplaying in a group, the name of the show/manga they are cosplaying. Take note that these are not officially named arcs and are just fan-made names for easier recall and organization of the series.",
+            "normalizedValue": "this is a list of story arcs in the my dress-up darling manga series most of the arcs are named after the characters that marin cosplays or if cosplaying in a group the name of the showmanga they are cosplaying take note that these are not officially named arcs and are just fan-made names for easier recall and organization of the series",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              291,
+              292,
+              293,
+              294,
+              295,
+              296,
+              297,
+              298,
+              299,
+              300,
+              301,
+              302,
+              303,
+              304,
+              305,
+              306,
+              307,
+              308,
+              309,
+              310,
+              311,
+              312,
+              313,
+              314,
+              315,
+              316,
+              317,
+              318,
+              319,
+              320,
+              321,
+              322,
+              323,
+              324,
+              325,
+              326,
+              327,
+              328,
+              329,
+              330,
+              331,
+              332,
+              333,
+              334,
+              335,
+              336,
+              337,
+              338,
+              339,
+              340,
+              341,
+              342,
+              343,
+              344,
+              345,
+              346,
+              347,
+              348,
+              349,
+              350,
+              351,
+              352
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              33,
+              34
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              2238
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              33,
+              34
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Sono Bisque Doll wa Koi wo Suru",
+            "normalizedValue": "sono bisque doll wa koi wo suru",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "My Dress-Up Darling",
+            "normalizedValue": "my dress-up darling",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "その着せ替え人形は恋をする",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.08333333333333333,
+          "recall": 0.25,
+          "f1": 0.125,
+          "truePositives": 1,
+          "falsePositives": 11,
+          "falseNegatives": 3
+        },
+        "durationMs": 4683
+      },
+      {
+        "page": {
+          "id": "117207-fandom-VOLUMES",
+          "title": "The Most Heretical Last Boss Queen - From Villainess to Savior",
+          "anilistId": 117207,
+          "source": "fandom",
+          "url": "https://the-most-heretical-last-boss-queen.fandom.com/wiki/Volume_2",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://themosthereticallastbossqueenfromvillainesstosavior.fandom.com/wiki/The_Most_Heretical_Last_Boss_Queen%3A_From_Villainess_to_Savior"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "The Most Heretical Last Boss Queen: From Villainess to Savior",
+            "normalizedValue": "the most heretical last boss queen from villainess to savior",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              212,
+              213,
+              214,
+              215,
+              216,
+              217,
+              218,
+              219,
+              220,
+              221
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Most Heretical Boss Queen Novel 2 ]",
+            "normalizedValue": "image most heretical boss queen novel 2 ",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              222
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              202
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              86
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              450
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              86
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.6818181818181818,
+            "source": "bootstrap"
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Tenichi",
+            "normalizedValue": "tenichi",
+            "confidence": 0.6818181818181818,
+            "source": "bootstrap"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Suzunosuke",
+            "normalizedValue": "suzunosuke",
+            "confidence": 0.6818181818181818,
+            "source": "bootstrap"
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.6818181818181818,
+            "source": "bootstrap"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "Ichijinsha",
+            "normalizedValue": "ichijinsha",
+            "confidence": 0.6818181818181818,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Higeki no Genkyou to Naru Saikyou Gedou Last Boss Joou wa Tami no Tame ni Tsukushimasu.",
+            "normalizedValue": "higeki no genkyou to naru saikyou gedou last boss joou wa tami no tame ni tsukushimasu",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "The Most Heretical Last Boss Queen: From Villainess to Savior",
+            "normalizedValue": "the most heretical last boss queen from villainess to savior",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "悲劇の元凶となる最強外道ラスボス女王は民の為に尽くします。",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "required": true
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2020",
+            "normalizedValue": "2020",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 11,
+          "falseNegatives": 6
+        },
+        "durationMs": 1591
+      },
+      {
+        "page": {
+          "id": "78151-fandom-CHAPTERS",
+          "title": "World Trigger",
+          "anilistId": 78151,
+          "source": "fandom",
+          "url": "https://worldtrigger.fandom.com/wiki/Osamu_Mikumo_(chapter)",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://worldtrigger.fandom.com/wiki/World_Trigger"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "PUBLISHER",
+            "value": "Canada & United States",
+            "normalizedValue": "canada  united states",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "25",
+            "normalizedValue": "25",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "350",
+            "normalizedValue": "350",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Osamu Mikumo",
+            "normalizedValue": "osamu mikumo",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              655,
+              656
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Chapter 001]",
+            "normalizedValue": "image chapter 001",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              657
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              615
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              219
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Osamu Mikumo (chapter)",
+            "normalizedValue": "osamu mikumo chapter",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              628,
+              629,
+              630
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              58
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Introduction Arc",
+            "normalizedValue": "introduction arc",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              88,
+              89
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              57
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Center Colors",
+            "normalizedValue": "center colors",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              626,
+              627
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              2589
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              58
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Introduction Arc",
+            "normalizedValue": "introduction arc",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              88,
+              89
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              57
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "World Trigger",
+            "normalizedValue": "world trigger",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "World Trigger",
+            "normalizedValue": "world trigger",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ワールドトリガー",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.04,
+          "recall": 0.25,
+          "f1": 0.06896551724137932,
+          "truePositives": 1,
+          "falsePositives": 24,
+          "falseNegatives": 3
+        },
+        "durationMs": 14988
+      },
+      {
+        "page": {
+          "id": "51124-fandom-CHAPTERS",
+          "title": "Silver Spoon",
+          "anilistId": 51124,
+          "source": "fandom",
+          "url": "https://silverspoon.fandom.com/wiki/Chapter_3",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://silverspoon.fandom.com/wiki/Silver_Spoon"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "20",
+            "normalizedValue": "20",
+            "confidence": 0.7999999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              109
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              80
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapter",
+            "normalizedValue": "chapter",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              76
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              20
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1181
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapter",
+            "normalizedValue": "chapter",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              76
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              20
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapter 3",
+            "normalizedValue": "chapter 3",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Springtime 3 (春の巻③, Haru no Maki 3) is the third chapter of the Silver Spoon manga.",
+            "normalizedValue": "springtime 3  haru no maki 3 is the third chapter of the silver spoon manga",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Gin no Spoon",
+            "normalizedValue": "gin no spoon",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "銀のスプーン",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "92",
+            "normalizedValue": "92",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0.07692307692307693,
+          "recall": 0.25,
+          "f1": 0.11764705882352941,
+          "truePositives": 1,
+          "falsePositives": 12,
+          "falseNegatives": 3
+        },
+        "durationMs": 6150
+      },
+      {
+        "page": {
+          "id": "55132-fandom-CHAPTERS",
+          "title": "Akame ga Kill!",
+          "anilistId": 55132,
+          "source": "fandom",
+          "url": "https://akamegakill.fandom.com/wiki/Chapter_5",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://akamegakill.fandom.com/wiki/Akame_ga_Kill!"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "61",
+            "normalizedValue": "61",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Hinowa Volume 1",
+            "normalizedValue": "categoryhinowa volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Category:Volume 1",
+            "normalizedValue": "categoryvolume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1 (Hinowa)",
+            "normalizedValue": "volume 1 hinowa",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1 (Zero)",
+            "normalizedValue": "volume 1 zero",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "80",
+            "normalizedValue": "80",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Kill the Slasher",
+            "normalizedValue": "kill the slasher",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              332,
+              333,
+              334
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Ch5]",
+            "normalizedValue": "image ch5",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              335
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              319
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "5",
+            "normalizedValue": "5",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              321
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              316
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              621
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              316
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapter 5",
+            "normalizedValue": "chapter 5",
+            "confidence": 0.6363636363636364,
+            "source": "bootstrap"
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Tsujigiri o Kiru",
+            "normalizedValue": "tsujigiri o kiru",
+            "confidence": 0.5727272727272728,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Akame ga Kill!",
+            "normalizedValue": "akame ga kill",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Akame ga KILL!",
+            "normalizedValue": "akame ga kill",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "アカメが斬る！",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "80",
+            "normalizedValue": "80",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0.09090909090909091,
+          "recall": 0.4,
+          "f1": 0.14814814814814814,
+          "truePositives": 2,
+          "falsePositives": 20,
+          "falseNegatives": 3
+        },
+        "durationMs": 6421
+      },
+      {
+        "page": {
+          "id": "85939-fandom-CHAPTERS",
+          "title": "Plunderer",
+          "anilistId": 85939,
+          "source": "fandom",
+          "url": "https://plunderer.fandom.com/wiki/Chapter_03",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://plunderer.fandom.com/wiki/Plunderer_(disambiguation)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "81",
+            "normalizedValue": "81",
+            "confidence": 0.7999999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "I Can't Help This Is My Uniform",
+            "normalizedValue": "i cant help this is my uniform",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              263,
+              264,
+              265,
+              266,
+              267,
+              268,
+              269
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: PlundererChapter3]",
+            "normalizedValue": "image plundererchapter3",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              270
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              283
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "03",
+            "normalizedValue": "03",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              233
+            ]
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Seifukudakara Shikatanai",
+            "normalizedValue": "seifukudakara shikatanai",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              275,
+              276
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              24
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1419
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              24
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Random character",
+            "normalizedValue": "random character",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              31,
+              32
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapter 03",
+            "normalizedValue": "chapter 03",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Plunderer",
+            "normalizedValue": "plunderer",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Plunderer",
+            "normalizedValue": "plunderer",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "プランダラ",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "83",
+            "normalizedValue": "83",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0.06666666666666667,
+          "recall": 0.2,
+          "f1": 0.1,
+          "truePositives": 1,
+          "falsePositives": 14,
+          "falseNegatives": 4
+        },
+        "durationMs": 1081
+      },
+      {
+        "page": {
+          "id": "55297-fandom-ARCS",
+          "title": "Prison School",
+          "anilistId": 55297,
+          "source": "fandom",
+          "url": "https://prison-school.fandom.com/wiki/Story_Arcs",
+          "urlType": "ARCS",
+          "baseUrl": "https://prison-school.fandom.com/wiki/Prison%20School%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "31",
+            "normalizedValue": "31",
+            "confidence": 0.7999999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "10",
+            "normalizedValue": "10",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              813
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              464
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              54,
+              55
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chronology",
+            "normalizedValue": "chronology",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              52
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              26
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              933
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chronology",
+            "normalizedValue": "chronology",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              52
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              26
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              58
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Character Randomizer",
+            "normalizedValue": "character randomizer",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              117,
+              118
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "This is a page listing all the story arcs of the Prison School manga by Akira Hiramoto, arranged by volume and chapter number. The story arcs in this article are named provisionally through English translation of Japanese chapter covers or promotional material when available - or by fanmade names of the event, location, item or character of their subject. The proper English titles are assigned either in the Yen Press edition of the manga series or by the production committee of the anime adaptation.",
+            "normalizedValue": "this is a page listing all the story arcs of the prison school manga by akira hiramoto arranged by volume and chapter number the story arcs in this article are named provisionally through english translation of japanese chapter covers or promotional material when available - or by fanmade names of the event location item or character of their subject the proper english titles are assigned either in the yen press edition of the manga series or by the production committee of the anime adaptation",
+            "confidence": 0.6363636363636364,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Prison School",
+            "normalizedValue": "prison school",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Prison School",
+            "normalizedValue": "prison school",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "監獄学園",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.06666666666666667,
+          "recall": 0.25,
+          "f1": 0.10526315789473685,
+          "truePositives": 1,
+          "falsePositives": 14,
+          "falseNegatives": 3
+        },
+        "durationMs": 828
+      },
+      {
+        "page": {
+          "id": "103884-fandom-ARCS",
+          "title": "Citrus+",
+          "anilistId": 103884,
+          "source": "fandom",
+          "url": "https://citrus.fandom.com/wiki/Story_Arcs",
+          "urlType": "ARCS",
+          "baseUrl": "https://citrus.fandom.com/wiki/Citrus"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser arc-based was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "21",
+            "normalizedValue": "21",
+            "confidence": 0.7999999999999999,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              141
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              89,
+              90
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Series",
+            "normalizedValue": "series",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              82
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              84
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Omake",
+            "normalizedValue": "omake",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              88
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              295
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Series",
+            "normalizedValue": "series",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              82
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              84
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Omake",
+            "normalizedValue": "omake",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              88
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "citrus+",
+            "normalizedValue": "citrus",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Citrus+",
+            "normalizedValue": "citrus",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "citrus+",
+            "normalizedValue": "citrus",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.07142857142857142,
+          "recall": 0.25,
+          "f1": 0.11111111111111112,
+          "truePositives": 1,
+          "falsePositives": 13,
+          "falseNegatives": 3
+        },
+        "durationMs": 603
+      }
+    ]
+  }
+}

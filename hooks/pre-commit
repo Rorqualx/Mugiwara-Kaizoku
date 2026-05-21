@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# Get the project root directory
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+
+# Run the quality check script
+node "$PROJECT_ROOT/scripts/quality-check-hook.js"
+
+# Get the exit code from the quality check
+RESULT=$?
+
+# If the quality check failed, prevent the commit
+if [ $RESULT -ne 0 ]; then
+  echo "\n❌ Pre-commit quality checks failed. Commit aborted."
+  echo "Please fix the issues and try committing again."
+  echo "To bypass checks (not recommended), use: git commit --no-verify"
+  exit 1
+fi
+
+# If we got here, all checks passed
+echo "\n✅ Pre-commit quality checks passed!"
+exit 0

@@ -1,0 +1,21 @@
+/**
+ * Loading Fallback Styles Module
+ * 
+ * CSS module for styling the application's loading fallback screen.
+ * Creates a full-viewport centered container with a dark background
+ * for displaying loading states and transitions.
+ */
+
+/**
+ * Full viewport container for loading states
+ * Centers content both vertically and horizontally using flexbox
+ * Uses a dark background color for better visual transition
+ */
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #333333;
+}

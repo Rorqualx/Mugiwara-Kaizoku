@@ -1,0 +1,200 @@
+/**
+ * HeaderSection Component
+ *
+ * Displays the manga title, monitoring controls, quick download button,
+ * creator information (author, artist, publisher), and details expansion toggle.
+ *
+ * Extracted from: MangaBannerSection.tsx (lines 419-525)
+ *
+ * @module components/manga/MangaBannerSection/HeaderSection
+ */
+
+'use client';
+
+import { ActionIcon, Badge, Group, Text, Title } from '@mantine/core';
+import {
+  IconBookmark,
+  IconBookmarkOff,
+  IconBuildingStore,
+  IconChevronDown,
+  IconChevronUp,
+  IconDownload,
+  IconPalette,
+  IconUser
+} from '@tabler/icons-react';
+
+import type { MangaMetadata, MangaWithRelations } from './types';
+
+/**
+ * Props for the HeaderSection component
+ */
+export interface HeaderSectionProps {
+  /** The manga data to display */
+  manga: MangaWithRelations;
+  /** Extracted metadata from the manga */
+  extractedMetadata: MangaMetadata | null;
+  /** Whether all chapters are monitored */
+  allMonitored: boolean | null;
+  /** Whether some chapters are monitored */
+  someMonitored: boolean;
+  /** Number of monitored chapters */
+  monitoredCount: number;
+  /** Total number of chapters */
+  totalChapters: number;
+  /** Whether details section is expanded */
+  isDetailsExpanded: boolean;
+  /** Handler to toggle details expansion */
+  setIsDetailsExpanded: (expanded: boolean) => void;
+  /** Mutation for toggling series monitoring */
+  toggleSeriesMonitoringMutation: { isPending: boolean };
+  /** Mutation for series quick download */
+  seriesQuickDownloadMutation: { isPending: boolean };
+  /** Handler for toggling manga bookmark */
+  handleToggleMangaBookmark: () => void;
+  /** Handler for series quick download */
+  handleSeriesQuickDownload: () => void;
+}
+
+/**
+ * HeaderSection displays the manga title with monitoring controls
+ * and creator information with badges.
+ *
+ * Features:
+ * - Monitoring toggle button with status indicators
+ * - Quick download button for entire series
+ * - Manga title display
+ * - Author badges (from extracted metadata)
+ * - Artist badges (from extracted metadata)
+ * - Publisher badge (from extracted metadata)
+ * - Details expansion toggle button
+ */
+export function HeaderSection({
+  manga,
+  extractedMetadata,
+  allMonitored,
+  someMonitored,
+  monitoredCount,
+  totalChapters,
+  isDetailsExpanded,
+  setIsDetailsExpanded,
+  toggleSeriesMonitoringMutation,
+  seriesQuickDownloadMutation,
+  handleToggleMangaBookmark,
+  handleSeriesQuickDownload
+}: HeaderSectionProps): React.ReactElement {
+  return (
+    <Group justify="flex-start" w="100%" align="center" wrap="wrap">
+      {/* Monitoring toggle button */}
+      <ActionIcon
+        variant="subtle"
+        color={allMonitored ?? someMonitored ? 'white' : 'gray'}
+        size="lg"
+        title={
+          allMonitored ?? someMonitored
+            ? `Monitoring enabled (${monitoredCount}/${totalChapters}) - Click to disable all`
+            : 'No chapters monitored - Click to enable monitoring for all chapters'
+        }
+        style={{ marginBottom: '1rem' }}
+        onClick={() => {
+          void handleToggleMangaBookmark();
+        }}
+        loading={toggleSeriesMonitoringMutation.isPending}
+      >
+        {allMonitored ?? someMonitored ? (
+          <IconBookmark size={24} />
+        ) : (
+          <IconBookmarkOff size={24} />
+        )}
+      </ActionIcon>
+
+      {/* Quick Download button for whole series */}
+      <ActionIcon
+        variant="subtle"
+        color="blue"
+        size="lg"
+        title="Quick Download - Auto-search and download all volumes/chapters"
+        style={{ marginBottom: '1rem' }}
+        onClick={() => {
+          void handleSeriesQuickDownload();
+        }}
+        loading={seriesQuickDownloadMutation.isPending}
+      >
+        <IconDownload size={24} />
+      </ActionIcon>
+
+      {/* Manga title */}
+      <Title order={1} c="white" mb="md">
+        {manga['title']}
+      </Title>
+
+      {/* Creator info group */}
+      <Group gap="md" align="center">
+        {/* Author Info */}
+        {extractedMetadata?.authors && extractedMetadata.authors.length > 0 ? (
+          <Group gap="xs">
+            <IconUser size={18} color="white" />
+            <Text size="sm" c="gray.3">
+              Author:
+            </Text>
+            {extractedMetadata.authors.map((author, index) => (
+              <a key={index} href={`/author/${encodeURIComponent(author)}`} style={{ textDecoration: 'none' }}>
+                <Badge size="sm" variant="light" color="teal" style={{ cursor: 'pointer' }}>
+                  {author}
+                </Badge>
+              </a>
+            ))}
+          </Group>
+        ) : null}
+
+        {/* Artist Info */}
+        {extractedMetadata?.artists && extractedMetadata.artists.length > 0 ? (
+          <Group gap="xs">
+            <IconPalette size={18} color="white" />
+            <Text size="sm" c="gray.3">
+              Artist:
+            </Text>
+            {extractedMetadata.artists.map((artist, index) => (
+              <Badge key={index} size="sm" variant="light" color="pink">
+                {artist}
+              </Badge>
+            ))}
+          </Group>
+        ) : null}
+
+        {/* Publisher Info */}
+        {extractedMetadata?.publisher &&
+        typeof extractedMetadata.publisher === 'string' ? (
+          <Group gap="xs">
+            <IconBuildingStore size={18} color="white" />
+            <Text size="sm" c="gray.3">
+              Publisher:
+            </Text>
+            <a href={`/publisher/${encodeURIComponent(extractedMetadata.publisher)}`} style={{ textDecoration: 'none' }}>
+              <Badge size="sm" variant="light" color="grape" style={{ cursor: 'pointer' }}>
+                {extractedMetadata.publisher}
+              </Badge>
+            </a>
+          </Group>
+        ) : null}
+
+        {/* Details expansion toggle */}
+        <ActionIcon
+          variant="filled"
+          color="blue"
+          size="xl"
+          onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+          title={isDetailsExpanded ? 'Hide Details' : 'Show More Details'}
+          style={{
+            transition: 'all 0.2s ease'
+          }}
+        >
+          {isDetailsExpanded ? (
+            <IconChevronUp size={24} />
+          ) : (
+            <IconChevronDown size={24} />
+          )}
+        </ActionIcon>
+      </Group>
+    </Group>
+  );
+}

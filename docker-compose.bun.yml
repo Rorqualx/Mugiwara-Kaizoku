@@ -1,0 +1,244 @@
+# Docker Compose Configuration for Bun Runtime
+#
+# This compose file provides a complete development and testing environment
+# for Mugiwara Kaizoku running on Bun 1.3 runtime.
+#
+# Services:
+# - postgres: PostgreSQL 17 database
+# - kaizoku-bun: Next.js app with Bun runtime
+#
+# Usage:
+#   Development: docker-compose -f docker-compose.bun.yml up
+#   Production:  docker-compose -f docker-compose.bun.yml up -d
+#   Stop:        docker-compose -f docker-compose.bun.yml down
+#   Cleanup:     docker-compose -f docker-compose.bun.yml down -v
+#
+# Performance Notes:
+# - Bun runtime provides 2.5x faster startup vs Node.js
+# - Health checks ensure services are ready before accepting traffic
+# - Volume mounts enable hot reloading in development
+
+version: '3.9'
+
+services:
+  # PostgreSQL 17 Database
+  # Primary data store for manga, chapters, metadata, jobs, users
+  postgres:
+    image: postgres:17-alpine
+    container_name: mugiwara-postgres
+    restart: unless-stopped
+
+    environment:
+      # Database configuration
+      POSTGRES_DB: ${DATABASE_NAME:-kaizoku}
+      POSTGRES_USER: ${DATABASE_USER:-kaizoku}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-kaizoku}
+
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
+
+    volumes:
+      # Persistent database storage
+      - postgres_data:/var/lib/postgresql/data
+
+      # Custom PostgreSQL configuration (optional)
+      # - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-kaizoku} -d ${DATABASE_NAME:-kaizoku}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    networks:
+      - mugiwara-network
+
+    # Security: Run as non-root user
+    user: postgres
+
+  # Mugiwara Kaizoku App with Bun Runtime
+  # Next.js 14 application served by Bun
+  kaizoku-bun:
+    build:
+      context: .
+      dockerfile: Dockerfile.bun
+
+      # BuildKit cache optimization
+      cache_from:
+        - mugiwara-kaizoku:bun-latest
+
+      args:
+        # Build arguments (if needed in future)
+        NODE_ENV: production
+
+    image: mugiwara-kaizoku:bun
+    container_name: mugiwara-kaizoku-bun
+    restart: unless-stopped
+
+    # Wait for database to be ready before starting
+    # FlareSolverr runs as subprocess inside this container
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      # Application configuration
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+
+      # Database connection
+      DATABASE_URL: "postgresql://${DATABASE_USER:-kaizoku}:${DATABASE_PASSWORD:-kaizoku}@postgres:5432/${DATABASE_NAME:-kaizoku}"
+
+      # NextAuth configuration
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production}
+
+      # Disable Next.js telemetry
+      NEXT_TELEMETRY_DISABLED: 1
+
+      # Optional: External API keys (load from .env)
+      ANILIST_CLIENT_ID: ${ANILIST_CLIENT_ID:-}
+      ANILIST_CLIENT_SECRET: ${ANILIST_CLIENT_SECRET:-}
+      MANGADEX_USERNAME: ${MANGADEX_USERNAME:-}
+      MANGADEX_PASSWORD: ${MANGADEX_PASSWORD:-}
+
+      # Optional: Notification services
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+
+      # Optional: Redis cache
+      REDIS_URL: ${REDIS_URL:-}
+
+      # FlareSolverr configuration (runs as subprocess inside this container)
+      FLARESOLVERR_ENABLED: ${FLARESOLVERR_ENABLED:-true}
+      FLARESOLVERR_URL: "http://localhost:8191/v1"
+      # Optional: Set FLARESOLVERR_EXTERNAL_URL to use external instance instead
+      FLARESOLVERR_TIMEOUT: ${FLARESOLVERR_TIMEOUT:-60000}
+      FLARESOLVERR_SESSION_TTL: ${FLARESOLVERR_SESSION_TTL:-1800000}
+      FLARESOLVERR_DISABLE_MEDIA: ${FLARESOLVERR_DISABLE_MEDIA:-true}
+      FLARESOLVERR_DEFAULT_WAIT_SECS: ${FLARESOLVERR_DEFAULT_WAIT_SECS:-0}
+      FLARESOLVERR_LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+      IN_DOCKER: "true"
+
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+    volumes:
+      # Persistent storage for downloads and cache
+      - manga_downloads:/app/public/downloads
+      - manga_cache:/app/.cache
+
+      # Development: Enable hot reload (comment out for production)
+      # - ./src:/app/src
+      # - ./public:/app/public
+
+    healthcheck:
+      test: ["CMD", "bun", "/app/healthcheck.js"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - mugiwara-network
+
+    # Security: Non-root user (configured in Dockerfile)
+    # user: nextjs (UID 1001)
+
+    # Resource limits (adjust based on server capacity)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+# Named volumes for persistent data
+volumes:
+  # PostgreSQL database files
+  postgres_data:
+    driver: local
+
+  # Manga downloads and processed files
+  manga_downloads:
+    driver: local
+
+  # Application cache (metadata, thumbnails, etc.)
+  manga_cache:
+    driver: local
+
+# Bridge network for service communication
+networks:
+  mugiwara-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =============================================================================
+# Environment Variables Reference
+# =============================================================================
+#
+# Required Variables (set in .env file):
+# - NEXTAUTH_SECRET: Random string for NextAuth session encryption
+#
+# Database Variables:
+# - DATABASE_NAME: PostgreSQL database name (default: kaizoku)
+# - DATABASE_USER: PostgreSQL username (default: kaizoku)
+# - DATABASE_PASSWORD: PostgreSQL password (default: kaizoku)
+# - DATABASE_PORT: PostgreSQL host port (default: 5432)
+#
+# Application Variables:
+# - APP_PORT: Application host port (default: 3000)
+# - NEXTAUTH_URL: Full URL for NextAuth (default: http://localhost:3000)
+#
+# Optional External Services:
+# - ANILIST_CLIENT_ID: AniList API client ID
+# - ANILIST_CLIENT_SECRET: AniList API client secret
+# - MANGADEX_USERNAME: MangaDex account username
+# - MANGADEX_PASSWORD: MangaDex account password
+# - SLACK_WEBHOOK_URL: Slack webhook for notifications
+# - TELEGRAM_BOT_TOKEN: Telegram bot token
+# - TELEGRAM_CHAT_ID: Telegram chat ID for notifications
+# - REDIS_URL: Redis connection string
+#
+# =============================================================================
+# Quick Start Commands
+# =============================================================================
+#
+# 1. Start services:
+#    docker-compose -f docker-compose.bun.yml up
+#
+# 2. Start in background:
+#    docker-compose -f docker-compose.bun.yml up -d
+#
+# 3. View logs:
+#    docker-compose -f docker-compose.bun.yml logs -f kaizoku-bun
+#
+# 4. Stop services:
+#    docker-compose -f docker-compose.bun.yml down
+#
+# 5. Stop and remove volumes (WARNING: deletes all data):
+#    docker-compose -f docker-compose.bun.yml down -v
+#
+# 6. Rebuild after code changes:
+#    docker-compose -f docker-compose.bun.yml up --build
+#
+# 7. Run database migrations:
+#    docker-compose -f docker-compose.bun.yml exec kaizoku-bun bun prisma migrate deploy
+#
+# 8. Access database shell:
+#    docker-compose -f docker-compose.bun.yml exec postgres psql -U kaizoku -d kaizoku
+#
+# 9. Check service health:
+#    docker-compose -f docker-compose.bun.yml ps
+#
+# =============================================================================

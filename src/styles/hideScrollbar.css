@@ -1,0 +1,31 @@
+/**
+ * Cross-Browser Scrollbar Hiding Utility
+ * 
+ * This CSS file provides a reusable class to hide scrollbars across different browsers
+ * while maintaining scroll functionality. Useful for creating clean, minimal interfaces
+ * where scrollbars would be visually distracting.
+ * 
+ * Usage:
+ * ```html
+ * <div class="hide-scrollbar">
+ *   <!-- Scrollable content -->
+ * </div>
+ * ```
+ */
+
+/**
+ * WebKit-based browsers (Chrome, Safari, Opera)
+ * Uses the WebKit-specific pseudo-element to hide the scrollbar
+ */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/**
+ * Microsoft and Mozilla browsers (IE, Edge, Firefox)
+ * Uses standard and Firefox-specific properties for cross-browser compatibility
+ */
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

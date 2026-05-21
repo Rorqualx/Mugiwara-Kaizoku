@@ -1,0 +1,568 @@
+/**
+ * Theme Overrides
+ * 
+ * Global theme customization system that provides:
+ * - Light and dark theme support
+ * - Custom theme variable definitions
+ * - Component-specific theme overrides
+ * - Smooth theme transitions
+ * 
+ * This file works in conjunction with Mantine's theme system
+ * to provide consistent styling across the application.
+ */
+
+/**
+ * Root Theme Variables
+ * Empty variables that will be populated via JavaScript
+ * These variables enable dynamic theme customization
+ */
+:root {
+  /* Disable transitions during initialization to prevent flashes */
+  --theme-transition-duration: 0s;
+}
+
+/**
+ * Theme initialization classes
+ * Help prevent flashes of unstyled content during page load
+ */
+.theme-initializing {
+  --theme-transition-duration: 0s !important;
+}
+
+.theme-transition-ready {
+  --theme-transition-duration: 0.3s;
+}
+
+/**
+ * Light Theme Configuration
+ * Defines color variables and theme properties for light mode
+ * Uses Mantine's color scheme attribute for theme detection
+ */
+[data-mantine-color-scheme="light"] {
+  --app-bg-color: #f8f9fa;
+  --app-text-color: #212529;
+  --app-border-color: #dee2e6;
+  --app-card-bg: #ffffff;
+  --app-hover-bg: #e9ecef;
+  --app-accent-color: var(--mantine-color-blue-6);
+  
+  /* Custom theme variables - directly use theme variables with fallbacks */
+  --app-primary-color: var(--theme-primary, #3498db);
+  --app-secondary-color: var(--theme-secondary, #2ecc71);
+  --app-success-color: var(--theme-success, #27ae60);
+  --app-error-color: var(--theme-error, #e74c3c);
+  --app-warning-color: var(--theme-warning, #f1c40f);
+  --app-background-color: var(--theme-background, var(--app-bg-color));
+  --app-card-background: var(--theme-card, var(--app-card-bg));
+  --app-surface-color: var(--theme-surface, #ffffff);
+  --app-text-primary: var(--theme-text, var(--app-text-color));
+  --app-border: var(--theme-border, var(--app-border-color));
+  --app-accent: var(--theme-accent, var(--app-accent-color));
+}
+
+/**
+ * Dark Theme Configuration
+ * Defines color variables and theme properties for dark mode
+ * Provides darker background colors and lighter text colors
+ */
+[data-mantine-color-scheme="dark"] {
+  --app-bg-color: #1a1b1e;
+  --app-text-color: #e9ecef;
+  --app-border-color: #373a40;
+  --app-card-bg: #25262b;
+  --app-hover-bg: #2c2e33;
+  --app-accent-color: var(--mantine-color-blue-4);
+
+  /* Custom theme variables - directly use theme variables with fallbacks */
+  --app-primary-color: var(--theme-primary, #3498db);
+  --app-secondary-color: var(--theme-secondary, #2ecc71);
+  --app-success-color: var(--theme-success, #27ae60);
+  --app-error-color: var(--theme-error, #e74c3c);
+  --app-warning-color: var(--theme-warning, #f1c40f);
+  --app-background-color: var(--theme-background, var(--app-bg-color));
+  --app-card-background: var(--theme-card, var(--app-card-bg));
+  --app-surface-color: var(--theme-surface, var(--app-hover-bg));
+  --app-text-primary: var(--theme-text, var(--app-text-color));
+  --app-border: var(--theme-border, var(--app-border-color));
+  --app-accent: var(--theme-accent, var(--app-accent-color));
+}
+
+/**
+ * Global Element Theming
+ * Applies theme variables to base elements
+ * Falls back to default theme colors if custom ones aren't set
+ */
+body {
+  background-color: var(--app-background-color);
+  color: var(--app-text-primary);
+}
+
+/**
+ * Card Component Theming
+ * Applies consistent background and border colors to cards
+ * Uses theme variables with fallbacks to app defaults
+ */
+.mantine-Card-root {
+  background-color: var(--app-card-background);
+  border-color: var(--app-border);
+}
+
+/**
+ * Paper Component Theming
+ * Uses theme-appropriate card background color instead of default white
+ * Respects light/dark theme preferences
+ */
+.mantine-Paper-root {
+  background-color: var(--app-card-background) !important;
+  --mantine-color-body: var(--app-card-background);
+}
+
+/**
+ * Button Component Theming
+ * Customizes button appearances based on variants
+ * Uses primary color for filled buttons
+ */
+.mantine-Button-root:not([data-variant]) {
+  background-color: var(--app-primary-color);
+}
+
+/**
+ * Primary Action Elements
+ * Applies primary theme color to main action elements
+ * Ensures consistent highlighting of important actions
+ */
+.mantine-Button-filled[data-variant="filled"] {
+  background-color: var(--app-primary-color);
+}
+
+/**
+ * Form Input Theming
+ * Consistent styling for all input types
+ * Matches input appearance with current theme
+ */
+.mantine-TextInput-input,
+.mantine-Textarea-input,
+.mantine-Select-input,
+.mantine-NumberInput-input,
+.mantine-ColorInput-input {
+  background-color: var(--app-surface-color);
+  border-color: var(--app-border);
+  color: var(--app-text-primary);
+}
+
+
+/**
+ * Table Component Theming
+ * Applies theme colors to table elements
+ * Includes special styling for header cells
+ */
+.mantine-Table-root {
+  background-color: var(--app-card-background);
+  color: var(--app-text-primary);
+}
+
+.mantine-Table-root th {
+  background-color: var(--app-background-color);
+}
+
+/**
+ * Striped + hover row backgrounds — theme-aware.
+ *
+ * Two-axis bug, same shape as the Menu.Item and Accordion fixes above.
+ * Mantine v7 declares:
+ *
+ *   :where([data-mantine-color-scheme='light']) .m_b23fa0ef {
+ *     --table-striped-color: var(--mantine-color-gray-0);   // near-white
+ *   }
+ *   :where([data-mantine-color-scheme='dark']) .m_b23fa0ef {
+ *     --table-striped-color: var(--mantine-color-dark-6);
+ *   }
+ *
+ * ColorSchemeProvider's cssVariablesResolver remaps dark-N to custom-theme
+ * colors but leaves gray-N alone. When the saved color scheme is 'light'
+ * (or 'system' on a light-OS) while the active custom theme paints a dark
+ * --theme-card, every other library-table row renders with literal
+ * #f8f9fa stripe and the white-ish --theme-text titles vanish into it.
+ * Hover is the same story with dark-5 / gray-1 overshooting.
+ *
+ * Self-balancing color-mix: stripe is a subtle 4% text-into-card tint,
+ * hover a stronger 10% — works for any --theme-card luminance, never
+ * crosses into the wrong scheme.
+ *
+ * Doubled-class selector (.mantine-Table-table.mantine-Table-table) lifts
+ * specificity to (0,2,0) so it beats Mantine's :where()-wrapped (0,1,0)
+ * regardless of <style>-tag injection order. Same trick used for
+ * .mantine-Accordion-item.mantine-Accordion-item below.
+ *
+ * Note: `mantine-Table-table` is the actual global class Mantine emits
+ * for the root <table> (rootSelector: 'table' in Table.mjs), NOT the
+ * legacy `.mantine-Table-root` kept dead above.
+ */
+.mantine-Table-table.mantine-Table-table {
+  --table-striped-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-text, #e9ecef) 4%
+  );
+  --table-hover-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-text, #e9ecef) 10%
+  );
+}
+
+/**
+ * Modal Component Theming
+ * Ensures modals match the current theme
+ * Maintains readability in both light and dark modes
+ */
+.mantine-Modal-content {
+  background-color: var(--app-background-color);
+  color: var(--app-text-primary);
+}
+
+/**
+ * Dropdown Menu Theming
+ * Applies theme colors to menu components
+ * Ensures consistent appearance with other elements
+ */
+.mantine-Menu-dropdown {
+  background-color: var(--app-card-background);
+  color: var(--app-text-primary);
+  border-color: var(--app-border);
+}
+
+/**
+ * Menu.Item color hooks (Mantine v7 documented vars).
+ *
+ * Mantine v7 emits hashed class names (e.g. .m_99ac2aa1), so we cannot
+ * target .mantine-Menu-item directly. Instead we set the documented CSS
+ * variables Mantine itself reads in its Menu stylesheet:
+ *   color: var(--menu-item-color, var(--mantine-color-text));
+ *   background-color: var(--menu-item-hover, var(--mantine-color-dark-4));
+ *
+ * Placing these on :root means they apply inside portaled dropdowns too,
+ * regardless of color scheme. Without this, the keyboard-auto-focused
+ * first item falls back to gray-1 (light) or dark-4 (dark) — and our
+ * resolver was writing dark-4 as `undefined`, producing a bright block.
+ */
+:root {
+  --menu-item-color: var(--app-text-primary);
+  --menu-item-hover: var(--app-hover-bg);
+}
+
+/* Destructive items (Delete Manga uses color="red") keep red text. The
+   data-menu-item attribute is stable across Mantine v7 versions. */
+[data-menu-item][data-color="red"] {
+  --menu-item-color: var(--mantine-color-red-6);
+}
+
+/**
+ * Direct Menu.Item hover override (round 2).
+ *
+ * Round 1 used `var(--app-hover-bg)` for the hover background, but
+ * --app-hover-bg is scoped to `[data-mantine-color-scheme]` while this
+ * app's dropdown background comes from --theme-card (set by JS in
+ * ColorSchemeProvider from the persisted custom theme). When the two
+ * axes disagree (custom dark theme rendered while Mantine's scheme is
+ * 'light'), --app-hover-bg lands on the light gray-1 shade and washes
+ * out the hovered row.
+ *
+ * Using color-mix against --theme-card + --theme-text is self-balancing:
+ * dark cards lighten on hover, light cards darken on hover, independent
+ * of Mantine's data-mantine-color-scheme attribute.
+ *
+ * Specificity (0,3,0) beats Mantine's .m_99ac2aa1 (0,1,0); the inline
+ * `color` injected by Menu.styles.item still wins for text, which is
+ * the desired behavior — we only need to override background here.
+ */
+[data-menu-item][data-hovered]:not([data-disabled]) {
+  background-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-text, #e9ecef) 8%
+  );
+  color: var(--theme-text, #e9ecef);
+}
+
+/* Destructive items (color='red') keep red text on hover, even when the
+   global Menu.styles.item inline color tries to win. */
+[data-menu-item][data-color='red'][data-hovered]:not([data-disabled]) {
+  color: var(--mantine-color-red-6);
+}
+
+/**
+ * Accordion filled variant — theme-aware fill.
+ *
+ * Mantine v7's `variant="filled"` Accordion paints item backgrounds from
+ * --mantine-color-default / --mantine-color-gray-0 (light scheme) or
+ * --mantine-color-dark-7 (dark scheme), keyed to [data-mantine-color-scheme].
+ * Same two-axis bug as the Menu.Item hover (see comment above): when
+ * Mantine's scheme is 'light' but the active custom theme paints a dark
+ * --theme-card, the Accordion panel renders white and --theme-text body
+ * text vanishes against it (NotificationsDropdown was the trigger).
+ *
+ * Mirror the Menu.Item hover fix: color-mix against --theme-card +
+ * --theme-text for the item fill so dark cards lighten slightly (the
+ * "filled" effect) and light cards darken slightly, independent of
+ * Mantine's color-scheme attribute. Control/panel stay transparent so
+ * the item fill shows through.
+ *
+ * Specificity (0,2,0) via the doubled class beats Mantine's :where() (0,1,0).
+ */
+.mantine-Accordion-item.mantine-Accordion-item {
+  background-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-text, #e9ecef) 5%
+  );
+  color: var(--theme-text, var(--mantine-color-text));
+}
+
+.mantine-Accordion-control.mantine-Accordion-control,
+.mantine-Accordion-panel.mantine-Accordion-panel {
+  background-color: transparent;
+  color: var(--theme-text, var(--mantine-color-text));
+}
+
+/**
+ * Combobox / Select dropdown — theme-aware popup.
+ *
+ * Same two-axis bug as Menu.Item, Accordion, and Table.striped above.
+ * Mantine v7's Select/MultiSelect/Autocomplete render the popup through
+ * the shared Combobox primitive — `Combobox.Dropdown` wraps `Popover.Dropdown`,
+ * and Popover.css hardcodes the background for the LIGHT scheme to
+ * `var(--mantine-color-white)` (which ColorSchemeProvider's
+ * cssVariablesResolver never remaps — see lines 410-415 of
+ * ColorSchemeProvider.tsx, light-branch only touches body/text/default/dimmed).
+ * When the saved Mantine scheme is 'light' but the active custom theme paints
+ * a dark --theme-card, the dropdown lands on literal white with near-white
+ * Mantine-text labels — Import Manga "Target Library" select was the trigger.
+ *
+ * Self-balancing color-mix against --theme-card + --theme-text (mirroring the
+ * Menu.Item hover at line 280 and Accordion fill at line 314): dark cards
+ * land on a near-card dark surface, light cards stay near-white, independent
+ * of Mantine's data-mantine-color-scheme attribute. The fallback `#25262b`
+ * is Mantine's default dark-7 so a missing --theme-card still renders dark
+ * (avoiding the `var(--app-card-background)` trap where light-scheme fallback
+ * collapses to #ffffff).
+ *
+ * Two selector forms for resilience:
+ * 1. `.mantine-Combobox-dropdown` — emitted by ComboboxDropdown's getStyles
+ *    when withStaticClasses is on (default).
+ * 2. `.mantine-Popover-dropdown:has([data-combobox-option])` — defensive
+ *    fallback that scopes to popovers actually containing combobox options,
+ *    in case the Combobox static class isn't on the rendered root.
+ *
+ * Doubled-class specificity (0,2,0) on form 1 beats Mantine's :where() (0,1,0);
+ * the :has() form has higher specificity anyway.
+ */
+.mantine-Combobox-dropdown.mantine-Combobox-dropdown,
+.mantine-Popover-dropdown:has([data-combobox-option]),
+.mantine-Popover-dropdown:has(.mantine-Combobox-options) {
+  background-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-text, #e9ecef) 2%
+  );
+  color: var(--theme-text, var(--mantine-color-text));
+  border-color: var(--app-border);
+}
+
+.mantine-Combobox-option.mantine-Combobox-option,
+[data-combobox-option] {
+  color: var(--theme-text, var(--mantine-color-text));
+}
+
+[data-combobox-option][data-combobox-selected] {
+  background-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-primary, var(--mantine-color-blue-4)) 25%
+  );
+  color: var(--theme-text, var(--mantine-color-text));
+}
+
+[data-combobox-option]:hover:not([data-combobox-disabled]),
+[data-combobox-option][data-combobox-active]:not([data-combobox-disabled]) {
+  background-color: color-mix(
+    in srgb,
+    var(--theme-card, #25262b),
+    var(--theme-text, #e9ecef) 8%
+  );
+  color: var(--theme-text, var(--mantine-color-text));
+}
+
+.mantine-Combobox-empty.mantine-Combobox-empty,
+.mantine-Combobox-header.mantine-Combobox-header,
+.mantine-Combobox-footer.mantine-Combobox-footer {
+  color: var(--theme-text, var(--mantine-color-text));
+  opacity: 0.7;
+}
+
+.mantine-Menu-label {
+  color: var(--app-text-primary);
+  opacity: 0.7;
+}
+
+/**
+ * Navigation Bar Theming
+ * Customizes the main navigation component
+ * Uses theme colors for background and borders
+ */
+.mantine-Navbar-root {
+  background-color: var(--app-card-background);
+  border-color: var(--app-border);
+}
+
+/**
+ * Tab Component Theming
+ * Styles tab navigation elements
+ * Highlights active tab with primary color
+ */
+.mantine-Tabs-tab {
+  color: var(--app-text-primary);
+}
+
+.mantine-Tabs-tab[data-active] {
+  color: var(--app-primary-color);
+}
+
+/**
+ * Theme Editor Components
+ * Ensure theme editor components properly display colors
+ */
+.mantine-ColorInput-root,
+.mantine-ColorInput-wrapper,
+.mantine-ColorPicker-root {
+  color: var(--app-text-primary) !important;
+  background-color: var(--app-card-background) !important;
+}
+
+/**
+ * SegmentedControl Component Theming
+ * Ensures segment labels are readable with custom theme colors
+ */
+.mantine-SegmentedControl-label {
+  color: var(--app-text-primary) !important;
+}
+
+/**
+ * Theme Transition Effects
+ * Adds smooth transitions for theme property changes
+ * Prevents jarring visual changes when switching themes
+ */
+body, 
+.mantine-Card-root,
+.mantine-Button-root,
+.mantine-TextInput-input,
+.mantine-Textarea-input,
+.mantine-Select-input,
+.mantine-NumberInput-input,
+.mantine-Table-root,
+.mantine-Modal-content,
+.mantine-Menu-dropdown,
+.mantine-Navbar-root,
+.mantine-Tabs-tab {
+  transition: background-color var(--theme-transition-duration) ease, 
+              color var(--theme-transition-duration) ease, 
+              border-color var(--theme-transition-duration) ease;
+}
+
+/* Force immediate theme application */
+html {
+  forced-color-adjust: none;
+}
+
+/**
+ * Debug Helper
+ * Visual indicator for theme application
+ * Shows a small dot in top-right corner
+ */
+.theme-indicator {
+  position: fixed;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  z-index: 9999;
+  background-color: var(--app-primary-color);
+  transition: background-color var(--theme-transition-duration) ease;
+}
+
+/**
+ * CSS specificity helpers
+ * Ensures theme styles take precedence
+ */
+.theme-force-light,
+.theme-force-light *:not([class*="theme-force-dark"]) {
+  color-scheme: light !important;
+}
+
+.theme-force-dark,
+.theme-force-dark *:not([class*="theme-force-light"]) {
+  color-scheme: dark !important;
+}
+
+/**
+ * Mantine Notifications (toasts) — readable text on themed backgrounds.
+ *
+ * Mantine v7's Notification.css hardcodes the description color to
+ * var(--mantine-color-dark-2) (a muted gray) when the notification has
+ * a title, and the title to var(--mantine-color-white). On the user's
+ * darker theme variants both end up too low-contrast against the toast
+ * background (which ColorSchemeProvider drives via --mantine-color-dark-6).
+ *
+ * Mirror the bell-row fix from 92e885787: bind toast text to
+ * var(--theme-text) so it tracks the active appearance theme. Description
+ * gets reduced opacity to keep the title/body hierarchy.
+ *
+ * Why the doubled class: Mantine ships its base styles in an unlayered
+ * stylesheet that's imported by AppProviders (loads AFTER this file in
+ * the bundle). Mantine's selectors use :where() so they have 0,1,0
+ * specificity — the same as a single class. We bump to 0,2,0 by
+ * stacking the static class on itself; semantically equivalent but wins
+ * the cascade regardless of source order.
+ */
+.mantine-Notification-title.mantine-Notification-title {
+  color: var(--theme-text, var(--mantine-color-text));
+}
+
+.mantine-Notification-description.mantine-Notification-description {
+  color: var(--theme-text, var(--mantine-color-text));
+  opacity: 0.85;
+}
+
+/**
+ * Active Jobs table: manga title → /manga/[id] navigation.
+ *
+ * MangaNameCell wraps the title <Text> in a Next.js <Link>. The cell is
+ * styled to read like the original (no underline by default) so dense
+ * rows aren't visually noisy, but on hover we surface a subtle underline
+ * + accent color to confirm it's interactive.
+ */
+.manga-name-link:hover .mantine-Text-root {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  color: var(--theme-primary, var(--mantine-color-blue-4)) !important;
+}
+
+/* Add a small theme indicator dot in development mode */
+@media (min-width: 0) {
+  body::after {
+    content: '';
+    position: fixed;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    z-index: 9999;
+    background-color: var(--app-primary-color);
+    border: 1px solid var(--app-border);
+    transition: background-color var(--theme-transition-duration) ease;
+    pointer-events: none;
+  }
+}

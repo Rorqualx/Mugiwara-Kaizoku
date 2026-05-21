@@ -1,0 +1,126 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "ES2022"
+    ],
+    "types": ["bun-types", "node", "jest"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "downlevelIteration": true,
+    "allowSyntheticDefaultImports": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@/utils/*": [
+        "./src/utils/*"
+      ],
+      "@/server/*": [
+        "./src/server/*"
+      ],
+      "@/api/*": [
+        "./src/api/*"
+      ],
+      "@/components/*": [
+        "./src/components/*"
+      ],
+      "@/hooks/*": [
+        "./src/hooks/*"
+      ],
+      "@/store/*": [
+        "./src/store/*"
+      ],
+      "@/lib/*": [
+        "./src/lib/*"
+      ],
+      "@/types": [
+        "./src/types/index"
+      ],
+      "@/types/*": [
+        "./src/types/*"
+      ],
+      "@/utils": [
+        "./src/utils/index"
+      ],
+      "@/server": [
+        "./src/server/index"
+      ],
+      "@/api": [
+        "./src/api/index"
+      ],
+      "@/components": [
+        "./src/components/index"
+      ],
+      "@/hooks": [
+        "./src/hooks/index"
+      ],
+      "@/store": [
+        "./src/store/index"
+      ],
+      "@/lib": [
+        "./src/lib/index"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    ".next/types/**/*.ts",
+    "*.ts",
+    "*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist",
+    "build",
+    "docs",
+    "archive",
+    "backups",
+    "temp",
+    "test-*",
+    "scripts",
+    "**/__archive_*/**",
+    "**/archived-types/**",
+    "**/_deprecated/**",
+    "**/*.backup/**",
+    "tests/server/services/auto-labeling/**"
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "jsx": "react"
+    }
+  }
+}

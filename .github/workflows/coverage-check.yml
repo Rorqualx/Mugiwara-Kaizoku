@@ -1,0 +1,157 @@
+name: Coverage Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  coverage:
+    name: Check Test Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Get base branch coverage
+      - name: Checkout base branch
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git checkout ${{ github.base_ref }}
+
+      - name: Run tests on base branch
+        id: base-coverage
+        run: |
+          bun run test:coverage
+          
+          # Extract coverage percentages
+          BASE_STATEMENTS=$(cat coverage/coverage-summary.json | jq -r '.total.statements.pct')
+          BASE_BRANCHES=$(cat coverage/coverage-summary.json | jq -r '.total.branches.pct')
+          BASE_FUNCTIONS=$(cat coverage/coverage-summary.json | jq -r '.total.functions.pct')
+          BASE_LINES=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+          
+          echo "BASE_STATEMENTS=$BASE_STATEMENTS" >> $GITHUB_ENV
+          echo "BASE_BRANCHES=$BASE_BRANCHES" >> $GITHUB_ENV
+          echo "BASE_FUNCTIONS=$BASE_FUNCTIONS" >> $GITHUB_ENV
+          echo "BASE_LINES=$BASE_LINES" >> $GITHUB_ENV
+
+      # Get PR branch coverage
+      - name: Checkout PR branch
+        run: |
+          git checkout ${{ github.head_ref }}
+
+      - name: Run tests on PR branch
+        id: pr-coverage
+        run: |
+          bun run test:coverage
+          
+          # Extract coverage percentages
+          PR_STATEMENTS=$(cat coverage/coverage-summary.json | jq -r '.total.statements.pct')
+          PR_BRANCHES=$(cat coverage/coverage-summary.json | jq -r '.total.branches.pct')
+          PR_FUNCTIONS=$(cat coverage/coverage-summary.json | jq -r '.total.functions.pct')
+          PR_LINES=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+          
+          echo "PR_STATEMENTS=$PR_STATEMENTS" >> $GITHUB_ENV
+          echo "PR_BRANCHES=$PR_BRANCHES" >> $GITHUB_ENV
+          echo "PR_FUNCTIONS=$PR_FUNCTIONS" >> $GITHUB_ENV
+          echo "PR_LINES=$PR_LINES" >> $GITHUB_ENV
+
+      # Compare coverage
+      - name: Compare coverage
+        id: compare-coverage
+        run: |
+          # Determine if coverage has decreased
+          STATEMENTS_DECREASED=$(awk 'BEGIN{print(ENVIRON["PR_STATEMENTS"] < ENVIRON["BASE_STATEMENTS"] ? "true" : "false")}')
+          BRANCHES_DECREASED=$(awk 'BEGIN{print(ENVIRON["PR_BRANCHES"] < ENVIRON["BASE_BRANCHES"] ? "true" : "false")}')
+          FUNCTIONS_DECREASED=$(awk 'BEGIN{print(ENVIRON["PR_FUNCTIONS"] < ENVIRON["BASE_FUNCTIONS"] ? "true" : "false")}')
+          LINES_DECREASED=$(awk 'BEGIN{print(ENVIRON["PR_LINES"] < ENVIRON["BASE_LINES"] ? "true" : "false")}')
+          
+          echo "STATEMENTS_DECREASED=$STATEMENTS_DECREASED" >> $GITHUB_ENV
+          echo "BRANCHES_DECREASED=$BRANCHES_DECREASED" >> $GITHUB_ENV
+          echo "FUNCTIONS_DECREASED=$FUNCTIONS_DECREASED" >> $GITHUB_ENV
+          echo "LINES_DECREASED=$LINES_DECREASED" >> $GITHUB_ENV
+          
+          # Check minimum coverage thresholds
+          STATEMENTS_BELOW_THRESHOLD=$(awk 'BEGIN{print(ENVIRON["PR_STATEMENTS"] < 75 ? "true" : "false")}')
+          BRANCHES_BELOW_THRESHOLD=$(awk 'BEGIN{print(ENVIRON["PR_BRANCHES"] < 70 ? "true" : "false")}')
+          FUNCTIONS_BELOW_THRESHOLD=$(awk 'BEGIN{print(ENVIRON["PR_FUNCTIONS"] < 80 ? "true" : "false")}')
+          LINES_BELOW_THRESHOLD=$(awk 'BEGIN{print(ENVIRON["PR_LINES"] < 75 ? "true" : "false")}')
+          
+          echo "STATEMENTS_BELOW_THRESHOLD=$STATEMENTS_BELOW_THRESHOLD" >> $GITHUB_ENV
+          echo "BRANCHES_BELOW_THRESHOLD=$BRANCHES_BELOW_THRESHOLD" >> $GITHUB_ENV
+          echo "FUNCTIONS_BELOW_THRESHOLD=$FUNCTIONS_BELOW_THRESHOLD" >> $GITHUB_ENV
+          echo "LINES_BELOW_THRESHOLD=$LINES_BELOW_THRESHOLD" >> $GITHUB_ENV
+          
+          # Prepare coverage report for comment
+          echo "### Test Coverage Report" > coverage-report.md
+          echo "" >> coverage-report.md
+          echo "| Metric | Base Branch | PR Branch | Change | Threshold |" >> coverage-report.md
+          echo "|--------|-------------|-----------|--------|-----------|" >> coverage-report.md
+          
+          # Statement coverage
+          STATEMENT_CHANGE=$(awk 'BEGIN{print(ENVIRON["PR_STATEMENTS"] - ENVIRON["BASE_STATEMENTS"])}')
+          STATEMENT_EMOJI=$([ $(echo "$STATEMENT_CHANGE >= 0" | bc -l) -eq 1 ] && echo "🟢" || echo "🔴")
+          echo "| Statements | ${BASE_STATEMENTS}% | ${PR_STATEMENTS}% | ${STATEMENT_EMOJI} ${STATEMENT_CHANGE}% | 75% |" >> coverage-report.md
+          
+          # Branch coverage
+          BRANCH_CHANGE=$(awk 'BEGIN{print(ENVIRON["PR_BRANCHES"] - ENVIRON["BASE_BRANCHES"])}')
+          BRANCH_EMOJI=$([ $(echo "$BRANCH_CHANGE >= 0" | bc -l) -eq 1 ] && echo "🟢" || echo "🔴")
+          echo "| Branches | ${BASE_BRANCHES}% | ${PR_BRANCHES}% | ${BRANCH_EMOJI} ${BRANCH_CHANGE}% | 70% |" >> coverage-report.md
+          
+          # Function coverage
+          FUNCTION_CHANGE=$(awk 'BEGIN{print(ENVIRON["PR_FUNCTIONS"] - ENVIRON["BASE_FUNCTIONS"])}')
+          FUNCTION_EMOJI=$([ $(echo "$FUNCTION_CHANGE >= 0" | bc -l) -eq 1 ] && echo "🟢" || echo "🔴")
+          echo "| Functions | ${BASE_FUNCTIONS}% | ${PR_FUNCTIONS}% | ${FUNCTION_EMOJI} ${FUNCTION_CHANGE}% | 80% |" >> coverage-report.md
+          
+          # Line coverage
+          LINE_CHANGE=$(awk 'BEGIN{print(ENVIRON["PR_LINES"] - ENVIRON["BASE_LINES"])}')
+          LINE_EMOJI=$([ $(echo "$LINE_CHANGE >= 0" | bc -l) -eq 1 ] && echo "🟢" || echo "🔴")
+          echo "| Lines | ${BASE_LINES}% | ${PR_LINES}% | ${LINE_EMOJI} ${LINE_CHANGE}% | 75% |" >> coverage-report.md
+          
+          # Determine overall status
+          if [[ "$STATEMENTS_BELOW_THRESHOLD" == "true" || "$BRANCHES_BELOW_THRESHOLD" == "true" || "$FUNCTIONS_BELOW_THRESHOLD" == "true" || "$LINES_BELOW_THRESHOLD" == "true" ]]; then
+            echo "COVERAGE_STATUS=❌ Coverage is below the minimum thresholds. Please add more tests." >> $GITHUB_ENV
+            echo "FAIL_CHECK=true" >> $GITHUB_ENV
+          elif [[ "$STATEMENTS_DECREASED" == "true" || "$BRANCHES_DECREASED" == "true" || "$FUNCTIONS_DECREASED" == "true" || "$LINES_DECREASED" == "true" ]]; then
+            echo "COVERAGE_STATUS=⚠️ Coverage has decreased. Consider adding more tests." >> $GITHUB_ENV
+            echo "FAIL_CHECK=false" >> $GITHUB_ENV
+          else
+            echo "COVERAGE_STATUS=✅ Coverage is good and has not decreased." >> $GITHUB_ENV
+            echo "FAIL_CHECK=false" >> $GITHUB_ENV
+          fi
+          
+          echo "" >> coverage-report.md
+          echo "$COVERAGE_STATUS" >> coverage-report.md
+          
+          if [[ "$FAIL_CHECK" == "true" ]]; then
+            echo "" >> coverage-report.md
+            echo "## How to Fix" >> coverage-report.md
+            echo "" >> coverage-report.md
+            echo "To improve test coverage:" >> coverage-report.md
+            echo "1. Use the test generation script: \`node scripts/generate-test.js\`" >> coverage-report.md
+            echo "2. Follow the [Test Template Guide](../docs/test-template-guide.md)" >> coverage-report.md
+            echo "3. Focus on writing tests for the code you've added or modified" >> coverage-report.md
+          fi
+
+      # Post coverage report as PR comment
+      - name: Post coverage report comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-coverage
+          path: coverage-report.md
+
+      # Fail check if coverage is below thresholds
+      - name: Fail if coverage is below thresholds
+        if: env.FAIL_CHECK == 'true'
+        run: |
+          echo "${{ env.COVERAGE_STATUS }}"
+          exit 1

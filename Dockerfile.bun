@@ -1,0 +1,155 @@
+# Kaizoku Dockerfile with Bun Runtime
+#
+# Multi-stage build optimized for Bun 1.3 with Next.js 14 standalone output.
+# Produces minimal production image with all Mugiwara Kaizoku features.
+#
+# Build: docker build -f Dockerfile.bun -t mugiwara-kaizoku:bun .
+# Run:   docker run -p 3000:3000 mugiwara-kaizoku:bun
+#
+# Stages:
+# 1. base:    Bun runtime + system dependencies
+# 2. deps:    Install production dependencies only
+# 3. builder: Build Next.js application + Prisma client
+# 4. runner:  Final minimal production image
+
+# ==================================
+# BASE STAGE: Bun Runtime + System Dependencies
+# ==================================
+FROM oven/bun:1.3.0-alpine AS base
+
+WORKDIR /app
+
+# Install system dependencies required for Mugiwara Kaizoku
+# - libc6-compat: glibc compatibility layer for Alpine
+# - openssl: Required by Prisma
+# - Python + Chromium: For FlareSolverr subprocess (Cloudflare bypass)
+# - FFmpeg: For audiobook format conversion (MP3, M4A, M4B, AAC, FLAC, ALAC, WAV, OGG)
+RUN apk add --no-cache \
+    libc6-compat \
+    openssl \
+    python3 \
+    py3-pip \
+    chromium \
+    chromium-chromedriver \
+    # FFmpeg for audio conversion
+    ffmpeg \
+    # Browser dependencies for headless Chrome
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    # Install FlareSolverr for Cloudflare bypass subprocess
+    # NOTE: PyPI flaresolverr is maxed at v3.3.21 - using GitHub source for v3.3.25
+    # v3.4.x requires Python 3.10+ which may not be available in Alpine
+    # For latest version, use sidecar container: ghcr.io/flaresolverr/flaresolverr:latest
+    && pip3 install --no-cache-dir --break-system-packages flaresolverr
+
+# Set Chromium path for FlareSolverr
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV CHROME_PATH=/usr/lib/chromium/
+
+# ==================================
+# DEPS STAGE: Install Production Dependencies
+# ==================================
+FROM base AS deps
+
+WORKDIR /app
+
+# Copy dependency manifests
+COPY package.json bun.lock ./
+COPY packages ./packages/
+COPY prisma ./prisma/
+
+# Install dependencies with frozen lockfile (includes devDependencies for build)
+# Use BuildKit cache mount to speed up rebuilds
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
+
+# Generate Prisma client
+# Required for database access in production
+RUN bun prisma generate
+
+# ==================================
+# BUILDER STAGE: Build Application
+# ==================================
+FROM base AS builder
+
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+
+# Copy application source
+COPY . .
+
+# Set build environment variables
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Generate Prisma client in builder stage (in case schema changed)
+RUN bun prisma generate
+
+# Build Next.js application
+# Next.js standalone output enabled in next.config.mjs
+RUN bun run build
+
+# ==================================
+# RUNNER STAGE: Production Runtime
+# ==================================
+FROM base AS runner
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+# FlareSolverr runs as subprocess inside container
+ENV FLARESOLVERR_ENABLED="true"
+ENV FLARESOLVERR_URL="http://localhost:8191/v1"
+ENV IN_DOCKER="true"
+
+# Create non-root user for security
+# Group: nodejs (GID 1001)
+# User:  nextjs (UID 1001)
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Create .next directory with proper permissions
+RUN mkdir .next && \
+    chown nextjs:nodejs .next
+
+# Copy full application (unified server requires src/ for Bun TS execution)
+COPY --from=builder --chown=nextjs:nodejs /app/src ./src
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+# Copy public directory for static assets
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Copy Prisma schema, config, and generated client
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+
+# Copy health check script
+COPY --from=builder --chown=nextjs:nodejs /app/healthcheck.js ./healthcheck.js
+
+# Switch to non-root user
+USER nextjs
+
+# Expose application port
+EXPOSE 3000
+
+# Health check configuration
+# Checks application availability every 30 seconds
+# Starts checking after 40 second grace period
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+    CMD bun /app/healthcheck.js || exit 1
+
+# Start unified server (all services + WebSocket)
+CMD ["bun", "src/server/index.ts"]

@@ -1,0 +1,113 @@
+/**
+ * Example website provider adapter for Kapowarr
+ * This demonstrates how to create a provider for a specific manga website
+ */
+
+import type { ExtendedMangaSearchResult } from '../../../types/search.types';
+import { BaseKapowarrAdapter } from './baseKapowarrAdapter';
+import { 
+  KapowarrAdapterConfig,
+  KapowarrSearchOptions
+} from '../../../types/adapters/kapowarr';
+import { MangaSearchResult } from '../../../types/search.types';
+import { SearchOptions } from '../../../utils/integration-adapter';
+import { AsyncResult } from '../../../utils/async-result';
+
+/**
+ * Example configuration for a manga website
+ */
+export interface ExampleMangaSiteConfig extends KapowarrAdapterConfig {
+  // Add any site-specific configuration here
+  apiVersion?: string;
+  searchUrl?: string;
+  selectors?: any;
+}
+
+/**
+ * Example implementation of a Kapowarr website provider
+ * 
+ * This adapter demonstrates how to implement a provider for a fictional
+ * manga website called "ExampleManga"
+ */
+export class ExampleMangaAdapter extends BaseKapowarrAdapter {
+  
+  constructor(config: ExampleMangaSiteConfig) {
+    // Set default values for the example site
+    const defaultConfig = {
+      ...config,
+      id: config.id || 'example-manga',
+      name: config.name || 'Example Manga Site',
+      baseUrl: config.baseUrl || 'https://example-manga.com',
+      apiVersion: config.apiVersion || 'v1',
+      searchUrl: config.searchUrl || 'https://example-manga.com/search',
+      selectors: config.selectors || {}
+    };
+    
+    super(defaultConfig as any, 'example-manga');
+  }
+  
+  /**
+   * Build search URL with query parameters
+   */
+  buildSearchUrl(query: string, options?: KapowarrSearchOptions): string {
+    const params = new URLSearchParams();
+    params.set('q', query);
+    
+    if (options?.limit) {
+      params.set('limit', options.limit.toString());
+    }
+    
+    if (options?.offset) {
+      params.set('page', Math.floor(options.offset / (options.limit || 20)).toString());
+    }
+    
+    return `https://example-manga.com/search?${params.toString()}`;
+  }
+  
+  /**
+   * Build chapter URL
+   */
+  buildChapterUrl(mangaId: string, chapterId: string): string {
+    return `${this.config.baseUrl}/manga/${mangaId}/chapter/${chapterId}`;
+  }
+  
+  /**
+   * Build manga URL
+   */
+  buildMangaUrl(mangaId: string): string {
+    return `${this.config.baseUrl}/manga/${mangaId}`;
+  }
+  
+  /**
+   * Override to add custom headers if needed
+   */
+  async search(query: string, options?: SearchOptions): Promise<AsyncResult<MangaSearchResult[], Error>> {
+    console.log(`Custom search implementation for: ${query}`);
+    
+    // Add any custom logic here before calling parent search
+    // For example, checking if the site requires authentication
+    
+    return super.search(query, options);
+  }
+  
+  /**
+   * Implement abstract method from base class
+   */
+  protected async testSelectors(html: string, selectors: any): Promise<Record<string, boolean>> {
+    // Test selectors against HTML content
+    // This is a placeholder implementation
+    return {};
+  }
+}
+
+/**
+ * Factory function to create an ExampleManga adapter
+ */
+export function createExampleMangaAdapter(config: Partial<ExampleMangaSiteConfig> = {}): ExampleMangaAdapter {
+  return new ExampleMangaAdapter({
+    enabled: true,
+    url: config.url || 'https://example-manga.com',
+    apiKey: config.apiKey || 'not-required',
+    ...config
+  } as ExampleMangaSiteConfig);
+}

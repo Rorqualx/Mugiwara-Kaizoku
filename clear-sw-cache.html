@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Service Worker Cache</title>
+</head>
+<body>
+    <h1>Service Worker Cache Clearer</h1>
+    <button id="clearBtn">Clear Service Worker & Caches</button>
+    <pre id="output"></pre>
+
+    <script>
+        const output = document.getElementById('output');
+        const btn = document.getElementById('clearBtn');
+
+        btn.addEventListener('click', async () => {
+            output.textContent = 'Clearing caches...\n';
+
+            try {
+                // Unregister all service workers
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                output.textContent += `Found ${registrations.length} service worker(s)\n`;
+
+                for (const registration of registrations) {
+                    await registration.unregister();
+                    output.textContent += `Unregistered service worker at ${registration.scope}\n`;
+                }
+
+                // Clear all caches
+                const cacheNames = await caches.keys();
+                output.textContent += `Found ${cacheNames.length} cache(s)\n`;
+
+                for (const cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                    output.textContent += `Deleted cache: ${cacheName}\n`;
+                }
+
+                output.textContent += '\n✅ All service workers and caches cleared!\n';
+                output.textContent += '\n⚠️ Please close ALL browser tabs for this site and reopen.\n';
+                output.textContent += 'This ensures the new JavaScript is loaded.\n';
+
+            } catch (error) {
+                output.textContent += `\n❌ Error: ${error.message}\n`;
+            }
+        });
+
+        // Auto-run on page load
+        window.addEventListener('load', () => {
+            output.textContent = 'Ready to clear caches. Click the button above.\n';
+        });
+    </script>
+</body>
+</html>

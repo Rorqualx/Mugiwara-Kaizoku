@@ -1,0 +1,3184 @@
+{
+  "summary": {
+    "iterationNumber": 9,
+    "timestamp": "2026-01-27T22:32:09.795Z",
+    "totalPages": 15,
+    "successCount": 0,
+    "successRate": 0,
+    "avgPrecision": 0,
+    "avgRecall": 0,
+    "avgF1": 0,
+    "topErrors": [
+      {
+        "category": "PARSER_SELECTION_FAILED",
+        "count": 14
+      },
+      {
+        "category": "NO_CONTENT",
+        "count": 1
+      }
+    ],
+    "durationMs": 47871
+  },
+  "result": {
+    "iterationNumber": 9,
+    "timestamp": "2026-01-27T22:32:09.795Z",
+    "durationMs": 47871,
+    "targetMet": false,
+    "metrics": {
+      "totalAttempts": 15,
+      "successfulAttempts": 0,
+      "avgPrecision": 0,
+      "avgRecall": 0,
+      "avgF1": 0,
+      "microPrecision": 0,
+      "microRecall": 0,
+      "microF1": 0,
+      "byEntityType": {}
+    },
+    "failures": {
+      "totalFailures": 15,
+      "byCategory": {
+        "PARSER_SELECTION_FAILED": {
+          "count": 14,
+          "percentage": 93.33333333333333,
+          "examples": [
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            },
+            {
+              "category": "PARSER_SELECTION_FAILED",
+              "message": "Parser table-adaptive was recommended but extraction failed"
+            }
+          ]
+        },
+        "STRUCTURE_NOT_RECOGNIZED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "ENTITY_EXTRACTION_FAILED": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PATTERN_MISMATCH": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "CONFIDENCE_TOO_LOW": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "FETCH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "GROUND_TRUTH_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "PARSE_ERROR": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "NO_CONTENT": {
+          "count": 1,
+          "percentage": 6.666666666666667,
+          "examples": [
+            {
+              "category": "NO_CONTENT",
+              "message": "Page has no extractable structure (no tables, lists, or headers)"
+            }
+          ]
+        },
+        "TIMEOUT": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        },
+        "UNKNOWN": {
+          "count": 0,
+          "percentage": 0,
+          "examples": []
+        }
+      },
+      "commonPatterns": [
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:VOLUMES",
+          "count": 8,
+          "affectedPages": [
+            "114960-fandom-VOLUMES",
+            "131449-fandom-VOLUMES",
+            "105263-fandom-VOLUMES",
+            "53627-fandom-VOLUMES",
+            "125555-fandom-VOLUMES",
+            "126693-fandom-VOLUMES",
+            "74489-fandom-VOLUMES",
+            "49336-fandom-VOLUMES"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:CHAPTERS",
+          "count": 4,
+          "affectedPages": [
+            "86508-fandom-CHAPTERS",
+            "30070-fandom-CHAPTERS",
+            "100560-fandom-CHAPTERS",
+            "103995-fandom-CHAPTERS"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        },
+        {
+          "pattern": "PARSER_SELECTION_FAILED:fandom:ARCS",
+          "count": 2,
+          "affectedPages": [
+            "138372-fandom-ARCS",
+            "68071-fandom-ARCS"
+          ],
+          "suggestedFix": "Review parser selection logic for this page structure"
+        }
+      ],
+      "failedPageIds": [
+        "114960-fandom-VOLUMES",
+        "131449-fandom-VOLUMES",
+        "86508-fandom-CHAPTERS",
+        "105263-fandom-VOLUMES",
+        "30070-fandom-CHAPTERS",
+        "53627-fandom-VOLUMES",
+        "125555-fandom-VOLUMES",
+        "100560-fandom-CHAPTERS",
+        "138372-fandom-ARCS",
+        "85793-fandom-CHAPTERS",
+        "126693-fandom-VOLUMES",
+        "103995-fandom-CHAPTERS",
+        "74489-fandom-VOLUMES",
+        "49336-fandom-VOLUMES",
+        "68071-fandom-ARCS"
+      ]
+    },
+    "suggestions": [
+      {
+        "id": "suggestion-1",
+        "category": "parser",
+        "title": "Improve Parser Selection",
+        "description": "Review static analyzer recommendations and parser matching logic",
+        "expectedImpact": 0.7466666666666667,
+        "relatedErrors": [
+          "PARSER_SELECTION_FAILED"
+        ],
+        "affectedPageCount": 14,
+        "priority": "critical"
+      },
+      {
+        "id": "suggestion-2",
+        "category": "structure",
+        "title": "Filter Non-Content Pages",
+        "description": "Add detection for pages without extractable content",
+        "expectedImpact": 0.05333333333333334,
+        "relatedErrors": [
+          "NO_CONTENT"
+        ],
+        "affectedPageCount": 1,
+        "priority": "low"
+      }
+    ],
+    "attempts": [
+      {
+        "page": {
+          "id": "114960-fandom-VOLUMES",
+          "title": "Mashle",
+          "anilistId": 114960,
+          "source": "fandom",
+          "url": "https://mashle.fandom.com/wiki/Volume_5",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://mashle.fandom.com/wiki/Mashle_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Hajime Komoto",
+            "normalizedValue": "hajime komoto",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Shounen Jump (Shueisha)",
+            "normalizedValue": "shounen jump shueisha",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "18",
+            "normalizedValue": "18",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Mash just wants to live in peace with his father in the forest. But the only way he'll ever be accepted in the magic realm is by attending magic school and becoming a Divine Visionary — an exceptional student revered as one of the chosen. But without an ounce of magic to his name, Mash will have to punch his way to the top spot.",
+            "normalizedValue": "mash just wants to live in peace with his father in the forest but the only way hell ever be accepted in the magic realm is by attending magic school and becoming a divine visionary  an exceptional student revered as one of the chosen but without an ounce of magic to his name mash will have to punch his way to the top spot",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "In the midst of a battle with  a chosen magic user graced with two marks, Mash makes a shocking discovery about his opponent. Then, more trouble is on the way when Mash’s dorm, Adler, is paired with Lang, a dorm full of bad characters, for outdoor activities. Now Mash is caught in a fight for coins and the pride of his dorm!",
+            "normalizedValue": "in the midst of a battle with a chosen magic user graced with two marks mash makes a shocking discovery about his opponent then more trouble is on the way when mashs dorm adler is paired with lang a dorm full of bad characters for outdoor activities now mash is caught in a fight for coins and the pride of his dorm",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Lang’s vicious hunt for coins is in full swing! To stop them from monopolizing the chance to earn a Divine Visionary position, Mash teams up with his Adler compatriots. Afterwards, the Sixth and Seventh Fangs of the Magia Lupus swoop in to attack Mash while he’s cleaning the owl huts. But when his friends become the next victims of the Magia Lupus’s callous dog-eat-dog philosophy, an enraged Mash is ready to face them head-on!",
+            "normalizedValue": "langs vicious hunt for coins is in full swing to stop them from monopolizing the chance to earn a divine visionary position mash teams up with his adler compatriots afterwards the sixth and seventh fangs of the magia lupus swoop in to attack mash while hes cleaning the owl huts but when his friends become the next victims of the magia lupuss callous dog-eat-dog philosophy an enraged mash is ready to face them head-on",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "162",
+            "normalizedValue": "162",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.95,
+            "source": "parser"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "MASHLE",
+            "normalizedValue": "mashle",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Mashle: Magic and Muscles",
+            "normalizedValue": "mashle magic and muscles",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "マッシュル-MASHLE-",
+            "normalizedValue": "-mashle-",
+            "required": false
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "18",
+            "normalizedValue": "18",
+            "required": true
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2020",
+            "normalizedValue": "2020",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.06060606060606061,
+          "recall": 0.3333333333333333,
+          "f1": 0.10256410256410256,
+          "truePositives": 2,
+          "falsePositives": 31,
+          "falseNegatives": 4
+        },
+        "durationMs": 2083
+      },
+      {
+        "page": {
+          "id": "131449-fandom-VOLUMES",
+          "title": "Lovely Complex",
+          "anilistId": 131449,
+          "source": "fandom",
+          "url": "https://lovelycomplex.fandom.com/wiki/Volume_02",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://lovelycomplex.fandom.com/wiki/Lovely_Complex_(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "STATUS",
+            "value": "FINISHED",
+            "normalizedValue": "completed",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2001-08-13",
+            "normalizedValue": "2001-08-13",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "17",
+            "normalizedValue": "17",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 01",
+            "normalizedValue": "volume 01",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/lovelycomplex/images/b/bc/Lovely%E2%98%85Complex_Volume_03_COVER.jpg/revision/latest/smart/width/40/height/30?cb=20180802001207",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 02",
+            "normalizedValue": "volume 02",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 03",
+            "normalizedValue": "volume 03",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "17",
+            "normalizedValue": "17",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 02",
+            "normalizedValue": "volume 02",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              151,
+              152
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Lovely★Complex Volume 02 COVER]",
+            "normalizedValue": "image lovelycomplex volume 02 cover",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              154
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "02",
+            "normalizedValue": "02",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              140
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "4",
+            "normalizedValue": "4",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              157
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Article stubs",
+            "normalizedValue": "article stubs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              135,
+              136
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              27
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              732
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Love ❤ Complex",
+            "normalizedValue": "love  complex",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Love ❤ Complex",
+            "normalizedValue": "love  complex",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ラブ❤コンプレックス",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2016",
+            "normalizedValue": "2016",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.045454545454545456,
+          "recall": 0.2,
+          "f1": 0.07407407407407407,
+          "truePositives": 1,
+          "falsePositives": 21,
+          "falseNegatives": 4
+        },
+        "durationMs": 4030
+      },
+      {
+        "page": {
+          "id": "86508-fandom-CHAPTERS",
+          "title": "Dragon Ball Super",
+          "anilistId": 86508,
+          "source": "fandom",
+          "url": "https://dragonball.fandom.com/wiki/Sea_Monkeys",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://dragonball.fandom.com/wiki/Dragon%20Ball%20Super%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/dragonball/images/b/b2/4_Star_Dragon_Ball_Edit.png/revision/latest/scale-to-width-down/20?cb=20090527031247",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "The End of the Tale",
+            "normalizedValue": "the end of the tale",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Mechanical Man No. 8 (chapter)",
+            "normalizedValue": "mechanical man no 8 chapter",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Son Gohan (manga chapter)",
+            "normalizedValue": "son gohan manga chapter",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Sea Monkeys",
+            "normalizedValue": "sea monkeys",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              317,
+              318
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Full Color]",
+            "normalizedValue": "image full color",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              324
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              332
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga Chapters",
+            "normalizedValue": "manga chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              290,
+              291
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Emperor Pilaf Saga",
+            "normalizedValue": "emperor pilaf saga",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              293,
+              294,
+              295
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Dragon Ball chapters",
+            "normalizedValue": "dragon ball chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              297,
+              298,
+              299
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1678
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga Chapters",
+            "normalizedValue": "manga chapters",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              290,
+              291
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Emperor Pilaf Saga",
+            "normalizedValue": "emperor pilaf saga",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              293,
+              294,
+              295
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Dragon Ball Super",
+            "normalizedValue": "dragon ball super",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Dragon Ball Super",
+            "normalizedValue": "dragon ball super",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "ドラゴンボール超",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.043478260869565216,
+          "recall": 0.25,
+          "f1": 0.07407407407407408,
+          "truePositives": 1,
+          "falsePositives": 22,
+          "falseNegatives": 3
+        },
+        "durationMs": 940
+      },
+      {
+        "page": {
+          "id": "105263-fandom-VOLUMES",
+          "title": "Dai Dark",
+          "anilistId": 105263,
+          "source": "fandom",
+          "url": "https://daidark.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://daidark.fandom.com/wiki/Dai_Dark_(manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser plain-table was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "HAYASHIDA Q",
+            "normalizedValue": "hayashida q",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Gessan (Shogakukan)",
+            "normalizedValue": "gessan shogakukan",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "4",
+            "normalizedValue": "4",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Zaha Sanko's body has great and terrible powers–they say that possessing his bones will grant you any wish, even the desire to become ruler of the universe. But Zaha is still a teenage dude with his own life, and he isn't about to let every monstrous lowlife in the galaxy rip him limb from limb. He and his skeletal buddy Avakian will use their dark powers to fend off any murder attempts while they search space for whomever put this curse on Zaha's bones...because killing them might end the madness.",
+            "normalizedValue": "zaha sankos body has great and terrible powersthey say that possessing his bones will grant you any wish even the desire to become ruler of the universe but zaha is still a teenage dude with his own life and he isnt about to let every monstrous lowlife in the galaxy rip him limb from limb he and his skeletal buddy avakian will use their dark powers to fend off any murder attempts while they search space for whomever put this curse on zahas bonesbecause killing them might end the madness",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Everyone in space wants Zaha Sanko dead, thanks to the legend that whoever claims his bones will obtain their heart's desire. Being public enemy number one makes life pretty hard for a young guy like Zaha, but so far he's been the one doing the bone collecting. Zaha and his skeletal buddy Avakian break in their brand new ship, cruising the spacelanes in a galaxy full of bizarre customers. One of them is Hajime Damemaru, a self-described \"normal guy\" who might have a hidden power...and the enmity of the company out for Zaha's life.",
+            "normalizedValue": "everyone in space wants zaha sanko dead thanks to the legend that whoever claims his bones will obtain their hearts desire being public enemy number one makes life pretty hard for a young guy like zaha but so far hes been the one doing the bone collecting zaha and his skeletal buddy avakian break in their brand new ship cruising the spacelanes in a galaxy full of bizarre customers one of them is hajime damemaru a self-described normal guy who might have a hidden powerand the enmity of the company out for zahas life",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Zaha Sanko is the most wanted man in the universe. They say that if you can take his bones, you’ll be rewarded with anything you might desire. That’s made no end of trouble for Sanko, who’s a pretty normal teenage dude (when he’s not killing people with an axe made out of pure darkness). Currently the prisoner of an ancient space cult, he’ll need everything he’s got to reclaim his freedom. Thankfully, he’s got three oddballs backing him up who just so happen to be the other most wanted men in the universe. Bizarre mayhem is just around the corner!",
+            "normalizedValue": "zaha sanko is the most wanted man in the universe they say that if you can take his bones youll be rewarded with anything you might desire thats made no end of trouble for sanko whos a pretty normal teenage dude when hes not killing people with an axe made out of pure darkness currently the prisoner of an ancient space cult hell need everything hes got to reclaim his freedom thankfully hes got three oddballs backing him up who just so happen to be the other most wanted men in the universe bizarre mayhem is just around the corner",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "90",
+            "normalizedValue": "90",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "3 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              107,
+              108
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Volume 01]",
+            "normalizedValue": "image volume 01",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              109
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              96
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              146
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              21
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              433
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              21
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Dai Dark",
+            "normalizedValue": "dai dark",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Dai Dark",
+            "normalizedValue": "dai dark",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "大ダーク",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2019",
+            "normalizedValue": "2019",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.047619047619047616,
+          "recall": 0.2,
+          "f1": 0.07692307692307693,
+          "truePositives": 1,
+          "falsePositives": 20,
+          "falseNegatives": 4
+        },
+        "durationMs": 4868
+      },
+      {
+        "page": {
+          "id": "30070-fandom-CHAPTERS",
+          "title": "Ubel Blatt",
+          "anilistId": 30070,
+          "source": "fandom",
+          "url": "https://ubelblatt.fandom.com/wiki/Chapter_2",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://ubelblatt.fandom.com/wiki/Ubel_Blatt_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "24",
+            "normalizedValue": "24",
+            "confidence": 0.7,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Chapter 1",
+            "normalizedValue": "chapter 1",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Chapter 4",
+            "normalizedValue": "chapter 4",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Chapter 12",
+            "normalizedValue": "chapter 12",
+            "confidence": 0.63,
+            "source": "parser"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "16",
+            "normalizedValue": "16",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              43
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              141
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Blade of Lies is the 2nd chapter of the Übel Blatt Manga.",
+            "normalizedValue": "blade of lies is the 2nd chapter of the bel blatt manga",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              152,
+              153,
+              154,
+              155,
+              156,
+              157,
+              158,
+              159,
+              160,
+              161,
+              162,
+              163
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              137
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              34
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              167
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              137
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              34
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              24
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapter 2",
+            "normalizedValue": "chapter 2",
+            "confidence": 0.6363636363636364,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Übel Blatt",
+            "normalizedValue": "bel blatt",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Ubel Blatt",
+            "normalizedValue": "ubel blatt",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Übel Blatt ～ユーベルブラット～",
+            "normalizedValue": "bel blatt ",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "167",
+            "normalizedValue": "167",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0.06666666666666667,
+          "recall": 0.2,
+          "f1": 0.1,
+          "truePositives": 1,
+          "falsePositives": 14,
+          "falseNegatives": 4
+        },
+        "durationMs": 6023
+      },
+      {
+        "page": {
+          "id": "53627-fandom-VOLUMES",
+          "title": "Yowamushi Pedal",
+          "anilistId": 53627,
+          "source": "fandom",
+          "url": "https://yowamushipedal.fandom.com/wiki/Volume_3",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://yowamushipedal.fandom.com/wiki/Yowamushi_Pedal_Wiki"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "21",
+            "normalizedValue": "21",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Spare Bike Volume 1",
+            "normalizedValue": "spare bike volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/yowamushipedal/images/c/cf/Vol2coverbackcover.png/revision/latest/smart/width/40/height/30?cb=20220924083432",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "206",
+            "normalizedValue": "206",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              447,
+              448
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Vol3covervackcover]",
+            "normalizedValue": "image vol3covervackcover",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              449
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              436
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              531
+            ]
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2008",
+            "normalizedValue": "2008",
+            "confidence": 0.85,
+            "source": "bootstrap",
+            "tokenIndices": [
+              460
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              21
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              916
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              21
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Yowamushi Pedal",
+            "normalizedValue": "yowamushi pedal",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Yowamushi Pedal",
+            "normalizedValue": "yowamushi pedal",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "弱虫ペダル",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2008",
+            "normalizedValue": "2008",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.11764705882352941,
+          "recall": 0.4,
+          "f1": 0.1818181818181818,
+          "truePositives": 2,
+          "falsePositives": 15,
+          "falseNegatives": 3
+        },
+        "durationMs": 5570
+      },
+      {
+        "page": {
+          "id": "125555-fandom-VOLUMES",
+          "title": "My Deer Friend Nokotan",
+          "anilistId": 125555,
+          "source": "fandom",
+          "url": "https://shikanoko-nokonoko-koshitantan.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://my-deer-friend-nokotan.fandom.com/wiki/Shikanoko%20Nokonoko%20Koshitantan%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Oshioshio",
+            "normalizedValue": "oshioshio",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Oshioshio",
+            "normalizedValue": "oshioshio",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "PUBLISHER",
+            "value": "Seven Seas Entertainment (EN)Kim Đồng Publishing House (VI)Tong Li Publishing (ZH; TW)",
+            "normalizedValue": "seven seas entertainment enkim ng publishing house vitong li publishing zh tw",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "DEMOGRAPHIC",
+            "value": "Shōnen",
+            "normalizedValue": "shnen",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2019-11-15",
+            "normalizedValue": "2019-11-15",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "GENRE",
+            "value": "Shōnen",
+            "normalizedValue": "shnen",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/shikanoko-nokonoko-koshitantan/images/e/e4/JAVol3-HighRes-Horizontal.png/revision/latest/smart/width/160/height/120?cb=20250129132312",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "44",
+            "normalizedValue": "44",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              258,
+              259
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Shikanoko Nokonoko Koshitantan",
+            "normalizedValue": "shikanoko nokonoko koshitantan",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "My Deer Friend Nokotan",
+            "normalizedValue": "my deer friend nokotan",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "しかのこのこのここしたんたん",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2019",
+            "normalizedValue": "2019",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.03571428571428571,
+          "recall": 0.2,
+          "f1": 0.06060606060606061,
+          "truePositives": 1,
+          "falsePositives": 27,
+          "falseNegatives": 4
+        },
+        "durationMs": 2874
+      },
+      {
+        "page": {
+          "id": "100560-fandom-CHAPTERS",
+          "title": "My Next Life as a Villainess",
+          "anilistId": 100560,
+          "source": "fandom",
+          "url": "https://bakarina.fandom.com/wiki/Chapter_2",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://mynextlifeasavillainess.fandom.com/wiki/My_Next_Life_as_a_Villainess%3A_All_Routes_Lead_to_Doom!"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "6",
+            "normalizedValue": "6",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "When a woman is reborn into an otome video game as the villainess, how can she play to win? Based on the hit light novels and soon to be an anime!\n\nA high school girl is stunned to find herself reincarnated as the conniving villainess from her favorite dating sim game, Fortune Lover. Now, as Katarina Claes, the impossibly rich and spoiled daughter of a Duke, her new life seems to perfectly sync up with the world of the game. This means big trouble! No matter how the game turned out, there were only two fates for Catarina: exile or death!",
+            "normalizedValue": "when a woman is reborn into an otome video game as the villainess how can she play to win based on the hit light novels and soon to be an anime a high school girl is stunned to find herself reincarnated as the conniving villainess from her favorite dating sim game fortune lover now as katarina claes the impossibly rich and spoiled daughter of a duke her new life seems to perfectly sync up with the world of the game this means big trouble no matter how the game turned out there were only two fates for catarina exile or death",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "MAGIC SCHOOL’S IN SESSION\n\nUnexpectedly reincarnated into the setting of her favorite video game, Katarina swiftly realized that she was the villain of the story–doomed to death or exile, no matter what future came to pass! Armed with that knowledge, she’s done everything she can (with maybe a few blunders along the way) to try and change her fate. Now the stakes are higher than ever, because it’s time for her to begin studying at the country’s magic Academy. What’s waiting there is the greatest threat of all…the true heroine of her new world’s story![1]",
+            "normalizedValue": "magic schools in session unexpectedly reincarnated into the setting of her favorite video game katarina swiftly realized that she was the villain of the storydoomed to death or exile no matter what future came to pass armed with that knowledge shes done everything she can with maybe a few blunders along the way to try and change her fate now the stakes are higher than ever because its time for her to begin studying at the countrys magic academy whats waiting there is the greatest threat of allthe true heroine of her new worlds story1",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Katarina Claes, reborn into her favorite dating sim, has finally met and befriended Maria Campbell, the heroine of the game, in the hopes of avoiding exile or death. But when Maria disappears, it’s up to Katarina to figure out who’s behind it. Could it be the same people who accused her of harassing Maria? Or is there something even more sinister at work? Doom approaches, and the vilification of Katarina is about to begin![1]",
+            "normalizedValue": "katarina claes reborn into her favorite dating sim has finally met and befriended maria campbell the heroine of the game in the hopes of avoiding exile or death but when maria disappears its up to katarina to figure out whos behind it could it be the same people who accused her of harassing maria or is there something even more sinister at work doom approaches and the vilification of katarina is about to begin1",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "29",
+            "normalizedValue": "29",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "8",
+            "normalizedValue": "8",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "9",
+            "normalizedValue": "9",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "10",
+            "normalizedValue": "10",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "1 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "My Adoptive Brother Has Arrived",
+            "normalizedValue": "my adoptive brother has arrived",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              238,
+              239,
+              240,
+              241,
+              242
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Chapter 2]",
+            "normalizedValue": "image chapter 2",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              243
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              44
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              46
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Otome Game no Hametsu Flag shika Nai Akuyaku Reijou ni Tensei shiteshimatta...",
+            "normalizedValue": "otome game no hametsu flag shika nai akuyaku reijou ni tensei shiteshimatta",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "My Next Life as a Villainess: All Routes Lead to Doom!",
+            "normalizedValue": "my next life as a villainess all routes lead to doom",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "乙女ゲームの破滅フラグしかない悪役令嬢に転生してしまった…",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.03571428571428571,
+          "recall": 0.25,
+          "f1": 0.0625,
+          "truePositives": 1,
+          "falsePositives": 27,
+          "falseNegatives": 3
+        },
+        "durationMs": 3932
+      },
+      {
+        "page": {
+          "id": "138372-fandom-ARCS",
+          "title": "Shy",
+          "anilistId": 138372,
+          "source": "fandom",
+          "url": "https://shy.fandom.com/wiki/Story_Arcs",
+          "urlType": "ARCS",
+          "baseUrl": "https://shy.fandom.com/wiki/Shy_(disambiguation)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser arc-based was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "12",
+            "normalizedValue": "12",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/shy/images/7/75/Volume_3.png/revision/latest/smart/width/40/height/30?cb=20200501190901",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "In the middle of the 21st century, the world was on the brink of World War III. But superheroes from across the globe appeared and helped bring an era of peace. With the crisis averted, the Heroes returned to their home countries where they now help with domestic matters. This is the story about the young Japanese heroine named \"Shy\"...",
+            "normalizedValue": "in the middle of the 21st century the world was on the brink of world war iii but superheroes from across the globe appeared and helped bring an era of peace with the crisis averted the heroes returned to their home countries where they now help with domestic matters this is the story about the young japanese heroine named shy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Shy has shown she can handle the basics of being a defender of justice, but with the mysterious boy known as Stigma still at large, that might not be enough. Determined to become stronger, she holds a mock battle against Stardust, one of the most famous figures in the heroing world--and a merciless opponent. With her status as a hero on the line, can Shy awaken her new powers?!",
+            "normalizedValue": "shy has shown she can handle the basics of being a defender of justice but with the mysterious boy known as stigma still at large that might not be enough determined to become stronger she holds a mock battle against stardust one of the most famous figures in the heroing world--and a merciless opponent with her status as a hero on the line can shy awaken her new powers",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Still stinging from their Arctic battle, Shy and the other heroes set out in search of new information about the mysterious Amarariruku. Their investigation brings them not only to Spirit's native Russia but to the very orphanage where the carousing crime fighter grew up--and the answers they find there may hit a little closer to home than anticipated...",
+            "normalizedValue": "still stinging from their arctic battle shy and the other heroes set out in search of new information about the mysterious amarariruku their investigation brings them not only to spirits native russia but to the very orphanage where the carousing crime fighter grew up--and the answers they find there may hit a little closer to home than anticipated",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "74",
+            "normalizedValue": "74",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Surprise",
+            "normalizedValue": "surprise",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "Because I'm Shy",
+            "normalizedValue": "because im shy",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "The Mission of Heroes",
+            "normalizedValue": "the mission of heroes",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "12",
+            "normalizedValue": "12",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              243
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              174,
+              175
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The manga and anime are divided into several story arcs, each spanning multiple chapters and episodes. Please take note that most of the arcs and their respective names are unofficial.",
+            "normalizedValue": "the manga and anime are divided into several story arcs each spanning multiple chapters and episodes please take note that most of the arcs and their respective names are unofficial",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              186,
+              187,
+              188,
+              189,
+              190,
+              191,
+              192,
+              193,
+              194,
+              195,
+              196,
+              197,
+              198,
+              199,
+              200,
+              201,
+              202,
+              203,
+              204,
+              205,
+              206,
+              207,
+              208,
+              209,
+              210,
+              211,
+              212,
+              213,
+              214,
+              215
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              45
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              50
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              1319
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Manga",
+            "normalizedValue": "manga",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              45
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Anime",
+            "normalizedValue": "anime",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              50
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "SHY",
+            "normalizedValue": "shy",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "シャイ",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.05263157894736842,
+          "recall": 0.3333333333333333,
+          "f1": 0.09090909090909091,
+          "truePositives": 1,
+          "falsePositives": 18,
+          "falseNegatives": 2
+        },
+        "durationMs": 1992
+      },
+      {
+        "page": {
+          "id": "85793-fandom-CHAPTERS",
+          "title": "Kakegurui",
+          "anilistId": 85793,
+          "source": "fandom",
+          "url": "https://kakegurui.fandom.com/wiki/Category:Chapters",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://kakegurui.fandom.com/wiki/Kakegurui"
+        },
+        "success": false,
+        "errorCategory": "NO_CONTENT",
+        "error": "Page has no extractable structure (no tables, lists, or headers)",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Homura Kawamoto",
+            "normalizedValue": "homura kawamoto",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "ARTIST",
+            "value": "Tooru Naomura",
+            "normalizedValue": "tooru naomura",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "20",
+            "normalizedValue": "20",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "When Ryota Suzui loses a game of Poker to Mary Saotome and becomes housepet, he’s now treated as less than a person and is even used as her footstool. Shortly after, Yumeko Jabami enrolls and with Suzui showing her around the school, is challenged by Mary for a \"Rock-Papers-Scissors\" gamble where Jabami leaps head first into the gambling nightmare that is Hyakkaou Private Academy. What starts as a friendly game quickly scales up to putting 10 million yen on the line, with the loser risking becoming a housepet.\n\nStarting to make waves at the school, Yumeko is challenged by Itsuki Sumeragi of the Student Council to a gamble of Double Memory and afterwards seeks out a gamble with a second council member, Yuriko Nishinotouin.",
+            "normalizedValue": "when ryota suzui loses a game of poker to mary saotome and becomes housepet hes now treated as less than a person and is even used as her footstool shortly after yumeko jabami enrolls and with suzui showing her around the school is challenged by mary for a rock-papers-scissors gamble where jabami leaps head first into the gambling nightmare that is hyakkaou private academy what starts as a friendly game quickly scales up to putting 10 million yen on the line with the loser risking becoming a housepet starting to make waves at the school yumeko is challenged by itsuki sumeragi of the student council to a gamble of double memory and afterwards seeks out a gamble with a second council member yuriko nishinotouin",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "October 22, 2014",
+            "normalizedValue": "october 22 2014",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "After becoming a housepet, Yumeko is exposed to the harsh (or for her, exciting) realities of Hyakkaou Private Academy. No longer retaining her own rights, she is forced to play by the Student Council’s games and rules with high stakes outcomes designed to further restrain students by their debts.",
+            "normalizedValue": "after becoming a housepet yumeko is exposed to the harsh or for her exciting realities of hyakkaou private academy no longer retaining her own rights she is forced to play by the student councils games and rules with high stakes outcomes designed to further restrain students by their debts",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "December 22, 2014",
+            "normalizedValue": "december 22 2014",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "After successfully winning out in The Student Council’s Indian Poker game, Yumeko Jabami and Ryota Suzui are detained by the Beautification Council and forced to play a deranged gamble, ESP Game, against Midari Ikishima. Mary Saotome is also given the offer of a lifetime, having just successfully escaped the housepet system herself.",
+            "normalizedValue": "after successfully winning out in the student councils indian poker game yumeko jabami and ryota suzui are detained by the beautification council and forced to play a deranged gamble esp game against midari ikishima mary saotome is also given the offer of a lifetime having just successfully escaped the housepet system herself",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "June 22, 2015",
+            "normalizedValue": "june 22 2015",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "84",
+            "normalizedValue": "84",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "A Girl Named Yumeko Jabami",
+            "normalizedValue": "a girl named yumeko jabami",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "The Slit-Eyed Girl",
+            "normalizedValue": "the slit-eyed girl",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "The Girl Who Is Now A Housepet",
+            "normalizedValue": "the girl who is now a housepet",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              91
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Media",
+            "normalizedValue": "media",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              66
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              599
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Kakegurui",
+            "normalizedValue": "kakegurui",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Kakegurui - Compulsive Gambler -",
+            "normalizedValue": "kakegurui - compulsive gambler -",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "賭ケグルイ",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.045454545454545456,
+          "recall": 0.25,
+          "f1": 0.07692307692307693,
+          "truePositives": 1,
+          "falsePositives": 21,
+          "falseNegatives": 3
+        },
+        "durationMs": 3364
+      },
+      {
+        "page": {
+          "id": "126693-fandom-VOLUMES",
+          "title": "Choujin X",
+          "anilistId": 126693,
+          "source": "fandom",
+          "url": "https://choujin-x.fandom.com/wiki/Volume_3",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://choujin-x.fandom.com/wiki/Choujin%20X%20(manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "AUTHOR",
+            "value": "Sui Ishida",
+            "normalizedValue": "sui ishida",
+            "confidence": 0.9025,
+            "source": "parser"
+          },
+          {
+            "type": "STATUS",
+            "value": "ONGOING",
+            "normalizedValue": "ongoing",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Tonari no Young Jump (Shueisha)Weekly Young Jump (Shueisha)",
+            "normalizedValue": "tonari no young jump shueishaweekly young jump shueisha",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "15",
+            "normalizedValue": "15",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.955,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "69",
+            "normalizedValue": "69",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "20",
+            "normalizedValue": "20",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_TITLE",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "CHAPTER_TABLE",
+            "value": "detected",
+            "normalizedValue": "chapter_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "3 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "FORMAT",
+            "value": "ISBN detected",
+            "normalizedValue": "isbn",
+            "confidence": 0.9,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "Month DD, YYYY",
+            "normalizedValue": "month dd yyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "DD/MM/YYYY",
+            "normalizedValue": "ddmmyyyy",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              173,
+              174
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: JP Cover]",
+            "normalizedValue": "image jp cover",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              179
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Choujin X",
+            "normalizedValue": "choujin x",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Choujin X",
+            "normalizedValue": "choujin x",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "超人X",
+            "normalizedValue": "x",
+            "required": false
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2021",
+            "normalizedValue": "2021",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.038461538461538464,
+          "recall": 0.2,
+          "f1": 0.06451612903225806,
+          "truePositives": 1,
+          "falsePositives": 25,
+          "falseNegatives": 4
+        },
+        "durationMs": 1798
+      },
+      {
+        "page": {
+          "id": "103995-fandom-CHAPTERS",
+          "title": "True Beauty",
+          "anilistId": 103995,
+          "source": "fandom",
+          "url": "https://true-beauty.fandom.com/wiki/Episode_1",
+          "urlType": "CHAPTERS",
+          "baseUrl": "https://true-beauty.fandom.com/wiki/True%20Beauty"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Episode 1",
+            "normalizedValue": "episode 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              132,
+              133
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Episode 1 thumbnail]",
+            "normalizedValue": "image episode 1 thumbnail",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              136
+            ]
+          },
+          {
+            "type": "AUTHOR",
+            "value": "Yaongyi",
+            "normalizedValue": "yaongyi",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              22
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Episodes",
+            "normalizedValue": "episodes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              35
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              635
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Episodes",
+            "normalizedValue": "episodes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              35
+            ]
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "CHAPTERS",
+            "normalizedValue": "chapters",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Yeosingangnim",
+            "normalizedValue": "yeosingangnim",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "True Beauty",
+            "normalizedValue": "true beauty",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "여신강림",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "257",
+            "normalizedValue": "257",
+            "required": true
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 6,
+          "falseNegatives": 5
+        },
+        "durationMs": 1564
+      },
+      {
+        "page": {
+          "id": "74489-fandom-VOLUMES",
+          "title": "Houseki no Kuni",
+          "anilistId": 74489,
+          "source": "fandom",
+          "url": "https://houseki-no-kuni.fandom.com/wiki/Volume_2",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://houseki-no-kuni.fandom.com/wiki/Houseki%20no%20Kuni%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COVER",
+            "value": "https://static.wikia.nocookie.net/houseki-no-kuni/images/7/79/Book_3.jpeg/revision/latest/scale-to-width-down/160?cb=20210511140636",
+            "normalizedValue": "image_present",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "The beginning of our story.\n\nIn a world inhabited by crystalline life-forms called The Lustrous, every unique gem must fight for their way of life against the threat of Lunarians who would turn them into decorations. Phosphophyllite, the most fragile and brittle of gems, longs to join the battle. When Phos is instead assigned to complete a natural history of their world, it sounds like a dull and pointless task. But this new job brings Phos into contact with Cinnabar, a gem forced to live in isolation. Can Phos's seemingly mundane assignment lead both Phos and Cinnabar to the fulfillment they desire?",
+            "normalizedValue": "the beginning of our story in a world inhabited by crystalline life-forms called the lustrous every unique gem must fight for their way of life against the threat of lunarians who would turn them into decorations phosphophyllite the most fragile and brittle of gems longs to join the battle when phos is instead assigned to complete a natural history of their world it sounds like a dull and pointless task but this new job brings phos into contact with cinnabar a gem forced to live in isolation can phoss seemingly mundane assignment lead both phos and cinnabar to the fulfillment they desire",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "July 23, 2013",
+            "normalizedValue": "july 23 2013",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "A journey to the sea.\n\nPhosphophyllite is determined to find a less lonely job for the talented Cinnabar, but with no easy answers to be found on land, the quest turns seaward. Ventricosus the sea snail suggests that the creatures who live there may have the clue Phos needs. But the ocean is a dangerous place for a hapless gem- will this sea of possibilities turn into a watery grave?",
+            "normalizedValue": "a journey to the sea phosphophyllite is determined to find a less lonely job for the talented cinnabar but with no easy answers to be found on land the quest turns seaward ventricosus the sea snail suggests that the creatures who live there may have the clue phos needs but the ocean is a dangerous place for a hapless gem- will this sea of possibilities turn into a watery grave",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "January 23, 2014",
+            "normalizedValue": "january 23 2014",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "A new fighting chance.\n\nNow with new legs, Phosphophyllite is ready to go to battle. But when that new strength is needed the most, Phos is too scared to use it. Mortified by this failure, Phos undertakes the self-imposed punishment of staying awake all winter while the other gems sleep. But winter has its own share of dangers...",
+            "normalizedValue": "a new fighting chance now with new legs phosphophyllite is ready to go to battle but when that new strength is needed the most phos is too scared to use it mortified by this failure phos undertakes the self-imposed punishment of staying awake all winter while the other gems sleep but winter has its own share of dangers",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_RELEASE_DATE",
+            "value": "August 22, 2014",
+            "normalizedValue": "august 22 2014",
+            "confidence": 0.8075,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "108",
+            "normalizedValue": "108",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "3 volume headers detected",
+            "normalizedValue": "volume_headers_detected",
+            "confidence": 0.6,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "confidence": 0.95,
+            "source": "parser"
+          },
+          {
+            "type": "TITLE",
+            "value": "Under the Sea",
+            "normalizedValue": "under the sea",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              243,
+              244,
+              245
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Book 2]",
+            "normalizedValue": "image book 2",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              246
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "2",
+            "normalizedValue": "2",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              232
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "3",
+            "normalizedValue": "3",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              290
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              39
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              551
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Chapters",
+            "normalizedValue": "chapters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              39
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Houseki no Kuni",
+            "normalizedValue": "houseki no kuni",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Land of the Lustrous",
+            "normalizedValue": "land of the lustrous",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "宝石の国",
+            "normalizedValue": "",
+            "required": false
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "13",
+            "normalizedValue": "13",
+            "required": true
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2012",
+            "normalizedValue": "2012",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.09523809523809523,
+          "recall": 0.3333333333333333,
+          "f1": 0.14814814814814814,
+          "truePositives": 2,
+          "falsePositives": 19,
+          "falseNegatives": 4
+        },
+        "durationMs": 4923
+      },
+      {
+        "page": {
+          "id": "49336-fandom-VOLUMES",
+          "title": "Love Bullet",
+          "anilistId": 49336,
+          "source": "fandom",
+          "url": "https://love-bullet.fandom.com/wiki/Volume_1",
+          "urlType": "VOLUMES",
+          "baseUrl": "https://love-bullet.fandom.com/wiki/LOVE-BULLET%20(Manga)"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              99,
+              100
+            ]
+          },
+          {
+            "type": "COVER_IMAGE",
+            "value": "[IMAGE: Cover]",
+            "normalizedValue": "image cover",
+            "confidence": 0.95,
+            "source": "bootstrap",
+            "tokenIndices": [
+              103
+            ]
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              88
+            ]
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "0",
+            "normalizedValue": "0",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              150
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              256
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Volumes",
+            "normalizedValue": "volumes",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              19
+            ]
+          },
+          {
+            "type": "CHARACTERS",
+            "value": "Characters",
+            "normalizedValue": "characters",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              23
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "Community content is available under CC-BY-SA unless otherwise noted.",
+            "normalizedValue": "community content is available under cc-by-sa unless otherwise noted",
+            "confidence": 0.5454545454545454,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "VOLUMES",
+            "normalizedValue": "volumes",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Sarangui Chongal",
+            "normalizedValue": "sarangui chongal",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "사랑의 총알",
+            "normalizedValue": " ",
+            "required": false
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "12",
+            "normalizedValue": "12",
+            "required": true
+          },
+          {
+            "type": "RELEASE_DATE",
+            "value": "2010",
+            "normalizedValue": "2010",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0,
+          "recall": 0,
+          "f1": 0,
+          "truePositives": 0,
+          "falsePositives": 9,
+          "falseNegatives": 5
+        },
+        "durationMs": 2184
+      },
+      {
+        "page": {
+          "id": "68071-fandom-ARCS",
+          "title": "Spirit Circle",
+          "anilistId": 68071,
+          "source": "fandom",
+          "url": "https://spirit-circle.fandom.com/wiki/Story_Arcs",
+          "urlType": "ARCS",
+          "baseUrl": "https://spirit-circle.fandom.com/wiki/Spirit%20Circle"
+        },
+        "success": false,
+        "errorCategory": "PARSER_SELECTION_FAILED",
+        "error": "Parser table-adaptive was recommended but extraction failed",
+        "extractedEntities": [
+          {
+            "type": "VOLUME_COUNT",
+            "value": "6",
+            "normalizedValue": "6",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 1",
+            "normalizedValue": "volume 1",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "A GUT-WRENCHING TALE OF PAST AND FUTURE LIVES, BY MASTER MANGA-KA SATOSHI MIZUKAMI!\n\nFuuta Okeya can see dead people. Other than that, you might assume he's a perfectly normal junior high school student. When new transfer student Kouko Ishigami comes to school, Fuuta falls head over heels in love with her. But while she wants nothing to do with him, the ghost that trails behind her is another story. Just when Fuuta thinks he may have won Kouko over, she catches a glimpse of the strange birthmark beneath the bandage on his cheek, and denounces him as her mortal enemy.",
+            "normalizedValue": "a gut-wrenching tale of past and future lives by master manga-ka satoshi mizukami fuuta okeya can see dead people other than that you might assume hes a perfectly normal junior high school student when new transfer student kouko ishigami comes to school fuuta falls head over heels in love with her but while she wants nothing to do with him the ghost that trails behind her is another story just when fuuta thinks he may have won kouko over she catches a glimpse of the strange birthmark beneath the bandage on his cheek and denounces him as her mortal enemy",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 2",
+            "normalizedValue": "volume 2",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Spirit circles are turning Fuuta's life upside down! First, thanks to Kouko's circle, Fuuta witnesses two deaths that hit very close to home. Then, after acquiring a spirit circle that has been kept safe for him by a spirit called Rune, Fuuta revisits other past lives, delving deeper into the tangled mysteries of his fate.",
+            "normalizedValue": "spirit circles are turning fuutas life upside down first thanks to koukos circle fuuta witnesses two deaths that hit very close to home then after acquiring a spirit circle that has been kept safe for him by a spirit called rune fuuta revisits other past lives delving deeper into the tangled mysteries of his fate",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TITLE",
+            "value": "Volume 3",
+            "normalizedValue": "volume 3",
+            "confidence": 0.855,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_SUMMARY",
+            "value": "Fuuta and Kouko are bound together by fate–the fate of having killed each other in seven past lives! As they discover their shared history in ancient South America, Egypt, medieval Europe, and beyond, truth after astonishing truth is revealed. The secret behind their interwoven fates will soon be a secret no more!",
+            "normalizedValue": "fuuta and kouko are bound together by fatethe fate of having killed each other in seven past lives as they discover their shared history in ancient south america egypt medieval europe and beyond truth after astonishing truth is revealed the secret behind their interwoven fates will soon be a secret no more",
+            "confidence": 0.76,
+            "source": "parser"
+          },
+          {
+            "type": "CHAPTER_COUNT",
+            "value": "40",
+            "normalizedValue": "40",
+            "confidence": 1,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_TABLE",
+            "value": "detected",
+            "normalizedValue": "volume_table_detected",
+            "confidence": 0.8,
+            "source": "static_analysis"
+          },
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "confidence": 0.85,
+            "source": "parser"
+          },
+          {
+            "type": "VOLUME_COUNT",
+            "value": "1",
+            "normalizedValue": "1",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              32
+            ]
+          },
+          {
+            "type": "TITLE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              154,
+              155
+            ]
+          },
+          {
+            "type": "GENRE",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              154,
+              155
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Categories",
+            "normalizedValue": "categories",
+            "confidence": 1,
+            "source": "bootstrap",
+            "tokenIndices": [
+              279
+            ]
+          },
+          {
+            "type": "TAGS",
+            "value": "Story Arcs",
+            "normalizedValue": "story arcs",
+            "confidence": 0.9,
+            "source": "bootstrap",
+            "tokenIndices": [
+              154,
+              155
+            ]
+          },
+          {
+            "type": "SUMMARY",
+            "value": "The plot of Spirit Circle is divided into individual story arcs. While they are usually separated by the lifetimes experienced by Okeya Fuuta, they don't necessarily have to follow this format.",
+            "normalizedValue": "the plot of spirit circle is divided into individual story arcs while they are usually separated by the lifetimes experienced by okeya fuuta they dont necessarily have to follow this format",
+            "confidence": 0.4090909090909091,
+            "source": "bootstrap"
+          }
+        ],
+        "expectedEntities": [
+          {
+            "type": "PAGE_TYPE",
+            "value": "ARCS",
+            "normalizedValue": "arcs",
+            "required": true
+          },
+          {
+            "type": "TITLE",
+            "value": "Spirit Circle",
+            "normalizedValue": "spirit circle",
+            "required": true
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "Spirit Circle",
+            "normalizedValue": "spirit circle",
+            "required": false
+          },
+          {
+            "type": "ALT_TITLE",
+            "value": "スピリットサークル",
+            "normalizedValue": "",
+            "required": false
+          }
+        ],
+        "metrics": {
+          "precision": 0.0625,
+          "recall": 0.25,
+          "f1": 0.1,
+          "truePositives": 1,
+          "falsePositives": 15,
+          "falseNegatives": 3
+        },
+        "durationMs": 1697
+      }
+    ]
+  }
+}

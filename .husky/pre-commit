@@ -1,0 +1,470 @@
+#!/bin/bash
+# Enhanced Pre-commit Hook for Technical Debt Prevention
+# Created: October 2, 2025
+#
+# This hook enforces strict type safety, code quality, and prevents
+# introduction of technical debt patterns.
+#
+# To activate:
+# 1. Backup current pre-commit: cp .husky/pre-commit .husky/pre-commit.backup
+# 2. Copy this file: cp .husky/pre-commit.enhanced .husky/pre-commit
+# 3. Make executable: chmod +x .husky/pre-commit
+
+# Allow skipping hooks with SKIP_HOOKS=1
+if [ "$SKIP_HOOKS" = "1" ]; then
+    echo "⏭️  Skipping pre-commit hooks (SKIP_HOOKS=1)"
+    exit 0
+fi
+
+echo "🔍 Running enhanced pre-commit checks for technical debt prevention..."
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+# Track if any checks fail
+FAILED=0
+WARNINGS=0
+
+# Function to check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Get staged files (exclude scripts/ — dev utilities that use @/ aliases, console.log for CLI output)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx?|jsx?)$' | grep -v '^scripts/' || true)
+
+# =====================================================
+# 1. TypeScript Type Check (CRITICAL)
+# =====================================================
+echo ""
+echo -e "${BLUE}📋 1/10 TypeScript Type Check (0 errors required)...${NC}"
+
+# Memory-aware type checking: full tsc needs ~1.5GB.
+# If free memory is low (dev server running), cap the heap or
+# fall back to checking only staged files to avoid OOM (exit 137).
+get_free_memory_mb() {
+    if [ "$(uname)" = "Darwin" ]; then
+        # macOS: (free + inactive pages) * page_size_kb / 1024 = MB.
+        # Page size is 4KB on Intel Macs but 16KB on Apple Silicon — hardcoding
+        # 4 here undercounts memory by 4× on M1+ and triggers a bogus heap cap.
+        local free_pages inactive_pages page_kb
+        free_pages=$(vm_stat | awk '/Pages free/ {gsub(/\./,"",$3); print $3}')
+        inactive_pages=$(vm_stat | awk '/Pages inactive/ {gsub(/\./,"",$3); print $3}')
+        page_kb=$(( $(getconf PAGE_SIZE 2>/dev/null || echo 4096) / 1024 ))
+        [ "$page_kb" -lt 1 ] && page_kb=4
+        echo $(( (free_pages + inactive_pages) * page_kb / 1024 ))
+    else
+        # Linux: MemAvailable from /proc/meminfo
+        awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "4096"
+    fi
+}
+
+FREE_MB=$(get_free_memory_mb)
+TSC_HEAP_MB=2048  # Default: 2GB for full project check
+USE_STAGED_ONLY=0
+
+if [ "$FREE_MB" -lt 2500 ]; then
+    if [ "$FREE_MB" -lt 1800 ]; then
+        # Not enough for full tsc (~1.5GB): check staged files only
+        echo -e "${YELLOW}⚠️  Low memory (${FREE_MB}MB free) — checking staged files only${NC}"
+        USE_STAGED_ONLY=1
+    else
+        # Tight but possible: cap tsc heap
+        TSC_HEAP_MB=$(( FREE_MB - 800 ))
+        echo -e "${YELLOW}⚠️  Limited memory (${FREE_MB}MB free) — capping tsc to ${TSC_HEAP_MB}MB${NC}"
+    fi
+fi
+
+if [ "$USE_STAGED_ONLY" -eq 1 ] && [ ! -z "$STAGED_FILES" ]; then
+    # Incremental check: only type-check staged files via tsc --noEmit on specific files
+    # This is much faster and uses far less memory
+    echo "$STAGED_FILES" | xargs node --max-old-space-size=1024 ./node_modules/.bin/tsc --noEmit --skipLibCheck 2>&1 | tee /tmp/type-check-output.txt
+    TYPE_CHECK_EXIT=${PIPESTATUS[0]}
+    # tsc with specific files may fail due to missing imports — treat as warning, not error
+    if [ $TYPE_CHECK_EXIT -ne 0 ]; then
+        echo -e "${YELLOW}⚠️  Staged-only type check had issues (may be false positives)${NC}"
+        TYPE_CHECK_EXIT=0
+        WARNINGS=$((WARNINGS + 1))
+    fi
+elif command_exists bun; then
+    NODE_OPTIONS="--max-old-space-size=${TSC_HEAP_MB}" bun run type-check 2>&1 | tee /tmp/type-check-output.txt
+    TYPE_CHECK_EXIT=${PIPESTATUS[0]}
+elif command_exists pnpm; then
+    NODE_OPTIONS="--max-old-space-size=${TSC_HEAP_MB}" pnpm type-check 2>&1 | tee /tmp/type-check-output.txt
+    TYPE_CHECK_EXIT=${PIPESTATUS[0]}
+else
+    NODE_OPTIONS="--max-old-space-size=${TSC_HEAP_MB}" npm run type-check 2>&1 | tee /tmp/type-check-output.txt
+    TYPE_CHECK_EXIT=${PIPESTATUS[0]}
+fi
+
+# Detect OOM kill (exit 137 = SIGKILL, 134 = SIGABRT from V8 heap limit) and retry
+if [ $TYPE_CHECK_EXIT -eq 137 ] || [ $TYPE_CHECK_EXIT -eq 134 ]; then
+    echo -e "${YELLOW}⚠️  tsc killed by OOM (heap exhaustion)${NC}"
+    if [ ! -z "$STAGED_FILES" ]; then
+        echo -e "${YELLOW}   Retrying with staged files only...${NC}"
+        echo "$STAGED_FILES" | xargs node --max-old-space-size=1024 ./node_modules/.bin/tsc --noEmit --skipLibCheck 2>&1 | tee /tmp/type-check-output.txt
+        TYPE_CHECK_EXIT=${PIPESTATUS[0]}
+        if [ $TYPE_CHECK_EXIT -ne 0 ]; then
+            # Per-file tsc reports false-positive missing-import errors with no
+            # tsconfig context — downgrade to warning rather than blocking.
+            TYPE_CHECK_EXIT=0
+            WARNINGS=$((WARNINGS + 1))
+        fi
+    else
+        # Deletion-only commit + OOM means no per-file fallback target. Retry
+        # the full check once with the default Node heap (no artificial cap).
+        echo -e "${YELLOW}   Retrying full type-check with default heap...${NC}"
+        if command_exists bun; then
+            bun run type-check 2>&1 | tee /tmp/type-check-output.txt
+        elif command_exists pnpm; then
+            pnpm type-check 2>&1 | tee /tmp/type-check-output.txt
+        else
+            npm run type-check 2>&1 | tee /tmp/type-check-output.txt
+        fi
+        TYPE_CHECK_EXIT=${PIPESTATUS[0]}
+        # If we OOM again or hit a real error, fail loudly — silently
+        # bypassing type-check would defeat the purpose of the hook.
+    fi
+fi
+
+if [ $TYPE_CHECK_EXIT -ne 0 ]; then
+    echo -e "${RED}❌ TypeScript type check failed!${NC}"
+    echo -e "${YELLOW}Fix ALL type errors before committing.${NC}"
+    FAILED=1
+else
+    echo -e "${GREEN}✅ TypeScript types OK${NC}"
+fi
+
+# =====================================================
+# 2. Check for `any` type usage (WARNING)
+# =====================================================
+echo ""
+echo -e "${BLUE}🚫 2/10 Checking for 'any' type usage...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    ANY_USAGE=$(echo "$STAGED_FILES" | xargs grep -n ": any\|<any>\|as any" 2>/dev/null || true)
+    ANY_COUNT=$(echo "$ANY_USAGE" | wc -l | tr -d ' ')
+
+    if [ ! -z "$ANY_USAGE" ] && [ "$ANY_COUNT" -gt 0 ]; then
+        echo -e "${YELLOW}⚠️  Found $ANY_COUNT 'any' type usage(s):${NC}"
+        echo "$ANY_USAGE" | head -10
+        echo -e "${YELLOW}Consider using 'unknown' with type guards or specific types${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    else
+        echo -e "${GREEN}✅ No 'any' types found${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No TypeScript files to check${NC}"
+fi
+
+# =====================================================
+# 3. Check for console.log (ERROR)
+# =====================================================
+echo ""
+echo -e "${BLUE}🚫 3/10 Checking for console.log statements (PROHIBITED)...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    # Exclude E2E test files (Playwright uses console.log for test diagnostics)
+    # Exclude file categories where console.* is legitimate:
+    # - tests/e2e: Playwright uses console.log for diagnostics
+    # - public/: browser-side scripts (service workers, etc.)
+    # - server-*.js/ts at root: server bootstrap (logger not yet available)
+    # - docs/examples/: illustrative code, not real implementation
+    # - src/test/: test utilities
+    # - tests/integration/: manual integration scripts (human-readable output)
+    # Then filter JSDoc/comment lines and explicitly-bypassed lines.
+    CONSOLE_LOG=$(echo "$STAGED_FILES" \
+      | grep -v "tests/e2e/" \
+      | grep -v "^public/" \
+      | grep -vE "^server-(production|wrapper)\." \
+      | grep -v "^docs/examples/" \
+      | grep -v "^src/test/" \
+      | grep -v "^tests/integration/" \
+      | grep -vE "^tests/test-" \
+      | xargs grep -n "console\.log\|console\.info\|console\.debug" 2>/dev/null \
+      | grep -v "// eslint-disable" \
+      | grep -v "@quality-check-skip" \
+      | grep -vE '^[^:]+:[0-9]+: *\*' \
+      | grep -vE '^[^:]+:[0-9]+: *//' \
+      || true)
+
+    if [ ! -z "$CONSOLE_LOG" ]; then
+        echo -e "${RED}❌ Found console.log statements (PROHIBITED):${NC}"
+        echo "$CONSOLE_LOG"
+        echo -e "${YELLOW}Replace with logger.info() or logger.debug()${NC}"
+        FAILED=1
+    else
+        echo -e "${GREEN}✅ No console.log statements${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No files to check${NC}"
+fi
+
+# =====================================================
+# 4. Check file size limits (ERROR)
+# =====================================================
+echo ""
+echo -e "${BLUE}📏 4/10 Checking file size limits...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    while IFS= read -r file; do
+        if [ -f "$file" ]; then
+            LINES=$(wc -l < "$file" | tr -d ' ')
+
+            # Skip test files from size limits (they're typically larger)
+            if [[ $file == *"__tests__"* ]] || [[ $file == *".test."* ]] || [[ $file == *".spec."* ]]; then
+                continue
+            fi
+
+            # Skip files with @file-size-justified comment
+            if head -5 "$file" | grep -q "@file-size-justified:"; then
+                continue
+            fi
+
+            # Determine limit based on file type
+            LIMIT=1000
+            if [[ $file == *"/components/"* ]]; then
+                LIMIT=500
+            elif [[ $file == *"/routers/"* ]]; then
+                LIMIT=800
+            elif [[ $file == *"/services/"* ]]; then
+                LIMIT=1000
+            fi
+
+            if [ "$LINES" -gt "$LIMIT" ]; then
+                echo -e "${RED}❌ $file exceeds limit: $LINES lines (max $LIMIT)${NC}"
+                echo -e "${YELLOW}   Split this file into smaller modules${NC}"
+                FAILED=1
+            fi
+        fi
+    done <<< "$STAGED_FILES"
+
+    if [ $FAILED -eq 0 ]; then
+        echo -e "${GREEN}✅ All files within size limits${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No files to check${NC}"
+fi
+
+# =====================================================
+# 5. Check for unhandled async functions (WARNING)
+# =====================================================
+echo ""
+echo -e "${BLUE}⚠️  5/10 Checking for unhandled async functions...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    # Look for async functions without try/catch, AsyncResult, or void (fire-and-forget)
+    # Patterns that indicate proper handling:
+    # - try/catch blocks
+    # - AsyncResult pattern
+    # - Promise.all/Promise.race
+    # - void operator (intentional fire-and-forget)
+    # - .catch() chaining
+    UNHANDLED_ASYNC_FILE=$(mktemp)
+    while IFS= read -r file; do
+        if [ -f "$file" ]; then
+            # Get line numbers of async functions, check each one
+            grep -n "async function\|async (" "$file" 2>/dev/null | cut -d: -f1 | while read linenum; do
+                if [ ! -z "$linenum" ]; then
+                    # Check next 15 lines for error handling patterns
+                    end=$((linenum + 15))
+                    HAS_HANDLING=$(sed -n "${linenum},${end}p" "$file" 2>/dev/null | grep -c "try\|catch\|AsyncResult\|Promise\.all\|Promise\.race\|void \|\.catch(" || echo "0")
+                    if [ "$HAS_HANDLING" -eq 0 ]; then
+                        FUNC_LINE=$(sed -n "${linenum}p" "$file")
+                        echo "${file}:${linenum}: ${FUNC_LINE}" >> "$UNHANDLED_ASYNC_FILE"
+                    fi
+                fi
+            done
+        fi
+    done <<< "$STAGED_FILES"
+
+    if [ -s "$UNHANDLED_ASYNC_FILE" ]; then
+        echo -e "${YELLOW}⚠️  Found potentially unhandled async functions:${NC}"
+        head -10 "$UNHANDLED_ASYNC_FILE"
+        echo -e "${YELLOW}Ensure all async functions have proper error handling${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    else
+        echo -e "${GREEN}✅ Async functions appear to have error handling${NC}"
+    fi
+    rm -f "$UNHANDLED_ASYNC_FILE"
+else
+    echo -e "${GREEN}✅ No files to check${NC}"
+fi
+
+# =====================================================
+# 6. Check for deep relative imports (ERROR)
+# =====================================================
+echo ""
+echo -e "${BLUE}🔗 6/10 Checking for deep relative imports...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    DEEP_IMPORTS=$(echo "$STAGED_FILES" | xargs grep -n "from ['\"]\.\.\/\.\.\/\.\.\/\|from ['\"]\.\.\/\.\.\/\.\.\/\.\.\/" 2>/dev/null || true)
+
+    if [ ! -z "$DEEP_IMPORTS" ]; then
+        echo -e "${RED}❌ Found deep relative imports (use @/ aliases):${NC}"
+        echo "$DEEP_IMPORTS" | head -10
+        FAILED=1
+    else
+        echo -e "${GREEN}✅ No deep relative imports${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No files to check${NC}"
+fi
+
+# =====================================================
+# 7. ESLint Check (WARNING on errors, if configured)
+# =====================================================
+echo ""
+echo -e "${BLUE}🧹 7/10 Running ESLint...${NC}"
+if command_exists eslint && [ ! -z "$STAGED_FILES" ]; then
+    # Run ESLint with max-warnings to allow warnings but fail on errors
+    echo "$STAGED_FILES" | xargs eslint --quiet --max-warnings 150 2>&1 | tee /tmp/eslint-output.txt
+    ESLINT_EXIT=${PIPESTATUS[0]}
+
+    if [ $ESLINT_EXIT -ne 0 ]; then
+        echo -e "${RED}❌ ESLint found critical issues!${NC}"
+        FAILED=1
+    else
+        # Check for warnings
+        WARNING_COUNT=$(grep -c "warning" /tmp/eslint-output.txt 2>/dev/null || echo "0")
+        if [ "$WARNING_COUNT" -gt 0 ]; then
+            echo -e "${YELLOW}⚠️  ESLint warnings: $WARNING_COUNT${NC}"
+            WARNINGS=$((WARNINGS + 1))
+        else
+            echo -e "${GREEN}✅ ESLint OK${NC}"
+        fi
+    fi
+else
+    echo -e "${CYAN}⏭️  ESLint not configured or no files to check${NC}"
+fi
+
+# =====================================================
+# 8. Check for missing JSDoc on exports (WARNING)
+# =====================================================
+echo ""
+echo -e "${BLUE}📚 8/10 Checking for JSDoc on exported functions...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    # Check each exported function for JSDoc in the preceding 15 lines
+    # A function has JSDoc if /** appears before it
+    MISSING_JSDOC=""
+    echo "$STAGED_FILES" | while IFS= read -r file; do
+        if [ -f "$file" ]; then
+            # Get line numbers of exports, then check if /** exists in 15 lines before
+            grep -n "^export.*function\|^export const.*=" "$file" 2>/dev/null | head -10 | while IFS=: read -r linenum content; do
+                if [ ! -z "$linenum" ]; then
+                    start=$((linenum - 15))
+                    [ $start -lt 1 ] && start=1
+                    # Check if JSDoc opener exists in the range before the export
+                    HAS_JSDOC=$(sed -n "${start},${linenum}p" "$file" 2>/dev/null | grep -c '/\*\*' || echo "0")
+                    if [ "$HAS_JSDOC" -eq 0 ]; then
+                        echo "${file}:${linenum}: ${content}" >> /tmp/missing_jsdoc.txt
+                    fi
+                fi
+            done
+        fi
+    done
+
+    if [ -f /tmp/missing_jsdoc.txt ]; then
+        MISSING_JSDOC=$(cat /tmp/missing_jsdoc.txt 2>/dev/null)
+        rm -f /tmp/missing_jsdoc.txt
+    fi
+
+    if [ ! -z "$MISSING_JSDOC" ]; then
+        echo -e "${YELLOW}⚠️  Some exported functions may be missing JSDoc:${NC}"
+        echo "$MISSING_JSDOC" | head -5
+        WARNINGS=$((WARNINGS + 1))
+    else
+        echo -e "${GREEN}✅ Exported functions appear to have documentation${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No files to check${NC}"
+fi
+
+# =====================================================
+# 9. Check for non-null assertions (WARNING)
+# =====================================================
+echo ""
+echo -e "${BLUE}❗ 9/10 Checking for non-null assertions...${NC}"
+if [ ! -z "$STAGED_FILES" ]; then
+    NON_NULL=$(echo "$STAGED_FILES" | xargs grep -n "![;,)\.]" 2>/dev/null | \
+        grep -v "!=" | grep -v "!==" | grep -v "!" | head -10 || true)
+
+    if [ ! -z "$NON_NULL" ]; then
+        echo -e "${YELLOW}⚠️  Found potential non-null assertions (!)${NC}"
+        echo "$NON_NULL" | head -5
+        echo -e "${YELLOW}Consider using proper null checks instead${NC}"
+        WARNINGS=$((WARNINGS + 1))
+    else
+        echo -e "${GREEN}✅ No non-null assertions found${NC}"
+    fi
+else
+    echo -e "${GREEN}✅ No files to check${NC}"
+fi
+
+# =====================================================
+# 10. Run Tests (If configured)
+# =====================================================
+echo ""
+echo -e "${BLUE}🧪 10/10 Running tests...${NC}"
+if command_exists jest || command_exists bun || command_exists pnpm; then
+    # Only run tests related to changed files
+    if [ ! -z "$STAGED_FILES" ]; then
+        if command_exists bun; then
+            # Use 'bun run test' to run Jest (not 'bun test' which uses Bun's native runner)
+            # --bail = stop on first failure; --findRelatedTests = only run tests for
+            # the staged files; --forceExit = exit even if open handles linger past
+            # the test run (some test setups leave DB/timer handles attached and
+            # without this jest sits forever printing "Jest did not exit one second
+            # after the test run has completed").
+            bun run test --bail --forceExit --findRelatedTests $STAGED_FILES 2>&1 | tee /tmp/test-output.txt
+            TEST_EXIT=${PIPESTATUS[0]}
+        elif command_exists pnpm; then
+            # pnpm with Jest supports --findRelatedTests
+            pnpm test --bail --forceExit --findRelatedTests $STAGED_FILES 2>&1 | tee /tmp/test-output.txt
+            TEST_EXIT=${PIPESTATUS[0]}
+        else
+            # npm with Jest supports --findRelatedTests
+            npm test -- --bail --forceExit --findRelatedTests $STAGED_FILES 2>&1 | tee /tmp/test-output.txt
+            TEST_EXIT=${PIPESTATUS[0]}
+        fi
+
+        if [ $TEST_EXIT -ne 0 ]; then
+            echo -e "${RED}❌ Tests failed!${NC}"
+            FAILED=1
+        else
+            echo -e "${GREEN}✅ Tests passed${NC}"
+        fi
+    else
+        echo -e "${CYAN}⏭️  No test files affected${NC}"
+    fi
+else
+    echo -e "${CYAN}⏭️  Test runner not configured${NC}"
+fi
+
+# =====================================================
+# Summary
+# =====================================================
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ $FAILED -eq 1 ]; then
+    echo -e "${RED}❌ PRE-COMMIT CHECKS FAILED!${NC}"
+    echo -e "${YELLOW}Please fix the issues above before committing.${NC}"
+    echo ""
+    echo "Quick fixes:"
+    echo "  • Type errors: Run 'bun run type-check' and fix all errors"
+    echo "  • console.log: Replace with logger.info() or logger.debug()"
+    echo "  • File size: Split large files into smaller modules"
+    echo "  • Deep imports: Use @/ path aliases"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 1
+elif [ $WARNINGS -gt 0 ]; then
+    echo -e "${YELLOW}⚠️  PRE-COMMIT CHECKS PASSED WITH $WARNINGS WARNING(S)${NC}"
+    echo -e "${CYAN}Consider addressing the warnings above for better code quality${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 0
+else
+    echo -e "${GREEN}✅ ALL PRE-COMMIT CHECKS PASSED!${NC}"
+    echo -e "${CYAN}Ready to commit your changes${NC}"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 0
+fi

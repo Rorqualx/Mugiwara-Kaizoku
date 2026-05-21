@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSP Test Page</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .container {
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+    }
+    .success {
+      background-color: #d3f9d8;
+      border-left: 4px solid #40c057;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    .error {
+      background-color: #ffe3e3;
+      border-left: 4px solid #fa5252;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    .info {
+      background-color: #e7f5ff;
+      border-left: 4px solid #228be6;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #228be6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 12px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #1c7ed6;
+    }
+  </style>
+  <!-- CSP Meta Tag - This should match the one in _document.tsx -->
+  <meta
+    httpEquiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' localhost:* ws://localhost:*; object-src 'none'; frame-src 'self'; worker-src 'self'; manifest-src 'self'"
+  />
+</head>
+<body>
+  <h1>CSP Test Page</h1>
+  
+  <div class="container">
+    <div class="info">
+      This page tests if the Content Security Policy (CSP) is working correctly. The CSP should block any external stylesheets from being loaded, including those from Chrome extensions.
+    </div>
+    
+    <h2>Test Results</h2>
+    
+    <div id="results">
+      <p>Testing CSP effectiveness...</p>
+    </div>
+    
+    <button id="test-button">Run CSP Test</button>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const resultsDiv = document.getElementById('results');
+      const testButton = document.getElementById('test-button');
+      
+      // Function to check for extension stylesheets
+      function checkForExtensionStylesheets() {
+        const stylesheets = Array.from(document.styleSheets);
+        const extensionStylesheets = stylesheets.filter(sheet => {
+          try {
+            // Check if the stylesheet is from a chrome extension
+            return sheet.href && sheet.href.startsWith('chrome-extension://');
+          } catch (e) {
+            // If we can't access the href due to CORS, it might be an extension
+            return true;
+          }
+        });
+        
+        return extensionStylesheets.length;
+      }
+      
+      // Run the test when the button is clicked
+      testButton.addEventListener('click', function() {
+        const extensionCount = checkForExtensionStylesheets();
+        
+        if (extensionCount === 0) {
+          resultsDiv.innerHTML = `
+            <div class="success">
+              <strong>Success!</strong> No extension stylesheets detected. The CSP is working correctly.
+            </div>
+            <p>This means that the Content Security Policy is successfully blocking external stylesheets from being loaded.</p>
+          `;
+        } else {
+          resultsDiv.innerHTML = `
+            <div class="error">
+              <strong>Warning:</strong> Detected ${extensionCount} extension stylesheet(s). The CSP might not be fully effective.
+            </div>
+            <p>This could be because:</p>
+            <ul>
+              <li>The CSP headers are not being applied correctly</li>
+              <li>The browser or extension is ignoring the CSP</li>
+              <li>The extension is using a method to bypass the CSP</li>
+            </ul>
+            <p>Try using the standalone admin setup page at <a href="/admin-setup.html">/admin-setup.html</a> or the command-line tool.</p>
+          `;
+        }
+      });
+      
+      // Auto-run the test after a short delay
+      setTimeout(function() {
+        testButton.click();
+      }, 1000);
+    });
+  </script>
+</body>
+</html>

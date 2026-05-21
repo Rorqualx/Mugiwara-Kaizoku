@@ -1,0 +1,110 @@
+name: Test Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**/__tests__/**/*'
+      - 'src/**/*.test.*'
+      - 'src/**/*.spec.*'
+      - 'src/test/**/*'
+      - 'scripts/lint-tests.js'
+      - '.github/workflows/test-quality.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**/__tests__/**/*'
+      - 'src/**/*.test.*'
+      - 'src/**/*.spec.*'
+      - 'src/test/**/*'
+      - 'scripts/lint-tests.js'
+      - '.github/workflows/test-quality.yml'
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  lint-tests:
+    name: Test Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Install required ESLint plugins for test linting
+      - name: Install ESLint plugins
+        run: |
+          bun add -D eslint-plugin-jest eslint-plugin-jest-dom eslint-plugin-testing-library
+      
+      # Get changed test files for PR
+      - name: Get changed test files
+        id: changed-files
+        if: github.event_name == 'pull_request'
+        uses: tj-actions/changed-files@v47
+        with:
+          files: |
+            src/**/__tests__/**/*.{ts,tsx,js,jsx}
+            src/**/*.{spec,test}.{ts,tsx,js,jsx}
+            src/test/**/*.{ts,tsx,js,jsx}
+          include_all_old_new_renamed_files: true
+      
+      # Run test linting only on changed files for PR
+      - name: Lint changed test files
+        if: github.event_name == 'pull_request' && steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Linting changed test files:"
+          echo "${{ steps.changed-files.outputs.all_changed_files }}"
+          bun scripts/lint-tests.js --quiet
+
+      # Run test linting on all test files for direct push or manual trigger
+      - name: Lint all test files
+        if: github.event_name != 'pull_request' || steps.changed-files.outputs.any_changed != 'true'
+        run: bun scripts/lint-tests.js --quiet
+
+      # Generate test quality report
+      - name: Generate test quality report
+        run: |
+          mkdir -p reports
+          bun scripts/lint-tests.js --json > reports/test-lint-report.json
+      
+      # Upload test quality report
+      - name: Upload test quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-quality-report
+          path: reports/test-lint-report.json
+          
+      # Create annotation summary
+      - name: Create annotation summary
+        id: summary
+        run: |
+          TOTAL_ISSUES=$(jq 'map(.errorCount + .warningCount) | add' reports/test-lint-report.json)
+          ERROR_COUNT=$(jq 'map(.errorCount) | add' reports/test-lint-report.json)
+          WARNING_COUNT=$(jq 'map(.warningCount) | add' reports/test-lint-report.json)
+          
+          echo "Total Issues: $TOTAL_ISSUES (Errors: $ERROR_COUNT, Warnings: $WARNING_COUNT)" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "$ERROR_COUNT" -gt 0 ]; then
+            echo "status=fail" >> $GITHUB_OUTPUT
+            echo "::error::$ERROR_COUNT ESLint errors found in test files"
+          else
+            echo "status=pass" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "$WARNING_COUNT" -gt 0 ]; then
+            echo "::warning::$WARNING_COUNT ESLint warnings found in test files"
+          fi
+      
+      # Fail if errors found
+      - name: Check for errors
+        if: steps.summary.outputs.status == 'fail'
+        run: exit 1
