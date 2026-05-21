@@ -27,6 +27,8 @@ interface InstanceControlCardProps {
   onStop: () => void;
   onRestart: () => void;
   form: UseFormReturnType<FlareSolverrSettingsValues>;
+  /** Persist autoStart immediately on toggle (no Save-Settings button required). */
+  onAutoStartChange: (autoStart: boolean) => void;
 }
 
 export function InstanceControlCard({
@@ -39,6 +41,7 @@ export function InstanceControlCard({
   onStop,
   onRestart,
   form,
+  onAutoStartChange,
 }: InstanceControlCardProps): React.ReactElement {
   return (
     <Card shadow="sm" p="lg" radius="md">
@@ -93,7 +96,16 @@ export function InstanceControlCard({
         mt="sm"
         size="sm"
         label="Auto-start on app launch"
-        {...form.getInputProps('autoStart', { type: 'checkbox' })}
+        checked={form.values.autoStart}
+        onChange={(event): void => {
+          const next = event.currentTarget.checked;
+          form.setFieldValue('autoStart', next);
+          // Auto-save: this is a one-off "set and forget" preference;
+          // requiring the user to scroll to Save Settings at the bottom
+          // of the page means toggling the switch alone has no effect
+          // across container restarts.
+          onAutoStartChange(next);
+        }}
       />
     </Card>
   );

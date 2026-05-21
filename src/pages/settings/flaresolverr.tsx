@@ -257,6 +257,21 @@ function FlareSolverrSettings(): React.ReactElement {
               onStop={() => stopMutation.mutate()}
               onRestart={() => restartMutation.mutate()}
               form={form}
+              onAutoStartChange={(autoStart): void => {
+                // Persist with the most recently saved settings as the base —
+                // not form.values — so an unrelated in-progress edit (e.g.
+                // half-typed URL) doesn't get pushed alongside the toggle.
+                if (!settings) return;
+                updateSettingsMutation.mutate({
+                  enabled: settings.enabled,
+                  autoStart,
+                  url: settings.url,
+                  timeout: settings.timeout,
+                  sessionTTL: settings.sessionTTL,
+                  disableMedia: settings.disableMedia,
+                  defaultWaitSecs: settings.defaultWaitSecs,
+                });
+              }}
             />
 
             <Card shadow="sm" p="lg" radius="md">
