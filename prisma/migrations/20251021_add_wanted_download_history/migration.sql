@@ -3,6 +3,22 @@
 -- Required for wanted list functionality and download performance tracking
 
 -- ============================================================================
+-- ENUMS (idempotent — the original CREATE TYPEs were lost in a history squash)
+-- ============================================================================
+
+DO $$ BEGIN
+    CREATE TYPE "WantedPriority" AS ENUM ('LOW', 'NORMAL', 'HIGH', 'CRITICAL');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "WantedStatus" AS ENUM ('PENDING', 'SEARCHING', 'FOUND', 'BLOCKED', 'DOWNLOADED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "DownloadHistoryStatus" AS ENUM ('COMPLETED', 'FAILED', 'CANCELLED', 'PARTIAL');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================================
 -- WANTED ITEM TRACKING
 -- ============================================================================
 

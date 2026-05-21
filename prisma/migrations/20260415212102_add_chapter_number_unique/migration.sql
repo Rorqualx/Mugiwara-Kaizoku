@@ -23,6 +23,6 @@ WITH ranked AS (
 DELETE FROM "Chapter" WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 
 -- Partial unique index: only enforces when chapterNumber IS NOT NULL.
-CREATE UNIQUE INDEX "Chapter_mangaId_chapterNumber_unique"
+CREATE UNIQUE INDEX IF NOT EXISTS "Chapter_mangaId_chapterNumber_unique"
 ON "Chapter" ("mangaId", "chapterNumber")
 WHERE "chapterNumber" IS NOT NULL;

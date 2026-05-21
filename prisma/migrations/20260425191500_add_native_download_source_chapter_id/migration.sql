@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE "NativeDownload" ADD COLUMN "sourceChapterId" TEXT;
+ALTER TABLE "NativeDownload" ADD COLUMN IF NOT EXISTS "sourceChapterId" TEXT;
 
 -- CreateIndex
-CREATE INDEX "NativeDownload_sourceChapterId_idx" ON "NativeDownload"("sourceChapterId");
+CREATE INDEX IF NOT EXISTS "NativeDownload_sourceChapterId_idx" ON "NativeDownload"("sourceChapterId");
