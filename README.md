@@ -53,12 +53,12 @@ First time you open it, you'll be redirected to `/setup` to create the admin acc
 ```bash
 git clone https://github.com/Rorqualx/Mugiwara-Kaizoku.git
 cd Mugiwara-Kaizoku
-cp .env.example .env
-# Edit .env — and CHANGE the default `kaizoku:kaizoku` Postgres credentials
 docker compose up -d
 ```
 
-The bundled compose file brings up the app + Postgres with healthchecks. Visit `http://localhost:3000` and complete `/setup`.
+That's it. The bundled compose brings up the app + Postgres with healthchecks. Session secrets are **auto-generated on first boot** and persisted under `./config/secrets.env`. Visit `http://localhost:3000` and complete `/setup`.
+
+**Production note:** the default Postgres credentials in `docker-compose.yml` (`kaizoku:kaizoku`) are fine for a local-only setup. If you expose this beyond your LAN, change both sides (`POSTGRES_PASSWORD` on the `db` service and the password in `DATABASE_URL` on the `app` service).
 
 For an extended stack with external torrent clients, see `docker-compose.example.yml`.
 
