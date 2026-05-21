@@ -93,13 +93,13 @@ RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Bun runtime + package manager — baseline build so the image runs on
-# any x86_64 CPU (no AVX2 requirement). The default Bun binary is
-# AVX2-optimized and SIGILL's on older / virtualized CPUs.
-# Installed to /usr/local so the unprivileged `app` user can execute it.
-ARG BUN_VERSION=bun-v1.3.0
+# Bun runtime + package manager — installed globally to /usr/local so all
+# users (including the unprivileged `app` user) can execute it.
+# Base stage uses the standard (AVX2) Bun for fast build-time work; the
+# runner stage replaces this with bun-baseline so the runtime image runs
+# on any x86_64 CPU (older Xeons, virtualized hosts without AVX2).
 RUN curl -fsSL https://bun.sh/install -o /tmp/bun-install.sh && \
-    BUN_INSTALL=/usr/local bash /tmp/bun-install.sh "${BUN_VERSION}" --baseline && \
+    BUN_INSTALL=/usr/local bash /tmp/bun-install.sh && \
     rm /tmp/bun-install.sh && \
     chmod 755 /usr/local/bin/bun /usr/local/bin/bunx
 
@@ -114,10 +114,7 @@ COPY prisma ./prisma/
 # Workspace packages (mangadex-ts-client is referenced as workspace:* in package.json)
 COPY packages ./packages
 
-# Cache id bumped after switching to bun-baseline — the previous cache had
-# entries hashed against the standard (AVX2) bun and confused subsequent
-# --frozen-lockfile runs ("Cannot find module domhandler").
-RUN --mount=type=cache,target=/root/.bun/install/cache,id=bun-install-baseline-v2 \
+RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 
 ###############################################################################
@@ -140,6 +137,16 @@ RUN bun run generate && bun run build
 ###############################################################################
 FROM base AS runner
 WORKDIR /app
+
+# Swap the AVX2 bun (inherited from `base`) for bun-baseline so the
+# runtime image runs on any x86_64 CPU. Build-time bun stays untouched
+# in the build/deps stages (they already produced their artifacts).
+ARG BUN_VERSION=bun-v1.3.0
+RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/bun-linux-x64-baseline.zip" -o /tmp/bun-baseline.zip && \
+    unzip -q -o /tmp/bun-baseline.zip -d /tmp && \
+    install -m 0755 /tmp/bun-linux-x64-baseline/bun /usr/local/bin/bun && \
+    ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
+    rm -rf /tmp/bun-baseline.zip /tmp/bun-linux-x64-baseline
 
 # Non-root app user (UID 1000). The entrypoint stays root to manage postgres,
 # then drops to this user via gosu when launching the app. All persistent
