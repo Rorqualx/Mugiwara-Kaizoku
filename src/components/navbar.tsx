@@ -280,7 +280,12 @@ export function KaizokuNavbar(): React.JSX.Element {
 
                     <ActiveNavItem icon={<IconFile size={16}/>} label="Log Files" href="/system/logs" nested/>
 
-                    <ActiveNavItem icon={<IconDatabase size={16}/>} label="Annotation" href="/annotation" nested/>
+                    {/* Annotation is an ML training-data editor used only during model
+                        development; hidden in production builds. Direct URL access is
+                        also gated by the page-level NODE_ENV check. */}
+                    {process.env.NODE_ENV !== 'production' && (
+                      <ActiveNavItem icon={<IconDatabase size={16}/>} label="Annotation" href="/annotation" nested/>
+                    )}
 
                     <ActiveNavItem icon={<IconUsers size={16}/>} label="Users" href="/system/users" nested/>
                   </Stack>
