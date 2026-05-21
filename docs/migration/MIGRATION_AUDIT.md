@@ -26,7 +26,115 @@ So the codebase has TWO competing sources of truth for the `jobs` table:
 1. `schema.prisma` says: regular table
 2. The functions in migration `20251213` say: partitioned table with `jobs_active` (active rows) / `jobs_archived` (completed/failed rows) partitions
 
-This needs a product decision: keep partitioning (and write the missing `CREATE TABLE jobs PARTITION BY...` migration + update `schema.prisma` somehow) OR drop partitioning (and rewrite the functions to operate on the regular `jobs` table). Prisma doesn't model partitioned tables natively, so option 1 requires schema.prisma annotations to be careful.
+**Decision: keep partitioning** (per user 2026-05-21). The repair is a new
+migration that creates `jobs` as a properly-partitioned table.
+
+#### How `schema.prisma` already signals the partitioning
+
+```prisma
+model jobs {
+  id            BigInt    @default(autoincrement())
+  ...
+  partition_key String    @default("active")
+  ...
+  @@id([id, partition_key])   // composite PK with partition_key — Postgres
+                              // requires the partition key in the PK
+}
+```
+
+The composite primary key on `[id, partition_key]` is the giveaway:
+Postgres requires the partition key to be part of the table's primary
+key (or unique constraint). Prisma's `db push` creates this as a
+regular table with composite PK — which works at the row level but
+ignores the `PARTITION BY` clause entirely. The fix is one
+hand-written migration that re-creates `jobs` as actually partitioned.
+
+#### Concrete repair migration (sketch)
+
+Target name: `20251212000000_create_jobs_partitioned_table` (slotted
+just before `20251213_fix_job_partition_functions` which is the first
+migration that uses `jobs_active`).
+
+```sql
+-- Drop the regular table that earlier migrations / db push may have left
+DROP TABLE IF EXISTS jobs CASCADE;
+
+CREATE TABLE jobs (
+    id                  BIGSERIAL,
+    queue_name          TEXT          NOT NULL DEFAULT 'default',
+    job_type            "JobType"     NOT NULL,
+    priority            "JobPriority" NOT NULL DEFAULT 'normal',
+    payload             JSONB         NOT NULL DEFAULT '{}',
+    result              JSONB,
+    metadata            JSONB                  DEFAULT '{}',
+    status              "JobStatus"   NOT NULL DEFAULT 'pending',
+    progress            INTEGER                DEFAULT 0,
+    created_at          TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+    scheduled_for       TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+    started_at          TIMESTAMPTZ(6),
+    completed_at        TIMESTAMPTZ(6),
+    attempt_count       INTEGER       NOT NULL DEFAULT 0,
+    max_attempts        INTEGER       NOT NULL DEFAULT 3,
+    retry_delay_seconds INTEGER                DEFAULT 60,
+    last_error          JSONB,
+    worker_id           TEXT,
+    lease_expires_at    TIMESTAMPTZ(6),
+    hard_timeout_at     TIMESTAMPTZ(6),
+    processing_time_ms  INTEGER,
+    wait_time_ms        INTEGER,
+    manga_id            INTEGER,
+    chapter_id          INTEGER,
+    partition_key       TEXT          NOT NULL DEFAULT 'active',
+    PRIMARY KEY (id, partition_key),
+    CONSTRAINT jobs_manga_id_fkey   FOREIGN KEY (manga_id)   REFERENCES "Manga"(id)   ON DELETE SET NULL,
+    CONSTRAINT jobs_chapter_id_fkey FOREIGN KEY (chapter_id) REFERENCES "Chapter"(id) ON DELETE SET NULL
+) PARTITION BY LIST (partition_key);
+
+CREATE TABLE jobs_active   PARTITION OF jobs FOR VALUES IN ('active');
+CREATE TABLE jobs_archived PARTITION OF jobs FOR VALUES IN ('archived');
+```
+
+Required enums (must exist before this migration): `JobType`,
+`JobPriority`, `JobStatus`. Verify all three are CREATE TYPE'd in some
+earlier migration (likely they aren't — that's the next thread to pull).
+
+#### Confirmed gaps as of this audit
+
+1. **`JobType`, `JobPriority`, `JobStatus` enums** — referenced in `schema.prisma` and used in functions, but **NO `CREATE TYPE "JobType"` (or the other two) exists in any migration**. `prisma db push` creates them from schema.prisma; `migrate deploy` doesn't.
+2. **`jobs` partitioned table** — never `CREATE TABLE`d in any migration; the SQL functions in `20251213` / `20260105` reference its `jobs_active` partition that consequently can't exist.
+3. **`FlareSolverrConfig`** — defined in `schema.prisma` (so `db push` creates it) but no migration `CREATE TABLE`s it; `20251213_add_flaresolverr_autostart` ALTERs a non-existent table.
+4. **Duplicate `Settings` CREATE** — fixed in commit `4f9625fb8` (now uses `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
+
+Other composite-PK models in `schema.prisma` are NOT partitioned — they're regular many-to-many keys (`channel_subscriptions`, `hot_data_cache`, `presence_tracking`).
+
+#### Likely root cause
+
+The migration history has clearly been edited / squashed at some point. The original migrations that created `jobs` (as partitioned), the three Job* enums, and `FlareSolverrConfig` were deleted. Whoever did the squash kept the migrations that **modify** those objects (functions, ALTER COLUMN, etc.) but didn't write the consolidating migration that **creates** them. Working dev environments survived because the objects already existed in the local DB; fresh installs never had a chance.
+
+#### Repair migration scope (revised)
+
+One migration, slotted at the very start of the partitioned-jobs chain (e.g. `20251212000000_repair_missing_objects` — before `20251213_fix_job_partition_functions`):
+
+```sql
+-- Enums
+DO $$ BEGIN CREATE TYPE "JobType"     AS ENUM (...); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "JobPriority" AS ENUM (...); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE "JobStatus"   AS ENUM (...); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- Partitioned jobs table (see sketch above; CREATE TABLE IF NOT EXISTS won't work
+-- here because Postgres needs an explicit DROP if the regular-table version exists,
+-- but a DROP is destructive on existing data — write the migration to DETECT and
+-- branch: if jobs is partitioned, no-op; if jobs is regular, abort with a clear error)
+
+-- FlareSolverrConfig CREATE TABLE IF NOT EXISTS
+```
+
+(Values for each enum need to come from `schema.prisma`'s enum definitions or by running `prisma db push --print` against an empty DB and capturing the generated SQL — pure scribed-from-schema.)
+
+#### Other repair work in scope
+
+- `20251021_add_wanted_download_history` — add `CREATE TYPE` DO-blocks for `WantedPriority` / `WantedStatus` / `DownloadHistoryStatus`
+- Scan for similar enum-references-without-creation across all 66 migrations
 
 ### Counts (baseline)
 
