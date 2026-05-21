@@ -1,14 +1,14 @@
 # Mugiwara-Kaizoku Dockerfile
 #
-# Clean multi-stage Bun-based build. FlareSolverr is NOT bundled — run
-# `ghcr.io/flaresolverr/flaresolverr:latest` as a sidecar container if you
-# need Cloudflare bypass (see docker-compose.yml).
+# Single-container image with bundled PostgreSQL. FlareSolverr is NOT
+# bundled (yet — Phase C); run `ghcr.io/flaresolverr/flaresolverr:latest`
+# as a sidecar if you need Cloudflare bypass.
 #
 # Stages:
-#   base   — Ubuntu 22.04 + system deps + Java 21 (Suwayomi) + Bun
+#   base   — Ubuntu 22.04 + system deps + PostgreSQL 15 + Java 21 + Bun
 #   deps   — `bun install --frozen-lockfile`
 #   build  — Prisma client + `next build`
-#   runner — Slim final image, non-root user
+#   runner — Slim final image; entrypoint runs as root, drops to `app`
 
 # syntax=docker/dockerfile:1.7
 
@@ -28,12 +28,23 @@ RUN apt-get update && \
         gnupg \
         wget \
         netcat \
-        postgresql-client \
         ffmpeg \
         dos2unix \
-        unzip && \
+        unzip \
+        gosu \
+        openssl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# PostgreSQL 15 — bundled DB server + client. Postgres process runs as the
+# `postgres` system user; the entrypoint orchestrates init + startup.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        postgresql-15 \
+        postgresql-client-15 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+ENV PATH="/usr/lib/postgresql/15/bin:${PATH}"
 
 # Adoptium Temurin Java 21 — required by the bundled Suwayomi engine
 RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor > /etc/apt/trusted.gpg.d/adoptium.gpg && \
@@ -43,11 +54,12 @@ RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Bun runtime + package manager
-RUN curl -fsSL https://bun.sh/install | bash && \
-    ln -sf /root/.bun/bin/bun /usr/local/bin/bun && \
-    ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx
-ENV PATH="/root/.bun/bin:${PATH}"
+# Bun runtime + package manager — installed globally to /usr/local so all
+# users (including the unprivileged `app` user) can execute it.
+RUN curl -fsSL https://bun.sh/install -o /tmp/bun-install.sh && \
+    BUN_INSTALL=/usr/local bash /tmp/bun-install.sh && \
+    rm /tmp/bun-install.sh && \
+    chmod 755 /usr/local/bin/bun /usr/local/bin/bunx
 
 ###############################################################################
 # Dependencies stage
@@ -84,10 +96,13 @@ RUN bun run generate && bun run build
 FROM base AS runner
 WORKDIR /app
 
-# Non-root app user
+# Non-root app user (UID 1000). The entrypoint stays root to manage postgres,
+# then drops to this user via gosu when launching the app.
 RUN useradd -m -u 1000 app && \
-    mkdir -p /logs /config /data && \
-    chown -R app:app /app /logs /config /data
+    mkdir -p /logs /config /data /data/postgres && \
+    chown -R app:app /app /logs /config && \
+    chown -R postgres:postgres /data/postgres && \
+    chown app:app /data
 
 # Entrypoint + helper scripts
 COPY scripts/database/wait-for-db.sh /usr/local/bin/wait-for-db.sh
@@ -106,15 +121,17 @@ COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/src ./src
 
-USER app
+# Entrypoint runs as root so it can chown volume mounts and start postgres
+# as the postgres user; the app process is launched via `gosu app` inside.
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     DOCKER=true \
     KAIZOKU_LOG_PATH=/logs \
-    HOME=/config
+    HOME=/config \
+    PGDATA=/data/postgres
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD nc -z localhost ${KAIZOKU_PORT:-3000} || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
