@@ -65,7 +65,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     echo "deb https://packages.adoptium.net/artifactory/deb jammy main" | tee /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     apt-get install -y temurin-21-jre && \
-    npm install -g pnpm@7.33.7 typescript ts-node && \
+    npm install -g typescript ts-node && \
+    # Install Bun (project uses Bun as the package manager + runtime)
+    curl -fsSL https://bun.sh/install | bash && \
+    ln -sf /root/.bun/bin/bun /usr/local/bin/bun && \
+    ln -sf /root/.bun/bin/bunx /usr/local/bin/bunx && \
     # Install FlareSolverr for Cloudflare bypass subprocess
     # NOTE: PyPI flaresolverr is maxed at v3.3.21 - using GitHub source for v3.3.25
     # v3.4.x requires Python 3.10+ which isn't available in Ubuntu Jammy base image
@@ -90,7 +94,7 @@ FROM base AS deps
 WORKDIR /app
 
 # Copy package files and install dependencies
-COPY package.json pnpm-lock.yaml ./
+COPY package.json bun.lock ./
 COPY prisma ./prisma/
 
 # Build arguments for environment configuration
@@ -101,9 +105,9 @@ ARG DATABASE_URL
 ENV NODE_ENV=${NODE_ENV}
 ENV DATABASE_URL=${DATABASE_URL}
 
-# Install dependencies with pnpm, using cache mount
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --force
+# Install dependencies with Bun, using cache mount
+RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 ### BUILD STAGE ###
 # Compiles the application and generates necessary assets
@@ -114,7 +118,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
-COPY moduleResolver.mjs ./
 
 # Set build environment variables
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -123,9 +126,9 @@ ENV NODE_PATH=./node_modules
 ENV PATH="/app/node_modules/.bin:${PATH}"
 
 # Generate Prisma client and build Next.js application
-RUN npx prisma generate && \
-    npx next build && \
-    DOCKER=true pnpm install-suwayomi || true
+# Suwayomi is downloaded at runtime by the lifecycle manager — no install step.
+RUN bun run generate && \
+    bun run build
 
 ### RUNNER STAGE ###
 # Final production image with minimal footprint
@@ -143,9 +146,7 @@ ENV NODE_ENV=production \
 # Create necessary directories with proper permissions
 RUN mkdir -p /logs /config /data /data/Media/Downloads
 
-# Install Bun runtime for unified server execution
-RUN curl -fsSL https://bun.sh/install | bash
-ENV PATH="/root/.bun/bin:${PATH}"
+# Bun is already installed in the base stage and on PATH.
 
 # Copy built application from build stage
 COPY --from=build /app/next.config.mjs ./
@@ -157,7 +158,7 @@ COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/src ./src
-COPY --from=build /app/data/suwayomi-server /data/suwayomi-server
+# Suwayomi data dir is created at first run by the lifecycle manager.
 
 # Set up permissions for non-root user
 RUN chown -R abc:abc /app /logs /config /data /data/Media/Downloads
