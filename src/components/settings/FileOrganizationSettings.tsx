@@ -92,23 +92,28 @@ export function FileOrganizationSettings(): React.ReactElement | null {
                 if (typeof parsed === 'object' && parsed !== null) {
                     const settings = parsed as FileOrganizationSettingsData;
 
-                    // Update all state variables with loaded values
+                    // Update all state variables with loaded values.
+                    // NOTE: use `!== undefined` for strings — a truthy check
+                    // would silently drop saved empty values (e.g. an explicit
+                    // empty libraryBasePath) and let the local useState
+                    // default re-appear after navigation, looking like the
+                    // save reverted.
                     if (settings.folderStructure) setFolderStructure(settings.folderStructure);
                     if (settings.customFolderTemplate !== undefined) setCustomFolderTemplate(settings.customFolderTemplate);
                     // Handle new separate templates or migrate from old combined template
-                    if (settings.volumeNamingTemplate) {
+                    if (settings.volumeNamingTemplate !== undefined) {
                         setVolumeNamingTemplate(settings.volumeNamingTemplate);
                     } else if (settings.fileNamingTemplate) {
                         // Migrate from old format - use for volume template
                         setVolumeNamingTemplate(settings.fileNamingTemplate.replace(/CH?\{chapter\}/gi, '').trim());
                     }
-                    if (settings.chapterNamingTemplate) {
+                    if (settings.chapterNamingTemplate !== undefined) {
                         setChapterNamingTemplate(settings.chapterNamingTemplate);
                     } else if (settings.fileNamingTemplate) {
                         // Migrate from old format - use as chapter template
                         setChapterNamingTemplate(settings.fileNamingTemplate);
                     }
-                    if (settings.libraryBasePath) setLibraryBasePath(settings.libraryBasePath);
+                    if (settings.libraryBasePath !== undefined) setLibraryBasePath(settings.libraryBasePath);
                     if (settings.createMetadataFiles !== undefined) setCreateMetadataFiles(settings.createMetadataFiles);
                     if (settings.fileMode !== undefined) {
                         setFileMode(settings.fileMode);
