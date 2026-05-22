@@ -144,7 +144,7 @@ jobs:
 
       # Post coverage report as PR comment
       - name: Post coverage report comment
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: test-coverage
           path: coverage-report.md
