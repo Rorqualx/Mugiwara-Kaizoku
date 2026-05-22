@@ -27,7 +27,6 @@ import {
   IconReload,
   IconLogout,
   IconInfoCircle,
-  IconDownload,
 } from '@tabler/icons-react';
 
 import { notify } from '@/utils/notify';
@@ -36,7 +35,6 @@ import { useAuthActions } from "../lib/auth/client-actions";
 import { isSuccess, isError } from "../utils/async-result";
 import { trpc } from "../utils/trpc-client/index";
 
-import { DownloadManagerModal } from "./library/DownloadManagerModal";
 
 /**
  * System control menu component
@@ -62,7 +60,6 @@ import { DownloadManagerModal } from "./library/DownloadManagerModal";
  * ```
  */
 export function SystemMenu(): React.ReactElement {
-  const [downloadManagerOpen, setDownloadManagerOpen] = useState(false);
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
   const [shutdownConfirmOpen, setShutdownConfirmOpen] = useState(false);
 
@@ -205,14 +202,7 @@ export function SystemMenu(): React.ReactElement {
         </Menu.Target>
 
         <Menu.Dropdown>
-          {/* Download Manager */}
-          <Menu.Item
-            leftSection={<IconDownload size={14} />}
-            onClick={() => setDownloadManagerOpen(true)}>
-            Download Manager
-          </Menu.Item>
-          <Menu.Divider />
-
+          {/* Download Manager removed — superseded by the Activity sidebar item. */}
           <Menu.Item
             leftSection={<IconReload size={14} />}
             onClick={() => setRestartConfirmOpen(true)}
@@ -234,11 +224,6 @@ export function SystemMenu(): React.ReactElement {
           </Menu.Item>
         </Menu.Dropdown>
       </Menu>
-
-      {/* Download Manager Modal */}
-      <DownloadManagerModal
-        opened={downloadManagerOpen}
-        onClose={() => setDownloadManagerOpen(false)} />
 
       {/* Restart Confirmation */}
       <Modal opened={restartConfirmOpen} onClose={() => setRestartConfirmOpen(false)} title="Restart Application" centered>
