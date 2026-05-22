@@ -83,6 +83,38 @@ export async function isImageDirectory(dirPath: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Classify a directory entry as dir / file / symlink, falling back to `lstat`
+ * when the dirent's d_type is unreliable (DT_UNKNOWN on NFS/SMB/FUSE makes
+ * isDirectory()/isFile()/isSymbolicLink() all return false for real entries).
+ */
+async function classifyEntry(
+  entry: fs.Dirent,
+  fullPath: string,
+  followSymlinks: boolean,
+): Promise<{ kind: 'dir' | 'file' | 'symlink'; name: string; fullPath: string } | null> {
+  let isDir = entry.isDirectory();
+  let isFile = entry.isFile();
+  let isSymlink = entry.isSymbolicLink();
+
+  if (!isDir && !isFile && !isSymlink) {
+    try {
+      const stats = await fs.promises.lstat(fullPath);
+      isDir = stats.isDirectory();
+      isFile = stats.isFile();
+      isSymlink = stats.isSymbolicLink();
+    } catch {
+      return null;
+    }
+  }
+
+  if (isDir) return { kind: 'dir', name: entry.name, fullPath };
+  if (isFile) return { kind: 'file', name: entry.name, fullPath };
+  if (isSymlink && followSymlinks) return { kind: 'symlink', name: entry.name, fullPath };
+  return null;
+}
+
 /**
  * Get all manga files from a directory (recursive)
  */
@@ -102,16 +134,14 @@ export async function findMangaFiles(dirPath: string, options: {
       const files: Array<{ name: string; fullPath: string }> = [];
       const symlinks: Array<{ name: string; fullPath: string }> = [];
 
-      for (const entry of entries) {
-        const fullPath = path.join(currentPath, entry.name);
-
-        if (entry.isDirectory()) {
-          directories.push({ name: entry.name, fullPath });
-        } else if (entry.isFile()) {
-          files.push({ name: entry.name, fullPath });
-        } else if (entry.isSymbolicLink() && followSymlinks) {
-          symlinks.push({ name: entry.name, fullPath });
-        }
+      const classified = await Promise.all(
+        entries.map((e) => classifyEntry(e, path.join(currentPath, e.name), followSymlinks)),
+      );
+      for (const c of classified) {
+        if (!c) continue;
+        if (c.kind === 'dir') directories.push({ name: c.name, fullPath: c.fullPath });
+        else if (c.kind === 'file') files.push({ name: c.name, fullPath: c.fullPath });
+        else symlinks.push({ name: c.name, fullPath: c.fullPath });
       }
 
       // Process files synchronously (no await needed)

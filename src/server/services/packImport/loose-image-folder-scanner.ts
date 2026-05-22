@@ -53,29 +53,61 @@ interface CandidateFolder {
   imageFiles: string[];
 }
 
+/** Resolve a dirent's actual type. On NFS/SMB/FUSE mounts the dirent d_type is
+ *  often DT_UNKNOWN, which makes both isFile() and isDirectory() return false
+ *  for real entries — so when neither is true, fall back to lstat(). */
+async function resolveEntryType(
+  entry: import('fs').Dirent,
+  fullPath: string,
+): Promise<{ isDir: boolean; isFile: boolean }> {
+  let isDir = entry.isDirectory();
+  let isFile = entry.isFile();
+  if (!isDir && !isFile) {
+    try {
+      const stats = await fs.lstat(fullPath);
+      isDir = stats.isDirectory();
+      isFile = stats.isFile();
+    } catch {
+      // Unreadable — leave both false; caller will skip the entry.
+    }
+  }
+  return { isDir, isFile };
+}
+
 /** Walk one folder's direct contents; return image files (full paths) only
  *  if the folder qualifies as a chapter (≥ MIN_IMAGES_PER_CHAPTER images and
  *  no nested archives that should have been caught by the primary scan). */
 async function inspectFolder(fullPath: string): Promise<string[] | null> {
   const entries = await fs.readdir(fullPath, { withFileTypes: true });
-  const images: string[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const ext = path.extname(entry.name).toLowerCase();
-    if (IMAGE_EXTS.has(ext)) images.push(path.join(fullPath, entry.name));
-  }
+  const checked = await Promise.all(
+    entries.map(async (entry) => {
+      const child = path.join(fullPath, entry.name);
+      const { isFile } = await resolveEntryType(entry, child);
+      if (!isFile) return null;
+      const ext = path.extname(entry.name).toLowerCase();
+      return IMAGE_EXTS.has(ext) ? child : null;
+    }),
+  );
+  const images = checked.filter((c): c is string => c !== null);
   if (images.length < MIN_IMAGES_PER_CHAPTER) return null;
   return images.sort(naturalCompare);
 }
 
 async function findCandidateFolders(rootPath: string): Promise<CandidateFolder[]> {
   const entries = await fs.readdir(rootPath, { withFileTypes: true });
-  const dirs = entries.filter(e => e.isDirectory() && !SKIP_DIR_NAMES.has(e.name) && !e.name.startsWith('.'));
+  const dirs = await Promise.all(
+    entries
+      .filter((e) => !SKIP_DIR_NAMES.has(e.name) && !e.name.startsWith('.'))
+      .map(async (e) => {
+        const fullPath = path.join(rootPath, e.name);
+        const { isDir } = await resolveEntryType(e, fullPath);
+        return isDir ? { name: e.name, fullPath } : null;
+      }),
+  );
   const checked = await Promise.all(
-    dirs.map(async (d) => {
-      const fullPath = path.join(rootPath, d.name);
-      const imageFiles = await inspectFolder(fullPath);
-      return imageFiles === null ? null : { name: d.name, fullPath, imageFiles };
+    dirs.filter((d): d is { name: string; fullPath: string } => d !== null).map(async (d) => {
+      const imageFiles = await inspectFolder(d.fullPath);
+      return imageFiles === null ? null : { name: d.name, fullPath: d.fullPath, imageFiles };
     }),
   );
   return checked.filter((c): c is CandidateFolder => c !== null);

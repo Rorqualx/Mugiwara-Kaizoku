@@ -136,19 +136,25 @@ async function processBrowsePath(inputPath: string): Promise<{
     .filter((entry) => !entry.name.startsWith('.')) // Skip hidden files
     .map(async (entry) => {
       const entryPath = path.join(currentPath, entry.name);
-      let isAccessible = true;
-
-      // Test accessibility
+      // Dirent d_type is often DT_UNKNOWN on NFS/SMB/FUSE, which makes
+      // entry.isDirectory() return false for real directories. Defer to stat()
+      // (which follows symlinks-to-directories the way users expect when
+      // browsing) and only fall back to the dirent flag if stat fails.
+      let isDirectory = entry.isDirectory();
+      let isAccessible = false;
       try {
+        const stats = await fs.stat(entryPath);
+        isDirectory = stats.isDirectory();
         await fs.access(entryPath, fs.constants.R_OK);
+        isAccessible = true;
       } catch {
-        isAccessible = false;
+        // Entry stays at dirent-reported isDirectory and is marked inaccessible.
       }
 
       return {
         name: entry.name,
         path: entryPath,
-        isDirectory: entry.isDirectory(),
+        isDirectory,
         isAccessible
       };
     });

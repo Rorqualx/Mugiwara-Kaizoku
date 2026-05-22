@@ -203,18 +203,36 @@ async function copyWithFallback(src: string, dest: string): Promise<void> {
 async function copyDirectoryRecursive(src: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true });
   const entries = await fs.readdir(src, { withFileTypes: true });
-  await Promise.all(entries.map(async (entry) => {
-    const srcChild = path.join(src, entry.name);
-    const destChild = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      await copyDirectoryRecursive(srcChild, destChild);
-    } else if (entry.isFile()) {
-      await copyWithFallback(srcChild, destChild);
+  await Promise.all(entries.map((entry) => copyEntry(src, dest, entry)));
+}
+
+async function copyEntry(srcDir: string, destDir: string, entry: import('fs').Dirent): Promise<void> {
+  const srcChild = path.join(srcDir, entry.name);
+  const destChild = path.join(destDir, entry.name);
+
+  // Dirent d_type can be DT_UNKNOWN on NFS/SMB mounts — isDirectory()/isFile()
+  // both return false for real entries. Fall back to lstat() when the dirent
+  // can't classify the entry, otherwise the recursive copy silently truncates.
+  let isDir = entry.isDirectory();
+  let isFile = entry.isFile();
+  if (!isDir && !isFile) {
+    try {
+      const stats = await fs.lstat(srcChild);
+      isDir = stats.isDirectory();
+      isFile = stats.isFile();
+    } catch {
+      return;
     }
-    // Symlinks and other special entries are intentionally skipped — manga
-    // image directories don't legitimately contain them, and following them
-    // blindly is a footgun.
-  }));
+  }
+
+  if (isDir) {
+    await copyDirectoryRecursive(srcChild, destChild);
+  } else if (isFile) {
+    await copyWithFallback(srcChild, destChild);
+  }
+  // Symlinks and other special entries are intentionally skipped — manga
+  // image directories don't legitimately contain them, and following them
+  // blindly is a footgun.
 }
 
 /** Load media management settings for naming templates and volume folders */
