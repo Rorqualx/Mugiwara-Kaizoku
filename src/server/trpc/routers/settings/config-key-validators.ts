@@ -79,7 +79,10 @@ const fileOrgShape = z
     volumeNamingTemplate: templateString.optional(),
     chapterNamingTemplate: templateString.optional(),
     fileNamingTemplate: templateString.optional(), // deprecated, still accepted on the read path
-    libraryBasePath: absolutePathString.optional(),
+    // Empty string is a legitimate "no library base path set yet" value —
+    // the field is hidden in keep-in-place mode and not required until
+    // the user picks move/copy. Validate as: empty OR valid absolute path.
+    libraryBasePath: z.union([z.literal(''), absolutePathString]).optional(),
     // Behavior toggles. These were missing from the schema, so the .strict()
     // shape silently rejected every save that included them — the UI's
     // optimistic state flip made it look like saves were succeeding right

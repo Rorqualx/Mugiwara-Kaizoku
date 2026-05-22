@@ -66,6 +66,13 @@ export async function initializeSuwayomi(): Promise<void> {
     const started = await suwayomiService.startServer();
     if (started) {
       logger.info('Suwayomi server started successfully');
+      // Scrape the extension catalog so the Indexers tab shows the
+      // ~1500-entry browse list instead of "NO CATALOG / Browse catalog (0)"
+      // on first load. The tRPC startServer mutation already does this for
+      // user-initiated starts; on boot we have to fire it from here too.
+      // Fire-and-forget — the catalog fetch can take a few seconds and we
+      // don't want to block boot on it.
+      void suwayomiService.prefetchExtensionCatalog();
     } else {
       logger.error('Failed to start Suwayomi server (supervisor will retry on crash)');
     }

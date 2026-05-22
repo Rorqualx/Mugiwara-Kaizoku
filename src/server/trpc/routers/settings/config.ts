@@ -9,6 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
@@ -239,7 +240,15 @@ export const settingsConfigRouter = router({
       } catch (validationError: unknown) {
         const message = validationError instanceof Error ? validationError.message : String(validationError);
         logger.warn(`[settings.set] Rejected key=${input.key}: ${message}`);
-        return createErrorResult(createContextualError(message, "INVALID_CONFIG_VALUE"));
+        // Throw a real TRPCError instead of returning a successful response
+        // with an AsyncResult error inside. The previous shape required every
+        // caller to inspect result.status manually; none of the 5 existing
+        // settings.set callers did, so validation rejections were silently
+        // ignored and only surfaced after a reboot when the unchanged DB
+        // value loaded back. BAD_REQUEST trips the tRPC mutation's `onError`
+        // (or `isError`) the same way a network error does, so every caller's
+        // existing error path now gets the message.
+        throw new TRPCError({ code: 'BAD_REQUEST', message });
       }
       try {
         const configService = getGlobalConfigService();
