@@ -45,7 +45,6 @@ import React, { useMemo } from 'react';
 import { AppShell, Box } from '@mantine/core';
 import { useRouter } from 'next/router';
 
-import { HomeActionBar } from '@/components/home-action-bar';
 import { useTheme } from '@/hooks/useTheme';
 import { toNumberId } from '@/utils/id-converters';
 
@@ -194,9 +193,12 @@ export function MainLayout({
         </AppShell.Navbar>
         
         <AppShell.Main>
-          {/* Only render action bars on homepage, library pages, calendar page, and task pages */}
-          {!isSettingsPage && (isHomePage || isLibraryPage || isCalendarPage || isTaskPage) && <Box style={actionBarStyles}>
-              {isHomePage ? <HomeActionBar /> : isLibraryPage ? <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : isCalendarPage ? <CalendarActionBar /> : isTaskPage ? <TaskActionBar /> : <ActionBar children={null} />}
+          {/* Action bars render on library pages, calendar page, and task pages.
+              Home page no longer has one — the Search Downloads button it used
+              to host now lives on the library detail page where selection +
+              monitored-manga context actually applies. */}
+          {!isSettingsPage && (isLibraryPage || isCalendarPage || isTaskPage) && <Box style={actionBarStyles}>
+              {isLibraryPage ? <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : isCalendarPage ? <CalendarActionBar /> : isTaskPage ? <TaskActionBar /> : <ActionBar children={null} />}
             </Box>}
           
           {/* Render AlphabetJumpBar on homepage and library pages */}

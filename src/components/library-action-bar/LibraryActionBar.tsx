@@ -10,8 +10,10 @@
 
 import React, { useState, useCallback } from 'react';
 
-import { Group, Box } from '@mantine/core';
+import { Group, Box, ActionIcon, Tooltip } from '@mantine/core';
+import { IconCloud } from '@tabler/icons-react';
 
+import { useSearchDownload } from '@/components/home-action-bar/hooks';
 import { EditLibraryModal } from '@/components/library/EditLibraryModal';
 import type { ViewType, SortOption, FilterOption } from '@/store/index';
 import { notify } from '@/utils/notify';
@@ -47,6 +49,10 @@ export function LibraryActionBar({
   // Modal states
   const [optionsModalOpened, setOptionsModalOpened] = useState(false);
   const [editLibraryModalOpened, setEditLibraryModalOpened] = useState(false);
+
+  // Search downloads (selection-aware: all monitored when nothing selected,
+  // otherwise just the selected manga). Moved here from HomeActionBar.
+  const { handleSearchDownload, isSearching, hasSelection, selectedCount } = useSearchDownload();
 
   // Handlers
   const handleMenuToggle = useCallback(
@@ -159,6 +165,25 @@ export function LibraryActionBar({
               onCoverSizeChange={state.setCoverSize}
             />
           )}
+
+          <Tooltip
+            label={
+              hasSelection
+                ? `Search downloads for ${selectedCount} selected manga`
+                : 'Search downloads for all monitored manga'
+            }
+          >
+            <ActionIcon
+              variant="subtle"
+              size="lg"
+              loading={isSearching}
+              onClick={() => { void handleSearchDownload(); }}
+              style={{ color: '#dddddd' }}
+              aria-label="Search downloads"
+            >
+              <IconCloud size={20} />
+            </ActionIcon>
+          </Tooltip>
         </Group>
 
         {/* Right side - Alphabet navigation */}

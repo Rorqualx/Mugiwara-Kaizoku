@@ -15,7 +15,6 @@ import React, { useMemo, useEffect } from 'react';
 import { AppShell, Box } from '@mantine/core';
 import { useRouter } from 'next/router';
 
-import { HomeActionBar } from '@/components/home-action-bar';
 import { useBreakpoint, useMobileState } from '@/hooks/mobile';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -52,7 +51,6 @@ export interface ResponsiveMainLayoutProps {
  * @param props - Component props
  * @returns Responsive application layout structure
  */
-// eslint-disable-next-line complexity -- Layout component with route-based conditionals for home, library, manga, settings pages
 export function ResponsiveMainLayout({ children, className, onNavbarToggle, navbarCollapsed = false, contentStyle }: ResponsiveMainLayoutProps): React.ReactElement {
   const router = useRouter();
   const { isMobile, isTablet } = useBreakpoint();
@@ -202,9 +200,11 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
           </AppShell.Navbar>}
         
         <AppShell.Main>
-          {/* Action bars - responsive sizing */}
-          {!isSettingsPage && !isMangaPage && (isHomePage || isLibraryPage) && <Box style={actionBarStyles} data-component="action-bar-container">
-              {(isHomePage || isLibraryListPage) ? <HomeActionBar /> : isLibraryDetailPage ? <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : null}
+          {/* Action bars - responsive sizing. No bar on home / library-list —
+              the only thing it used to host was Search Downloads, which moved
+              to the library detail action bar. */}
+          {!isSettingsPage && !isMangaPage && isLibraryDetailPage && <Box style={actionBarStyles} data-component="action-bar-container">
+              <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} />
             </Box>}
           
           {/* Alphabet jump bar - only on library page, hide on mobile */}
