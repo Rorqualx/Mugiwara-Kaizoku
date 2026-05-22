@@ -80,13 +80,22 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         }
 
         try {
-            // settingsData is the AsyncResult object with { success: boolean, data: string }
-            // We know settingsData is not null from the guard above
+            // settingsData is AsyncResult<unknown>; `data` can be either a
+            // JSON string (legacy stored shape) OR an already-deserialized
+            // object (current configService cache returns parsed values).
+            // The old typeof==='string' check silently bailed on the object
+            // case, leaving the local useState defaults visible — looking
+            // like saves reverted across reloads. Accept both shapes.
             const settingsObj = settingsData as Record<string, unknown>;
-            const valueStr = 'data' in settingsObj ? settingsObj["data"] : null;
+            const rawValue = 'data' in settingsObj ? settingsObj["data"] : null;
+            let parsed: unknown = null;
+            if (typeof rawValue === 'string' && rawValue.length > 0) {
+                parsed = JSON.parse(rawValue);
+            } else if (typeof rawValue === 'object' && rawValue !== null) {
+                parsed = rawValue;
+            }
 
-            if (valueStr && typeof valueStr === 'string') {
-                const parsed: unknown = JSON.parse(valueStr);
+            if (parsed !== null) {
 
                 // Type guard to ensure parsed data matches expected shape
                 if (typeof parsed === 'object' && parsed !== null) {
