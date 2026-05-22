@@ -106,16 +106,20 @@ async function checkActiveJobsBlocked(
 /** Handles restart based on environment type */
 async function executeRestart(
   envInfo: EnvironmentInfo,
-  force: boolean
+  _force: boolean
 ): Promise<{ message: string; requiresManualRestart: boolean }> {
-  const { scheduleGracefulExit } = await import('@/server/utils/graceful-shutdown');
   const { RESTART_DELAYS } = await import('@/server/constants/system');
 
   logger.info('restart:environment-detected', envInfo);
 
+  // SIGTERM routes through the canonical handler in server-shutdown.ts which
+  // closes HTTP/WebSocket/schedulers/queues/Suwayomi/FlareSolverr in order
+  // before `process.exit(0)`. The parallel `graceful-shutdown.ts` path skipped
+  // those — under Bun the still-listening HTTP server kept the process alive,
+  // so the container never recycled.
   if (envInfo.isDocker) {
-    logger.info('restart:docker-mode', { message: 'Scheduling container restart' });
-    scheduleGracefulExit('Docker container restart', RESTART_DELAYS.DOCKER_RESTART_MS, force, 0);
+    logger.info('restart:docker-mode', { message: 'Scheduling SIGTERM for container restart' });
+    setTimeout(() => process.kill(process.pid, 'SIGTERM'), RESTART_DELAYS.RESPONSE_BUFFER_MS);
     return {
       message: 'Container restart initiated. Docker will handle the restart based on container policy.',
       requiresManualRestart: false
@@ -135,16 +139,15 @@ async function executeRestart(
     process.send('shutdown');
     logger.info('restart:pm2-signal-sent');
   }
-  scheduleGracefulExit('Production restart', RESTART_DELAYS.PRODUCTION_RESTART_MS, force, 0);
+  setTimeout(() => process.kill(process.pid, 'SIGTERM'), RESTART_DELAYS.RESPONSE_BUFFER_MS);
   return { message: 'Application restart initiated', requiresManualRestart: false };
 }
 
 /** Handles shutdown based on environment type */
 async function executeShutdown(
   envInfo: EnvironmentInfo,
-  force: boolean
+  _force: boolean
 ): Promise<string> {
-  const { scheduleGracefulExit } = await import('@/server/utils/graceful-shutdown');
   const { RESTART_DELAYS } = await import('@/server/constants/system');
 
   logger.info('shutdown:environment-detected', envInfo);
@@ -161,7 +164,9 @@ async function executeShutdown(
     logger.info('shutdown:production-mode', { message: 'Process manager may restart based on configuration' });
   }
 
-  scheduleGracefulExit('User-initiated shutdown', RESTART_DELAYS.SHUTDOWN_DELAY_MS, force, 0);
+  // Same SIGTERM routing as restart — the canonical handler in server-shutdown.ts
+  // is the only code path that closes the HTTP server + child processes cleanly.
+  setTimeout(() => process.kill(process.pid, 'SIGTERM'), RESTART_DELAYS.RESPONSE_BUFFER_MS);
   return message;
 }
 
