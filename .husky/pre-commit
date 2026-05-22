@@ -317,8 +317,13 @@ fi
 echo ""
 echo -e "${BLUE}🧹 7/10 Running ESLint...${NC}"
 if command_exists eslint && [ ! -z "$STAGED_FILES" ]; then
-    # Run ESLint with max-warnings to allow warnings but fail on errors
-    echo "$STAGED_FILES" | xargs eslint --quiet --max-warnings 150 2>&1 | tee /tmp/eslint-output.txt
+    # Mirror what CI's `bun run lint` enforces: errors fail, >10 warnings fail.
+    # Run on ALL of src/ so the hook catches lint problems anywhere in the
+    # tree — not just the staged files — because CI checks the whole project.
+    # PIPESTATUS[1] is xargs (which exits non-zero when eslint does); the
+    # previous code read [0] which was `echo` (always 0) — silently letting
+    # every eslint error through.
+    bun run lint 2>&1 | tee /tmp/eslint-output.txt
     ESLINT_EXIT=${PIPESTATUS[0]}
 
     if [ $ESLINT_EXIT -ne 0 ]; then

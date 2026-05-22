@@ -96,9 +96,8 @@ export function FileOrganizationSettings(): React.ReactElement | null {
             }
 
             if (parsed !== null) {
-
                 // Type guard to ensure parsed data matches expected shape
-                if (typeof parsed === 'object' && parsed !== null) {
+                if (typeof parsed === 'object') {
                     const settings = parsed as FileOrganizationSettingsData;
 
                     // Update all state variables with loaded values.
