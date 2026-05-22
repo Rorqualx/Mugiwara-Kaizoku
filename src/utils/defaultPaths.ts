@@ -68,14 +68,25 @@ export async function ensureDirectoriesExist(): Promise<void> {
   }
 }
 /**
- * Generates a default library path based on library name
- * Creates a safe, filesystem-friendly path in the libraries directory
+ * Generates a default library path based on library name.
+ *
+ * Docker: defaults to the user-mounted `/library` root (the bind-mount in
+ * docker-compose.yml). Sub-dirs under that are where their files actually
+ * live — defaulting elsewhere caused the path-traversal guard to 403 every
+ * reader request because the resulting Library row's `path` had no overlap
+ * with the on-disk filePaths.
+ *
+ * Local dev: keeps the legacy LIBRARIES_DIR-relative path so the
+ * project-root data/ tree stays self-contained.
  *
  * @param {string} name - Library name
  * @returns {string} Default path for the library
  */
 export function getDefaultLibraryPath(name: string): string {
   const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  if (isDocker) {
+    return path.join('/library', safeName);
+  }
   return path.join(LIBRARIES_DIR, safeName);
 }
 /**

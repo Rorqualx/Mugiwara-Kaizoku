@@ -182,7 +182,8 @@ ENV NODE_ENV=production \
     DOCKER=true \
     KAIZOKU_LOG_PATH=/config/logs \
     HOME=/config \
-    PGDATA=/config/postgres
+    PGDATA=/config/postgres \
+    MANGA_FILES_DIR=/library
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD nc -z localhost ${KAIZOKU_PORT:-3000} || exit 1
