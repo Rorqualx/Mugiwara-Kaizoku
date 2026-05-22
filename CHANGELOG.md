@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Performance benchmarks met
 - [ ] Security audit passed
 
+### Tagging History
+
+No semver releases have been cut yet. The repo contains one `v*`-prefixed tag — `v1.7.0-strict-mode-complete` — but it is a development checkpoint marker (TypeScript strict mode milestone), not a release. The `package.json` version (`0.9.0`) is the canonical version reference; ignore any other in-repo state that disagrees.
+
 ---
 
 ## [Unreleased]

@@ -39,7 +39,6 @@ mv phase1-completion-summary.txt docs/migration/phase-reports/ 2>/dev/null
 
 # List of files that should remain in root (config files)
 # - .eslintrc.json
-# - .release-please-manifest.json
 # - claude.config.yml
 # - docker-compose.yml
 # - jest.config.mjs
@@ -49,7 +48,6 @@ mv phase1-completion-summary.txt docs/migration/phase-reports/ 2>/dev/null
 # - pnpm-lock.yaml
 # - pnpm-workspace.yaml
 # - postcss.config.mjs
-# - release-please-config.json
 # - server-wrapper.js
 # - tailwind.config.mjs
 # - tsconfig.json
