@@ -154,9 +154,6 @@ export function FileOrganizationSettings(): React.ReactElement | null {
             gcTime: 30000  // Cache results for 30 seconds for quick navigation back
         }
     );
-    /**
-     * Generate folder path preview based on current settings
-     */
     const folderPreview = useMemo(() => {
         return generateFolderPath(
             folderStructure,
@@ -167,23 +164,14 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         );
     }, [folderStructure, customFolderTemplate, libraryBasePath, createVolumeFolders, sampleManga]);
 
-    /**
-     * Generate volume file name preview based on current template
-     */
     const volumeFileNamePreview = useMemo(() => {
         return generateVolumeFileName(volumeNamingTemplate, sampleManga);
     }, [volumeNamingTemplate, sampleManga]);
 
-    /**
-     * Generate chapter file name preview based on current template
-     */
     const chapterFileNamePreview = useMemo(() => {
         return generateChapterFileName(chapterNamingTemplate, sampleManga);
     }, [chapterNamingTemplate, sampleManga]);
 
-    /**
-     * Full path preview combining folder and file name (uses chapter preview for backwards compatibility)
-     */
     const fullPathPreview = useMemo(() => {
         return `${folderPreview}${chapterFileNamePreview}`;
     }, [folderPreview, chapterFileNamePreview]);
@@ -195,7 +183,25 @@ export function FileOrganizationSettings(): React.ReactElement | null {
     // gives us automatic rollback (the UI no longer shows a saved value that
     // wasn't actually persisted) without rewriting all 10+ change handlers.
     const updateFileOrganization = trpc.settings.set.useMutation({
-        onSuccess: () => {
+        onSuccess: (result: unknown) => {
+            // tRPC fires onSuccess as long as the HTTP call returns 2xx.
+            // The actual save outcome is in the AsyncResult body — when
+            // the server-side validator rejects the payload it returns
+            // {status:'error', error:...} *inside* a successful response.
+            // Without this guard, every rejected save flashed "Saved"
+            // and the user only discovered it didn't persist after a
+            // reboot. Re-sync from server to revert the optimistic
+            // state flip too.
+            const r = result as { status?: string; error?: { message?: string } } | null;
+            if (r?.status === 'error') {
+                const errorMessage = r.error?.message ?? 'Save rejected by server';
+                logger.error('File organization save rejected by server', { errorMessage });
+                setError(`Failed to update settings: ${errorMessage}`);
+                showNotification({ title: 'Save failed', message: errorMessage, color: 'red' });
+                void utils.settings.get.invalidate({ key: 'fileOrganization' });
+                setIsLoaded(false);
+                return;
+            }
             setError(null);
             showNotification({ title: "Saved", message: "File organization settings updated", color: "green" });
         },
@@ -207,9 +213,6 @@ export function FileOrganizationSettings(): React.ReactElement | null {
             setIsLoaded(false);
         }
     });
-    /**
-     * Build settings object from current state and overrides
-     */
     // eslint-disable-next-line complexity -- Settings builder constructs object from multiple state values with conditional template handling
     const buildSettingsObject = (overrides?: Partial<FileOrganizationSettingsData>): FileOrganizationSettingsData => {
         const effectiveFolderStructure = overrides?.folderStructure ?? folderStructure;
@@ -230,9 +233,6 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         };
     };
 
-    /**
-     * Update settings in database with optional overrides
-     */
     const updateSettings = async (overrides?: Partial<FileOrganizationSettingsData>): Promise<void> => {
         try {
             const settings = buildSettingsObject(overrides);
@@ -253,9 +253,6 @@ export function FileOrganizationSettings(): React.ReactElement | null {
             setError(errorMsg);
         }
     };
-    /**
-     * Handle browse button click - opens modal directory browser
-     */
     const handleBrowseDirectory = (): void => {
         const existingPath = libraryBasePath.trim();
 
@@ -266,17 +263,11 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         setBrowseModalOpen(true);
     };
 
-    /**
-     * Handle directory navigation within browse modal
-     */
     const handleNavigateToPath = (path: string): void => {
         logger.info('Navigating to path:', path);
         setCurrentBrowsePath(path);
     };
 
-    /**
-     * Handle directory selection from browse modal
-     */
     const handleSelectDirectory = (path: string): void => {
         logger.info('Selected library base path:', path);
         setLibraryBasePath(path);
@@ -284,9 +275,6 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         void updateSettings({ libraryBasePath: path });
     };
 
-    /**
-     * Handle closing browse modal
-     */
     const handleCloseBrowse = (): void => {
         setBrowseModalOpen(false);
         setCurrentBrowsePath('');
