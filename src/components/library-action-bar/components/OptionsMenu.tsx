@@ -8,10 +8,7 @@ import { Menu, ActionIcon } from '@mantine/core';
 import {
   IconSettings,
   IconEdit,
-  IconSearch,
-  IconDownload,
   IconAdjustmentsAlt,
-  IconUsers,
 } from '@tabler/icons-react';
 
 import type { OptionsMenuProps } from '../types';
@@ -24,9 +21,7 @@ export function OptionsMenu({
   opened,
   onToggle,
   onEditLibrary,
-  onDownloadManager,
   onAdvancedOptions,
-  onBulkActions,
 }: OptionsMenuProps): React.JSX.Element {
   return (
     <Menu
@@ -48,27 +43,11 @@ export function OptionsMenu({
         >
           Edit Library
         </Menu.Item>
-        <Menu.Item leftSection={<IconSearch size={14} />}>
-          Search & Filter
-        </Menu.Item>
-        <Menu.Item
-          leftSection={<IconDownload size={14} />}
-          onClick={onDownloadManager}
-        >
-          Download Manager
-        </Menu.Item>
-        <Menu.Divider />
         <Menu.Item
           leftSection={<IconAdjustmentsAlt size={14} />}
           onClick={onAdvancedOptions}
         >
           Advanced Options
-        </Menu.Item>
-        <Menu.Item
-          leftSection={<IconUsers size={14} />}
-          onClick={onBulkActions}
-        >
-          Bulk Actions
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

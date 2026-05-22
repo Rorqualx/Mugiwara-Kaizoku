@@ -549,6 +549,42 @@ html {
   color: var(--theme-primary, var(--mantine-color-blue-4)) !important;
 }
 
+/*
+ * Mantine @mantine/dates popovers ship with their own internal Popover that
+ * doesn't always inherit the dark-scheme surface — under our dark theme the
+ * calendar would render solid white against the modal it sits inside. Force
+ * the dropdown + month/year/day surfaces onto the dark surface so the popup
+ * matches the rest of the app.
+ */
+[data-mantine-color-scheme="dark"] .mantine-DateInput-dropdown,
+[data-mantine-color-scheme="dark"] .mantine-DatePickerInput-dropdown,
+[data-mantine-color-scheme="dark"] .mantine-DateTimePicker-dropdown,
+[data-mantine-color-scheme="dark"] .mantine-MonthPicker-dropdown,
+[data-mantine-color-scheme="dark"] .mantine-YearPicker-dropdown {
+  background-color: var(--mantine-color-dark-7);
+  color: var(--mantine-color-text);
+  border-color: var(--mantine-color-dark-4);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Day-day,
+[data-mantine-color-scheme="dark"] .mantine-CalendarHeader-calendarHeader,
+[data-mantine-color-scheme="dark"] .mantine-CalendarHeader-calendarHeaderControl,
+[data-mantine-color-scheme="dark"] .mantine-CalendarHeader-calendarHeaderLevel,
+[data-mantine-color-scheme="dark"] .mantine-WeekdaysRow-weekday,
+[data-mantine-color-scheme="dark"] .mantine-PickerControl-pickerControl {
+  color: var(--mantine-color-text);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Day-day[data-weekend]:not([data-selected]) {
+  color: var(--mantine-color-red-4);
+}
+
+[data-mantine-color-scheme="dark"] .mantine-Day-day:hover:not([data-disabled]),
+[data-mantine-color-scheme="dark"] .mantine-PickerControl-pickerControl:hover:not([data-disabled]),
+[data-mantine-color-scheme="dark"] .mantine-CalendarHeader-calendarHeaderControl:hover {
+  background-color: var(--mantine-color-dark-5);
+}
+
 /* Add a small theme indicator dot in development mode */
 @media (min-width: 0) {
   body::after {

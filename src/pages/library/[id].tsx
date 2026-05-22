@@ -14,7 +14,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import type { ReactElement } from "react";
 
 import { Box, Center, Loader, ScrollArea, SegmentedControl, Stack, Text, Group, ActionIcon, Menu, Button, Modal, Container, Title, Badge, Tooltip } from "@mantine/core";
-import { IconEdit, IconTrash, IconArrowsExchange, IconPlus, IconFilter, IconRefresh, IconDotsVertical, IconArrowLeft, IconCircleCheck, IconEye, IconBook } from '@tabler/icons-react';
+import { IconEdit, IconTrash, IconPlus, IconFilter, IconRefresh, IconDotsVertical, IconArrowLeft, IconCircleCheck, IconEye, IconBook } from '@tabler/icons-react';
 import { useRouter } from "next/router";
 
 import { AddMangaModal } from '@/components/addManga/AddMangaModal';
@@ -43,7 +43,6 @@ import { trpc } from '@/utils/trpc-client/index';
 function LibraryPage(): React.ReactElement {
     const [editModalOpened, setEditModalOpened] = useState(false);
     const [deleteModalOpened, setDeleteModalOpened] = useState(false);
-    const [transferModalOpened, setTransferModalOpened] = useState(false);
     const [advancedFiltersOpened, setAdvancedFiltersOpened] = useState(false);
     const [addMangaModalOpened, setAddMangaModalOpened] = useState(false);
     const [bulkDeleteModalOpened, setBulkDeleteModalOpened] = useState(false);
@@ -405,9 +404,6 @@ function LibraryPage(): React.ReactElement {
                   <Menu.Item leftSection={<IconEdit size={14}/>} onClick={() => setEditModalOpened(true)}>
                     Edit Library
                   </Menu.Item>
-                  <Menu.Item leftSection={<IconArrowsExchange size={14}/>} onClick={() => setTransferModalOpened(true)}>
-                    Transfer Manga
-                  </Menu.Item>
                   <Menu.Item leftSection={<IconPlus size={14}/>} onClick={() => setAddMangaModalOpened(true)}>
                     Add Manga
                   </Menu.Item>
@@ -515,13 +511,6 @@ function LibraryPage(): React.ReactElement {
                 </Button>
               </Group>
             </Stack>
-          </Modal>
-          
-          <Modal opened={transferModalOpened} onClose={() => setTransferModalOpened(false)} title="Transfer Manga" size="lg" centered>
-
-            <Text c="dimmed">
-              Transfer manga functionality coming soon...
-            </Text>
           </Modal>
           
           <AdvancedFilters opened={advancedFiltersOpened} onClose={() => setAdvancedFiltersOpened(false)} availableGenres={availableGenres} availableTags={availableTags}/>

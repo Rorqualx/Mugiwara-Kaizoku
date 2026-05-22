@@ -31,13 +31,9 @@ export function EditLibraryModal({ opened, onClose, library }: EditLibraryModalP
     const autoDownloadNewChapters = useLibraryViewStore((state) => state.autoDownloadNewChapters);
     const sendUpdateNotifications = useLibraryViewStore((state) => state.sendUpdateNotifications);
     const autoMarkAsRead = useLibraryViewStore((state) => state.autoMarkAsRead);
-    const enableMetadataEnhancement = useLibraryViewStore((state) => state.enableMetadataEnhancement);
-    const skipEmptyVolumes = useLibraryViewStore((state) => state.skipEmptyVolumes);
     const setAutoDownloadNewChapters = useLibraryViewStore((state) => state.setAutoDownloadNewChapters);
     const setSendUpdateNotifications = useLibraryViewStore((state) => state.setSendUpdateNotifications);
     const setAutoMarkAsRead = useLibraryViewStore((state) => state.setAutoMarkAsRead);
-    const setEnableMetadataEnhancement = useLibraryViewStore((state) => state.setEnableMetadataEnhancement);
-    const setSkipEmptyVolumes = useLibraryViewStore((state) => state.setSkipEmptyVolumes);
     // Additional library-specific settings
     const [scanInterval, setScanInterval] = useState('daily');
     const [preferredLanguage, setPreferredLanguage] = useState('en');
@@ -132,13 +128,7 @@ export function EditLibraryModal({ opened, onClose, library }: EditLibraryModalP
         <Tabs.Panel value="scanning" pt="md">
           <Stack gap="md">
             <Text size="sm" fw={500}>Scanning Options</Text>
-            
-            <Checkbox label="Skip volumes without chapters" checked={skipEmptyVolumes} onChange={(event) => setSkipEmptyVolumes(event.currentTarget.checked)}/>
 
-            
-            <Checkbox label="Enable metadata enhancement" description="Automatically fetch and update metadata from online sources" checked={enableMetadataEnhancement} onChange={(event) => setEnableMetadataEnhancement(event.currentTarget.checked)}/>
-
-            
             <Select label="Preferred Language" placeholder="Select language" value={preferredLanguage} onChange={(value) => setPreferredLanguage(value ?? 'en')} data={[
             { value: 'en', label: 'English' },
             { value: 'jp', label: 'Japanese' },

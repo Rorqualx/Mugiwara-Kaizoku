@@ -32,6 +32,7 @@ interface PresetListProps {
   currentSortBy?: SortOption | undefined;
   onSavePreset: (preset: Omit<FilterPreset, 'id'>) => void;
   onApplyPreset: (id: string) => void;
+  onClearPreset: () => void;
   onUpdatePreset: (id: string, updates: Partial<FilterPreset>) => void;
   onDeletePreset: (id: string) => void;
 }
@@ -44,9 +45,21 @@ export function PresetList({
   currentSortBy,
   onSavePreset,
   onApplyPreset,
+  onClearPreset,
   onUpdatePreset,
   onDeletePreset
 }: PresetListProps): React.ReactElement {
+  // Toggle behavior: clicking the active preset clears it. Anything else applies it.
+  const handlePresetClick = useCallback(
+    (id: string) => {
+      if (activePresetId === id) {
+        onClearPreset();
+      } else {
+        onApplyPreset(id);
+      }
+    },
+    [activePresetId, onApplyPreset, onClearPreset],
+  );
   const [presetName, setPresetName] = useState('');
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingPresetName, setEditingPresetName] = useState('');
@@ -88,14 +101,26 @@ export function PresetList({
   return (
     <Stack gap="md">
       <Box>
-        <Text size="xs" c="dimmed" fw={500} mb="xs">Quick Presets</Text>
+        <Group justify="space-between" mb="xs">
+          <Text size="xs" c="dimmed" fw={500}>Quick Presets</Text>
+          {activePresetId !== null && (
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              onClick={onClearPreset}
+            >
+              Clear preset
+            </Button>
+          )}
+        </Group>
         <Group gap={6}>
           {BUILT_IN_PRESETS.map((preset) => (
             <Button
               key={preset.id}
               size="xs"
               variant={activePresetId === preset.id ? 'filled' : 'light'}
-              onClick={() => onApplyPreset(preset.id)}
+              onClick={() => handlePresetClick(preset.id)}
             >
               {preset.name}
             </Button>
@@ -202,7 +227,7 @@ export function PresetList({
                   <Button
                     size="xs"
                     variant={activePresetId === preset.id ? 'filled' : 'light'}
-                    onClick={() => onApplyPreset(preset.id)}
+                    onClick={() => handlePresetClick(preset.id)}
                   >
                     {activePresetId === preset.id ? 'Active' : 'Apply'}
                   </Button>

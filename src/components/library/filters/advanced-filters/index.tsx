@@ -46,6 +46,7 @@ export function AdvancedFilters({
     saveFilterPreset,
     deleteFilterPreset,
     applyFilterPreset,
+    clearActivePreset,
     updateFilterPreset
   } = useLibraryViewStore();
 
@@ -153,6 +154,7 @@ export function AdvancedFilters({
               ...(preset.sortBy !== undefined && { sortBy: preset.sortBy })
             })}
             onApplyPreset={applyFilterPreset}
+            onClearPreset={clearActivePreset}
             onUpdatePreset={updateFilterPreset}
             onDeletePreset={deleteFilterPreset}
           />

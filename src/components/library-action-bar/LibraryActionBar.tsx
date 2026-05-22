@@ -10,11 +10,8 @@
 
 import React, { useState, useCallback } from 'react';
 
-import { Group, ActionIcon, Box } from '@mantine/core';
-import { IconRefresh } from '@tabler/icons-react';
+import { Group, Box } from '@mantine/core';
 
-import { BulkActionsModal } from '@/components/library/BulkActionsModal';
-import { DownloadManagerModal } from '@/components/library/DownloadManagerModal';
 import { EditLibraryModal } from '@/components/library/EditLibraryModal';
 import type { ViewType, SortOption, FilterOption } from '@/store/index';
 import { notify } from '@/utils/notify';
@@ -38,11 +35,8 @@ import type { LibraryActionBarProps, MenuState } from './types';
  * filtering, and alphabet navigation.
  */
 export function LibraryActionBar({
-  onRefresh,
-  refreshing,
   libraryId,
   libraryName,
-  mangaList = [],
 }: LibraryActionBarProps): React.JSX.Element {
   // Get consolidated state from custom hook
   const state = useLibraryActionBarState();
@@ -52,16 +46,9 @@ export function LibraryActionBar({
 
   // Modal states
   const [optionsModalOpened, setOptionsModalOpened] = useState(false);
-  const [bulkActionsModalOpened, setBulkActionsModalOpened] = useState(false);
   const [editLibraryModalOpened, setEditLibraryModalOpened] = useState(false);
-  const [downloadManagerModalOpened, setDownloadManagerModalOpened] = useState(false);
 
   // Handlers
-  const handleRefresh = useCallback((): void => {
-    onRefresh();
-    notify({ severity: 'SUCCESS', title: 'Library Refreshed', message: `${libraryName ?? 'Library'} has been refreshed successfully` });
-  }, [onRefresh, libraryName]);
-
   const handleMenuToggle = useCallback(
     (menu: MenuState) =>
       (opened: boolean): void => {
@@ -134,24 +121,11 @@ export function LibraryActionBar({
       >
         {/* Left side - Main actions */}
         <Group gap="xs">
-          <ActionIcon
-            variant="subtle"
-            size="lg"
-            onClick={handleRefresh}
-            loading={refreshing}
-            title="Refresh Library"
-            style={{ color: '#dddddd' }}
-          >
-            <IconRefresh size={18} />
-          </ActionIcon>
-
           <OptionsMenu
             opened={openedMenu === 'options'}
             onToggle={handleMenuToggle('options')}
             onEditLibrary={() => setEditLibraryModalOpened(true)}
-            onDownloadManager={() => setDownloadManagerModalOpened(true)}
             onAdvancedOptions={() => setOptionsModalOpened(true)}
-            onBulkActions={() => setBulkActionsModalOpened(true)}
           />
 
           <ViewMenu
@@ -198,25 +172,11 @@ export function LibraryActionBar({
         autoDownloadNewChapters={state.autoDownloadNewChapters}
         sendUpdateNotifications={state.sendUpdateNotifications}
         autoMarkAsRead={state.autoMarkAsRead}
-        enableMetadataEnhancement={state.enableMetadataEnhancement}
-        skipEmptyVolumes={state.skipEmptyVolumes}
         onAutoDownloadChange={state.setAutoDownloadNewChapters}
         onNotificationsChange={state.setSendUpdateNotifications}
         onAutoMarkAsReadChange={state.setAutoMarkAsRead}
-        onMetadataEnhancementChange={state.setEnableMetadataEnhancement}
-        onSkipEmptyVolumesChange={state.setSkipEmptyVolumes}
         onSave={handleSaveAdvancedOptions}
       />
-
-      {/* Bulk Actions Modal */}
-      {libraryId && (
-        <BulkActionsModal
-          opened={bulkActionsModalOpened}
-          onClose={() => setBulkActionsModalOpened(false)}
-          libraryId={libraryId}
-          mangaList={mangaList}
-        />
-      )}
 
       {/* Edit Library Modal */}
       {libraryId && libraryName && (
@@ -231,11 +191,6 @@ export function LibraryActionBar({
         />
       )}
 
-      {/* Download Manager Modal */}
-      <DownloadManagerModal
-        opened={downloadManagerModalOpened}
-        onClose={() => setDownloadManagerModalOpened(false)}
-      />
     </Box>
   );
 }

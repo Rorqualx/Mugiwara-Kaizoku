@@ -18,13 +18,9 @@ export function AdvancedOptionsModal({
   autoDownloadNewChapters,
   sendUpdateNotifications,
   autoMarkAsRead,
-  enableMetadataEnhancement,
-  skipEmptyVolumes,
   onAutoDownloadChange,
   onNotificationsChange,
   onAutoMarkAsReadChange,
-  onMetadataEnhancementChange,
-  onSkipEmptyVolumesChange,
   onSave,
 }: AdvancedOptionsModalProps): React.JSX.Element {
   return (
@@ -53,16 +49,6 @@ export function AdvancedOptionsModal({
           label="Automatically mark as read when downloaded"
           checked={autoMarkAsRead}
           onChange={(event) => onAutoMarkAsReadChange(event.currentTarget.checked)}
-        />
-        <Checkbox
-          label="Enable metadata enhancement"
-          checked={enableMetadataEnhancement}
-          onChange={(event) => onMetadataEnhancementChange(event.currentTarget.checked)}
-        />
-        <Checkbox
-          label="Skip volumes without chapters"
-          checked={skipEmptyVolumes}
-          onChange={(event) => onSkipEmptyVolumesChange(event.currentTarget.checked)}
         />
         <Button onClick={onSave}>Save Settings</Button>
       </Stack>

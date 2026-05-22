@@ -18,11 +18,8 @@ export type MangaEntity = Prisma.MangaGetPayload<{
  * Props for the main LibraryActionBar component
  */
 export interface LibraryActionBarProps {
-  onRefresh: () => void;
-  refreshing: boolean;
   libraryId?: number;
   libraryName?: string;
-  mangaList?: MangaEntity[];
 }
 
 /**
@@ -76,9 +73,7 @@ export interface MenuComponentProps {
  */
 export interface OptionsMenuProps extends MenuComponentProps {
   onEditLibrary: () => void;
-  onDownloadManager: () => void;
   onAdvancedOptions: () => void;
-  onBulkActions: () => void;
 }
 
 /**
@@ -125,13 +120,9 @@ export interface AdvancedOptionsModalProps {
   autoDownloadNewChapters: boolean;
   sendUpdateNotifications: boolean;
   autoMarkAsRead: boolean;
-  enableMetadataEnhancement: boolean;
-  skipEmptyVolumes: boolean;
   onAutoDownloadChange: (value: boolean) => void;
   onNotificationsChange: (value: boolean) => void;
   onAutoMarkAsReadChange: (value: boolean) => void;
-  onMetadataEnhancementChange: (value: boolean) => void;
-  onSkipEmptyVolumesChange: (value: boolean) => void;
   onSave: () => void;
 }
 

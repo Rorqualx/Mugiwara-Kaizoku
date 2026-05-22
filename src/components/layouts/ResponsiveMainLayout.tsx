@@ -204,7 +204,7 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
         <AppShell.Main>
           {/* Action bars - responsive sizing */}
           {!isSettingsPage && !isMangaPage && (isHomePage || isLibraryPage) && <Box style={actionBarStyles} data-component="action-bar-container">
-              {(isHomePage || isLibraryListPage) ? <HomeActionBar /> : isLibraryDetailPage ? <LibraryActionBar onRefresh={() => {}} refreshing={false} libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : null}
+              {(isHomePage || isLibraryListPage) ? <HomeActionBar /> : isLibraryDetailPage ? <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : null}
             </Box>}
           
           {/* Alphabet jump bar - only on library page, hide on mobile */}

@@ -196,7 +196,7 @@ export function MainLayout({
         <AppShell.Main>
           {/* Only render action bars on homepage, library pages, calendar page, and task pages */}
           {!isSettingsPage && (isHomePage || isLibraryPage || isCalendarPage || isTaskPage) && <Box style={actionBarStyles}>
-              {isHomePage ? <HomeActionBar /> : isLibraryPage ? <LibraryActionBar onRefresh={() => {}} refreshing={false} libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : isCalendarPage ? <CalendarActionBar /> : isTaskPage ? <TaskActionBar /> : <ActionBar children={null} />}
+              {isHomePage ? <HomeActionBar /> : isLibraryPage ? <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} /> : isCalendarPage ? <CalendarActionBar /> : isTaskPage ? <TaskActionBar /> : <ActionBar children={null} />}
             </Box>}
           
           {/* Render AlphabetJumpBar on homepage and library pages */}

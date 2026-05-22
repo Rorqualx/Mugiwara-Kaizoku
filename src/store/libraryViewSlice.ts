@@ -207,6 +207,7 @@ export type LibraryViewActions = {
   saveFilterPreset: (preset: Omit<FilterPreset, 'id'>) => void;
   deleteFilterPreset: (id: string) => void;
   applyFilterPreset: (id: string) => void;
+  clearActivePreset: () => void;
   updateFilterPreset: (id: string, preset: Partial<FilterPreset>) => void;
   setActivePresetId: (id: string | null) => void;
   
@@ -408,7 +409,15 @@ export const useLibraryViewStore = createAppSlice<
         state.activePresetId = id;
       }
     }),
-    
+
+  clearActivePreset: () =>
+    set((state) => {
+      state.filterBy = [];
+      state.advancedFilters = {};
+      state.activePresetId = null;
+    }),
+
+
   updateFilterPreset: (id: string, updates: Partial<FilterPreset>) =>
     set((state) => {
       const index = state.filterPresets.findIndex(p => p["id"] === id);
