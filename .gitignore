@@ -493,6 +493,12 @@ data/suwayomi-config/settings/
 data/suwayomi-config/bin/
 data/suwayomi-config/extensions/
 
+# Pattern-recognition runtime state (per-pattern usage stats + ML models).
+# PatternStore.loadPatterns() seeds from the in-code getDefaultPatterns()
+# fallback on ENOENT, so committing this state is unnecessary churn.
+data/pattern-recognition/patterns.json
+data/pattern-recognition/models/
+
 # Local SQLite app DB
 prisma/app.db
 prisma/app.db-journal
