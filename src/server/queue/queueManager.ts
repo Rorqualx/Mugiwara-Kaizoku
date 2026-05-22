@@ -135,6 +135,26 @@ export class QueueManager extends EventEmitter {
   }
 
   private async runInitialization(): Promise<void> {
+    // Ensure the default queue_config row exists. The original seed
+    // migration was deleted in the public-release history squash, so on
+    // fresh installs the row is missing and every enqueue throws
+    // "Queue 'default' is not active or does not exist". Upsert here
+    // so the queue self-heals on every boot regardless of migration
+    // state. ON CONFLICT keeps any user customizations (priority,
+    // max_concurrent_jobs, etc.) intact.
+    await prisma.queue_config.upsert({
+      where: { queue_name: 'default' },
+      update: {},
+      create: {
+        queue_name: 'default',
+        is_active: true,
+        max_concurrent_jobs: 10,
+        default_priority: 50,
+        default_max_attempts: 3,
+        default_retry_delay_seconds: 60,
+      },
+    });
+
     await this.initialize();
     const workers = this.workerManager.getWorkers();
     if (workers.size === 0) {
