@@ -230,6 +230,12 @@ export async function fetchAndValidateChapter(
 
   // Verify file path exists
   if (!chapter.filePath) {
+    logger.warn('Reader page request: chapter has no filePath in DB', {
+      chapterId: chapter.id,
+      mangaId: chapter.mangaId,
+      pageCount: chapter.pageCount,
+      pages: chapter.pages,
+    });
     res.status(404).json(createErrorResponse('NO_FILE_PATH', 'Chapter has no file path', requestId));
     return null;
   }
@@ -263,7 +269,22 @@ export async function fetchAndValidateChapter(
   // Verify archive file exists
   try {
     await fs.access(archivePath);
-  } catch {
+  } catch (err: unknown) {
+    // Common failure modes:
+    //   - Library on host wasn't bind-mounted into the container
+    //   - Files moved/renamed externally and the DB row is stale
+    //   - Permission denied: container user (UID 1000) can't read the file
+    // Logging the resolved path + raw fs.access error so users can copy
+    // it into a `docker exec ls -la` for diagnosis.
+    const errMessage = err instanceof Error ? err.message : String(err);
+    logger.warn('Reader page request: archive file not accessible', {
+      chapterId: chapter.id,
+      mangaId: chapter.mangaId,
+      filePath: chapter.filePath,
+      resolvedPath: archivePath,
+      libraryPath: chapter.libraryPath,
+      error: errMessage,
+    });
     res.status(404).json(
       createErrorResponse('ARCHIVE_NOT_FOUND', 'Chapter archive file not found', requestId)
     );
