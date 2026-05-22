@@ -36,6 +36,9 @@ interface FileOrganizationFormFieldsProps {
     onLibraryPathChange: (value: string) => void;
     /** Handler for browse button click */
     onBrowseClick: () => void;
+    /** Current file-handling mode — hides the Library Base Path field
+     *  when 'keep_in_place' since the path isn't used in that mode. */
+    fileMode?: 'keep_in_place' | 'move' | 'copy';
 }
 
 /**
@@ -52,7 +55,8 @@ export function FileOrganizationFormFields({
     onChapterNamingTemplateChange,
     libraryBasePath,
     onLibraryPathChange,
-    onBrowseClick
+    onBrowseClick,
+    fileMode,
 }: FileOrganizationFormFieldsProps): React.ReactElement {
     const folderStructureOptions = [
         { value: 'flat', label: 'Flat (No subfolders)' },
@@ -62,37 +66,46 @@ export function FileOrganizationFormFields({
         { value: 'custom', label: 'Custom Template' }
     ] as const;
 
+    // In 'keep_in_place' mode the importer never moves/copies anything,
+    // so the Library Base Path is unused — hiding it keeps the form
+    // honest about which fields actually do something.
+    const showLibraryBasePath = fileMode !== 'keep_in_place';
+
     return (
         <>
-            {/* Library Base Path */}
-            <Stack gap="xs">
-                <Text fw={500} size="sm">Library Base Path</Text>
-                <Group grow preventGrowOverflow={false}>
-                    <TextInput
-                        description="Base directory where manga will be stored"
-                        placeholder="/manga"
-                        value={libraryBasePath}
-                        onChange={(e) => onLibraryPathChange(e.target.value)}
-                        rightSection={
-                            <Tooltip label="Browse for folder">
-                                <ActionIcon onClick={onBrowseClick} variant="subtle">
-                                    <IconFolder size={18} />
-                                </ActionIcon>
-                            </Tooltip>
-                        }
-                    />
-                    <Button
-                        leftSection={<IconFolder size={16} />}
-                        onClick={onBrowseClick}
-                        variant="default"
-                        style={{ maxWidth: '120px' }}
-                    >
-                        Browse
-                    </Button>
-                </Group>
-            </Stack>
+            {/* Library Base Path — hidden in keep-in-place mode */}
+            {showLibraryBasePath && (
+                <>
+                    <Stack gap="xs">
+                        <Text fw={500} size="sm">Library Base Path</Text>
+                        <Group grow preventGrowOverflow={false}>
+                            <TextInput
+                                description="Base directory where manga will be stored"
+                                placeholder="/manga"
+                                value={libraryBasePath}
+                                onChange={(e) => onLibraryPathChange(e.target.value)}
+                                rightSection={
+                                    <Tooltip label="Browse for folder">
+                                        <ActionIcon onClick={onBrowseClick} variant="subtle">
+                                            <IconFolder size={18} />
+                                        </ActionIcon>
+                                    </Tooltip>
+                                }
+                            />
+                            <Button
+                                leftSection={<IconFolder size={16} />}
+                                onClick={onBrowseClick}
+                                variant="default"
+                                style={{ maxWidth: '120px' }}
+                            >
+                                Browse
+                            </Button>
+                        </Group>
+                    </Stack>
 
-            <Divider my="md" />
+                    <Divider my="md" />
+                </>
+            )}
 
             {/* Folder Structure Selection */}
             <Group align="flex-start">

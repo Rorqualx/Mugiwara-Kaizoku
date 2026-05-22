@@ -348,6 +348,7 @@ export function FileOrganizationSettings(): React.ReactElement | null {
             void updateSettings({ libraryBasePath: value });
           }}
           onBrowseClick={handleBrowseDirectory}
+          fileMode={fileMode}
         />
 
         {/* Real-time Preview Section */}

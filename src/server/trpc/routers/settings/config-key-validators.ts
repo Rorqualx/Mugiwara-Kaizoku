@@ -80,6 +80,15 @@ const fileOrgShape = z
     chapterNamingTemplate: templateString.optional(),
     fileNamingTemplate: templateString.optional(), // deprecated, still accepted on the read path
     libraryBasePath: absolutePathString.optional(),
+    // Behavior toggles. These were missing from the schema, so the .strict()
+    // shape silently rejected every save that included them — the UI's
+    // optimistic state flip made it look like saves were succeeding right
+    // up until a reboot reloaded the unchanged DB value.
+    fileMode: z.enum(['keep_in_place', 'move', 'copy']).optional(),
+    createMetadataFiles: z.boolean().optional(),
+    organizeOnImport: z.boolean().optional(),
+    createVolumeFolders: z.boolean().optional(),
+    splitVolumeFiles: z.boolean().optional(),
   })
   .strict();
 
