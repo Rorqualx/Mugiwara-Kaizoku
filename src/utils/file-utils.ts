@@ -35,6 +35,9 @@ export const IGNORE_PATTERNS = [
 '.gitignore',
 'desktop.ini'] as
 const;
+
+/** Wrapper directory names that should never be treated as image-page dirs themselves. */
+const MANGA_WRAPPER_DIR_NAMES = new Set(['volumes', 'chapters']);
 export type MangaExtension = typeof SUPPORTED_MANGA_EXTENSIONS[number];
 export type ImageExtension = typeof SUPPORTED_IMAGE_EXTENSIONS[number];
 /**
@@ -154,8 +157,11 @@ export async function findMangaFiles(dirPath: string, options: {
       // Process directories in parallel
       await Promise.all(
         directories.map(async (dir) => {
-          // Check if it's an image directory
-          if (includeImageDirs && (await isImageDirectory(dir.fullPath))) {
+          // S2: skip image-dir classification for wrapper-named dirs ("Volumes", "Chapters")
+          // when their image contents are siblings of archive files in adjacent subdirs —
+          // these are pack-image/poster collections, not manga page dirs.
+          const isWrapperName = MANGA_WRAPPER_DIR_NAMES.has(dir.name.toLowerCase());
+          if (includeImageDirs && !isWrapperName && (await isImageDirectory(dir.fullPath))) {
             mangaFiles.push(dir.fullPath);
           } else if (recursive) {
             // Recursively scan subdirectories

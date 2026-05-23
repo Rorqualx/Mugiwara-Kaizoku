@@ -136,51 +136,127 @@ function detectMinChapterNumber(files?: ScannedFileInfo[]): number {
   return hasChapterZero ? 0 : 1;
 }
 
+/** Pick a unique placeholder chapter number for an empty volume (vol*1000 anchor avoids real chapter collisions). */
+function chooseVolumePlaceholderNumber(volNum: number, used: Set<number>): number {
+  const base = volNum * 1000;
+  for (let candidate = base; candidate < base + 100; candidate++) {
+    if (!used.has(candidate)) return candidate;
+  }
+  return -volNum;
+}
+
+interface SyntheticGenContext {
+  provider: string;
+  volumes: MetadataVolume[];
+  allChapters: MetadataChapter[];
+  usedChapterNumbers: Set<number>;
+  volumeMap: Map<number, MetadataVolume>;
+}
+
+function makeEmptyVolume(provider: string, v: number): MetadataVolume {
+  return { id: `${provider}-vol-${v}`, provider, number: v, title: `Volume ${v}`, chapters: [], chapterCount: 0 };
+}
+
+function emitBaseVolumes(ctx: SyntheticGenContext, volumeCount: number, chapterCount: number, startFrom: number): void {
+  const chaptersPerVolume = Math.max(1, Math.ceil(chapterCount / volumeCount));
+  const isOneToOne = chaptersPerVolume <= 1;
+  const maxChapter = startFrom + chapterCount;
+  let chapterNum = startFrom;
+  for (let v = 1; v <= volumeCount; v++) {
+    const vol = makeEmptyVolume(ctx.provider, v);
+    for (let c = 0; c < chaptersPerVolume && chapterNum < maxChapter; c++) {
+      const chapter: MetadataChapter = {
+        id: `${ctx.provider}-vol${v}-ch-${chapterNum}`,
+        provider: ctx.provider, number: chapterNum, volumeNumber: v,
+        title: isOneToOne ? `Volume ${v}` : `Chapter ${chapterNum}`,
+      };
+      vol.chapters.push(chapter);
+      ctx.allChapters.push(chapter);
+      ctx.usedChapterNumbers.add(chapterNum);
+      chapterNum++;
+    }
+    vol.chapterCount = vol.chapters.length;
+    ctx.volumes.push(vol);
+    ctx.volumeMap.set(v, vol);
+  }
+}
+
+function attachExtraChapterToVolume(ctx: SyntheticGenContext, chapter: MetadataChapter, v: number): void {
+  let vol = ctx.volumeMap.get(v);
+  if (!vol) {
+    vol = makeEmptyVolume(ctx.provider, v);
+    ctx.volumes.push(vol);
+    ctx.volumeMap.set(v, vol);
+  }
+  vol.chapters.push(chapter);
+  vol.chapterCount = vol.chapters.length;
+}
+
+function addExtraChapter(ctx: SyntheticGenContext, file: ScannedFileInfo): void {
+  const c = file.chapterNumber;
+  if (c === undefined || ctx.usedChapterNumbers.has(c)) return;
+  const v = file.volumeNumber;
+  const label = Number.isInteger(c) ? `Chapter ${c}` : `Chapter ${c} (Special)`;
+  const chapter: MetadataChapter = { id: `${ctx.provider}-extra-ch-${c}`, provider: ctx.provider, number: c, title: label };
+  if (v !== undefined) chapter.volumeNumber = v;
+  ctx.allChapters.push(chapter);
+  ctx.usedChapterNumbers.add(c);
+  if (v !== undefined) attachExtraChapterToVolume(ctx, chapter, v);
+}
+
+function addMissingVolume(ctx: SyntheticGenContext, file: ScannedFileInfo): void {
+  if (file.chapterNumber !== undefined) return;
+  const v = file.volumeNumber;
+  if (v === undefined || ctx.volumeMap.has(v)) return;
+  const vol = makeEmptyVolume(ctx.provider, v);
+  ctx.volumes.push(vol);
+  ctx.volumeMap.set(v, vol);
+}
+
+function fillEmptyVolumes(ctx: SyntheticGenContext): void {
+  for (const vol of ctx.volumes) {
+    if (vol.chapters.length > 0) continue;
+    const placeholderNum = chooseVolumePlaceholderNumber(vol.number, ctx.usedChapterNumbers);
+    const placeholder: MetadataChapter = {
+      id: `${ctx.provider}-vol${vol.number}-bundle`, provider: ctx.provider,
+      number: placeholderNum, volumeNumber: vol.number, title: `Volume ${vol.number}`,
+    };
+    vol.chapters.push(placeholder);
+    vol.chapterCount = 1;
+    ctx.allChapters.push(placeholder);
+    ctx.usedChapterNumbers.add(placeholderNum);
+  }
+}
+
 /**
  * Generate synthetic volumes with chapters.
- * Supports starting from chapter 0 via startFrom parameter.
+ *
+ * F2: when `files` is passed, supplement the AniList-derived base manifest
+ * with file-derived data — decimal chapters, out-of-range chapters, and
+ * volumes beyond AniList's reported counts all get slots. Empty volumes
+ * get a placeholder chapter so volume-only files (Soul Eater V25.cbz) match.
  */
 function generateSyntheticVolumes(
   volumeCount: number,
   chapterCount: number,
   provider: string,
-  startFrom: number = 1
+  startFrom: number = 1,
+  files?: ScannedFileInfo[],
 ): { volumes: MetadataVolume[]; chapters: MetadataChapter[] } {
-  const volumes: MetadataVolume[] = [];
-  const allChapters: MetadataChapter[] = [];
-
-  const chaptersPerVolume = Math.ceil(chapterCount / volumeCount);
-  const isOneToOne = chaptersPerVolume <= 1;
-  let chapterNum = startFrom;
-  const maxChapter = startFrom + chapterCount;
-
-  for (let v = 1; v <= volumeCount && chapterNum < maxChapter; v++) {
-    const volumeChapters: MetadataChapter[] = [];
-
-    for (let c = 0; c < chaptersPerVolume && chapterNum < maxChapter; c++) {
-      const chapter: MetadataChapter = {
-        id: `${provider}-vol${v}-ch-${chapterNum}`,
-        provider,
-        number: chapterNum,
-        volumeNumber: v,
-        title: isOneToOne ? `Volume ${v}` : `Chapter ${chapterNum}`,
-      };
-      volumeChapters.push(chapter);
-      allChapters.push(chapter);
-      chapterNum++;
-    }
-
-    volumes.push({
-      id: `${provider}-vol-${v}`,
-      provider,
-      number: v,
-      title: `Volume ${v}`,
-      chapters: volumeChapters,
-      chapterCount: volumeChapters.length,
-    });
+  const ctx: SyntheticGenContext = {
+    provider, volumes: [], allChapters: [],
+    usedChapterNumbers: new Set<number>(), volumeMap: new Map<number, MetadataVolume>(),
+  };
+  emitBaseVolumes(ctx, volumeCount, chapterCount, startFrom);
+  if (files) {
+    for (const file of files) addExtraChapter(ctx, file);
+    for (const file of files) addMissingVolume(ctx, file);
   }
-
-  return { volumes, chapters: allChapters };
+  fillEmptyVolumes(ctx);
+  ctx.volumes.sort((a, b) => a.number - b.number);
+  for (const vol of ctx.volumes) vol.chapters.sort((a, b) => a.number - b.number);
+  ctx.allChapters.sort((a, b) => a.number - b.number);
+  return { volumes: ctx.volumes, chapters: ctx.allChapters };
 }
 
 /**
@@ -567,7 +643,7 @@ export function extractMetadataFromProvider(
     if (volumeCount !== null && volumeCount > 0) {
       const chCount = chapterCount ?? fileCount;
       if (chCount > 0) {
-        const result = generateSyntheticVolumes(volumeCount, chCount, 'anilist', startFrom);
+        const result = generateSyntheticVolumes(volumeCount, chCount, 'anilist', startFrom, files);
         return createResult(result.volumes, result.chapters, 'synthetic', 'anilist');
       }
     }
@@ -576,7 +652,7 @@ export function extractMetadataFromProvider(
       if (files && files.length > 0) {
         const { isVolumePattern, volumeCount } = detectVolumeFilePattern(files);
         if (isVolumePattern) {
-          const result = generateSyntheticVolumes(volumeCount, chapterCount, 'anilist', startFrom);
+          const result = generateSyntheticVolumes(volumeCount, chapterCount, 'anilist', startFrom, files);
           return createResult(result.volumes, result.chapters, 'synthetic', 'anilist');
         }
       }
@@ -591,7 +667,7 @@ export function extractMetadataFromProvider(
   if (volumeCount !== null && volumeCount > 0) {
     const chCount = chapterCount ?? fileCount;
     if (chCount > 0) {
-      const result = generateSyntheticVolumes(volumeCount, chCount, provider, startFrom);
+      const result = generateSyntheticVolumes(volumeCount, chCount, provider, startFrom, files);
       return createResult(result.volumes, result.chapters, 'synthetic', provider);
     }
   }
@@ -600,7 +676,7 @@ export function extractMetadataFromProvider(
     if (files && files.length > 0) {
       const { isVolumePattern, volumeCount } = detectVolumeFilePattern(files);
       if (isVolumePattern) {
-        const result = generateSyntheticVolumes(volumeCount, chapterCount, provider, startFrom);
+        const result = generateSyntheticVolumes(volumeCount, chapterCount, provider, startFrom, files);
         return createResult(result.volumes, result.chapters, 'synthetic', provider);
       }
     }
@@ -612,7 +688,7 @@ export function extractMetadataFromProvider(
   if (files && files.length > 0) {
     const { isVolumePattern, volumeCount } = detectVolumeFilePattern(files);
     if (isVolumePattern) {
-      const result = generateSyntheticVolumes(volumeCount, fileCount, provider, startFrom);
+      const result = generateSyntheticVolumes(volumeCount, fileCount, provider, startFrom, files);
       return createResult(result.volumes, result.chapters, 'synthetic', 'generated');
     }
   }
