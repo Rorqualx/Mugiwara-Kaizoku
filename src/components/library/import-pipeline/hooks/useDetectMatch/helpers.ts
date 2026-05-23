@@ -293,14 +293,17 @@ function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): num
     const missing = st.length < sq.length ? sq.replace(st, '').trim() : '';
     const isParent = missing.length > 0 && QUERY_DISAMBIGUATOR_RE.test(` ${missing} `);
     const multiplier = isParent ? 0.5 : 0.95;
+    const subtitleExt = !isParent && sq.length < st.length && st.startsWith(sq) && ratio >= 0.5; // M13a
     const isPrefix = sq.startsWith(st) || st.startsWith(sq);
-    return (isPrefix && !isParent ? Math.sqrt(ratio) : ratio) * multiplier;
+    const base = (isPrefix && !isParent ? Math.sqrt(ratio) : ratio) * multiplier;
+    return subtitleExt ? Math.max(base, 0.85) : base;
   }
   const queryWords = sq.split(/\s+/).filter(Boolean);
   const titleWords = st.split(/\s+/).filter(Boolean);
   const matchingWords = queryWords.filter((word) => titleWords.some((tw) => tw.includes(word) || word.includes(tw)));
   const matchRatio = matchingWords.length / Math.max(queryWords.length, titleWords.length);
-  return matchRatio * 0.8;
+  const colorBonus = /\b(?:color|colored)\b/.test(sq) && /\b(?:color|colored)\b/.test(st) ? 0.15 : 0; // M13b
+  return Math.min(matchRatio * 0.8 + colorBonus, 1.0);
 }
 
 /**
