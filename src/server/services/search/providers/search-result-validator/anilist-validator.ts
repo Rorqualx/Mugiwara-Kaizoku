@@ -361,10 +361,22 @@ export class AniListValidator {
       artistsCount: artists.length,
     });
 
-    // Extract synonyms (alternative titles) from AniList
-    const synonyms = Array.isArray(rawData["synonyms"])
+    // Extract synonyms + every title variant (romaji / english / native) AniList
+    // exposes, deduplicated against the picked title. Downstream relevance
+    // filtering needs to see all variants so a romaji-on-disk folder (e.g.
+    // "Iken Senki Volundio") can match a manga whose English title is the
+    // sequel-style "Völundio ~Divergent Sword Saga~".
+    const titleObj = (rawData["title"] as Record<string, unknown> | undefined) ?? {};
+    const variantStrings = [titleObj['romaji'], titleObj['english'], titleObj['native']]
+      .filter((v): v is string => typeof v === 'string');
+    const rawSynonyms = Array.isArray(rawData["synonyms"])
       ? rawData["synonyms"].filter((s): s is string => typeof s === 'string')
-      : undefined;
+      : [];
+    const synonymsSet = new Set<string>();
+    for (const s of [...variantStrings, ...rawSynonyms]) {
+      if (s && s !== title) synonymsSet.add(s);
+    }
+    const synonyms = synonymsSet.size > 0 ? Array.from(synonymsSet) : undefined;
 
     // Clean description if it exists
     const cleanedDescription = typeof rawData["description"] === 'string'

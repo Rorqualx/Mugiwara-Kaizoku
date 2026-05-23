@@ -49,12 +49,15 @@ export class AniListProvider extends BaseSearchProvider {
   override async search(query: string, options?: SearchOptions): Promise<SearchResult[]> {
     try {
       // AniList's SEARCH_MATCH ranking is case-sensitive in a way that promotes
-      // wrong targets when the query is title-cased (e.g. "Hunter X Hunter" →
-      // "Vampire X Hunter" wins; "hunter x hunter" → main series wins).
-      // Lowercasing the query before lookup gives stable rankings for popular
-      // titles without losing anything for obscure ones (AniList's filter
-      // remains case-insensitive on the search predicate).
-      const lowered = query.toLowerCase();
+      // wrong targets when the query is title-cased. Lowercase + NFKD-fold:
+      //  - case: "Hunter X Hunter" → "Vampire X Hunter" wins; "hunter x hunter"
+      //    → main series wins.
+      //  - diacritics: AniList's search predicate IS diacritic-sensitive on
+      //    input — "völundio" returns 0 rows while "volundio" finds the manga
+      //    whose title is stored as "Völundio ~Divergent Sword Saga~". Folding
+      //    combining marks before sending makes the search work for folder
+      //    names that either use or omit the umlauts.
+      const lowered = query.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '');
       logger.info(`Searching AniList for: "${lowered}" with options:`, {
         includeAdult: options?.includeAdult,
         limit: options?.limit,

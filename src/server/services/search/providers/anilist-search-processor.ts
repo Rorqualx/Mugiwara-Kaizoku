@@ -10,6 +10,8 @@
 import { anilistConfigService } from '@/server/services/anilist/configService';
 import { anilistService } from '@/server/services/anilist/service';
 import { logger } from '@/utils/logger';
+
+import { collectTitleVariants, foldDiacritics, titleMatchesQuery } from './title-match-utils';
 import { isAniListMedia } from '@/utils/type-guards/adapters/anilist-guards';
 
 import { AniListFormatFilter } from './anilist-format-filter';
@@ -129,7 +131,11 @@ export class AniListSearchProcessor {
   }
 
   /**
-   * Apply relevance filtering to remove unrelated results
+   * Apply relevance filtering to remove unrelated results.
+   *
+   * Checks the picked title AND every alternativeTitles variant the validator
+   * captured (romaji / english / native / synonyms). Folds diacritics so
+   * "Iken Senki Völundio" matches a folder named "Iken Senki Volundio".
    */
   private static applyRelevanceFiltering(
     results: SearchResult[],
@@ -139,7 +145,8 @@ export class AniListSearchProcessor {
       return results;
     }
 
-    const searchTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 2);
+    const queryFolded = foldDiacritics(query.toLowerCase());
+    const searchTerms = queryFolded.split(/\s+/).filter(term => term.length > 2);
     if (searchTerms.length === 0) {
       return results;
     }
@@ -147,40 +154,8 @@ export class AniListSearchProcessor {
     logger.debug(`Applying relevance filtering for query: "${query}" with terms: [${searchTerms.join(', ')}]`);
 
     return results.filter(result => {
-      const title = result.title.toLowerCase();
-
-      // Check for exact or very close matches
-      const exactMatch = title.includes(query.toLowerCase());
-      if (exactMatch) {
-        logger.debug(`✅ Exact match: "${result.title}" for query "${query}"`);
-        return true;
-      }
-
-      // Check for partial matches with all search terms
-      const hasAllTerms = searchTerms.every(term => title.includes(term));
-      if (hasAllTerms) {
-        logger.debug(`✅ Good match: "${result.title}" contains all search terms`);
-        return true;
-      }
-
-      // Check for partial matches with most search terms (at least 50%)
-      const matchedTerms = searchTerms.filter(term => title.includes(term));
-      const matchRatio = matchedTerms.length / searchTerms.length;
-
-      if (matchRatio >= 0.5) {
-        logger.debug(`✅ Partial match: "${result.title}" matches ${matchedTerms.length}/${searchTerms.length} terms (${Math.round(matchRatio * 100)}%)`);
-        return true;
-      }
-
-      // Check for very short queries where partial matches are acceptable
-      if (searchTerms.length === 1 && searchTerms[0] && searchTerms[0].length <= 5 && matchRatio >= 0.5) {
-        logger.debug(`✅ Short query match: "${result.title}" for short query "${query}"`);
-        return true;
-      }
-
-      // Filter out poor matches
-      logger.debug(`❌ Poor match: "${result.title}" only matches ${matchedTerms.length}/${searchTerms.length} terms (${Math.round(matchRatio * 100)}%)`);
-      return false;
+      const candidates = collectTitleVariants(result);
+      return candidates.some((c) => titleMatchesQuery(c, queryFolded, searchTerms, result.title, query));
     });
   }
 

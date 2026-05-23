@@ -193,6 +193,11 @@ export function normalizeSearchTitle(title: string): string {
   normalized = normalized.replace(/\s*[[(](?:digital|scan|raw|hq|lq|sd|hd|web|webrip|cbz|cbr|pdf|epub)[\])]/gi, '');
   normalized = normalized.replace(/\s*[[(][A-Z0-9]{2,10}[\])]\s*$/gi, '');
   normalized = normalized.replace(/\s*\([^)]*(?:manga|digital|scan|raw|eng|jpn)\s*\)\s*$/gi, '');
+  // Strip ~Subtitle~ decorative blocks — common in romaji titles like
+  // "Völundio ~Divergent Sword Saga~" or "Sousou no Frieren ~Prelude~".
+  // AniList search chokes on tildes and the wrapped subtitle is rarely
+  // useful for matching anyway (it's the subtitle of the main series).
+  normalized = normalized.replace(/\s*~[^~]+~\s*/g, ' ');
   // Remove bare format suffixes (e.g., "Attack on Titan pdf" → "Attack on Titan")
   normalized = normalized.replace(BARE_FORMAT_SUFFIXES_RE, '');
   // Remove bare trailing year (e.g., "Monster 1995" → "Monster")
@@ -216,6 +221,9 @@ const SPINOFF_MARKERS = [
   'smash',
   'prototype',
   'anthology',
+  'collection',
+  'compilation',
+  'omnibus',
   'gaiden',
   'side story',
   'side stories',
@@ -247,29 +255,66 @@ function spinoffPenaltyFactor(queryLower: string, titleLower: string): number {
   return 0.7;
 }
 
-export function calculateConfidence(query: string, resultTitle: string): number {
-  const normalizedQuery = query.toLowerCase().trim();
-  const normalizedTitle = resultTitle.toLowerCase().trim();
+/**
+ * NFKD-normalize + strip combining marks so "Völundio" matches "Volundio"
+ * and "Sōsō no Frieren" matches "Soso no Frieren" both directions.
+ */
+function foldDiacritics(s: string): string {
+  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+}
 
-  // Exact match
+function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): number {
   if (normalizedQuery === normalizedTitle) return 1.0;
-
-  const penalty = spinoffPenaltyFactor(normalizedQuery, normalizedTitle);
-
-  // One contains the other
   if (normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) {
     const longer = Math.max(normalizedQuery.length, normalizedTitle.length);
     const shorter = Math.min(normalizedQuery.length, normalizedTitle.length);
-    return (shorter / longer) * 0.95 * penalty;
+    return (shorter / longer) * 0.95;
   }
-
-  // Word-level matching
   const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
   const titleWords = normalizedTitle.split(/\s+/).filter(Boolean);
   const matchingWords = queryWords.filter((word) => titleWords.some((tw) => tw.includes(word) || word.includes(tw)));
   const matchRatio = matchingWords.length / Math.max(queryWords.length, titleWords.length);
+  return matchRatio * 0.8;
+}
 
-  return matchRatio * 0.8 * penalty;
+/**
+ * Score `query` against `resultTitle` plus any alternative titles, returning
+ * the best confidence among them. Folds diacritics so a folder named
+ * "Iken Senki Volundio" matches AniList romaji "Iken Senki Völundio" without
+ * the user typing the umlaut.
+ *
+ * Spinoff penalty is applied based on the PRIMARY title only — an anthology
+ * named "Junji Ito Horror Comic Collection" carrying "Tomie" in its altTitles
+ * should not beat the standalone "Tomie" main series even if the altTitle
+ * matches 100%.
+ */
+export function calculateConfidence(
+  query: string,
+  resultTitle: string,
+  altTitles?: readonly string[],
+): number {
+  const normalizedQuery = foldDiacritics(query.toLowerCase().trim());
+  const normalizedPrimary = foldDiacritics(resultTitle.toLowerCase().trim());
+  const titles = [resultTitle, ...(altTitles ?? [])]
+    .filter((t): t is string => typeof t === 'string' && t.length > 0)
+    .map((t) => foldDiacritics(t.toLowerCase().trim()));
+  let bestPrimaryScore = 0;
+  let bestAltScore = 0;
+  for (const t of titles) {
+    const s = scoreSingleTitle(normalizedQuery, t);
+    if (t === normalizedPrimary) {
+      if (s > bestPrimaryScore) bestPrimaryScore = s;
+    } else if (s > bestAltScore) {
+      bestAltScore = s;
+    }
+  }
+
+  const penalty = spinoffPenaltyFactor(normalizedQuery, normalizedPrimary);
+  // When only an altTitle scores high and the primary title is a poor match,
+  // dampen the altTitle score so anthology-style ID matches don't outrank the
+  // standalone manga whose primary title actually equals the query.
+  const altPenalty = (bestAltScore > bestPrimaryScore + 0.3 && bestPrimaryScore < 0.5) ? 0.85 : 1.0;
+  return Math.max(bestPrimaryScore, bestAltScore * altPenalty) * penalty;
 }
 
 /**
@@ -302,7 +347,7 @@ export function scoreWithYear(match: EnrichedProviderMatch, folderYear: number |
   let score = match.confidence;
 
   if (MANGA_NATIVE_PROVIDERS.has(match.provider)) {
-    score += MANGA_NATIVE_BONUS;
+    score = Math.min(score + MANGA_NATIVE_BONUS, 1.0);
   }
 
   // Penalize matches without cover images (prefer complete metadata)

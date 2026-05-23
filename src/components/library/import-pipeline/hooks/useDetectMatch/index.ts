@@ -64,7 +64,7 @@ function convertToQueueResult(result: MangaSearchResult, query: string): SearchR
     provider: String(result.provider),
     description: result.description,
     coverImage: result.coverImage,
-    confidence: calculateConfidence(query, result.title),
+    confidence: calculateConfidence(query, result.title, result.alternativeTitles),
     siteDetailUrl: result['siteDetailUrl'] as string | undefined,
     url: result.url,
     wikiUrl: result['wikiUrl'] as string | undefined,

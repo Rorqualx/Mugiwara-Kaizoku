@@ -9,6 +9,8 @@
 
 import { logger } from '@/utils/logger';
 
+import { collectTitleVariants, foldDiacritics, titleMatchesQuery } from './title-match-utils';
+
 import type { SearchResult } from './anilist-provider-types';
 
 // ============================================================================
@@ -45,47 +47,24 @@ export class AniListRelevanceFilter {
   }
 
   /**
-   * Check if a result is relevant to the search
+   * Check if a result is relevant to the search.
+   * Checks the picked title AND every alternativeTitles variant the validator
+   * exposed, with diacritic folding so romaji/diacritic differences don't
+   * silently drop the right manga.
    */
   private static isRelevantResult(
     result: SearchResult,
     query: string,
     searchTerms: string[]
   ): boolean {
-    const title = (result.title || '').toLowerCase();
-
-    // Check for exact or very close matches
-    const exactMatch = title.includes(query.toLowerCase());
-    if (exactMatch) {
-      logger.debug(`✅ Exact match: "${result.title}" for query "${query}"`);
-      return true;
+    const queryFolded = foldDiacritics(query.toLowerCase());
+    const foldedSearchTerms = searchTerms.map(foldDiacritics);
+    const variants = collectTitleVariants(result);
+    const matched = variants.some((c) => titleMatchesQuery(c, queryFolded, foldedSearchTerms, result.title, query));
+    if (!matched) {
+      logger.debug(`❌ Poor match: "${result.title}" across ${variants.length} variants for query "${query}"`);
     }
-
-    // Check for partial matches with all search terms
-    const hasAllTerms = searchTerms.every(term => title.includes(term));
-    if (hasAllTerms) {
-      logger.debug(`✅ Good match: "${result.title}" contains all search terms`);
-      return true;
-    }
-
-    // Check for partial matches with most search terms (at least 50%)
-    const matchedTerms = searchTerms.filter(term => title.includes(term));
-    const matchRatio = matchedTerms.length / searchTerms.length;
-
-    if (matchRatio >= 0.5) {
-      logger.debug(`✅ Partial match: "${result.title}" matches ${matchedTerms.length}/${searchTerms.length} terms (${Math.round(matchRatio * 100)}%)`);
-      return true;
-    }
-
-    // Check for very short queries where partial matches are acceptable
-    if (searchTerms.length === 1 && searchTerms[0] !== undefined && searchTerms[0].length <= 5 && matchRatio >= 0.5) {
-      logger.debug(`✅ Short query match: "${result.title}" for short query "${query}"`);
-      return true;
-    }
-
-    // Filter out poor matches
-    logger.debug(`❌ Poor match: "${result.title}" only matches ${matchedTerms.length}/${searchTerms.length} terms (${Math.round(matchRatio * 100)}%)`);
-    return false;
+    return matched;
   }
 
   /**
