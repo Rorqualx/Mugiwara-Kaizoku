@@ -266,9 +266,15 @@ function foldDiacritics(s: string): string {
 function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): number {
   if (normalizedQuery === normalizedTitle) return 1.0;
   if (normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) {
+    // M1 — square the length ratio so substring-containment with a large length
+    // gap (Re:ZERO vs Re:ZERO ... Ex, NGE vs NGE: ANIMA) drops much faster than
+    // linear scaling, while near-equal lengths (Chainsaw Man vs Chainsaw Man -
+    // Color) stay relatively high. Squaring tracks "how much extra unrelated
+    // suffix is on the result side" — a fairer signal than the flat 0.95.
     const longer = Math.max(normalizedQuery.length, normalizedTitle.length);
     const shorter = Math.min(normalizedQuery.length, normalizedTitle.length);
-    return (shorter / longer) * 0.95;
+    const ratio = shorter / longer;
+    return ratio * ratio;
   }
   const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
   const titleWords = normalizedTitle.split(/\s+/).filter(Boolean);
