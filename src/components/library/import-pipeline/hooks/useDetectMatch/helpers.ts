@@ -166,9 +166,6 @@ export function mapJobItemToScannedItem(item: ScanJobItem, idx: number): Scanned
 /** Bare format suffixes that should be stripped from titles */
 const BARE_FORMAT_SUFFIXES_RE = /\s+(?:pdf|cbz|cbr|epub|mobi|azw3?)$/i;
 
-/** Bare 4-digit year at end of title (not in brackets) */
-const BARE_TRAILING_YEAR_RE = /\s+((?:19|20)\d{2})$/;
-
 /**
  * Extract year from a folder path like "/path/to/Monster (1995)"
  * Used as fallback when the job result doesn't include year.
@@ -200,10 +197,23 @@ export function normalizeSearchTitle(title: string): string {
   normalized = normalized.replace(/\s*~[^~]+~\s*/g, ' ');
   // Remove bare format suffixes (e.g., "Attack on Titan pdf" → "Attack on Titan")
   normalized = normalized.replace(BARE_FORMAT_SUFFIXES_RE, '');
-  // Remove bare trailing year (e.g., "Monster 1995" → "Monster")
-  normalized = normalized.replace(BARE_TRAILING_YEAR_RE, '');
-  // Remove trailing standalone numbers (e.g., "Dorohedoro 1" → "Dorohedoro")
-  normalized = normalized.replace(/\s+\d+$/g, '');
+  // Remove trailing bare digits — but DON'T strip 4-digit pre-1960 tokens,
+  // they're almost always part of the canonical title rather than a volume
+  // number or publication year ("Strike Witches 1937" = Witches unit number,
+  // "Captain Tsubasa: World Youth" sub-series with year disambig, etc.).
+  // Post-1960 4-digit values ARE stripped: matches publication-year suffix
+  // ("Monster 1995") or volume-as-year folder name. Short standalone numbers
+  // ("Dorohedoro 1") always strip — those are volume markers.
+  const trailingDigitsRe = /\s+(\d+)$/;
+  const trailingMatch = trailingDigitsRe.exec(normalized);
+  if (trailingMatch?.[1] !== undefined) {
+    const digits = trailingMatch[1];
+    const numeric = parseInt(digits, 10);
+    const isFourDigitYearShaped = digits.length === 4 && numeric >= 1900 && numeric <= 2099;
+    if (!isFourDigitYearShaped || numeric >= 1960) {
+      normalized = normalized.replace(trailingDigitsRe, '');
+    }
+  }
   normalized = normalized.replace(/\s+/g, ' ').trim();
   return normalized || title;
 }
@@ -263,12 +273,32 @@ function foldDiacritics(s: string): string {
   return s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
 }
 
+// Tokens that, when present in the query but missing from a substring-matching
+// result, signal the result is a less-specific parent series. "Strike Witches
+// 1937" should NOT match parent "Strike Witches"; "Code Geass: Lelouch of the
+// Rebellion Re;" should NOT match parent "Code Geass: Lelouch of the
+// Rebellion". When a disambiguator is detected in the missing portion, we
+// apply a 0.5x multiplier instead of the usual 0.95x.
+const QUERY_DISAMBIGUATOR_RE = /(?:^|\s|[-:;,])\s*(?:19[0-9]{2}|20[0-9]{2}|re[:;]|i{2,4}|iv|season\s+\d+|part\s+\d+|chapter\s+\d+)(?:$|\s|[-:;,])/i;
+
 function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): number {
   if (normalizedQuery === normalizedTitle) return 1.0;
   if (normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) {
     const longer = Math.max(normalizedQuery.length, normalizedTitle.length);
     const shorter = Math.min(normalizedQuery.length, normalizedTitle.length);
-    return (shorter / longer) * 0.95;
+    const ratio = shorter / longer;
+    // M9b: if the result is a strict substring of the query AND the missing
+    // portion contains a disambiguator (year, Re;, II/III, Part N), the
+    // result is likely the parent series — apply a stronger penalty so the
+    // more-specific entry can win.
+    let multiplier = 0.95;
+    if (normalizedTitle.length < normalizedQuery.length) {
+      const missing = normalizedQuery.replace(normalizedTitle, '').trim();
+      if (missing.length > 0 && QUERY_DISAMBIGUATOR_RE.test(` ${missing} `)) {
+        multiplier = 0.5;
+      }
+    }
+    return ratio * multiplier;
   }
   const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
   const titleWords = normalizedTitle.split(/\s+/).filter(Boolean);
