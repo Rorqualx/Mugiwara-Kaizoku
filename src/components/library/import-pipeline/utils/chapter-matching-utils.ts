@@ -249,11 +249,15 @@ function matchSingleFile(
   volumes: MetadataVolume[],
   usedChapterIds: Set<string>
 ): FileToChapterMapping {
-  // Priority 1: Volume-only files (volume set, no chapter) - definitely volumes
+  // Priority 1: Volume-only files (volume set, no chapter) - definitely volumes.
+  // G3: vol-only files DON'T consume chapter slots — chapter files match
+  // independently. Whole-volume archives and per-chapter files coexist; user
+  // picks which to import via the checkbox column. Pass an empty `used` set so
+  // the lookup returns the full chapter list for the volume regardless of
+  // what chapter-files have claimed.
   if (isVolumeOnlyFile(file)) {
-    const { chapter, confidence, reason, volumeChapters } = findBestVolumeMatch(file, chapters, volumes, usedChapterIds);
+    const { chapter, confidence, reason, volumeChapters } = findBestVolumeMatch(file, chapters, volumes, new Set<string>());
     if (chapter && confidence > 0) {
-      volumeChapters.forEach((ch) => usedChapterIds.add(ch.id));
       return { filePath: file.path, file, metadataChapter: chapter, status: 'auto_matched', confidence, matchReason: reason, volumeChapters };
     }
     return { filePath: file.path, file, metadataChapter: null, status: 'unmatched', confidence: 0, matchReason: reason };
@@ -353,18 +357,6 @@ function duplicateMapping(file: ScannedFileInfo, originalName: string): FileToCh
   };
 }
 
-function checkBundleCoveredDuplicate(
-  mapping: FileToChapterMapping,
-  file: ScannedFileInfo,
-  chapters: MetadataChapter[],
-  usedChapterIds: Set<string>,
-): FileToChapterMapping {
-  if (mapping.status !== 'unmatched' || !isVolumeOnlyFile(file) || file.volumeNumber === undefined) return mapping;
-  const volChapters = chapters.filter((c) => c.volumeNumber === file.volumeNumber);
-  if (volChapters.length === 0 || !volChapters.every((c) => usedChapterIds.has(c.id))) return mapping;
-  return { ...mapping, status: 'duplicate', matchReason: `Volume ${file.volumeNumber} chapters already imported via individual chapter files` };
-}
-
 export function autoMatchFilesToChapters(
   files: ScannedFileInfo[],
   chapters: MetadataChapter[],
@@ -388,22 +380,20 @@ export function autoMatchFilesToChapters(
   });
 
   for (const file of sortedFiles) {
-    // G2: duplicate chapter file (same C# at different path)
+    // G2: same C# at different paths (true duplicate — Tokyo Revengers V01 C001 in /Chapters/ and /Volumes/_to_classify/).
     const c = file.chapterNumber;
     if (isChapterFile(file) && c !== undefined && seenChapterFile.has(c)) {
       mappings.set(file.path, duplicateMapping(file, seenChapterFile.get(c) ?? ''));
       continue;
     }
-    // G2: duplicate volume-only file (same V# at different path)
+    // G2: same V# at different paths, both vol-only (Dorohedoro v01.zip at two paths).
     const v = file.volumeNumber;
     if (isVolumeOnlyFile(file) && v !== undefined && seenVolumeOnlyFile.has(v)) {
       mappings.set(file.path, duplicateMapping(file, seenVolumeOnlyFile.get(v) ?? ''));
       continue;
     }
 
-    let mapping = matchSingleFile(file, chapters, volumes, usedChapterIds);
-    // G2: bundle-covered duplicate (volume archive whose chapters were all consumed by chapter files)
-    mapping = checkBundleCoveredDuplicate(mapping, file, chapters, usedChapterIds);
+    const mapping = matchSingleFile(file, chapters, volumes, usedChapterIds);
     mappings.set(file.path, mapping);
 
     if (mapping.status === 'auto_matched') {
