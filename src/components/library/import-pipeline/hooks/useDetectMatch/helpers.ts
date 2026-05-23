@@ -280,7 +280,7 @@ function foldDiacritics(s: string): string {
 // Rebellion". When a disambiguator is detected in the missing portion, we
 // apply a 0.5x multiplier instead of the usual 0.95x.
 const QUERY_DISAMBIGUATOR_RE = /(?:^|\s|[-:;,])\s*(?:19[0-9]{2}|20[0-9]{2}|re(?:[:;]|$|\s)|i{2,4}|iv|season\s+\d+|part\s+\d+|chapter\s+\d+|color(?:ed)?)(?:$|\s|[-:;,])/i;
-const stripPunct = (s: string): string => s.replace(/&amp;/gi, '&').replace(/~[^~]+~/g, ' ').replace(/[_\-:;,.&']/g, ' ').replace(/\s+/g, ' ').trim();
+const stripPunct = (s: string): string => s.replace(/&amp;/gi, '&').replace(/~[^~]+~/g, ' ').replace(/[_\-:;,.&'()[\]]/g, ' ').replace(/\s+/g, ' ').trim();
 
 function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): number {
   const sq = stripPunct(normalizedQuery);
@@ -293,17 +293,23 @@ function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): num
     const missing = st.length < sq.length ? sq.replace(st, '').trim() : '';
     const isParent = missing.length > 0 && QUERY_DISAMBIGUATOR_RE.test(` ${missing} `);
     const multiplier = isParent ? 0.5 : 0.95;
-    const subtitleExt = !isParent && sq.length < st.length && st.startsWith(sq) && ratio >= 0.5; // M13a
+    const subtitleExt = !isParent && sq.length < st.length && st.startsWith(sq) && ratio >= 0.5;
     const isPrefix = sq.startsWith(st) || st.startsWith(sq);
     const base = (isPrefix && !isParent ? Math.sqrt(ratio) : ratio) * multiplier;
     return subtitleExt ? Math.max(base, 0.85) : base;
   }
   const queryWords = sq.split(/\s+/).filter(Boolean);
   const titleWords = st.split(/\s+/).filter(Boolean);
+  const colorBoth = /\b(?:color|colored)\b/.test(sq) && /\b(?:color|colored)\b/.test(st);
+  // M14b: colored variants with equal series-root match → 1.0; treat official+digital as one group, fan as another (Official Colored != Fan Colored).
+  const variantGroup = (s2: string): string | null => /\bfan\b/.test(s2) ? 'fan' : (/\b(?:official|digital)\b/.test(s2) ? 'pro' : null);
+  const conflict = variantGroup(sq) !== null && variantGroup(st) !== null && variantGroup(sq) !== variantGroup(st);
+  const VR = /\b(?:color|colored|official|fan|digital)\b/g;
+  const qRoot = colorBoth && !conflict ? sq.replace(VR, '').replace(/\s+/g, ' ').trim() : '';
+  if (qRoot.length > 0 && qRoot === st.replace(VR, '').replace(/\s+/g, ' ').trim()) return 1.0;
   const matchingWords = queryWords.filter((word) => titleWords.some((tw) => tw.includes(word) || word.includes(tw)));
   const matchRatio = matchingWords.length / Math.max(queryWords.length, titleWords.length);
-  const colorBonus = /\b(?:color|colored)\b/.test(sq) && /\b(?:color|colored)\b/.test(st) ? 0.15 : 0; // M13b
-  return Math.min(matchRatio * 0.8 + colorBonus, 1.0);
+  return Math.min(matchRatio * 0.8 + (colorBoth ? 0.15 : 0), 1.0);
 }
 
 /**
@@ -311,11 +317,7 @@ function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): num
  * the best confidence among them. Folds diacritics so a folder named
  * "Iken Senki Volundio" matches AniList romaji "Iken Senki Völundio" without
  * the user typing the umlaut.
- *
- * Spinoff penalty is applied based on the PRIMARY title only — an anthology
- * named "Junji Ito Horror Comic Collection" carrying "Tomie" in its altTitles
- * should not beat the standalone "Tomie" main series even if the altTitle
- * matches 100%.
+ * Spinoff penalty applies to primary title only — see spinoffPenaltyFactor.
  */
 export function calculateConfidence(
   query: string,
@@ -339,12 +341,9 @@ export function calculateConfidence(
   }
 
   const penalty = spinoffPenaltyFactor(normalizedQuery, normalizedPrimary);
-  // When only an altTitle scores high and the primary title is a poor match,
-  // dampen the altTitle score so anthology-style ID matches don't outrank the
-  // standalone manga whose primary title actually equals the query.
-  // M11b: exempt exact altTitle hits (>=0.95) so JP-romaji folder vs EN primary isn't dampened.
   const altPenalty = bestAltScore < 0.95 && bestAltScore > bestPrimaryScore + 0.3 && bestPrimaryScore < 0.5 ? 0.85 : 1.0;
-  return Math.max(bestPrimaryScore, bestAltScore * altPenalty) * penalty;
+  const altScored = bestAltScore * altPenalty; // M14a: shave alt-exact by 0.01 for tiebreak
+  return (altScored > bestPrimaryScore && bestAltScore >= 0.95 ? altScored - 0.01 : Math.max(bestPrimaryScore, altScored)) * penalty;
 }
 
 /**
@@ -437,9 +436,10 @@ export function mapResultsToMatches(results: SearchResultWithScore[]): EnrichedP
 export function getBestMatch(matches: EnrichedProviderMatch[], folderYear?: number): EnrichedProviderMatch | null {
   if (matches.length === 0) return null;
 
-  const sorted = [...matches].sort((a, b) =>
-    scoreWithYear(b, folderYear) - scoreWithYear(a, folderYear)
-  );
+  const sorted = [...matches].sort((a, b) => {
+    const d = scoreWithYear(b, folderYear) - scoreWithYear(a, folderYear);
+    return d !== 0 ? d : b.confidence - a.confidence;
+  });
   const best = sorted[0];
   if (!best) return null;
 
