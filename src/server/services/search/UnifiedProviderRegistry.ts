@@ -30,6 +30,8 @@ import { logger } from '@/utils/logger';
 import { anilistProvider } from './providers/AniListProvider';
 import { comicvineProvider } from './providers/ComicVineProvider';
 import { fandomProvider } from './providers/FandomProviderInstance';
+import { mangadexProvider } from './providers/MangaDexProvider';
+import { mangaupdatesProvider } from './providers/MangaUpdatesProvider';
 import { wikipediaProvider } from './providers/WikipediaProvider';
 import { getProvider, type ProviderLookupConfig } from './unified-registry/provider-lookup';
 import {
@@ -91,12 +93,15 @@ export class UnifiedProviderRegistry {
    * Register all built-in providers
    */
   private registerBuiltInProviders(): void {
-    // Register all metadata providers with default states
+    // Register all metadata providers with default states. Priority order is
+    // manga-native first (anilist/mangadex/mangaupdates), then secondary
+    // sources used for cover + romanization triangulation.
     this.registerProvider(anilistProvider as SearchProvider, { enabled: true, priority: 1 });
-    this.registerProvider(comicvineProvider as SearchProvider, { enabled: true, priority: 2 });
-    this.registerProvider(fandomProvider as SearchProvider, { enabled: true, priority: 3 });
-    this.registerProvider(wikipediaProvider as SearchProvider, { enabled: true, priority: 4 });
-    // MangaDex is now handled via the ProviderStrategy/Registry system (MangaDexProviderStrategy)
+    this.registerProvider(mangadexProvider as SearchProvider, { enabled: true, priority: 2 });
+    this.registerProvider(mangaupdatesProvider as SearchProvider, { enabled: true, priority: 3 });
+    this.registerProvider(comicvineProvider as SearchProvider, { enabled: true, priority: 4 });
+    this.registerProvider(fandomProvider as SearchProvider, { enabled: true, priority: 5 });
+    this.registerProvider(wikipediaProvider as SearchProvider, { enabled: true, priority: 6 });
 
     this.log.info('Registered built-in providers', {
       count: this.providers.size,

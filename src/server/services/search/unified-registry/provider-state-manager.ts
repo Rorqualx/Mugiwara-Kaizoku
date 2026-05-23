@@ -41,13 +41,14 @@ export async function loadProviderStates(
 
     // Read all provider enabled states in parallel
     // IMPORTANT: Default all providers to TRUE so they show up in search
-    const [anilistEnabled, comicvineEnabled, comicvineApiKey, fandomEnabled, wikipediaEnabled, mangadexEnabled] = await Promise.all([
+    const [anilistEnabled, comicvineEnabled, comicvineApiKey, fandomEnabled, wikipediaEnabled, mangadexEnabled, mangaupdatesEnabled] = await Promise.all([
       getConfigBoolean('anilist.enabled', true),
       getConfigBoolean('comicvine.enabled', false),
       getConfig('comicvine.apiKey'),
       getConfigBoolean('fandom.enabled', true),
       getConfigBoolean('wikipedia.enabled', true),
       getConfigBoolean('mangadex.enabled', true),
+      getConfigBoolean('mangaupdates.enabled', true),
     ]);
 
     // Update provider states using MetadataProvider enum (UPPERCASE keys)
@@ -57,13 +58,15 @@ export async function loadProviderStates(
     updateProviderState(providerStates, MetadataProvider.FANDOM, fandomEnabled);
     updateProviderState(providerStates, MetadataProvider.WIKIPEDIA, wikipediaEnabled);
     updateProviderState(providerStates, MetadataProvider.MANGADEX, mangadexEnabled);
+    updateProviderState(providerStates, MetadataProvider.MANGAUPDATES, mangaupdatesEnabled);
 
     log.info('Loaded provider states from Config table', {
       [MetadataProvider.ANILIST]: providerStates.get(MetadataProvider.ANILIST)?.enabled,
       [MetadataProvider.COMICVINE]: providerStates.get(MetadataProvider.COMICVINE)?.enabled,
       [MetadataProvider.FANDOM]: providerStates.get(MetadataProvider.FANDOM)?.enabled,
       [MetadataProvider.WIKIPEDIA]: providerStates.get(MetadataProvider.WIKIPEDIA)?.enabled,
-      [MetadataProvider.MANGADEX]: providerStates.get(MetadataProvider.MANGADEX)?.enabled
+      [MetadataProvider.MANGADEX]: providerStates.get(MetadataProvider.MANGADEX)?.enabled,
+      [MetadataProvider.MANGAUPDATES]: providerStates.get(MetadataProvider.MANGAUPDATES)?.enabled,
     });
   } catch (error) {
     log.error('Failed to load provider states from Config table', { error });

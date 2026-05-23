@@ -10,13 +10,12 @@
 import { anilistConfigService } from '@/server/services/anilist/configService';
 import { anilistService } from '@/server/services/anilist/service';
 import { logger } from '@/utils/logger';
-
-import { collectTitleVariants, foldDiacritics, titleMatchesQuery } from './title-match-utils';
 import { isAniListMedia } from '@/utils/type-guards/adapters/anilist-guards';
 
 import { AniListFormatFilter } from './anilist-format-filter';
 import { MetadataProvider } from './anilist-provider-types';
 import { SearchResultValidator } from './SearchResultValidator';
+import { collectTitleVariants, foldDiacritics, titleMatchesQuery } from './title-match-utils';
 
 import type { FormatFilterConfig } from './anilist-format-filter';
 import type { SearchResult, SearchOptions } from './anilist-provider-types';
