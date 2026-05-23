@@ -16,7 +16,6 @@ import {
   Text,
   Paper,
   Checkbox,
-  Switch,
   Badge,
   Divider,
   Image,
@@ -25,11 +24,9 @@ import {
   Tooltip,
   Box,
   Progress,
-  SegmentedControl,
 } from '@mantine/core';
 import {
   IconArrowLeft,
-  IconArrowRight,
   IconDownload,
   IconBook,
   IconCalendar,
@@ -39,8 +36,6 @@ import {
   IconLink,
   IconSearch,
   IconRefresh,
-  IconHome,
-  IconCopy,
 } from '@tabler/icons-react';
 
 import { FileMatchList } from '../components/FileMatchList';
@@ -50,12 +45,12 @@ import {
   calculateChapterMatchingStats,
   type MatchedMangaItem,
   type ImportOptions,
-  type FileMode,
   type FileToChapterMapping,
   type EnrichedProviderMatch,
 } from '../types';
 import { extractMetadataFromProvider } from '../utils/chapter-matching-utils';
 
+import { ImportOptionsSection } from './ImportOptionsSection';
 import { formatFileSize, extractMetadata, type MatchMetadata } from './review-stage-helpers';
 import { SearchModal } from './SearchModal';
 
@@ -107,68 +102,6 @@ function SelectionSummary({ total, selected, onSelectAll, onDeselectAll, onReset
     </Group>
   );
 }
-
-const FILE_MODE_DESCRIPTIONS: Record<FileMode, { label: string; description: string }> = {
-  keep_in_place: {
-    label: 'Keep in Place',
-    description: 'Files stay in their original location. Library references them without moving.',
-  },
-  move: {
-    label: 'Move',
-    description: 'Files are moved to the library folder. Originals are deleted after copy.',
-  },
-  copy: {
-    label: 'Copy',
-    description: 'Files are copied to the library folder. Originals are kept.',
-  },
-};
-
-function ImportOptionsSection({ options, onChange }: {
-  options: ImportOptions;
-  onChange: (o: Partial<ImportOptions>) => void;
-}): JSX.Element {
-  const currentMode = FILE_MODE_DESCRIPTIONS[options.fileMode];
-  return (
-    <Paper p="md" withBorder>
-      <Text size="sm" fw={500} mb="md">Import Options</Text>
-      <Stack gap="md">
-        <Box>
-          <Text size="xs" fw={500} mb="xs" c="dimmed">File Handling Mode</Text>
-          <SegmentedControl
-            value={options.fileMode}
-            onChange={(v) => onChange({ fileMode: v as FileMode })}
-            fullWidth
-            data={[
-              { value: 'keep_in_place', label: <Group gap={4}><IconHome size={14} /><Text size="xs">Keep in Place</Text></Group> },
-              { value: 'move', label: <Group gap={4}><IconArrowRight size={14} /><Text size="xs">Move</Text></Group> },
-              { value: 'copy', label: <Group gap={4}><IconCopy size={14} /><Text size="xs">Copy</Text></Group> },
-            ]}
-          />
-          <Text size="xs" c="dimmed" mt="xs">{currentMode.description}</Text>
-        </Box>
-        <Switch
-          label="Create chapter entries"
-          description="Auto-create chapter records from files"
-          checked={options.createChapters}
-          onChange={(e) => onChange({ createChapters: e.currentTarget.checked })}
-        />
-        <Switch
-          label="Download covers"
-          description="Fetch cover images from providers"
-          checked={options.downloadCovers}
-          onChange={(e) => onChange({ downloadCovers: e.currentTarget.checked })}
-        />
-        <Switch
-          label="Add missing chapters to existing manga"
-          description="Auto-select IN_LIBRARY rows whose on-disk files would create new chapters"
-          checked={options.topUpExisting}
-          onChange={(e) => onChange({ topUpExisting: e.currentTarget.checked })}
-        />
-      </Stack>
-    </Paper>
-  );
-}
-
 function CoverImage({ src, alt }: { src: string | null; alt: string }): JSX.Element {
   if (src) {
     return <Image src={src} alt={alt} w={80} h={120} fit="cover" radius="sm" fallbackSrc="https://placehold.co/80x120?text=No+Cover" />;
@@ -396,6 +329,11 @@ function ReviewStageComponent(props: ReviewStageProps): JSX.Element {
   // existing `topUpExisting` import option and the user came here to deal with
   // new content. Mirror of the Detect & Match stage's `hideInLibrary` toggle.
   const [hideInLibrary, setHideInLibrary] = useState(true);
+  // Default to showing only items the user actually selected at Detect & Match —
+  // rendering all 98 rows when only 13 are selected is confusing and made
+  // unrelated wrong matches feel like the import would touch them. Toggle stays
+  // available so the user can see the full set if needed.
+  const [showSelectedOnly, setShowSelectedOnly] = useState(true);
 
   // Always exclude rows without a match and rows where library content already
   // has every chapter on disk (nothing to do for those regardless of toggle).
@@ -405,9 +343,13 @@ function ReviewStageComponent(props: ReviewStageProps): JSX.Element {
     return true;
   });
   const libraryTopUpItems = allImportable.filter((i) => i.selectedMatch?.provider === 'library');
-  const importableItems = hideInLibrary
+  const inLibraryFiltered = hideInLibrary
     ? allImportable.filter((i) => i.selectedMatch?.provider !== 'library')
     : allImportable;
+  const importableItems = showSelectedOnly
+    ? inLibraryFiltered.filter((i) => selectedIds.has(i.id))
+    : inLibraryFiltered;
+  const hiddenUnselectedCount = inLibraryFiltered.length - importableItems.length;
   const completeCount = items.filter((i) => i.selectedMatch?.provider === 'library' && i.newChapters === 0).length;
   const selectedCount = selectedIds.size;
 
@@ -421,26 +363,43 @@ function ReviewStageComponent(props: ReviewStageProps): JSX.Element {
         onResetAll={onResetAllMappings}
       />
 
-      {(libraryTopUpItems.length > 0 || completeCount > 0) && (
+      {(libraryTopUpItems.length > 0 || completeCount > 0 || hiddenUnselectedCount > 0) && (
         <Group justify="space-between">
           <Text size="xs" c="dimmed">
             {completeCount > 0 && <>Hidden: {completeCount} manga already complete (no new chapters). </>}
             {hideInLibrary && libraryTopUpItems.length > 0 && (
-              <>Hidden: {libraryTopUpItems.length} already-in-library top-ups.</>
+              <>Hidden: {libraryTopUpItems.length} already-in-library top-ups. </>
+            )}
+            {showSelectedOnly && hiddenUnselectedCount > 0 && (
+              <>Hidden: {hiddenUnselectedCount} unselected.</>
             )}
           </Text>
-          {libraryTopUpItems.length > 0 && (
-            <Button
-              size="xs"
-              variant={hideInLibrary ? 'light' : 'filled'}
-              color="teal"
-              onClick={() => setHideInLibrary((v) => !v)}
-            >
-              {hideInLibrary
-                ? `Show in-library (${libraryTopUpItems.length})`
-                : `Hide in-library (${libraryTopUpItems.length})`}
-            </Button>
-          )}
+          <Group gap="xs">
+            {hiddenUnselectedCount > 0 || !showSelectedOnly ? (
+              <Button
+                size="xs"
+                variant={showSelectedOnly ? 'light' : 'filled'}
+                color="blue"
+                onClick={() => setShowSelectedOnly((v) => !v)}
+              >
+                {showSelectedOnly
+                  ? `Show all (${inLibraryFiltered.length})`
+                  : `Show selected only (${selectedCount})`}
+              </Button>
+            ) : null}
+            {libraryTopUpItems.length > 0 && (
+              <Button
+                size="xs"
+                variant={hideInLibrary ? 'light' : 'filled'}
+                color="teal"
+                onClick={() => setHideInLibrary((v) => !v)}
+              >
+                {hideInLibrary
+                  ? `Show in-library (${libraryTopUpItems.length})`
+                  : `Hide in-library (${libraryTopUpItems.length})`}
+              </Button>
+            )}
+          </Group>
         </Group>
       )}
 
