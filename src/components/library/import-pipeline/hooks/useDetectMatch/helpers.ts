@@ -92,11 +92,7 @@ function mapFileInfo(file: ScanJobFileInfo): ScannedFileInfo {
   return result;
 }
 
-/** Display label used in the wizard when no real title was derivable. The user
- * is expected to click into the row and type the correct title before the
- * Import stage will accept it. The scanner used to emit the literal string
- * `Unknown` here, which silently created `manga.title = 'Unknown'` rows; this
- * sentinel + `requiresManualTitle` flag prevents that. */
+/** Sentinel for un-derivable titles — `requiresManualTitle` blocks auto-apply until the user types one. */
 const MANUAL_TITLE_PLACEHOLDER = '(needs title)';
 const PLACEHOLDER_TITLE_RE = /^(?:unknown|volume|volumes|chapter|chapters|tome|tomes|part|parts|book|books)$/i;
 
@@ -195,22 +191,18 @@ export function normalizeSearchTitle(title: string): string {
   // AniList search chokes on tildes and the wrapped subtitle is rarely
   // useful for matching anyway (it's the subtitle of the main series).
   normalized = normalized.replace(/\s*~[^~]+~\s*/g, ' ');
-  // Remove bare format suffixes (e.g., "Attack on Titan pdf" → "Attack on Titan")
   normalized = normalized.replace(BARE_FORMAT_SUFFIXES_RE, '');
-  // Remove trailing bare digits — but DON'T strip 4-digit pre-1960 tokens,
-  // they're almost always part of the canonical title rather than a volume
-  // number or publication year ("Strike Witches 1937" = Witches unit number,
-  // "Captain Tsubasa: World Youth" sub-series with year disambig, etc.).
-  // Post-1960 4-digit values ARE stripped: matches publication-year suffix
-  // ("Monster 1995") or volume-as-year folder name. Short standalone numbers
-  // ("Dorohedoro 1") always strip — those are volume markers.
+  // Trailing-digits strip: volume markers ("Dorohedoro 1") + post-1960 year suffixes ("Monster 1995").
+  // Exempt: pre-1960 year-shaped digits ("Strike Witches 1937") + "No./Number/#" designators ("Kaiju No. 8").
   const trailingDigitsRe = /\s+(\d+)$/;
   const trailingMatch = trailingDigitsRe.exec(normalized);
   if (trailingMatch?.[1] !== undefined) {
     const digits = trailingMatch[1];
     const numeric = parseInt(digits, 10);
+    const before = normalized.slice(0, trailingMatch.index);
+    const isNumberDesignator = /(?:\bNo\.?|\bNumber|#)$/i.test(before);
     const isFourDigitYearShaped = digits.length === 4 && numeric >= 1900 && numeric <= 2099;
-    if (!isFourDigitYearShaped || numeric >= 1960) {
+    if (!isNumberDesignator && (!isFourDigitYearShaped || numeric >= 1960)) {
       normalized = normalized.replace(trailingDigitsRe, '');
     }
   }
@@ -265,10 +257,7 @@ function spinoffPenaltyFactor(queryLower: string, titleLower: string): number {
   return 0.7;
 }
 
-/**
- * NFKD-normalize + strip combining marks so "Völundio" matches "Volundio"
- * and "Sōsō no Frieren" matches "Soso no Frieren" both directions.
- */
+/** NFKD-normalize + strip combining marks so "Völundio" ↔ "Volundio" matches both directions. */
 function foldDiacritics(s: string): string {
   return s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
 }
@@ -286,6 +275,15 @@ function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): num
   const sq = stripPunct(normalizedQuery);
   const st = stripPunct(normalizedTitle);
   if (sq === st) return 1.0;
+  // M16+M17: token-prefix subtitle extension. Clean extra → 0.95; extra with variant marker (color/year/re/spinoff) query lacks → downweight to ratio*0.5 so plain folder beats variant-tagged result.
+  const qTokens = sq.split(/\s+/).filter(Boolean);
+  const tTokens = st.split(/\s+/).filter(Boolean);
+  if (tTokens.length > qTokens.length && qTokens.length >= 2 && qTokens.every((t, i) => tTokens[i] === t)) {
+    const extra = tTokens.slice(qTokens.length).join(' ');
+    const variantMismatch = QUERY_DISAMBIGUATOR_RE.test(` ${extra} `) || SPINOFF_MARKER_RE.test(extra);
+    if (!variantMismatch) return 0.95;
+    return (sq.length / st.length) * 0.5;
+  }
   if (st.includes(sq) || sq.includes(st)) {
     const longer = Math.max(sq.length, st.length);
     const shorter = Math.min(sq.length, st.length);
