@@ -353,15 +353,18 @@ export function autoMatchFilesToChapters(
   const mappings = new Map<string, FileToChapterMapping>();
   const usedChapterIds = new Set<string>();
 
-  // Sort: volumes first (by volume number), then chapters (by chapter number)
-  // Prioritize files with volumeNumber for volume matching
+  // G1: chapter files (with C#) get processed BEFORE volume-only files so they
+  // can claim their specific chapter slot. Otherwise a vol-only file consumes
+  // the whole bundle first (Tokyo Ghoul V13.cbz ate ch138 → V14 C138 fell back
+  // to vol 14 → V14.cbz then had no chapters left). Within each class, sort
+  // by the relevant number for deterministic order.
   const sortedFiles = [...files].sort((a, b) => {
-    const aHasVolume = hasVolumeNumber(a);
-    const bHasVolume = hasVolumeNumber(b);
-    if (aHasVolume && !bHasVolume) return -1;
-    if (!aHasVolume && bHasVolume) return 1;
-    if (aHasVolume && bHasVolume) return (a.volumeNumber ?? 0) - (b.volumeNumber ?? 0);
-    return (a.chapterNumber ?? Infinity) - (b.chapterNumber ?? Infinity);
+    const aType = isChapterFile(a) ? 0 : (isVolumeOnlyFile(a) ? 1 : 2);
+    const bType = isChapterFile(b) ? 0 : (isVolumeOnlyFile(b) ? 1 : 2);
+    if (aType !== bType) return aType - bType;
+    if (aType === 0) return (a.chapterNumber ?? 0) - (b.chapterNumber ?? 0);
+    if (aType === 1) return (a.volumeNumber ?? 0) - (b.volumeNumber ?? 0);
+    return 0;
   });
 
   // First pass: Match each file based on its type
