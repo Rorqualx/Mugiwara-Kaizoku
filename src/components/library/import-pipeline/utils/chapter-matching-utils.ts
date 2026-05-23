@@ -234,6 +234,14 @@ function findBestChapterMatch(
  * 1. Volume-only files (volumeNumber, no chapterNumber): always volume match
  * 2. Files with volumeNumber: try volume match first, fall back to chapter match
  * 3. Chapter-only files: chapter match
+ *
+ * Rationale: when a file carries a chapter number, that number identifies the
+ * file unambiguously — the volume tag is just contextual ("which volume this
+ * chapter belongs to"). The old logic routed every V+C file to the volume
+ * bundle first, which consumed every chapter in the bundle (e.g. 1–5) on the
+ * first file (V01 C001), leaving V01 C002–C005 with no slot. Chapter match
+ * takes priority now; volume fallback covers the genuine "Title 01.cbz" case
+ * where the parser couldn't disambiguate.
  */
 function matchSingleFile(
   file: ScannedFileInfo,
@@ -241,7 +249,7 @@ function matchSingleFile(
   volumes: MetadataVolume[],
   usedChapterIds: Set<string>
 ): FileToChapterMapping {
-  // Priority 1: Volume-only files - definitely match as volume
+  // Priority 1: Volume-only files (volume set, no chapter) - definitely volumes
   if (isVolumeOnlyFile(file)) {
     const { chapter, confidence, reason, volumeChapters } = findBestVolumeMatch(file, chapters, volumes, usedChapterIds);
     if (chapter && confidence > 0) {
@@ -251,26 +259,37 @@ function matchSingleFile(
     return { filePath: file.path, file, metadataChapter: null, status: 'unmatched', confidence: 0, matchReason: reason };
   }
 
-  // Priority 2: Files with volumeNumber (even if they also have chapterNumber)
-  // Try volume match first - this handles cases like "Title 01.cbz" where the scanner
-  // might set both volumeNumber=1 and chapterNumber=1
+  // Priority 2: File names a chapter (regardless of volume tag) — chapter match first.
+  // V01 C001 means "chapter 1, in volume 1", not "volume 1 bundle".
+  if (isChapterFile(file)) {
+    const chapterResult = findBestChapterMatch(file, chapters, usedChapterIds);
+    if (chapterResult.chapter && chapterResult.confidence > 0) {
+      usedChapterIds.add(chapterResult.chapter.id);
+      return { filePath: file.path, file, metadataChapter: chapterResult.chapter, status: 'auto_matched', confidence: chapterResult.confidence, matchReason: chapterResult.reason };
+    }
+
+    // No chapter slot left and the file ALSO has a volume tag — fall back to
+    // volume-bundle binding so the file still gets a slot (rare; happens when
+    // the provider's chapter manifest is sparse).
+    if (hasVolumeNumber(file)) {
+      const { chapter, confidence, reason, volumeChapters } = findBestVolumeMatch(file, chapters, volumes, usedChapterIds);
+      if (chapter && confidence > 0 && volumeChapters.length > 0) {
+        volumeChapters.forEach((ch) => usedChapterIds.add(ch.id));
+        return { filePath: file.path, file, metadataChapter: chapter, status: 'auto_matched', confidence, matchReason: reason, volumeChapters };
+      }
+    }
+
+    return { filePath: file.path, file, metadataChapter: null, status: 'unmatched', confidence: 0, matchReason: chapterResult.reason };
+  }
+
+  // Priority 3: hasVolumeNumber but not classified as chapter (legacy "Title 01.cbz"
+  // case where the parser stamped both fields with the same number).
   if (hasVolumeNumber(file)) {
     const { chapter, confidence, reason, volumeChapters } = findBestVolumeMatch(file, chapters, volumes, usedChapterIds);
     if (chapter && confidence > 0 && volumeChapters.length > 0) {
       volumeChapters.forEach((ch) => usedChapterIds.add(ch.id));
       return { filePath: file.path, file, metadataChapter: chapter, status: 'auto_matched', confidence, matchReason: reason, volumeChapters };
     }
-    // Volume match failed, fall through to chapter match
-  }
-
-  // Priority 3: Chapter file (or volume file that didn't find volume chapters)
-  if (isChapterFile(file)) {
-    const { chapter, confidence, reason } = findBestChapterMatch(file, chapters, usedChapterIds);
-    if (chapter && confidence > 0) {
-      usedChapterIds.add(chapter.id);
-      return { filePath: file.path, file, metadataChapter: chapter, status: 'auto_matched', confidence, matchReason: reason };
-    }
-    return { filePath: file.path, file, metadataChapter: null, status: 'unmatched', confidence: 0, matchReason: reason };
   }
 
   // Unknown file type: mark as unmatched (will be handled in sequential pass)
