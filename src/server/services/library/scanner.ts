@@ -30,10 +30,7 @@ import { serverLogger } from '@/utils/serverLogger';
 import { DuplicateDetector } from './duplicateDetector';
 import { ImportRuleEngine } from './importRuleEngine';
 import { MetadataEnrichmentService } from './metadataEnrichmentService';
-import {
-  processMangaGroupsBatch,
-  checkImageDirectoriesBatch
-} from './scanner/batch-processor';
+import { processMangaGroupsBatch } from './scanner/batch-processor';
 import { createChaptersFromFileList } from './scanner/chapter-creator';
 import { checkForDuplicates } from './scanner/duplicate-checker';
 import { enrichMangaMetadata } from './scanner/enrichment-handler';
@@ -48,6 +45,29 @@ import {
   type ScanItem
 } from './scanner/types';
 import { collectFileDetails } from './scanner/utils';
+
+const MANGA_SUBDIRS = new Set(['chapters', 'volumes']);
+
+/**
+ * Fold a discovered file/image-dir path to its manga-root directory.
+ * Walks ancestors leaf→root and returns the parent of the first `chapters`/
+ * `volumes` segment so `<title>/Chapters/Vol 1/Chapter 1/` (image dir),
+ * `<title>/Volumes/Vol 1.cbz`, and `<title>/Volumes/Vol 1/` all collapse to
+ * `<title>`. Falls back to `path.dirname(filePath)` when no wrapper exists.
+ */
+function resolveMangaRoot(filePath: string): string {
+  const dir = path.dirname(filePath);
+  const segments = dir.split(path.sep);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i];
+    if (seg !== undefined && MANGA_SUBDIRS.has(seg.toLowerCase())) {
+      const root = segments.slice(0, i).join(path.sep);
+      return root.length > 0 ? root : path.sep;
+    }
+  }
+  return dir;
+}
+
 
 /**
  * Enhanced directory scanner with improved file type support and parsing
@@ -132,7 +152,7 @@ export class EnhancedScanner {
       void realtimeEmitter.emitLibraryScanStarted(targetLibraryId, mangaFiles.length);
 
       // Group files by manga (with subfolder exclusion)
-      const mangaGroups = await this.groupMangaFiles(mangaFiles, excludeSubfolderPatterns);
+      const mangaGroups = this.groupMangaFiles(mangaFiles, excludeSubfolderPatterns);
       const totalGroups = mangaGroups.size;
 
       // Report grouping complete
@@ -254,17 +274,11 @@ export class EnhancedScanner {
    * @param exclusions - Subfolder patterns to exclude
    * @returns Map of manga paths to their associated files
    */
-  private async groupMangaFiles(
+  private groupMangaFiles(
     files: string[],
     exclusions: string[]
-  ): Promise<Map<string, string[]>> {
+  ): Map<string, string[]> {
     const groups = new Map<string, string[]>();
-
-    // Batch check which files are image directories (fixes await-in-loop)
-    const imageDirectoryMap = await checkImageDirectoriesBatch(files);
-
-    // Standard subdirectories that should group under the parent manga folder
-    const MANGA_SUBDIRS = new Set(['chapters', 'volumes']);
 
     for (const file of files) {
       // Check if the file's directory or the file itself should be excluded
@@ -276,23 +290,13 @@ export class EnhancedScanner {
         continue;
       }
 
-      const isImageDir = imageDirectoryMap.get(file) ?? false;
-
-      if (isImageDir) {
-        // Image directory — check if its parent is a standard subdirectory
-        const parentName = path.basename(dir).toLowerCase();
-        const groupDir = MANGA_SUBDIRS.has(parentName) ? path.dirname(dir) : dir;
-        const existing = groups.get(groupDir) ?? [];
-        existing.push(file);
-        groups.set(groupDir, existing);
-      } else {
-        // Archive file — group by parent, or grandparent if parent is Chapters/Volumes
-        const dirName = path.basename(dir).toLowerCase();
-        const groupDir = MANGA_SUBDIRS.has(dirName) ? path.dirname(dir) : dir;
-        const existing = groups.get(groupDir) ?? [];
-        existing.push(file);
-        groups.set(groupDir, existing);
-      }
+      // Fold to the manga root, walking past any chapters/ or volumes/ wrapper —
+      // handles multi-level layouts like <title>/Chapters/Vol 1/Chapter 1/ and
+      // <title>/Volumes/Vol 1.cbz alike.
+      const groupDir = resolveMangaRoot(file);
+      const existing = groups.get(groupDir) ?? [];
+      existing.push(file);
+      groups.set(groupDir, existing);
     }
 
     // Sort files within each group naturally
