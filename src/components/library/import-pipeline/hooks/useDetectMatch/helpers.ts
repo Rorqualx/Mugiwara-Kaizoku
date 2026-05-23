@@ -279,25 +279,22 @@ function foldDiacritics(s: string): string {
 // Rebellion Re;" should NOT match parent "Code Geass: Lelouch of the
 // Rebellion". When a disambiguator is detected in the missing portion, we
 // apply a 0.5x multiplier instead of the usual 0.95x.
-const QUERY_DISAMBIGUATOR_RE = /(?:^|\s|[-:;,])\s*(?:19[0-9]{2}|20[0-9]{2}|re(?:[:;]|$|\s)|i{2,4}|iv|season\s+\d+|part\s+\d+|chapter\s+\d+)(?:$|\s|[-:;,])/i;
-const stripPunct = (s: string): string => s.replace(/&amp;/gi, '&').replace(/[_\-:;,.&']/g, ' ').replace(/\s+/g, ' ').trim();
+const QUERY_DISAMBIGUATOR_RE = /(?:^|\s|[-:;,])\s*(?:19[0-9]{2}|20[0-9]{2}|re(?:[:;]|$|\s)|i{2,4}|iv|season\s+\d+|part\s+\d+|chapter\s+\d+|color(?:ed)?)(?:$|\s|[-:;,])/i;
+const stripPunct = (s: string): string => s.replace(/&amp;/gi, '&').replace(/~[^~]+~/g, ' ').replace(/[_\-:;,.&']/g, ' ').replace(/\s+/g, ' ').trim();
 
 function scoreSingleTitle(normalizedQuery: string, normalizedTitle: string): number {
-  const sq = stripPunct(normalizedQuery); // M11: strip _-:;,.&' for comparison
+  const sq = stripPunct(normalizedQuery);
   const st = stripPunct(normalizedTitle);
   if (sq === st) return 1.0;
   if (st.includes(sq) || sq.includes(st)) {
     const longer = Math.max(sq.length, st.length);
     const shorter = Math.min(sq.length, st.length);
     const ratio = shorter / longer;
-    let multiplier = 0.95;
-    if (st.length < sq.length) {
-      const missing = sq.replace(st, '').trim();
-      if (missing.length > 0 && QUERY_DISAMBIGUATOR_RE.test(` ${missing} `)) {
-        multiplier = 0.5;
-      }
-    }
-    return ratio * multiplier;
+    const missing = st.length < sq.length ? sq.replace(st, '').trim() : '';
+    const isParent = missing.length > 0 && QUERY_DISAMBIGUATOR_RE.test(` ${missing} `);
+    const multiplier = isParent ? 0.5 : 0.95;
+    const isPrefix = sq.startsWith(st) || st.startsWith(sq);
+    return (isPrefix && !isParent ? Math.sqrt(ratio) : ratio) * multiplier;
   }
   const queryWords = sq.split(/\s+/).filter(Boolean);
   const titleWords = st.split(/\s+/).filter(Boolean);
@@ -342,8 +339,8 @@ export function calculateConfidence(
   // When only an altTitle scores high and the primary title is a poor match,
   // dampen the altTitle score so anthology-style ID matches don't outrank the
   // standalone manga whose primary title actually equals the query.
-  // M11b: exempt exact altTitle hits (≥0.95) — JP-romaji folder vs EN primary should not be dampened.
-  const altPenalty = (bestAltScore < 0.95 && bestAltScore > bestPrimaryScore + 0.3 && bestPrimaryScore < 0.5) ? 0.85 : 1.0;
+  // M11b: exempt exact altTitle hits (>=0.95) so JP-romaji folder vs EN primary isn't dampened.
+  const altPenalty = bestAltScore < 0.95 && bestAltScore > bestPrimaryScore + 0.3 && bestPrimaryScore < 0.5 ? 0.85 : 1.0;
   return Math.max(bestPrimaryScore, bestAltScore * altPenalty) * penalty;
 }
 
