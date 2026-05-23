@@ -1,3 +1,4 @@
+// @file-size-justified: GraphQL query strings catalog — splitting fragments forces import churn across all callers for zero code-quality benefit.
 /**
  * AniList GraphQL Query Collection
  * 
@@ -47,7 +48,7 @@ export const SEARCH_MANGA = `
         hasNextPage
         perPage
       }
-      media(type: MANGA, search: $search, isAdult: $isAdult) {
+      media(type: MANGA, search: $search, isAdult: $isAdult, sort: [SEARCH_MATCH, POPULARITY_DESC]) {
         id
         idMal
         title {

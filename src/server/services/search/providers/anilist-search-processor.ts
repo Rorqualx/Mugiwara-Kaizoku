@@ -229,6 +229,10 @@ export class AniListSearchProcessor {
 
       const hasAdultTag = tags.some((tag: string) => {
         const lowerTag = tag.toLowerCase();
+        // `sexual` substring match also catches `asexual`, which is NOT adult content —
+        // e.g. Hunter x Hunter (ID 30026) carries an "Asexual" tag and was being
+        // false-filtered, causing the whole main series to vanish from search results.
+        // Use word-boundary regex so only standalone "sexual" / "sexually" matches.
         const isAdultTag = (
           lowerTag.includes('hentai') ||
           lowerTag.includes('adult content') ||
@@ -237,8 +241,8 @@ export class AniListSearchProcessor {
           lowerTag.includes('explicit') ||
           lowerTag.includes('mature') ||
           lowerTag.includes('nsfw') ||
-          (lowerTag.includes('adult') && !lowerTag.includes('primarily adult cast')) || // Exclude "primarily adult cast"
-          lowerTag.includes('sexual')
+          (lowerTag.includes('adult') && !lowerTag.includes('primarily adult cast')) ||
+          /\bsexual(ly)?\b/.test(lowerTag)
         );
 
         if (isAdultTag) {
