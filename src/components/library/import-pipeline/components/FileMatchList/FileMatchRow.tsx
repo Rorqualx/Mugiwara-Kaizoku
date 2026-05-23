@@ -58,6 +58,7 @@ function getBorderColor(mapping: FileToChapterMapping): string {
     case 'manual_matched':
       return 'var(--mantine-color-green-7)';
     case 'skipped':
+    case 'duplicate':
       return 'var(--mantine-color-gray-7)';
     default:
       return 'var(--mantine-color-orange-7)';
@@ -89,6 +90,8 @@ function StatusBadge({ mapping }: { mapping: FileToChapterMapping }): JSX.Elemen
       return <Badge size="xs" color="green" variant="light">Auto</Badge>;
     case 'manual_matched':
       return <Badge size="xs" color="blue" variant="light">Manual</Badge>;
+    case 'duplicate':
+      return <Badge size="xs" color="gray" variant="light">Duplicate</Badge>;
     default:
       return null;
   }
@@ -172,6 +175,7 @@ function FileMatchRowComponent(props: FileMatchRowProps): JSX.Element {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const isMatched = mapping.status === 'auto_matched' || mapping.status === 'manual_matched';
   const isSkipped = mapping.status === 'skipped';
+  const isDuplicate = mapping.status === 'duplicate';
   const borderColor = getBorderColor(mapping);
 
   const handleSelectChapter = (chapterId: string): void => {
@@ -219,6 +223,8 @@ function FileMatchRowComponent(props: FileMatchRowProps): JSX.Element {
             </MatchOverridePopover>
           ) : isSkipped ? (
             <Text size="xs" c="dimmed" fs="italic">Skipped</Text>
+          ) : isDuplicate ? (
+            <Text size="xs" c="dimmed" fs="italic" lineClamp={1} title={mapping.matchReason}>{mapping.matchReason ?? 'Duplicate'}</Text>
           ) : (
             <MatchOverridePopover
               opened={popoverOpen}

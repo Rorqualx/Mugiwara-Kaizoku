@@ -345,6 +345,26 @@ function sequentialMatchUnmatchedFiles(
  * - Chapter files (has chapterNumber): match by chapter number
  * - Unknown files: sequential matching fallback
  */
+function duplicateMapping(file: ScannedFileInfo, originalName: string): FileToChapterMapping {
+  return {
+    filePath: file.path, file, metadataChapter: null,
+    status: 'duplicate', confidence: 0,
+    matchReason: `Duplicate of ${originalName}`,
+  };
+}
+
+function checkBundleCoveredDuplicate(
+  mapping: FileToChapterMapping,
+  file: ScannedFileInfo,
+  chapters: MetadataChapter[],
+  usedChapterIds: Set<string>,
+): FileToChapterMapping {
+  if (mapping.status !== 'unmatched' || !isVolumeOnlyFile(file) || file.volumeNumber === undefined) return mapping;
+  const volChapters = chapters.filter((c) => c.volumeNumber === file.volumeNumber);
+  if (volChapters.length === 0 || !volChapters.every((c) => usedChapterIds.has(c.id))) return mapping;
+  return { ...mapping, status: 'duplicate', matchReason: `Volume ${file.volumeNumber} chapters already imported via individual chapter files` };
+}
+
 export function autoMatchFilesToChapters(
   files: ScannedFileInfo[],
   chapters: MetadataChapter[],
@@ -352,12 +372,12 @@ export function autoMatchFilesToChapters(
 ): Map<string, FileToChapterMapping> {
   const mappings = new Map<string, FileToChapterMapping>();
   const usedChapterIds = new Set<string>();
+  const seenChapterFile = new Map<number, string>();
+  const seenVolumeOnlyFile = new Map<number, string>();
 
   // G1: chapter files (with C#) get processed BEFORE volume-only files so they
-  // can claim their specific chapter slot. Otherwise a vol-only file consumes
-  // the whole bundle first (Tokyo Ghoul V13.cbz ate ch138 → V14 C138 fell back
-  // to vol 14 → V14.cbz then had no chapters left). Within each class, sort
-  // by the relevant number for deterministic order.
+  // can claim their specific chapter slot. Within each class, sort by the
+  // relevant number for deterministic order.
   const sortedFiles = [...files].sort((a, b) => {
     const aType = isChapterFile(a) ? 0 : (isVolumeOnlyFile(a) ? 1 : 2);
     const bType = isChapterFile(b) ? 0 : (isVolumeOnlyFile(b) ? 1 : 2);
@@ -367,13 +387,32 @@ export function autoMatchFilesToChapters(
     return 0;
   });
 
-  // First pass: Match each file based on its type
   for (const file of sortedFiles) {
-    const mapping = matchSingleFile(file, chapters, volumes, usedChapterIds);
+    // G2: duplicate chapter file (same C# at different path)
+    const c = file.chapterNumber;
+    if (isChapterFile(file) && c !== undefined && seenChapterFile.has(c)) {
+      mappings.set(file.path, duplicateMapping(file, seenChapterFile.get(c) ?? ''));
+      continue;
+    }
+    // G2: duplicate volume-only file (same V# at different path)
+    const v = file.volumeNumber;
+    if (isVolumeOnlyFile(file) && v !== undefined && seenVolumeOnlyFile.has(v)) {
+      mappings.set(file.path, duplicateMapping(file, seenVolumeOnlyFile.get(v) ?? ''));
+      continue;
+    }
+
+    let mapping = matchSingleFile(file, chapters, volumes, usedChapterIds);
+    // G2: bundle-covered duplicate (volume archive whose chapters were all consumed by chapter files)
+    mapping = checkBundleCoveredDuplicate(mapping, file, chapters, usedChapterIds);
     mappings.set(file.path, mapping);
+
+    if (mapping.status === 'auto_matched') {
+      if (isChapterFile(file) && c !== undefined) seenChapterFile.set(c, file.name);
+      if (isVolumeOnlyFile(file) && v !== undefined) seenVolumeOnlyFile.set(v, file.name);
+    }
   }
 
-  // Second pass: Sequential matching for remaining unmatched files
+  // Sequential matching for remaining unmatched files
   sequentialMatchUnmatchedFiles(sortedFiles, chapters, usedChapterIds, mappings, volumes);
 
   return mappings;

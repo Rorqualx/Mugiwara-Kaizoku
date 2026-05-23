@@ -90,6 +90,7 @@ function createInitialState(): MatchListState {
       manualMatched: 0,
       unmatched: 0,
       skipped: 0,
+      duplicate: 0,
       totalMetadataChapters: 0,
       mappedMetadataChapters: 0,
     },
@@ -160,6 +161,7 @@ function SummaryBar({ stats }: { stats: ChapterMatchingStats }): JSX.Element {
         <Group gap="xs">
           <Badge size="sm" color="green" variant="light">{matched} matched</Badge>
           {stats.unmatched > 0 && <Badge size="sm" color="orange" variant="light">{stats.unmatched} unmatched</Badge>}
+          {stats.duplicate > 0 && <Badge size="sm" color="gray" variant="light">{stats.duplicate} duplicate</Badge>}
           {stats.skipped > 0 && <Badge size="sm" color="gray" variant="light">{stats.skipped} skipped</Badge>}
         </Group>
         <Text size="xs" c="dimmed">{matched}/{total} files</Text>

@@ -827,7 +827,8 @@ export type FileMatchStatus =
   | 'auto_matched'     // Automatically matched by algorithm
   | 'manual_matched'   // User manually linked
   | 'unmatched'        // No match yet
-  | 'skipped';         // User explicitly skipped
+  | 'skipped'          // User explicitly skipped
+  | 'duplicate';       // Same chapter#/volume# as another already-matched file
 
 /**
  * A mapping between a scanned file and a metadata chapter
@@ -911,6 +912,8 @@ export interface ChapterMatchingStats {
   unmatched: number;
   /** Files skipped */
   skipped: number;
+  /** Files detected as duplicates of an already-matched file */
+  duplicate: number;
   /** Total metadata chapters available */
   totalMetadataChapters: number;
   /** Metadata chapters that have a file mapped */
@@ -945,6 +948,7 @@ export function calculateChapterMatchingStats(
     manualMatched: 0,
     unmatched: 0,
     skipped: 0,
+    duplicate: 0,
     totalMetadataChapters: chapters.length,
     mappedMetadataChapters: 0,
   };
@@ -976,6 +980,9 @@ export function calculateChapterMatchingStats(
         break;
       case 'skipped':
         stats.skipped++;
+        break;
+      case 'duplicate':
+        stats.duplicate++;
         break;
       default:
         // Future-proof: Handle any unknown status
