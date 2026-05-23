@@ -203,6 +203,50 @@ export function normalizeSearchTitle(title: string): string {
   return normalized || title;
 }
 
+/**
+ * Spinoff/variant markers that, when present in a result title but NOT the
+ * query, indicate the result is a side-series we should not pick when the
+ * query targets a main series. e.g. result "Re:ZERO ... Ex" should NOT win
+ * over "Re:Zero - Starting Life in Another World" when query is the latter.
+ * Word-boundary match avoids penalizing "Hexagon" for containing "ex".
+ */
+const SPINOFF_MARKERS = [
+  'ex',
+  'anima',
+  'smash',
+  'prototype',
+  'anthology',
+  'gaiden',
+  'side story',
+  'side stories',
+  'spin-off',
+  'spinoff',
+  'specials',
+  'special',
+  'one-shot',
+  'oneshot',
+  'omake',
+  'novelization',
+  'prelude',
+  'epilogue',
+  'memories',
+];
+const SPINOFF_MARKER_RE = new RegExp(`\\b(${SPINOFF_MARKERS.map((m) => m.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})\\b`, 'i');
+
+/**
+ * Returns the multiplier applied for spinoff markers in the result title.
+ * 1.0 means no penalty. 0.7 means the result has a marker the query does not.
+ */
+function spinoffPenaltyFactor(queryLower: string, titleLower: string): number {
+  // Penalty only fires when the result has a marker the query doesn't share —
+  // so a Chainsaw Man - Color folder still matches Chainsaw Man cleanly.
+  const titleMatch = SPINOFF_MARKER_RE.exec(titleLower);
+  if (!titleMatch) return 1.0;
+  const queryMatch = SPINOFF_MARKER_RE.exec(queryLower);
+  if (queryMatch && queryMatch[1] === titleMatch[1]) return 1.0;
+  return 0.7;
+}
+
 export function calculateConfidence(query: string, resultTitle: string): number {
   const normalizedQuery = query.toLowerCase().trim();
   const normalizedTitle = resultTitle.toLowerCase().trim();
@@ -210,11 +254,13 @@ export function calculateConfidence(query: string, resultTitle: string): number 
   // Exact match
   if (normalizedQuery === normalizedTitle) return 1.0;
 
+  const penalty = spinoffPenaltyFactor(normalizedQuery, normalizedTitle);
+
   // One contains the other
   if (normalizedTitle.includes(normalizedQuery) || normalizedQuery.includes(normalizedTitle)) {
     const longer = Math.max(normalizedQuery.length, normalizedTitle.length);
     const shorter = Math.min(normalizedQuery.length, normalizedTitle.length);
-    return (shorter / longer) * 0.95;
+    return (shorter / longer) * 0.95 * penalty;
   }
 
   // Word-level matching
@@ -223,7 +269,7 @@ export function calculateConfidence(query: string, resultTitle: string): number 
   const matchingWords = queryWords.filter((word) => titleWords.some((tw) => tw.includes(word) || word.includes(tw)));
   const matchRatio = matchingWords.length / Math.max(queryWords.length, titleWords.length);
 
-  return matchRatio * 0.8;
+  return matchRatio * 0.8 * penalty;
 }
 
 /**
@@ -237,12 +283,27 @@ export function hasCoverImage(match: EnrichedProviderMatch): boolean {
 }
 
 /**
+ * Manga-native providers — sources whose IDs anchor the rest of the
+ * enrichment pipeline. Wikipedia/Fandom remain in the candidate pool but
+ * are demoted when a manga-native hit is close in confidence, so we don't
+ * accidentally anchor the manga to a non-manga-native ID.
+ */
+const MANGA_NATIVE_PROVIDERS = new Set(['anilist', 'mangadex', 'mangaupdates']);
+const MANGA_NATIVE_BONUS = 0.08;
+
+/**
  * Apply year-aware scoring to rank matches.
  * When we know the folder year, boost matches that agree and penalize those that don't.
  * Penalizes matches without cover images to prefer complete metadata.
+ * Also applies a small manga-native bonus so anilist/mangadex/mangaupdates
+ * win narrow ties against wikipedia/fandom.
  */
 export function scoreWithYear(match: EnrichedProviderMatch, folderYear: number | undefined): number {
   let score = match.confidence;
+
+  if (MANGA_NATIVE_PROVIDERS.has(match.provider)) {
+    score += MANGA_NATIVE_BONUS;
+  }
 
   // Penalize matches without cover images (prefer complete metadata)
   if (!hasCoverImage(match)) {
