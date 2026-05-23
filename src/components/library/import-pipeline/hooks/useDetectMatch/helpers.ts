@@ -380,6 +380,9 @@ export function scoreWithYear(match: EnrichedProviderMatch, folderYear: number |
     score = Math.min(score + MANGA_NATIVE_BONUS, 1.0);
   }
 
+  // M10: raw ≥ 0.95 skips cover/year penalties — an exact title is decisive.
+  if (match.confidence >= 0.95) return score;
+
   // Penalize matches without cover images (prefer complete metadata)
   if (!hasCoverImage(match)) {
     score *= 0.9;
