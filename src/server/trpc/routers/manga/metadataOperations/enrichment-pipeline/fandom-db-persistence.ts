@@ -15,6 +15,7 @@ import { logger } from '@/utils/logger';
 
 import { updateVolumeRanges, crossValidateVolumeRanges, createMissingVolumes, updateVolumeDescriptions, assignVolumesFromRanges, isUnreliableVolumeMap } from './fandom-volume-helpers';
 import { evenDistributionFallback } from './fandom-volume-helpers/distribution';
+import { assignSpecialChapters } from './special-chapter-placement';
 
 import type { ChapterEnrichmentMaps } from './types';
 
@@ -151,51 +152,7 @@ export async function assignOrphanedChapters(mangaId: number): Promise<void> {
   await assignSpecialChapters(mangaId, allChapters);
 }
 
-/**
- * Assign chapters with negative or fractional numbers to a "Specials" volume (number 0).
- * These are side stories, bonus chapters, and preludes (e.g., Bleach "Turn Back The Pendulum").
- *
- * Decimal chapters are only treated as specials when they failed to land in a
- * real volume via range backfill. Split chapters like 65.1 / 71.3 that already
- * sit inside a Volume's chapterStart..chapterEnd window keep that assignment —
- * forcing them to Vol 0 here is what made the indexer-page volume groupings
- * misattribute downloaded files (Iken Senki Volundio: ch.71.3's CBZ ended up
- * under "Vol 0 Specials" instead of Vol 10).
- */
-export async function assignSpecialChapters(mangaId: number, allChapters: ChapterRow[]): Promise<void> {
-  const specialChapters = allChapters.filter(ch => {
-    if (ch.chapterNumber === null) return false;
-    // Always-specials: chapter 0 (Dragon Ball "Bulma and Son Goku", FMA prologue)
-    // and pre-series negatives.
-    if (ch.chapterNumber <= 0) return true;
-    // Decimal splits: only treat as specials when range backfill didn't already
-    // place them in a proper volume. Tiny decimals (< 1) like 0.1 / 0.5 still
-    // qualify — those are pre-series fragments. Larger decimals that landed in
-    // a real volume keep that linkage.
-    if (!Number.isInteger(ch.chapterNumber)) {
-      if (ch.volumeId === null) return true;
-      if (ch.chapterNumber < 1) return true;
-    }
-    return false;
-  });
-  if (specialChapters.length === 0) return;
-
-  // Create Volume 0 "Specials" if it doesn't exist, then link via both scalar + FK.
-  const vol0 = await prisma.volume.findFirst({ where: { mangaId, number: 0 }, select: { id: true } })
-    ?? await prisma.volume.create({
-      data: { mangaId, number: 0, title: 'Specials' },
-      select: { id: true },
-    });
-
-  // updateMany is idempotent — chapters already at (volume=0, volumeId=vol0.id)
-  // become no-ops, so we don't need to filter them out client-side.
-  const ids = specialChapters.map(ch => ch.id);
-  await prisma.chapter.updateMany({
-    where: { id: { in: ids } },
-    data: { volume: 0, volumeId: vol0.id },
-  });
-  logger.info(`[enrichmentPipeline] Assigned ${ids.length} special chapters (<=0 or fractional w/o range volume) to Volume 0 "Specials"`);
-}
+export { assignSpecialChapters };
 
 /**
  * Clear volume assignments for redirect-corrected chapters (sentinel -1),
