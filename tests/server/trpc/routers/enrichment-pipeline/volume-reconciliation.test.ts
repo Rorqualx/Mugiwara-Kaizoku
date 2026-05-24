@@ -307,13 +307,19 @@ describe('correctVolumeAssignments', () => {
     expect(prisma.chapter.updateMany).not.toHaveBeenCalled();
   });
 
-  it('should skip Volume 0 (Specials)', async () => {
+  it('should include real Vol 0 (with ranges) in reconciliation', async () => {
+    // Vol 0 is now reserved for real published prequel volumes (HxH
+    // "Kurapika's Memories", JJK 0). The reconciliation no longer filters
+    // by `number: { gt: 0 }` — only volumes with chapterStart/chapterEnd
+    // ranges are considered, and Vol 0 with a real range qualifies.
     (prisma.volume.findMany as jest.Mock).mockResolvedValue([]);
 
     await correctVolumeAssignments(MANGA_ID);
 
     const findManyCall = (prisma.volume.findMany as jest.Mock).mock.calls[0];
-    expect(findManyCall[0].where.number).toEqual({ gt: 0 });
+    expect(findManyCall[0].where.number).toBeUndefined();
+    expect(findManyCall[0].where.chapterStart).toEqual({ not: null });
+    expect(findManyCall[0].where.chapterEnd).toEqual({ not: null });
   });
 
   it('should not modify chapters already correctly assigned', async () => {

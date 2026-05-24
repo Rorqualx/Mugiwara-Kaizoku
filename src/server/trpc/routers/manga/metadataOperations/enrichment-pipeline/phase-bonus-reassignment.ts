@@ -247,14 +247,15 @@ export async function reassignBonusChaptersToParentVolumes(
   }));
   const volumeNumberToId = new Map(typedVolumes.map(v => [v.number, v.id]));
 
-  // Find chapters in Vol 0 or unassigned that could be bonus chapters
+  // Find unassigned chapters that could be bonus chapters. Vol 0 is no
+  // longer a synthetic "Specials" dumping ground — it's reserved for real
+  // published prequel volumes (HxH "Kurapika's Memories", JJK 0) — so the
+  // only "unplaced" signal we still check is volume IS NULL.
   const candidates = await prisma.chapter.findMany({
     where: {
       mangaId,
-      OR: [
-        { volume: 0 },
-        { volume: null, chapterNumber: { not: null } },
-      ],
+      volume: null,
+      chapterNumber: { not: null },
     },
     select: { id: true, chapterNumber: true, title: true, volume: true },
   });

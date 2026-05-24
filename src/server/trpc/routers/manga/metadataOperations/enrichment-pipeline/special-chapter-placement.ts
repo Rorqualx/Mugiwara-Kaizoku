@@ -2,16 +2,18 @@
  * Special / Decimal Chapter Placement
  *
  * Decimal chapters (5.5, 71.3, 400.5) belong inside the volume containing
- * their integer floor — NOT a synthetic "Specials" volume. Volume 0 used to
- * be the catch-all dumping ground for every decimal, which collided with
- * manga that have a legitimate published Volume 0 (Hunter x Hunter
- * "Kurapika's Memories", JJK 0).
+ * their integer floor. This module routes them by floor()/ceil() of the
+ * chapter number to the right volume's range.
  *
- * This module routes decimals to their sequential volume by floor()/ceil()
- * and only falls back to a "Specials" Vol 0 for true ch <= 0 orphans and
- * decimals with no parent volume in range. If a real Vol 0 already exists
- * (provider-supplied for a published prequel volume), its row is reused and
- * its title is left untouched.
+ * Orphans (ch <= 0, decimals with no parent volume range) are left with
+ * volume = NULL / volumeId = NULL — the UI renders these in an "Unassigned"
+ * section. We no longer dump them into a synthetic "Volume 0 Specials" row,
+ * because that collided with manga that have a real published Vol 0 (HxH
+ * "Kurapika's Memories", JJK 0). Vol 0 is now reserved exclusively for real
+ * prequel volumes; NULL is the only unassigned signal.
+ *
+ * If a real Vol 0 row exists (provider data with a meaningful title / cover
+ * / chapter range), 0.x decimals are routed there as their natural home.
  *
  * Why this is needed beyond applyVolumeRanges():
  *   applyVolumeRanges sets the `volume` scalar but NOT the `volumeId` FK.
@@ -38,15 +40,15 @@ interface RealVolume {
   chapterEnd: number | null;
 }
 
-/** Place decimal/special chapters into their proper sequential volume,
- *  falling back to a "Specials" Vol 0 only for true orphans. */
+/** Place decimal chapters into their proper sequential volume. True orphans
+ *  (ch <= 0 without a real Vol 0, decimals with no parent volume range) are
+ *  cleared to volume=NULL so the UI renders them in "Unassigned". */
 export async function assignSpecialChapters(mangaId: number, allChapters: ChapterRow[]): Promise<void> {
   const candidates = allChapters.filter(ch => ch.chapterNumber !== null);
   if (candidates.length === 0) return;
 
-  // Pull Vol 0 separately — it's the natural home for 0.x decimals (HxH
-  // "Kurapika's Memories" is Vol 0; ch 0.5 / 0.6 are its content). We do NOT
-  // route 0.x decimals to Vol 1 via ceil()-fallback when a Vol 0 row exists.
+  // Pull Vol 0 separately — when present (real published prequel volume),
+  // it's the natural home for 0.x decimals (HxH ch 0.5 / 0.6).
   const vol0Row = await prisma.volume.findFirst({
     where: { mangaId, number: 0 },
     select: { id: true, number: true, chapterStart: true, chapterEnd: true },
@@ -69,7 +71,7 @@ export async function assignSpecialChapters(mangaId: number, allChapters: Chapte
   }
 
   if (orphans.length === 0) return;
-  await assignOrphansToSpecialsVolume(mangaId, orphans);
+  await clearOrphanVolumes(orphans);
 }
 
 interface DecimalPlacement { id: number; volume: number; volumeId: number }
@@ -84,7 +86,12 @@ function partitionPlacements(
   for (const ch of candidates) {
     const cn = ch.chapterNumber as number;
     if (cn <= 0) {
-      if (ch.volumeId === null || ch.volume === null) orphans.push(ch);
+      // Real Vol 0 present → ch 0 / negatives can live there if not already placed.
+      if (vol0Row && (ch.volumeId === null || ch.volume === null)) {
+        decimalPlacements.push({ id: ch.id, volume: vol0Row.number, volumeId: vol0Row.id });
+        continue;
+      }
+      if (ch.volume !== null || ch.volumeId !== null) orphans.push(ch);
       continue;
     }
     if (Number.isInteger(cn)) continue;
@@ -95,24 +102,18 @@ function partitionPlacements(
       }
       continue;
     }
-    if (ch.volumeId === null) orphans.push(ch);
+    if (ch.volume !== null || ch.volumeId !== null) orphans.push(ch);
   }
   return { decimalPlacements, orphans };
 }
 
-async function assignOrphansToSpecialsVolume(mangaId: number, orphans: ChapterRow[]): Promise<void> {
-  const existingVol0 = await prisma.volume.findFirst({ where: { mangaId, number: 0 }, select: { id: true } });
-  const vol0 = existingVol0 ?? await prisma.volume.create({
-    data: { mangaId, number: 0, title: 'Specials' },
-    select: { id: true },
-  });
-
+async function clearOrphanVolumes(orphans: ChapterRow[]): Promise<void> {
   const ids = orphans.map(ch => ch.id);
   await prisma.chapter.updateMany({
     where: { id: { in: ids } },
-    data: { volume: 0, volumeId: vol0.id },
+    data: { volume: null, volumeId: null },
   });
-  logger.info(`[enrichmentPipeline] Assigned ${ids.length} orphan specials (ch<=0 or no-parent decimals) to Vol 0`);
+  logger.info(`[enrichmentPipeline] Cleared ${ids.length} orphan chapters to volume=NULL (UI shows under "Unassigned")`);
 }
 
 /** Find the volume containing floor(chapterNum). For floor()=0 with a Vol 0

@@ -516,14 +516,16 @@ function buildGapInterpolations(allVolumes: VolumeRow[], maxChNum: number | null
  * - If assigned to the wrong volume but falls within a Volume's range → reassign
  * - If unassigned (null) and falls within a Volume's range → assign
  * - If unassigned and no Volume range covers it → leave null
- * - Volume 0 (Specials) is skipped entirely
+ * - Vol 0 is now a real published prequel volume when present (HxH
+ *   "Kurapika's Memories", JJK 0). It's included in the range-based
+ *   correction like any other volume — only included if it has a real
+ *   chapterStart/chapterEnd range from a provider.
  */
 export async function correctVolumeAssignments(mangaId: number): Promise<void> {
-  // 1. Get all Volume records with valid ranges (skip vol 0 = Specials)
+  // 1. Get all Volume records with valid ranges (incl. real Vol 0 prequels)
   const volumesWithRanges = await prisma.volume.findMany({
     where: {
       mangaId,
-      number: { gt: 0 },
       chapterStart: { not: null },
       chapterEnd: { not: null },
     },

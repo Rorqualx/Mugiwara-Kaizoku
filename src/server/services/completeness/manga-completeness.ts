@@ -156,10 +156,13 @@ function scoreExternal(manga: MangaForScoring, missing: string[]): CompletenessB
 }
 
 function scoreVolumes(manga: MangaForScoring, missing: string[]): VolumesBucket {
-  // Volume 0 ("Specials") holds bonus/prequel chapters and has legitimately empty
-  // optional metadata (isbn, pageCount, releaseDate). Excluding it from the
-  // per-field denominator prevents it from dragging down completeness scores.
-  const volumes = (manga.Volume ?? []).filter(v => v.number !== 0);
+  // Vol 0 is now reserved for real published prequel volumes (HxH "Kurapika's
+  // Memories", JJK 0) — score it like any other volume. The previous
+  // exclusion existed because Vol 0 was a synthetic "Specials" dumping
+  // ground that legitimately had no isbn/pageCount/releaseDate; that role
+  // is now served by chapters with volume=NULL ("Unassigned"), which never
+  // produce a Volume row.
+  const volumes = manga.Volume ?? [];
   if (volumes.length === 0) {
     return { score: 0, populated: 0, total: 0, volumeCount: 0 };
   }
