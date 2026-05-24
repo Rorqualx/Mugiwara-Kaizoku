@@ -51,7 +51,7 @@ import {
 } from './orchestrator/result-converters';
 import { isParagraphLinkStructure, parseParagraphLinkStructureEnhanced } from './paragraph-link-parser';
 import { getPatternCache } from './pattern-cache';
-import { iterateVolumePages } from './per-volume-iterator';
+import { iterateVolumePages, fetchVolumeZeroIfExists } from './per-volume-iterator';
 import { isPlainTableStructure, parsePlainTableStructure } from './plain-table-parser';
 import { isShiftedColumnStructure, parseShiftedColumnStructure } from './shifted-column-parser';
 import { analyzePageStructure } from './static-analyzer';
@@ -1141,6 +1141,77 @@ function mergeVolumePageCounts(
 }
 
 /**
+ * Probes /wiki/Volume_0 once and merges metadata + chapters into the parsed
+ * data when the page exists. Vol 0 is unreachable through the regular
+ * per-volume iteration paths (every loop and probe starts at Vol 1), so this
+ * is the only place that can recover prequel-volume data like HxH "Kurapika's
+ * Memories" or JJK 0.
+ */
+type Vol0Like = {
+  title?: string; description?: string; coverImage?: string;
+  releaseDate?: string; pageCount?: number;
+  chapters: Array<{ number: number; title?: string; url?: string }>;
+};
+
+function buildVolumeFromVol0(vol0: Vol0Like): VolumeData {
+  const v: VolumeData = { number: 0 };
+  for (const [k, val] of Object.entries(vol0) as Array<[keyof Vol0Like, unknown]>) {
+    if (k === 'chapters' || val === undefined) continue;
+    (v as unknown as Record<string, unknown>)[k] = val;
+  }
+  return v;
+}
+
+function mergeIntoExistingVol0(target: VolumeData, vol0: Vol0Like): void {
+  const patch: Record<string, unknown> = {};
+  for (const k of ['title', 'description', 'coverImage', 'releaseDate', 'pageCount'] as const) {
+    const val = vol0[k];
+    if (val !== undefined && (target as unknown as Record<string, unknown>)[k] === undefined) {
+      patch[k] = val;
+    }
+  }
+  Object.assign(target, patch);
+}
+
+function buildNewVol0Chapters(vol0: Vol0Like, existingNums: Set<number>): ChapterData[] {
+  const out: ChapterData[] = [];
+  for (const c of vol0.chapters) {
+    if (existingNums.has(c.number)) continue;
+    const d: ChapterData = { number: c.number, volume: 0 };
+    if (c.title !== undefined) d.title = c.title;
+    if (c.url !== undefined) d.url = c.url;
+    out.push(d);
+  }
+  return out;
+}
+
+async function mergeVolumeZeroIfPresent(
+  domain: string,
+  parsedData: { volumes: VolumeData[]; chapters: ChapterData[] },
+  options: AdaptiveParserOptions,
+): Promise<void> {
+  const existingVol0 = parsedData.volumes.find(v => v.number === 0);
+  if (existingVol0 && Array.isArray(existingVol0.chapters) && existingVol0.chapters.length > 0) return;
+
+  const vol0Data = await fetchVolumeZeroIfExists(domain, { timeoutMs: options.probeTimeoutMs });
+  if (!vol0Data) return;
+
+  if (existingVol0) {
+    mergeIntoExistingVol0(existingVol0, vol0Data);
+  } else {
+    parsedData.volumes.unshift(buildVolumeFromVol0(vol0Data));
+  }
+
+  if (vol0Data.chapters.length === 0) return;
+  const existingNums = new Set(parsedData.chapters.map(c => c.number));
+  const newChapters = buildNewVol0Chapters(vol0Data, existingNums);
+  if (newChapters.length > 0) {
+    parsedData.chapters.push(...newChapters);
+    logger.info(`[adaptiveParse] Vol 0 merged: +${newChapters.length} chapters from /wiki/Volume_0`);
+  }
+}
+
+/**
  * Builds enrichment inputs from VolumeData — extracts URLs and chapter numbers.
  */
 function buildVolumeEnrichmentInputs(volumes: VolumeData[]): VolumeEnrichmentInput[] {
@@ -2065,6 +2136,13 @@ export async function adaptiveParse(
         logger.info(`[adaptiveParse] Enhanced with ${volumePageData.volumePageCounts.size} volume pageCounts from per-volume pages`);
       }
     }
+
+    // Vol 0 probe: published prequel volumes (HxH "Kurapika's Memories",
+    // JJK 0) live at /wiki/Volume_0 but every per-volume iteration path in
+    // this file starts at Vol 1 (findVolumeUrlPattern probes Vol_1/Vol_2,
+    // processVolumesBatch starts at startVolume=1, discoverVolumeCount
+    // loops 1..50). Always try once; merge metadata + chapters if present.
+    await mergeVolumeZeroIfPresent(canonicalDomain, extraction.parsedData, mergedOptions);
 
     // Enhancement: Fetch individual chapter pages for covers and descriptions
     const chaptersNeedingCovers = extraction.parsedData.chapters.filter(ch => ch.url && !ch.coverImage);

@@ -820,6 +820,47 @@ export async function iterateVolumePages(
 }
 
 /**
+ * Probes /wiki/Volume_0 and parses metadata + chapters if the page exists.
+ *
+ * Background: HxH "Kurapika's Memories", JJK 0, and other published prequel
+ * volumes live at /wiki/Volume_0 but every per-volume iteration path in this
+ * file starts at Vol 1 — findVolumeUrlPattern probes Vol_1/Vol_2,
+ * processVolumesBatch starts at startVolume=1, discoverVolumeCount loops
+ * 1..50. Vol 0 was structurally unreachable. This fetcher reuses the same
+ * extractVolumeMetadata + extractChaptersFromVolumePage helpers used for
+ * Vol 1+ so the parsed shape is identical.
+ */
+export async function fetchVolumeZeroIfExists(
+  domain: string,
+  options?: PerVolumeIteratorOptions
+): Promise<VolumePageData | null> {
+  const mergedOptions: Required<PerVolumeIteratorOptions> = {
+    maxVolumes: 1,
+    concurrency: 1,
+    timeoutMs: options?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    userAgent: options?.userAgent ?? DEFAULT_USER_AGENT,
+    mangaTitle: options?.mangaTitle ?? '',
+  };
+  const baseUrl = `https://${domain}`;
+  const html = await fetchHtml(`${baseUrl}/wiki/Volume_0`, mergedOptions.timeoutMs, mergedOptions.userAgent);
+  if (!html) return null;
+
+  const chapters = extractChaptersFromVolumePage(html, 0, baseUrl);
+  const metadata = extractVolumeMetadata(html, 0);
+  extractChapterSectionsFromVolumePage(html, chapters, 0);
+
+  const result: VolumePageData = { volumeNumber: 0, chapters };
+  if (metadata.title) result.title = metadata.title;
+  if (metadata.description) result.description = metadata.description;
+  if (metadata.coverImage) result.coverImage = metadata.coverImage;
+  if (metadata.releaseDate) result.releaseDate = metadata.releaseDate;
+  if (metadata.pageCount !== undefined) result.pageCount = metadata.pageCount;
+
+  logger.info(`[perVolumeIterator] Vol 0 found for ${domain}: title="${result.title ?? 'untitled'}", ${chapters.length} chapters`);
+  return result;
+}
+
+/**
  * Checks if a wiki uses the per-volume page structure.
  * Returns true if /wiki/Volume_1 exists and contains chapter information.
  */
