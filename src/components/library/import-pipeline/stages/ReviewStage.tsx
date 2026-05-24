@@ -50,6 +50,7 @@ import {
 } from '../types';
 import { extractMetadataFromProvider } from '../utils/chapter-matching-utils';
 
+import { FloatingMangaNav } from './FloatingMangaNav';
 import { ImportOptionsSection } from './ImportOptionsSection';
 import { formatFileSize, extractMetadata, type MatchMetadata } from './review-stage-helpers';
 import { SearchModal } from './SearchModal';
@@ -191,7 +192,41 @@ function ItemCardImpl({ item, isSelected, onToggle, onChapterMappingsChange, onS
   const matchProgress = totalFiles > 0 ? (matchedCount / totalFiles) * 100 : 0;
 
   return (
-    <Paper p="md" withBorder mb="sm">
+    <Paper p="md" withBorder mb="sm" data-manga-card={item.id} style={{ scrollMarginTop: 120 }}>
+      {/* Sticky mini-header — title + actions stay reachable while scrolling through the card's file list */}
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+        style={{
+          position: 'sticky', top: 112, zIndex: 3,
+          background: 'var(--mantine-color-dark-6)',
+          marginInline: -16, marginTop: -16,
+          paddingInline: 16, paddingBlock: 6,
+          borderBottom: '1px solid var(--mantine-color-dark-4)',
+          marginBottom: 8,
+        }}
+      >
+        <Text size="sm" fw={600} lineClamp={1} style={{ minWidth: 0, flex: 1 }}>
+          {hasMatch ? item.selectedMatch?.title : item.parsedTitle}
+        </Text>
+        <Group gap="xs" wrap="nowrap">
+          <Badge color={hasMatch ? 'green' : item.status === 'skipped' ? 'gray' : 'red'} size="sm" variant="light">
+            {hasMatch ? 'Ready' : item.status === 'skipped' ? 'Skipped' : 'No Match'}
+          </Badge>
+          <Tooltip label="Search for match">
+            <ActionIcon size="sm" variant="light" color="yellow" onClick={() => setShowSearch(true)}>
+              <IconSearch size={14} />
+            </ActionIcon>
+          </Tooltip>
+          {hasFiles && hasMatch && (
+            <Tooltip label={showMatcher ? 'Hide file matching' : 'Match files to chapters'}>
+              <ActionIcon size="sm" variant={showMatcher ? 'filled' : 'light'} color="blue" onClick={() => setShowMatcher(!showMatcher)}>
+                {showMatcher ? <IconChevronUp size={14} /> : <IconLink size={14} />}
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      </Group>
       <Group align="flex-start" wrap="nowrap">
         <Checkbox
           checked={isSelected}
@@ -444,6 +479,8 @@ function ReviewStageComponent(props: ReviewStageProps): JSX.Element {
           Import {selectedCount}
         </Button>
       </Group>
+
+      {importableItems.length > 1 && <FloatingMangaNav />}
     </Stack>
   );
 }
