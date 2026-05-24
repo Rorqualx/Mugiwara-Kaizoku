@@ -8,6 +8,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+import yauzl from 'yauzl';
+
 import { extractPageFromRar } from '@/server/services/conversion/utils/rar-extractor';
 import { logger } from '@/utils/logger';
 
@@ -18,8 +20,12 @@ import type { NextApiResponse } from 'next';
  */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
 
-/** Maximum archive size in bytes (500 MB) */
-const MAX_ARCHIVE_SIZE_BYTES = 500 * 1024 * 1024;
+/** Maximum archive size in bytes (2 GB). Applies to RAR and PDF, which still
+ *  load the whole file into memory. ZIP uses streaming (yauzl) and is bounded
+ *  by central-directory size + the single extracted page, not the archive
+ *  total — color manga volumes routinely exceed 500 MB (e.g. One Piece
+ *  Digital Colored Vol 1 = 745 MB) and need to be readable. */
+const MAX_ARCHIVE_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
 
 /** Maximum extraction time in milliseconds (30 seconds) */
 const EXTRACTION_TIMEOUT_MS = 30_000;
@@ -75,16 +81,59 @@ function naturalSortCompare(a: string, b: string): number {
   return aParts.length - bParts.length;
 }
 
-/**
- * Get sorted list of image files from archive
- */
-function getSortedImageFiles(contents: Record<string, { dir?: boolean }>): string[] {
-  return Object.keys(contents)
-    .filter(filename => {
-      const ext = path.extname(filename).toLowerCase();
-      return IMAGE_EXTENSIONS.includes(ext) && !contents[filename]?.dir;
-    })
-    .sort(naturalSortCompare);
+/** Open a yauzl zipfile with lazyEntries so we only pay for the central
+ *  directory + the entries we explicitly read. Promisified wrapper. */
+function openZipfile(archivePath: string): Promise<yauzl.ZipFile> {
+  return new Promise((resolve, reject) => {
+    yauzl.open(archivePath, { lazyEntries: true }, (err, zipfile) => {
+      if (err ?? !zipfile) {
+        reject(err ?? new Error('Failed to open zipfile'));
+        return;
+      }
+      resolve(zipfile);
+    });
+  });
+}
+
+/** Walk the central directory once, collecting image entries indexed by
+ *  filename. Does NOT decompress any entry — yauzl only seeks through entry
+ *  headers, so memory cost is the central directory size (typically <1 MB). */
+function collectImageEntries(zipfile: yauzl.ZipFile): Promise<Map<string, yauzl.Entry>> {
+  return new Promise((resolve, reject) => {
+    const entries = new Map<string, yauzl.Entry>();
+    zipfile.on('entry', (entry: yauzl.Entry) => {
+      if (/\/$/.test(entry.fileName)) {
+        zipfile.readEntry();
+        return;
+      }
+      const ext = path.extname(entry.fileName).toLowerCase();
+      if (IMAGE_EXTENSIONS.includes(ext)) {
+        entries.set(entry.fileName, entry);
+      }
+      zipfile.readEntry();
+    });
+    zipfile.on('end', () => resolve(entries));
+    zipfile.on('error', reject);
+    zipfile.readEntry();
+  });
+}
+
+/** Open a read stream for a single entry and accumulate its decompressed
+ *  bytes into a Buffer. The stream is the only thing held in memory; the
+ *  rest of the archive is never read. */
+function readEntryBuffer(zipfile: yauzl.ZipFile, entry: yauzl.Entry): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    zipfile.openReadStream(entry, (err, readStream) => {
+      if (err ?? !readStream) {
+        reject(err ?? new Error('Failed to open entry stream'));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      readStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      readStream.on('end', () => resolve(Buffer.concat(chunks)));
+      readStream.on('error', reject);
+    });
+  });
 }
 
 /**
@@ -232,7 +281,7 @@ async function extractByFormat(
  * Extracts a specific page from a CBZ/ZIP/CBR/RAR archive
  *
  * Automatically detects archive type and uses appropriate extraction method:
- * - ZIP/CBZ: Uses JSZip
+ * - ZIP/CBZ: Uses yauzl (streaming, memory-bounded)
  * - RAR/CBR: Uses node-unrar-js
  *
  * When pageStart is provided (volume files), translates the chapter-relative
@@ -457,7 +506,15 @@ async function extractPageFromPdfFile(
 }
 
 /**
- * Extracts a specific page from a ZIP/CBZ archive
+ * Extracts a specific page from a ZIP/CBZ archive using yauzl streaming.
+ *
+ * Memory usage is bounded by the central directory (~tens of KB for a 100+
+ * entry archive) plus the single extracted page (~1-5 MB). The archive total
+ * size is never loaded into RAM, so multi-hundred-MB color volumes read fine.
+ *
+ * Previous JSZip impl read the whole archive into a Buffer up front, which
+ * imposed the 500 MB MAX_ARCHIVE_SIZE_BYTES guard and made One Piece color
+ * volumes (700+ MB) unreadable.
  */
 async function extractPageFromZipArchive(
   archivePath: string,
@@ -465,64 +522,43 @@ async function extractPageFromZipArchive(
   pageStart?: number,
   pageEnd?: number
 ): Promise<ExtractedPageResult | ExtractionError> {
+  let zipfile: yauzl.ZipFile | null = null;
   try {
-    const JSZip = (await import('jszip')).default;
+    zipfile = await openZipfile(archivePath);
+    const entriesByName = await collectImageEntries(zipfile);
 
-    // Read and parse archive
-    const archiveBuffer = await fs.readFile(archivePath);
-    const zip = new JSZip();
-    const contents = await zip.loadAsync(archiveBuffer);
+    const sortedNames = [...entriesByName.keys()].sort(naturalSortCompare);
 
-    // Get sorted image files
-    const imageFiles = getSortedImageFiles(contents.files);
-
-    // Validate page number
-    if (pageNumber < 1 || pageNumber > imageFiles.length) {
+    if (pageNumber < 1 || pageNumber > sortedNames.length) {
       return {
         code: 'PAGE_OUT_OF_RANGE',
-        message: `Page ${pageNumber} does not exist (archive has ${imageFiles.length} pages)`
+        message: `Page ${pageNumber} does not exist (archive has ${sortedNames.length} pages)`
       };
     }
 
-    // Get requested page (1-indexed)
-    const pageFilename = imageFiles[pageNumber - 1];
+    const pageFilename = sortedNames[pageNumber - 1];
     if (!pageFilename) {
-      return {
-        code: 'PAGE_NOT_FOUND',
-        message: 'Page file not found in archive'
-      };
+      return { code: 'PAGE_NOT_FOUND', message: 'Page file not found in archive' };
+    }
+    const entry = entriesByName.get(pageFilename);
+    if (!entry) {
+      return { code: 'PAGE_FILE_MISSING', message: 'Page file missing from archive' };
     }
 
-    const pageFile = contents.files[pageFilename];
-    if (!pageFile) {
-      return {
-        code: 'PAGE_FILE_MISSING',
-        message: 'Page file missing from archive'
-      };
-    }
-
-    // Extract page image
-    const pageBuffer = await pageFile.async('nodebuffer');
+    const pageBuffer = await readEntryBuffer(zipfile, entry);
     const extension = path.extname(pageFilename).toLowerCase();
     const contentType = getContentType(extension);
 
-    // Report chapter-relative page count when page ranges are set
     const effectiveTotal = (pageStart !== undefined && pageEnd !== undefined)
       ? (pageEnd - pageStart + 1)
-      : imageFiles.length;
+      : sortedNames.length;
 
-    return {
-      buffer: pageBuffer,
-      contentType,
-      extension,
-      totalPagesInArchive: effectiveTotal
-    };
+    return { buffer: pageBuffer, contentType, extension, totalPagesInArchive: effectiveTotal };
   } catch (error) {
     logger.error('Error extracting page from archive:', error);
-    return {
-      code: 'EXTRACTION_FAILED',
-      message: 'Failed to extract page from archive'
-    };
+    return { code: 'EXTRACTION_FAILED', message: 'Failed to extract page from archive' };
+  } finally {
+    zipfile?.close();
   }
 }
 
