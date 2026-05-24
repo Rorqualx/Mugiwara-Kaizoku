@@ -530,6 +530,42 @@ docs/research/
 scripts/surveys/
 scripts/cleanup/
 scripts/eslint-migration/
+scripts/analysis/
+scripts/agent-review/
+scripts/audits/
+scripts/comicvine-english-matcher/
+
+# One-off diagnostic / inspection / debug scripts (local-state-specific)
+scripts/check-*
+scripts/audit-*
+scripts/debug-*
+scripts/trace-*
+scripts/find-*
+scripts/count-*
+scripts/validate-*
+scripts/categorize-*
+scripts/reprocess-*
+scripts/extract-*
+scripts/patch-*
+scripts/verify-*
+scripts/migrate-*
+scripts/generate-*
+scripts/inspect-*
+scripts/investigate-*
+scripts/simulate-*
+scripts/recover-*
+scripts/repair-*
+scripts/reset-*
+scripts/backup-*
+scripts/cleanup-*
+
+# Internal post-mortems / research / planning docs
+docs/fixes-summaries/
+docs/kapowarr/
+docs/technical-debt/
+docs/reports/
+docs/sprints/
+docs/migrations/
 
 # Manual integration test with hardcoded host + API key (rotate that key!)
 tests/test-prowlarr.js
