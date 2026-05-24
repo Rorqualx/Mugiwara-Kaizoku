@@ -255,24 +255,46 @@ function validateExplicitRanges(explicitVolumes: Array<Record<string, unknown>>)
   return true;
 }
 
-/** Full cumulative computation (fallback when explicit ranges are inconsistent) */
+/** Fallback when validateExplicitRanges flags inconsistency: still trust
+ *  per-volume explicit ranges (extractChapterRange found a dense, well-formed
+ *  chapter list in the description), gap-fill only the volumes that lack them.
+ *
+ *  The previous implementation wiped EVERY volume's explicit range and rebuilt
+ *  from chapterCount starting at 1. For OP Colored this turned vol 88 (real
+ *  chs 880-889, correctly parsed by extractChapterRange) into chs 1767-1776,
+ *  because the cumulative counter accumulated the chapter counts of the prior
+ *  87 vols on top of those vols' own explicit numbers — effectively doubling.
+ *  One bad explicit range (causing validation to fail) shouldn't poison all
+ *  the good ones. */
 function computeFullCumulative(volumes: Array<Record<string, unknown>>): void {
   const DEFAULT_CHAPTER_ESTIMATE = 9;
   let nextChapterStart = 1;
+  let preservedExplicit = 0;
+  let cumulativeFilled = 0;
 
   for (const vol of volumes) {
+    if (vol['hasExplicitRange'] === true) {
+      const end = parseInt(String(vol['endChapter']), 10);
+      if (!isNaN(end) && end >= nextChapterStart) {
+        nextChapterStart = end + 1;
+      }
+      preservedExplicit++;
+      continue;
+    }
+
     const count = typeof vol['chapterCount'] === 'number' ? (vol['chapterCount'] as number) : 0;
     const effective = count > 0 ? count : DEFAULT_CHAPTER_ESTIMATE;
 
     vol['startChapter'] = String(nextChapterStart);
     vol['endChapter'] = String(nextChapterStart + effective - 1);
-    // Clear explicit range flag since we're overriding
-    delete vol['hasExplicitRange'];
     nextChapterStart += effective;
+    cumulativeFilled++;
   }
 
-  log.info('Computed full cumulative chapter ranges from ComicVine chapter counts', {
+  log.info('Fallback range computation (preserve explicit + cumulative-fill the rest)', {
     totalVolumes: volumes.length,
+    preservedExplicit,
+    cumulativeFilled,
     totalChapters: nextChapterStart - 1,
   });
 }

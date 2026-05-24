@@ -160,4 +160,52 @@ describe('mapComicVineIssuesToVolumes', () => {
 
     expect(volumes.map(v => v['volumeNumber'])).toEqual(['1', '2', '3']);
   });
+
+  it('preserves correct explicit ranges in the fallback path when one bad range trips validation', () => {
+    // Repro of OP Colored Vol 88 = 1767-1776 bug: most vols have correct
+    // explicit ranges from their description, but validateExplicitRanges sees
+    // a gap (one vol's range is wrong/missing) and trips the fallback. The
+    // OLD computeFullCumulative wiped EVERY explicit range and rebuilt from
+    // chapterCount starting at 1 — turning vol 88 ch 880-889 into ch 1767-1776.
+    const parser = require('@/utils/comicvine-chapter-parser');
+    parser.parseChaptersFromDescription.mockReset();
+    // Vol 1: chs 1-8 (good explicit)
+    parser.parseChaptersFromDescription.mockReturnValueOnce(
+      Array.from({ length: 8 }, (_, i) => ({ chapterNumber: i + 1, hasRealNumber: true, title: `T${i + 1}` })),
+    );
+    // Vol 2: chs 9-17 (good explicit)
+    parser.parseChaptersFromDescription.mockReturnValueOnce(
+      Array.from({ length: 9 }, (_, i) => ({ chapterNumber: i + 9, hasRealNumber: true, title: `T${i + 9}` })),
+    );
+    // Vol 3: chs 50-58 — INTENTIONAL GAP from vol 2 (ends at 17) → triggers
+    // validateExplicitRanges to return false → computeFullCumulative fallback.
+    parser.parseChaptersFromDescription.mockReturnValueOnce(
+      Array.from({ length: 9 }, (_, i) => ({ chapterNumber: i + 50, hasRealNumber: true, title: `T${i + 50}` })),
+    );
+    // Vol 4: chs 59-67 (good explicit, sequential with vol 3)
+    parser.parseChaptersFromDescription.mockReturnValueOnce(
+      Array.from({ length: 9 }, (_, i) => ({ chapterNumber: i + 59, hasRealNumber: true, title: `T${i + 59}` })),
+    );
+
+    const issues = [
+      makeIssue('1', '<p>desc</p>'),
+      makeIssue('2', '<p>desc</p>'),
+      makeIssue('3', '<p>desc</p>'),
+      makeIssue('4', '<p>desc</p>'),
+    ];
+
+    const volumes = mapComicVineIssuesToVolumes(issues);
+
+    // Vols 1, 2, 4 have correct explicit ranges in their descriptions.
+    // The new fallback preserves all explicit ranges (only cumulative-fills
+    // missing ones). Even with vol 3 creating a gap, vols 1/2/4 stay correct.
+    expect(volumes[0]!['startChapter']).toBe('1');
+    expect(volumes[0]!['endChapter']).toBe('8');
+    expect(volumes[1]!['startChapter']).toBe('9');
+    expect(volumes[1]!['endChapter']).toBe('17');
+    expect(volumes[2]!['startChapter']).toBe('50');
+    expect(volumes[2]!['endChapter']).toBe('58');
+    expect(volumes[3]!['startChapter']).toBe('59');
+    expect(volumes[3]!['endChapter']).toBe('67');
+  });
 });
