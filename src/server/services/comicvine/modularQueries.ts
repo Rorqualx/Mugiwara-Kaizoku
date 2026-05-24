@@ -332,10 +332,13 @@ export function creatorInfoQuery(_id: number): QueryParams {
  * ```
  */
 export function searchBasicVolumesQuery(query: string, page = 0, limit = 50): QueryParams {
+  // ComicVine's REST API paginates by `offset` (item count to skip), not `page`.
+  // Passing `page` is silently ignored and every request returns the first page,
+  // which historically capped every CV result set at the first `limit` items.
   return {
     query,
     resources: 'volume',
-    page,
+    offset: page * limit,
     limit,
     field_list: FIELD_LISTS.BASIC_VOLUME
   };
@@ -372,10 +375,13 @@ export function searchBasicVolumesQuery(query: string, page = 0, limit = 50): Qu
  * ```
  */
 export function volumeIssuesQuery(volumeId: number, page = 0, limit = 100): QueryParams {
+  // See searchBasicVolumesQuery: ComicVine uses `offset`, not `page`. Long-running
+  // series with >100 issues (e.g. OP Colored vol 31022: 111 issues) were silently
+  // truncated at issue 100 — vols 101+ never reached the chapter parser.
   return {
     filter: `volume:${volumeId}`,
     field_list: FIELD_LISTS.ISSUE,
-    page,
+    offset: page * limit,
     limit
   };
 }
@@ -414,7 +420,7 @@ export function volumeCharactersQuery(volumeId: number, page = 0, limit = 100): 
   return {
     filter: `volume:${volumeId}`,
     field_list: FIELD_LISTS.CHARACTER,
-    page,
+    offset: page * limit,
     limit
   };
 }
@@ -453,7 +459,7 @@ export function volumeCreatorsQuery(volumeId: number, page = 0, limit = 100): Qu
   return {
     filter: `volume:${volumeId}`,
     field_list: FIELD_LISTS.CREATOR,
-    page,
+    offset: page * limit,
     limit
   };
 }
