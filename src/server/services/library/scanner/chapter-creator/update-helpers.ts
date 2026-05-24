@@ -66,13 +66,25 @@ export async function executeChapterUpdates(updates: ChapterUpdate[], mangaId?: 
     }
   }
 
+  // Track which filePaths appear in multiple updates (volume files)
+  const filePathCounts = new Map<string, number>();
+  for (const u of updates) {
+    const count = filePathCounts.get(u.filePath) ?? 0;
+    filePathCounts.set(u.filePath, count + 1);
+  }
+  // Pre-read CBZ archive page counts OUTSIDE the transaction. Reading 24 large
+  // archives in series takes 40+ seconds and blows past Prisma's 5s default
+  // transaction timeout, surfacing as "Transaction not found / closed" errors
+  // (FMA import regression). With pre-computation the transaction below holds
+  // only DB-update time.
+  const volumePathsForCount = [...filePathCounts.entries()].filter(([, c]) => c > 1).map(([fp]) => fp);
+  const pageCountByPath = new Map<string, number>();
+  for (const volPath of volumePathsForCount) {
+    // eslint-disable-next-line no-await-in-loop -- sequential to avoid hammering NFS; per-file disk I/O bound
+    pageCountByPath.set(volPath, await countArchivePages(volPath));
+  }
+
   await prisma.$transaction(async (tx) => {
-    // Track which filePaths appear in multiple updates (volume files)
-    const filePathCounts = new Map<string, number>();
-    for (const u of updates) {
-      const count = filePathCounts.get(u.filePath) ?? 0;
-      filePathCounts.set(u.filePath, count + 1);
-    }
 
     // Fetch existing titles so we can decide whether to overwrite
     const chapterIds = updates.filter((u) => u.title !== undefined).map((u) => u.id);
@@ -154,13 +166,13 @@ export async function executeChapterUpdates(updates: ChapterUpdate[], mangaId?: 
           })
           .filter((c): c is { id: number; chapterNumber: number; pageCount?: number; title?: string } => c !== null);
         if (volChapters.length === 0) continue;
-        // eslint-disable-next-line no-await-in-loop -- sequential per-volume; typical count < 10
-        const actualPages = await countArchivePages(volPath);
-        // eslint-disable-next-line no-await-in-loop -- depends on previous; cheap relative to archive read
+        const actualPages = pageCountByPath.get(volPath) ?? 0;
+        if (actualPages <= 0) continue;
+        // eslint-disable-next-line no-await-in-loop -- sequential per-volume; tx-bound DB writes only
         await resolveAndStoreVolumeBoundaries(volPath, actualPages, volChapters, tx);
       }
     }
-  });
+  }, { timeout: 60000, maxWait: 10000 });
 }
 
 /**
