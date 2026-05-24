@@ -5,6 +5,8 @@
  * Extracted from scanner.ts processMangaGroup method (lines 353-365)
  */
 
+import { prisma } from '@/server/db';
+
 import type { DuplicateDetector, DuplicateResult } from '../duplicateDetector';
 
 /**
@@ -32,10 +34,26 @@ export async function checkForDuplicates(
   cleanTitle: string,
   libraryId: number,
   duplicateDetector: DuplicateDetector,
-  skipExisting: boolean
+  skipExisting: boolean,
+  libraryPath?: string,
 ): Promise<DuplicateCheckResult> {
   if (!skipExisting) {
     return { isDuplicate: false };
+  }
+
+  // Primary signal: exact libraryPath match (re-scanning the same folder).
+  // Title-fuzzy matching alone misses titles where DB title and parsed
+  // cleanTitle diverge by punctuation (Chainsaw Man (Official Colored) vs
+  // "Chainsaw Man Color", Strike Witches: 1937 vs "Strike Witches 1937",
+  // trailing periods stripped by macOS HFS+, etc).
+  if (libraryPath !== undefined && libraryPath.length > 0) {
+    const byPath = await prisma.manga.findFirst({
+      where: { libraryId, libraryPath },
+      include: { Metadata: true },
+    });
+    if (byPath) {
+      return { isDuplicate: true, duplicate: byPath, duplicateScore: 1.0 };
+    }
   }
 
   const duplicates = await duplicateDetector.findDuplicates(cleanTitle, libraryId, {

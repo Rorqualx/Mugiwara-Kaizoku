@@ -400,7 +400,8 @@ export class EnhancedScanner {
       parsed.cleanTitle,
       targetLibraryId,
       this.duplicateDetector,
-      skipExisting
+      skipExisting,
+      mangaPath,
     );
 
     if (duplicateResult.isDuplicate) {
