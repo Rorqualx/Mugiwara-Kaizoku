@@ -130,13 +130,21 @@ async function reconcileFromProviderResults(
     { ratio: FANDOM_OVERFLOW_RATIO, minAniList: FANDOM_OVERFLOW_MIN_AL, minMangaDex: FANDOM_OVERFLOW_MIN_MANGADEX },
   );
 
-  // No source chapter data — nothing to reconcile
-  if (fandomChapters.length === 0 && wikiChapters.length === 0 && mangadexChapters.length === 0) return;
-
   const dbChapterCount = await prisma.chapter.count({ where: { mangaId } });
   const sourceData = assembleSourceData(result, dbChapterCount);
+  // ComicVine chapters live inside sourceData.sources.comicvine (parsed from
+  // per-vol descriptions by parseComicVineDescriptions). The previous
+  // call passed only fandom/wiki/mangadex, silently dropping every CV chapter
+  // title — for OP Colored this meant vols 101+ (CV's only source) ended up
+  // with valid Volume rows but no Chapter rows for chs 1016-1133.
+  const comicvineChapters = sourceData.sources.comicvine;
+
+  // No source chapter data — nothing to reconcile
+  if (fandomChapters.length === 0 && wikiChapters.length === 0
+      && mangadexChapters.length === 0 && comicvineChapters.length === 0) return;
+
   const merged = mergeAllSourceChapters(
-    sourceData.expectedChapterCount, fandomChapters, wikiChapters, mangadexChapters,
+    sourceData.expectedChapterCount, fandomChapters, wikiChapters, mangadexChapters, comicvineChapters,
   );
 
   await onProgress?.('reconciling', `Reconciling ${merged.length} source chapters against DB...`);
