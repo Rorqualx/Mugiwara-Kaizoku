@@ -20,12 +20,19 @@ export function normalizeTitle(title: string): string {
 
 /**
  * Edition/variant qualifiers that distinguish a manga from its main series.
- * Bidirectional: rejects if query has qualifier candidate lacks, OR candidate has qualifier query lacks.
+ * Bidirectional: rejects if query has qualifier candidate lacks, OR candidate
+ * has qualifier query lacks.
+ *
+ * Iter MDE2: `/colou?red?/` only matched "colored"/"coloured" because the
+ * regex requires the literal "e" before optional "d". A plain "Color" title
+ * (Chainsaw Man Color, One Piece Color) was silently treated as no-qualifier
+ * and incorrectly matched the main series. Replaced with `/colou?r(?:ed)?/`
+ * so the colored family covers color / colour / colored / coloured uniformly.
  */
 const EDITION_QUALIFIERS = [
-  /\bcolou?red?\b/i,
-  /\bdigital\s*colou?red?\b/i,
-  /\bofficial\s*colou?red?\b/i,
+  /\bcolou?r(?:ed)?\b/i,
+  /\bdigital\s*colou?r(?:ed)?\b/i,
+  /\bofficial\s*colou?r(?:ed)?\b/i,
   /\bomnibus\b/i,
   /\bbox\s*set\b/i,
   /\bdeluxe\b/i,

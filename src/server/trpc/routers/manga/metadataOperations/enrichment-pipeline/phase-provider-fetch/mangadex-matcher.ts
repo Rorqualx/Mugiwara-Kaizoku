@@ -67,7 +67,13 @@ function scoreCandidates(
 
   for (const manga of results) {
     const titles = collectTitles(manga);
-    if (applyEditionFilter && hasEditionMismatch(query, titles.join(' '))) continue;
+    // Iter MDE1: check edition mismatch per-title and accept the candidate if
+    // ANY of its titles is compatible with the query. The previous
+    // `titles.join(' ')` bled alt-titles into the check, so a candidate whose
+    // primary title was an EXACT query match (e.g. MD's "Chainsaw Man
+    // (Official Colored)") could be rejected just because one of its alt
+    // titles contained an incompatible sub-qualifier ("Digital Colored").
+    if (applyEditionFilter && !titles.some(t => !hasEditionMismatch(query, t))) continue;
     const chFactor = chapterProximityFactor(manga.attributes.lastChapter, expectedChapters);
     const yrFactor = yearProximityFactor(manga.attributes.year ?? undefined, expectedYear);
     for (const c of titles) {
