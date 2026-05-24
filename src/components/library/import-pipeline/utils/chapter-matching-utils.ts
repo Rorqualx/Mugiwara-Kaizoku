@@ -301,10 +301,21 @@ function matchSingleFile(
 }
 
 /**
- * Sequential matching fallback for unmatched files
- * Volume-only files are only skipped when metadata has actual volume structure;
- * when metadata is flat (synthetic chapters without volumes), volume files
- * participate in sequential matching for correct 1:1 pairing.
+ * Sequential matching fallback for unmatched files.
+ *
+ * Volume-only files are skipped when:
+ *   - Metadata has actual volume structure (prefer real vol→chapter mapping), OR
+ *   - Provider chapter count is far larger than file count (volume-archive
+ *     scenario like One Piece Colored: 108 V0N.cbz files + 1015 ComicVine
+ *     chapters). Sequentially pairing the 108 vol files to chs 1..108 silently
+ *     mis-imports them as "chapter N" rows and crowds them into whichever
+ *     volume's range covers ch N.
+ *
+ * Vol-only files left unmatched here remain as 'unmatched' in the wizard,
+ * which is the correct signal to the user that the provider's chapter list
+ * has no volume structure to bind them to. The user can re-import after
+ * enrichment fills in volume ranges, or the next iter will surface vol-only
+ * imports as phantom rows.
  */
 function sequentialMatchUnmatchedFiles(
   files: ScannedFileInfo[],
@@ -314,11 +325,16 @@ function sequentialMatchUnmatchedFiles(
   volumes: MetadataVolume[]
 ): void {
   const hasVolumeMetadata = volumes.length > 0;
+  // Heuristic: when the chapter manifest has at least 2× more entries than
+  // vol-only files, files are clearly whole-volume archives (not vol-named
+  // per-chapter files), and sequential 1:1 pairing is wrong.
+  const volOnlyCount = files.filter(isVolumeOnlyFile).length;
+  const chapterArchivePattern = volOnlyCount > 0 && chapters.length >= volOnlyCount * 2;
   const unmatchedFiles = files.filter((f) => {
     const mapping = mappings.get(f.path);
     if (mapping?.status !== 'unmatched') return false;
-    // Only skip volume files when metadata has volume structure to match against
     if (hasVolumeMetadata && isVolumeOnlyFile(f)) return false;
+    if (chapterArchivePattern && isVolumeOnlyFile(f)) return false;
     return true;
   });
   const unusedChapters = chapters.filter((c) => !usedChapterIds.has(c.id)).sort((a, b) => a.number - b.number);
