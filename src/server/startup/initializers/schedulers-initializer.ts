@@ -23,7 +23,7 @@ import { formatError } from '../error-utils';
  * Initializes the auto-download scheduler
  *
  * This function:
- * - Reads the scheduler interval from Config (default: 24 hours)
+ * - Reads the scheduler interval from Config (default: 1 hour)
  * - Updates the scheduler with the configured interval
  * - Starts the auto-download scheduler that periodically checks download rules
  *
@@ -33,11 +33,15 @@ export async function initializeAutoDownloadScheduler(): Promise<void> {
   try {
     logger.info('Initializing auto-download scheduler...');
 
-    // Read scheduler interval from Config table
-    // Default: 86400 seconds (24 hours)
+    // Read scheduler interval from Config table.
+    // Default: 3600 seconds (1 hour). The previous 24h default meant a
+    // newly-enabled monitoring rule sat unprocessed for up to a day, and the
+    // outer poll never matched the per-rule checkInterval (3600s) so the
+    // per-rule setting was effectively dead. 1h matches Sonarr-style RSS
+    // sync cadence and the default per-rule check interval.
     const schedulerInterval = await configService.get<number>(
       'scheduler.autoDownload.interval',
-      86400
+      3600
     );
 
     logger.info(`Auto-download scheduler interval: ${schedulerInterval}s (${schedulerInterval / 3600}h)`);

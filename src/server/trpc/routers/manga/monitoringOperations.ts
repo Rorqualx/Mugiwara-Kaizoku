@@ -6,6 +6,7 @@ import { prisma } from '@/server/db';
 import { schedule as scheduleChapterCheck } from '@/server/queue/checkChapters';
 import { checkOutOfSyncChapters } from '@/server/queue/checkOutOfSyncChapters';
 import { enqueueFixOutOfSyncChaptersTask } from '@/server/queue/fixOutOfSyncChapters';
+import { runUnifiedReleaseSearch } from '@/server/services/library/releaseDispatcher/dispatch';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
@@ -177,6 +178,24 @@ export const monitoringRouter = router({
           enabled
         }
       });
+
+      // When enabling monitoring, kick off an immediate background scan via
+      // the same unified pipeline the scheduler uses. Without this the rule
+      // sits with lastChecked=NULL until the next scheduler poll fires (up
+      // to 24h away on default config), and the user perceives "nothing
+      // happens after I enable monitoring". Fire-and-forget so the mutation
+      // returns immediately; stamp lastChecked on completion so the periodic
+      // scheduler doesn't double-trigger on the next poll.
+      if (enabled) {
+        void runUnifiedReleaseSearch(mangaId)
+          .then(() => prisma.autoDownloadRule.update({
+            where: { mangaId },
+            data: { lastChecked: new Date() }
+          }))
+          .catch((err: unknown) => {
+            logger.error(`[toggleMonitoring] Immediate scan failed for manga ${mangaId}:`, err);
+          });
+      }
 
       // Emit WebSocket event for monitoring toggle
       void realtimeEmitter.emitSystemEvent({
