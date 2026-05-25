@@ -82,10 +82,13 @@ function naturalSortCompare(a: string, b: string): number {
 }
 
 /** Open a yauzl zipfile with lazyEntries so we only pay for the central
- *  directory + the entries we explicitly read. Promisified wrapper. */
+ *  directory + the entries we explicitly read. autoClose stays false so the
+ *  underlying fd survives the 'end' event of the entry-enumeration pass — we
+ *  enumerate first to pick the target page, then openReadStream against the
+ *  still-open handle. Caller is responsible for calling zipfile.close(). */
 function openZipfile(archivePath: string): Promise<yauzl.ZipFile> {
   return new Promise((resolve, reject) => {
-    yauzl.open(archivePath, { lazyEntries: true }, (err, zipfile) => {
+    yauzl.open(archivePath, { lazyEntries: true, autoClose: false }, (err, zipfile) => {
       if (err ?? !zipfile) {
         reject(err ?? new Error('Failed to open zipfile'));
         return;
