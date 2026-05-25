@@ -234,23 +234,18 @@ async function handleBulkStatusChange(
   return result;
 }
 
-/**
- * Helper function to handle mark read/unread operations
- */
-function handleMarkReadUnread(mangaIds: number[]): BulkOperationResult {
-  const result: BulkOperationResult = {
-    successCount: mangaIds.length,
-    errorCount: 0,
-    errors: []
-  };
-
-  // Since Chapter model doesn't have isRead field, this operation is currently not supported
-  // TODO: Implement reading progress tracking with a separate model
-  mangaIds.forEach((mangaId) => {
-    serverLogger.warn('Mark read/unread not implemented - Chapter model lacks isRead field', { mangaId });
+/** Mirrors chapter/crud.ts markAllAsRead/markAllAsUnread but scoped to many manga. */
+async function handleMarkReadUnread(
+  mangaIds: number[],
+  operation: 'mark-read' | 'mark-unread',
+): Promise<BulkOperationResult> {
+  const targetIsRead = operation === 'mark-read';
+  const updated = await prisma.chapter.updateMany({
+    where: { mangaId: { in: mangaIds }, isRead: !targetIsRead },
+    data: { isRead: targetIsRead },
   });
-
-  return result;
+  serverLogger.info('Bulk mark read/unread', { operation, mangaCount: mangaIds.length, chaptersUpdated: updated.count });
+  return { successCount: mangaIds.length, errorCount: 0, errors: [] };
 }
 
 /**
@@ -273,7 +268,7 @@ export const bulkRouter = router({
         switch (operation) {
           case 'mark-read':
           case 'mark-unread': {
-            result = handleMarkReadUnread(mangaIds);
+            result = await handleMarkReadUnread(mangaIds, operation);
             break;
           }
 
