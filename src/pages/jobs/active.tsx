@@ -31,13 +31,58 @@ import { JobInfoModal } from '@/components/jobs/JobInfoModal';
 import { TrackDownloadModal } from '@/components/jobs/TrackDownloadModal';
 import { MainLayout } from '@/components/layouts/MainLayout';
 import { ManualImportModal } from '@/components/manga/ManualImportModal';
-import { useJobQueries, useJobMutations } from '@/hooks/jobs/useJobsPage';
+import { useJobQueries, useJobMutations, type JobMutationsReturn } from '@/hooks/jobs/useJobsPage';
 import { useTrackedDownloads } from '@/hooks/useTrackedDownloads';
 import { useRealTime } from '@/providers/RealTimeProvider';
 import { mapChaptersForImport, getSavePath } from '@/utils/jobs/completed-utils';
 import { trpc } from '@/utils/trpc-client/index';
 
 type JobTab = 'all' | 'active' | 'completed' | 'failed';
+
+// ============================================================================
+// Cancel & Blocklist helper (top-level to keep handler nesting flat)
+// ============================================================================
+
+/** Pull Prowlarr-sourced release hints (guid, indexerId) from the job's raw
+ *  payload when present. Native/pack-import jobs return all-undefined and
+ *  block by title + mangaId only. */
+function extractReleaseHints(data: JobRowData): { guid?: string; indexerId?: string; source?: string } {
+  const payload = data.__raw?.['payload'];
+  const prowlarrResult = isRecord(payload) && isRecord(payload['prowlarrResult'])
+    ? payload['prowlarrResult'] : null;
+  const guid = prowlarrResult && typeof prowlarrResult['guid'] === 'string' ? prowlarrResult['guid'] : undefined;
+  const indexerIdRaw = prowlarrResult?.['indexerId'];
+  const indexerId = typeof indexerIdRaw === 'number' ? String(indexerIdRaw)
+    : typeof indexerIdRaw === 'string' ? indexerIdRaw : undefined;
+  const source = typeof data.protocol === 'string' && data.protocol.length > 0 ? data.protocol : undefined;
+  return {
+    ...(guid !== undefined ? { guid } : {}),
+    ...(indexerId !== undefined ? { indexerId } : {}),
+    ...(source !== undefined ? { source } : {}),
+  };
+}
+
+/** Block the release first, then cancel — independent of each other so a
+ *  block-failure (e.g. duplicate) still cancels the job. */
+async function runCancelAndBlock(
+  data: JobRowData,
+  blockRelease: JobMutationsReturn['blockRelease'],
+  cancelTask: JobMutationsReturn['cancelTask'],
+): Promise<void> {
+  const hints = extractReleaseHints(data);
+  await blockRelease.mutateAsync({
+    release: {
+      releaseTitle: data.fileName,
+      ...(hints.guid !== undefined ? { releaseHash: hints.guid } : {}),
+      ...(hints.indexerId !== undefined ? { indexerId: hints.indexerId } : {}),
+      ...(data.mangaId !== undefined ? { mangaId: data.mangaId } : {}),
+      ...(hints.source !== undefined ? { source: hints.source } : {}),
+    },
+    reason: 'USER_PREFERENCE',
+    reasonDetails: 'Blocked from Jobs page via cancel-and-blocklist',
+  }).catch(() => { /* notification already shown by mutation; proceed with cancel */ });
+  await cancelTask.mutateAsync({ id: String(data.taskId) });
+}
 
 interface ManualImportState {
   opened: boolean;
@@ -49,6 +94,7 @@ interface ManualImportState {
 
 interface MutationActions {
   onCancel: (id: string) => void;
+  onCancelAndBlock: (data: JobRowData) => void;
   onRetry: (id: string) => void;
   onDelete: (id: string) => void;
   onImport: (id: string, mangaId: number, mangaTitle: string) => void;
@@ -113,14 +159,16 @@ function renderActiveTabRows(rows: JobRowData[], actions: MutationActions): Reac
     <>
       {groups.map(g => (
         <TorrentGroupRow key={g.downloadId} group={g}
-          onCancel={actions.onCancel} isCancelling={actions.isCancelling}
+          onCancel={actions.onCancel} onCancelAndBlock={actions.onCancelAndBlock}
+          isCancelling={actions.isCancelling}
           getTrackedState={actions.getTrackedState}
           onRetryImport={actions.onRetryImport} onIgnore={actions.onIgnore}
           onShowInfo={actions.onShowInfo} />
       ))}
       {ungrouped.map(r => (
         <JobRow key={String(r.taskId)} data={r}
-          onCancel={actions.onCancel} isCancelling={actions.isCancelling}
+          onCancel={actions.onCancel} onCancelAndBlock={actions.onCancelAndBlock}
+          isCancelling={actions.isCancelling}
           trackedState={actions.getTrackedState(String(r.taskId))}
           onRetryImport={actions.onRetryImport} onIgnore={actions.onIgnore}
           onShowInfo={actions.onShowInfo} />
@@ -144,7 +192,8 @@ function renderMixedRow(rowData: JobRowData, actions: MutationActions): React.Re
       isRetrying={actions.isRetrying} isDeleting={actions.isDeleting} />;
   }
   return <JobRow key={String(rowData.taskId)} data={rowData}
-    onCancel={actions.onCancel} isCancelling={actions.isCancelling}
+    onCancel={actions.onCancel} onCancelAndBlock={actions.onCancelAndBlock}
+    isCancelling={actions.isCancelling}
     trackedState={actions.getTrackedState(String(rowData.taskId))}
     onRetryImport={actions.onRetryImport} onIgnore={actions.onIgnore}
     onShowInfo={actions.onShowInfo} />;
@@ -398,6 +447,7 @@ function ActiveJobsContent(): React.ReactElement {
 
   const actions: MutationActions = {
     onCancel: (id) => { void mutations.cancelTask.mutateAsync({ id }); },
+    onCancelAndBlock: (data) => { void runCancelAndBlock(data, mutations.blockRelease, mutations.cancelTask); },
     onRetry: (id) => { void mutations.retryJob.mutateAsync({ id }); },
     onDelete: (id) => { void mutations.deleteJob.mutateAsync({ id }); },
     onImport: handleImport,

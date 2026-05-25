@@ -79,6 +79,7 @@ export interface JobMutationsReturn {
   deleteAllFailed: ReturnType<typeof trpc.jobs.deleteFailed.useMutation>;
   retryImport: ReturnType<typeof trpc.jobs.retryImport.useMutation>;
   ignoreDownload: ReturnType<typeof trpc.jobs.ignoreDownload.useMutation>;
+  blockRelease: ReturnType<typeof trpc.releaseBlocklist.block.useMutation>;
 }
 
 export function useJobMutations(refetchActiveStatuses: () => void): JobMutationsReturn {
@@ -159,5 +160,17 @@ export function useJobMutations(refetchActiveStatuses: () => void): JobMutations
     },
   });
 
-  return { cancelTask, retryJob, deleteJob, deleteAllCompleted, deleteAllFailed, retryImport, ignoreDownload };
+  // Paired with cancelTask in the "Cancel & blocklist" jobs-page action — the
+  // notification fires once per release, but the actual cancel + block run as
+  // two awaited mutations from the page handler so failure in either surfaces.
+  const blockRelease = trpc.releaseBlocklist.block.useMutation({
+    onSuccess: () => {
+      showNotification({ title: 'Release Blocklisted', message: 'Release added to blocklist — future searches will skip it', color: 'orange', icon: <IconCheck size={16} /> });
+    },
+    onError: (error) => {
+      showNotification({ title: 'Blocklist Error', message: String(error.message), color: 'red', icon: <IconX size={16} /> });
+    },
+  });
+
+  return { cancelTask, retryJob, deleteJob, deleteAllCompleted, deleteAllFailed, retryImport, ignoreDownload, blockRelease };
 }

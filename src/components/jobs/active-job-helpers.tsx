@@ -11,6 +11,7 @@ import {
 
 import { JobType } from '@/utils/job-validation';
 
+import { CancelMenu, CancelGroupMenu } from './CancelMenu';
 import { FileNameCell } from './FileNameCell';
 import { extractClient, extractErrorMessage, extractFileName, extractProtocol } from './job-row-extractors';
 import { isRecord } from './job-row-helpers';
@@ -172,6 +173,9 @@ export const getStatusBadge = (
 export interface JobRowProps {
   data: JobRowData;
   onCancel: (id: string) => void;
+  /** Optional sub-action: cancel the job AND add the release to ReleaseBlocklist
+   *  so the next search/dispatch pass skips it. */
+  onCancelAndBlock?: ((data: JobRowData) => void) | undefined;
   isCancelling: boolean;
   trackedState?: string | undefined;
   onRetryImport?: ((jobId: string) => void) | undefined;
@@ -179,7 +183,8 @@ export interface JobRowProps {
   onShowInfo?: ((data: JobRowData) => void) | undefined;
 }
 
-export function JobRow({ data, onCancel, isCancelling, trackedState, onRetryImport, onIgnore, onShowInfo }: JobRowProps): React.ReactElement {
+
+export function JobRow({ data, onCancel, onCancelAndBlock, isCancelling, trackedState, onRetryImport, onIgnore, onShowInfo }: JobRowProps): React.ReactElement {
   const { taskId, taskType, taskStatus, taskName, protocol, client, fileName, progress, wsStatus, speed, eta, mangaId } = data;
   const statusBadge = getStatusBadge(
     typeof taskStatus === 'string' ? taskStatus : 'unknown',
@@ -241,12 +246,8 @@ export function JobRow({ data, onCancel, isCancelling, trackedState, onRetryImpo
               </Tooltip>
             </>
           )}
-          <Tooltip label="Cancel task">
-            <ActionIcon color="red" variant="light" onClick={() => { onCancel(String(taskId)); }}
-              loading={isCancelling} size="sm">
-              <IconX size={16} />
-            </ActionIcon>
-          </Tooltip>
+          <CancelMenu data={data} onCancel={onCancel} onCancelAndBlock={onCancelAndBlock}
+            isCancelling={isCancelling} variant="light" size="sm" iconSize={16} />
         </Group>
       </td>
     </tr>
@@ -333,6 +334,7 @@ export function groupJobsByDownloadId(jobs: JobRowData[]): GroupedJobs {
 export interface TorrentGroupRowProps {
   group: TorrentGroup;
   onCancel: (id: string) => void;
+  onCancelAndBlock?: ((data: JobRowData) => void) | undefined;
   isCancelling: boolean;
   getTrackedState?: (jobId: string) => string | undefined;
   onRetryImport?: (jobId: string) => void;
@@ -340,7 +342,7 @@ export interface TorrentGroupRowProps {
   onShowInfo?: (data: JobRowData) => void;
 }
 
-export function TorrentGroupRow({ group, onCancel, isCancelling, getTrackedState, onRetryImport, onIgnore, onShowInfo }: TorrentGroupRowProps): React.ReactElement {
+export function TorrentGroupRow({ group, onCancel, onCancelAndBlock, isCancelling, getTrackedState, onRetryImport, onIgnore, onShowInfo }: TorrentGroupRowProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false);
   const { downloadId, jobs, mangaTitle, releaseTitle, avgProgress, protocol, client, speed, eta } = group;
   const liveStats = speed !== undefined || eta !== undefined
@@ -359,6 +361,14 @@ export function TorrentGroupRow({ group, onCancel, isCancelling, getTrackedState
     for (const job of jobs) {
       onCancel(String(job.taskId));
     }
+  };
+  const handleCancelGroupAndBlock = (): void => {
+    // One blocklist entry per release (jobs in a group share the same
+    // downloadId == same prowlarr/native release), so we only blocklist via
+    // the first job — the rest just cancel.
+    const [first, ...rest] = jobs;
+    if (first) onCancelAndBlock?.(first);
+    for (const job of rest) onCancel(String(job.taskId));
   };
 
   return (
@@ -410,13 +420,10 @@ export function TorrentGroupRow({ group, onCancel, isCancelling, getTrackedState
         </td>
         <td><ProtocolBadge protocol={protocol} /></td>
         <td><Text size="sm" style={{ color: '#e0e0e0' }}>{client}</Text></td>
-        <td style={{ textAlign: 'right' }}>
-          <Tooltip label={`Cancel all ${jobs.length} jobs`}>
-            <ActionIcon color="red" variant="light" onClick={(e) => { e.stopPropagation(); handleCancelGroup(); }}
-              loading={isCancelling} size="sm">
-              <IconX size={16} />
-            </ActionIcon>
-          </Tooltip>
+        <td style={{ textAlign: 'right' }} onClick={(e) => { e.stopPropagation(); }}>
+          <CancelGroupMenu jobCount={jobs.length} isCancelling={isCancelling}
+            onCancelAll={handleCancelGroup}
+            onCancelAllAndBlock={onCancelAndBlock ? handleCancelGroupAndBlock : undefined} />
         </td>
       </tr>
       {expanded && jobs.map((job) => {
@@ -479,12 +486,8 @@ export function TorrentGroupRow({ group, onCancel, isCancelling, getTrackedState
                     </Tooltip>
                   </>
                 )}
-                <Tooltip label="Cancel task">
-                  <ActionIcon color="red" variant="subtle" onClick={() => { onCancel(String(job.taskId)); }}
-                    loading={isCancelling} size="xs">
-                    <IconX size={12} />
-                  </ActionIcon>
-                </Tooltip>
+                <CancelMenu data={job} onCancel={onCancel} onCancelAndBlock={onCancelAndBlock}
+                  isCancelling={isCancelling} variant="subtle" size="xs" iconSize={12} />
               </Group>
             </td>
           </tr>
