@@ -526,10 +526,74 @@ async function dispatchProwlarrManual(
     return null;
   }
 
+  // Coverage MUST be computed BEFORE dispatch so we can pass only the
+  // chapters this pack actually covers to processDownloadRequest. The
+  // downloader otherwise (1) flips every passed chapterId to DOWNLOADING
+  // and (2) tags every one to this packDownloadId — which hides the
+  // uncovered chapters from the next loadMissingChapters poll and
+  // prevents the next dispatcher cycle from picking a complementary
+  // pack for them.
+  //
+  // Coverage derivation:
+  //   - Explicit chapter list (e.g. "Ch.1-60") → intersect with scope.
+  //   - Volume-only pack (e.g. "Vol. 08") → look up which chapter numbers
+  //     belong to those volumes in the DB, intersect with scope.
+  //   - Both empty → unparseable. Credit the full scope (legacy behavior)
+  //     and rely on the post-import reconciliation pass in
+  //     pack-import-handler.ts to free any chapter the archive didn't
+  //     actually deliver. Crediting zero here would just create duplicate
+  //     downloads via parallel dispatchers in the unparseable case.
+  const selectedCandidate = selected.result.title
+    ? filtered.find(c => (c.payload as ProwlarrSearchResult).title === selected.result.title)
+    : undefined;
+  const packChapters = selectedCandidate?.coverage.chapters ?? [];
+  const packVolumes = selectedCandidate?.coverage.volumes ?? [];
+  let coveredNumbers: number[];
+  let coverageSource: 'explicit-chapters' | 'volume-lookup' | 'full-scope-fallback';
+  if (packChapters.length > 0) {
+    coveredNumbers = packChapters.filter(n => inScopeChapters.has(n));
+    coverageSource = 'explicit-chapters';
+  } else if (packVolumes.length > 0) {
+    const volChapters = await prisma.chapter.findMany({
+      where: {
+        mangaId: ctx.mangaId,
+        volume: { in: packVolumes },
+        chapterNumber: { not: null },
+      },
+      select: { chapterNumber: true },
+    });
+    coveredNumbers = volChapters
+      .map(c => c.chapterNumber)
+      .filter((n): n is number => n !== null && inScopeChapters.has(n));
+    coverageSource = 'volume-lookup';
+  } else {
+    coveredNumbers = [...inScopeChapters];
+    coverageSource = 'full-scope-fallback';
+  }
+
+  // Map covered chapter NUMBERS back to Chapter row IDs in this scope.
+  // These are the only IDs we hand to processDownloadRequest so the
+  // downloader flips JUST those to DOWNLOADING + packDownloadId. The
+  // remainder of scopedChapterIds stay PENDING for the next dispatch.
+  const coveredChapterIds = coveredNumbers.length === 0
+    ? []
+    : (await prisma.chapter.findMany({
+        where: {
+          id: { in: scopedChapterIds },
+          chapterNumber: { in: coveredNumbers },
+        },
+        select: { id: true },
+      })).map(c => c.id);
+  // Safety: if number→id mapping yielded nothing (every covered chapter
+  // somehow fell out of scope), don't issue a zero-chapter dispatch —
+  // fall back to the full scope so the pack still goes through, and let
+  // post-import reconciliation clean up.
+  const dispatchChapterIds = coveredChapterIds.length > 0 ? coveredChapterIds : scopedChapterIds;
+
   const downloadManager = new DownloadManager();
   const dispatch = await downloadManager.processDownloadRequest({
     mangaId: ctx.mangaId,
-    chapterIds: scopedChapterIds,
+    chapterIds: dispatchChapterIds,
     method: DownloadMethod.PROWLARR,
     mode: DownloadMode.BULK,
     prowlarrResult: selected.result,
@@ -544,42 +608,7 @@ async function dispatchProwlarrManual(
     return null;
   }
 
-  // Coverage: derive from the pack's parsed chapter/volume claims.
-  //   - Explicit chapter list (e.g. "Ch.1-60") → intersect with scope.
-  //   - Volume-only pack (e.g. "Vol. 08") → look up which chapter numbers
-  //     belong to those volumes in the DB, intersect with scope.
-  //   - Both empty → unparseable. Crediting the entire scope (old behavior)
-  //     made a single one-volume pack claim every missing chapter for the
-  //     manga and blocked native fallback. Credit zero so the rest of the
-  //     scope routes through native/other-pack search; this pack still
-  //     downloads and pack-import will link whatever's actually inside it.
-  const selectedCandidate = selected.result.title
-    ? filtered.find(c => (c.payload as ProwlarrSearchResult).title === selected.result.title)
-    : undefined;
-  const packChapters = selectedCandidate?.coverage.chapters ?? [];
-  const packVolumes = selectedCandidate?.coverage.volumes ?? [];
-  let covered: number[];
-  let coverageSource: 'explicit-chapters' | 'volume-lookup' | 'unparseable';
-  if (packChapters.length > 0) {
-    covered = packChapters.filter(n => inScopeChapters.has(n));
-    coverageSource = 'explicit-chapters';
-  } else if (packVolumes.length > 0) {
-    const volChapters = await prisma.chapter.findMany({
-      where: {
-        mangaId: ctx.mangaId,
-        volume: { in: packVolumes },
-        chapterNumber: { not: null },
-      },
-      select: { chapterNumber: true },
-    });
-    covered = volChapters
-      .map(c => c.chapterNumber)
-      .filter((n): n is number => n !== null && inScopeChapters.has(n));
-    coverageSource = 'volume-lookup';
-  } else {
-    covered = [];
-    coverageSource = 'unparseable';
-  }
+  const covered = coveredNumbers;
 
   log.info('Manual Prowlarr dispatch issued', {
     mangaId: ctx.mangaId,
@@ -587,6 +616,7 @@ async function dispatchProwlarrManual(
     indexer: selected.result.indexerName,
     score: selected.score,
     coveredChapters: covered.length,
+    dispatchedChapterIdCount: dispatchChapterIds.length,
     coverageSource,
   });
 
