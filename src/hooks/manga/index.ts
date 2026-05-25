@@ -552,16 +552,37 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     }
   });
 
+  // Sonarr-style "subscribe to series" toggle. The header bookmark fires
+  // this in parallel with toggleSeriesMonitoring so one click flips both:
+  //   1. Every chapter's monitored flag (per-chapter watchlist)
+  //   2. AutoDownloadRule.enabled (periodic indexer checks + auto-download
+  //      of new releases as they hit)
+  // No notification here — toggleSeriesMonitoring's onSuccess fires the
+  // single visible toast for the combined action. Errors are logged so a
+  // partial failure (subscription succeeds, monitoring fails or vice
+  // versa) doesn't go entirely silent in the bell.
+  const toggleSubscriptionMutation = trpc.manga.toggleMonitoring.useMutation({
+    onSuccess: (_data, variables) => {
+      // Keep the AutoDownloadModal in sync if the user opens it after toggling
+      void utils.manga.getAutoDownloadConfig.invalidate({ mangaId: variables.mangaId });
+    },
+    onError: (error: unknown) => {
+      logger.error('Error toggling manga subscription:', error);
+      notify({ severity: 'WARNING', title: 'Subscription Update Failed', message: error instanceof Error ? error.message : 'Failed to update auto-download subscription' });
+    }
+  });
+
   // Header bookmark toggles the whole series. Sonarr-style: if any chapter
   // is monitored (all OR some), the icon is "filled" and clicking it disables
-  // every chapter; if none are monitored, the icon is crossed-out and clicking
-  // it enables every chapter. Previously this was a stub that only fired an
+  // every chapter + the auto-download subscription; if none are monitored,
+  // clicking enables both. Previously this was a stub that only fired an
   // INFO toast — the server-side toggleSeriesMonitoring mutation was defined
   // but never invoked, which is why the bookmark stayed unchanged after click.
   const handleToggleMangaBookmark = (): void => {
     if (!mangaId || !manga) return;
     const target = !(allMonitored || someMonitored);
     toggleSeriesMonitoringMutation.mutate({ mangaId, monitored: target });
+    toggleSubscriptionMutation.mutate({ mangaId, enabled: target });
   };
 
   // Handler for series quick download — downloads all chapters via BULK mode
