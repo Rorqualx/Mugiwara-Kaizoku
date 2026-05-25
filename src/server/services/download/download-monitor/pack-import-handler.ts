@@ -387,6 +387,36 @@ async function handleImportSuccess(
 
   logger.info(`[DownloadMonitor] Updated ${chapterIds.length} chapters to COMPLETED status`);
 
+  // Claimed-vs-delivered reconciliation. The dispatcher tagged some set of
+  // chapters with this packDownloadId at queue time based on the pack
+  // title's *predicted* contents. If the archive's *actual* contents
+  // didn't include all of them (mislabeled torrent, wrong volume metadata,
+  // parser edge case, partial release), those chapters are now stranded:
+  // pointing at a completed-but-empty-for-them pack. loadMissingChapters
+  // filters by downloadStatus != COMPLETED so they'd still be re-picked
+  // on the next dispatch, but they keep a stale packDownloadId that
+  // pollutes PackDownload retention and the UI's pack-grouped views.
+  // Reset them to PENDING + null packDownloadId so the next 1h scheduler
+  // poll routes them to another pack or native source cleanly.
+  const delivered = new Set(chapterIds);
+  const claimed = await prisma.chapter.findMany({
+    where: { packDownloadId: packDownload.id },
+    select: { id: true },
+  });
+  const stranded = claimed.filter(c => !delivered.has(c.id)).map(c => c.id);
+  if (stranded.length > 0) {
+    await prisma.chapter.updateMany({
+      where: { id: { in: stranded } },
+      data: { packDownloadId: null, downloadStatus: 'PENDING' },
+    });
+    logger.info(`[DownloadMonitor] Reset ${stranded.length} stranded chapters from pack ${packDownload.id}`, {
+      packDownloadId: packDownload.id.toString(),
+      mangaId: packDownload.mangaId,
+      claimedCount: claimed.length,
+      deliveredCount: delivered.size,
+    });
+  }
+
   pipelineEventBus.emit(PIPELINE_EVENTS.IMPORT_COMPLETED, {
     timestamp: new Date(),
     source: 'pack-import-handler',
