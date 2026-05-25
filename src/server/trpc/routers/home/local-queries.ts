@@ -136,14 +136,18 @@ export const homeLocalQueriesRouter = router({
     }),
 
   /**
-   * Get Continue Reading section
-   * Returns manga the user is currently reading but hasn't completed
-   *
-   * @auth Required - Uses current user session
-   * @returns Array of manga with reading progress info
+   * Continue Reading — manga with in-progress ReadingProgress for the current user.
+   * Returns one entry per manga (most recent chapter), ordered by last-read.
+   * `cursor` is the `lastReadAt` ISO timestamp of the last row from the previous page.
    */
   getContinueReading: protectedProcedure
-    .query(({ ctx }): unknown[] => {
+    .input(z.object({
+      limit: z.number().min(1).max(50).default(10),
+      cursor: z.string().datetime().optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const limit = input?.limit ?? 10;
+      const cursor = input?.cursor ? new Date(input.cursor) : undefined;
       try {
         const user = ctx['user'] as unknown;
         const userId = isObject(user) && hasProperty(user, 'id') && typeof user['id'] === 'string'
@@ -152,50 +156,29 @@ export const homeLocalQueriesRouter = router({
 
         if (!userId) {
           logger.warn('getContinueReading: No user ID in context');
-          return [];
+          return { items: [], nextCursor: null };
         }
 
-        logger.info('Continue Reading feature temporarily disabled (ReadingProgress model not yet implemented)');
-
-        // TODO: Implement ReadingProgress model in Prisma schema
-        // The ReadingProgress model needs to be added to track user reading progress
-        // Fields needed: userId, mangaId, chapterId, currentPage, totalPages, lastReadAt, completedAt
-
-        // For now, return empty array to prevent errors
-        return [];
-
-        /* Original implementation (commented out until ReadingProgress model is added):
-
-        logger.info(`Fetching continue reading for user ${userId}`);
-
-        // Get reading progress with manga and chapter data
+        const where = cursor
+          ? { userId, completedAt: null, lastReadAt: { lt: cursor } }
+          : { userId, completedAt: null };
         const progressRecords = await prisma.readingProgress.findMany({
-          where: {
-            userId,
-            completedAt: null, // Only incomplete reads
-          },
+          where,
           include: {
-            manga: {
-              include: {
-                Metadata: true,
-                _count: {
-                  select: { Chapter: true }
-                }
-              }
-            },
+            manga: { include: { Metadata: true, _count: { select: { Chapter: true } } } },
             chapter: true,
           },
-          orderBy: {
-            lastReadAt: 'desc',
-          },
-          take: 10,
-          distinct: ['mangaId'], // One entry per manga
+          orderBy: { lastReadAt: 'desc' },
+          take: limit + 1,
+          distinct: ['mangaId'],
         });
 
-        logger.info(`Found ${progressRecords.length} in-progress manga for user ${userId}`);
+        const hasMore = progressRecords.length > limit;
+        const page = hasMore ? progressRecords.slice(0, limit) : progressRecords;
+        const lastRow = page[page.length - 1];
+        const nextCursor = hasMore && lastRow ? lastRow.lastReadAt.toISOString() : null;
 
-        // Transform and strip heavy fields
-        return progressRecords.map((progress: typeof progressRecords[number]) => ({
+        const items = page.map((progress) => ({
           ...stripHeavyFields(progress.manga),
           metadata: progress.manga.Metadata,
           chapterCount: progress.manga._count.Chapter,
@@ -210,7 +193,8 @@ export const homeLocalQueriesRouter = router({
             lastReadAt: progress.lastReadAt,
           },
         }));
-        */
+
+        return { items, nextCursor };
       } catch (_error) {
         logger.error('Error in getContinueReading:', _error);
         throw new TRPCError({

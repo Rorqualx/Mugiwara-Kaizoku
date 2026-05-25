@@ -123,10 +123,10 @@ export function HomeSections({
   return (
     <Stack gap="xl" style={{ width: '100%' }}>
       {/* Continue Reading - Only for authenticated users */}
-      {session?.user && continueReading.data && continueReading.data.length > 0 && (
+      {session?.user && continueReading.data && continueReading.data.items.length > 0 && (
         <MangaRow
           title="Continue Reading"
-          manga={transformMangaData(continueReading.data, seenMangaIds, deduplicateManga, libraryAnilistIds)}
+          manga={transformMangaData(continueReading.data.items, seenMangaIds, deduplicateManga, libraryAnilistIds)}
           loading={continueReading.isLoading}
           emptyMessage="No manga in progress"
           onMangaClick={onMangaClick}
