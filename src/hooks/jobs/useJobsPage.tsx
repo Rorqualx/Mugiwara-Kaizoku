@@ -90,13 +90,32 @@ export function useJobMutations(refetchActiveStatuses: () => void): JobMutations
     void utils.activity.query.invalidate();
   }, [utils]);
 
+  // Optimistic removal: the cancel mutation awaits `tryRemoveTorrent` server-side
+  // (Transmission/SAB/NZBGet network call, can take 5-10s) *before* flipping the
+  // DB row to cancelled. Without optimistic update, the row keeps showing through
+  // every poll/refetch until the server-side cancel actually completes — the
+  // user reported having to manually refresh to clear the row after cancel+block.
+  // Pull the row out of the active/pending/retrying query caches immediately;
+  // onSuccess's refetch confirms; onError doesn't need to rollback because the
+  // 2s poll will restore the row from the server.
   const cancelTask = trpc.jobs.cancel.useMutation({
+    onMutate: async ({ id }) => {
+      await utils.jobs.getByStatus.cancel();
+      const inProgress = [JobStatus.pending, JobStatus.active, JobStatus.retrying] as const;
+      for (const status of inProgress) {
+        utils.jobs.getByStatus.setData({ status }, (prev) => {
+          if (!prev) return prev;
+          return prev.filter((j) => String(j.id) !== id);
+        });
+      }
+    },
     onSuccess: () => {
       showNotification({ title: 'Task Cancelled', message: 'Task has been cancelled', color: 'blue', icon: <IconCheck size={16} /> });
       refetchActiveStatuses();
     },
     onError: (error) => {
       showNotification({ title: 'Error', message: String(error.message), color: 'red', icon: <IconX size={16} /> });
+      refetchActiveStatuses();
     },
   });
 
