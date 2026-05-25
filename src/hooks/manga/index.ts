@@ -384,9 +384,9 @@ interface UseMangaDetailMutationsOptions {
   utils: ReturnType<typeof trpc.useUtils>;
   refetch: () => Promise<void>;
   setRefreshCounter: React.Dispatch<React.SetStateAction<number>>;
-  _allMonitored: boolean;
-  _someMonitored: boolean;
-  _noneMonitored: boolean;
+  allMonitored: boolean;
+  someMonitored: boolean;
+  noneMonitored: boolean;
 }
 
 /**
@@ -451,9 +451,9 @@ function startBulkDownload(
  * @param options.utils - tRPC utils for cache invalidation
  * @param options.refetch - Function to refetch manga data
  * @param options.setRefreshCounter - State setter for refresh counter
- * @param options._allMonitored - Whether all chapters are monitored (reserved for future use)
- * @param options._someMonitored - Whether some chapters are monitored (reserved for future use)
- * @param options._noneMonitored - Whether no chapters are monitored (reserved for future use)
+ * @param options.allMonitored - Whether every chapter is currently monitored
+ * @param options.someMonitored - Whether at least one (but not all) chapter is monitored
+ * @param options.noneMonitored - Whether no chapter is monitored (kept for symmetry with caller)
  * @returns Object containing all mutations and handlers
  */
 export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions): MangaDetailMutationsReturn {
@@ -463,9 +463,9 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     utils,
     refetch,
     setRefreshCounter,
-    _allMonitored,
-    _someMonitored,
-    _noneMonitored
+    allMonitored,
+    someMonitored,
+    // noneMonitored intentionally not destructured — derivable from !(all || some)
   } = options;
 
   // Live-update the series quick-download toast as the unified auto-search
@@ -552,12 +552,16 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     }
   });
 
-  // Handler for toggling manga bookmark
+  // Header bookmark toggles the whole series. Sonarr-style: if any chapter
+  // is monitored (all OR some), the icon is "filled" and clicking it disables
+  // every chapter; if none are monitored, the icon is crossed-out and clicking
+  // it enables every chapter. Previously this was a stub that only fired an
+  // INFO toast — the server-side toggleSeriesMonitoring mutation was defined
+  // but never invoked, which is why the bookmark stayed unchanged after click.
   const handleToggleMangaBookmark = (): void => {
     if (!mangaId || !manga) return;
-
-    // TODO: Implement bookmark toggle mutation when available
-    notify({ severity: 'INFO', title: 'Bookmark Toggled', message: 'Bookmark status has been updated' });
+    const target = !(allMonitored || someMonitored);
+    toggleSeriesMonitoringMutation.mutate({ mangaId, monitored: target });
   };
 
   // Handler for series quick download — downloads all chapters via BULK mode

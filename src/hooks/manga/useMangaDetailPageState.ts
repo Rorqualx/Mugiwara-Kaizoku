@@ -134,9 +134,9 @@ export function useMangaDetailPageState(): MangaDetailPageState {
     utils,
     refetch,
     setRefreshCounter,
-    _allMonitored: allMonitored,
-    _someMonitored: someMonitored,
-    _noneMonitored: noneMonitored
+    allMonitored,
+    someMonitored,
+    noneMonitored
   });
 
   return {

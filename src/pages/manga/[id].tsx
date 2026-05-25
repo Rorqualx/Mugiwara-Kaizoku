@@ -228,9 +228,9 @@ export default function MangaDetailPage(): React.ReactElement {
         utils,
         refetch,
         setRefreshCounter,
-        _allMonitored: allMonitored,
-        _someMonitored: someMonitored,
-        _noneMonitored: noneMonitored
+        allMonitored,
+        someMonitored,
+        noneMonitored
     });
     // Create all handlers using the factory
     const handlers = createMangaDetailHandlers({
