@@ -9,7 +9,7 @@
  */
 import React from 'react';
 
-import { ActionIcon, Menu, Tooltip } from '@mantine/core';
+import { ActionIcon, Menu } from '@mantine/core';
 import { IconX, IconShieldX } from '@tabler/icons-react';
 
 import type { JobRowData } from './active-job-helpers';
@@ -29,15 +29,21 @@ export function CancelMenu({
   variant = 'light', size = 'sm', iconSize = 16,
 }: CancelMenuProps): React.ReactElement {
   const idStr = String(data.taskId);
+  // Note on omitted Tooltip and onClick:
+  //  - Menu.Target uses cloneElement to inject its own onClick (the toggle) +
+  //    a ref onto its direct child. If that child has an explicit onClick
+  //    prop, Mantine's cloneElement overrides it, so a Tooltip wrapper or a
+  //    custom onClick={(e) => e.stopPropagation()} silently swallowed the
+  //    menu trigger. Keep Menu.Target's child as a bare ActionIcon. The
+  //    aria-label preserves accessibility; the menu copy itself ("Cancel
+  //    task", "Cancel & add to blocklist") tells the user what the icon does.
   return (
     <Menu shadow="md" position="left-start" withArrow>
       <Menu.Target>
-        <Tooltip label="Cancel task">
-          <ActionIcon color="red" variant={variant} loading={isCancelling} size={size}
-            onClick={(e) => { e.stopPropagation(); }}>
-            <IconX size={iconSize} />
-          </ActionIcon>
-        </Tooltip>
+        <ActionIcon color="red" variant={variant} loading={isCancelling} size={size}
+          aria-label="Cancel task">
+          <IconX size={iconSize} />
+        </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item leftSection={<IconX size={14} />} onClick={() => { onCancel(idStr); }}>
@@ -69,11 +75,10 @@ export function CancelGroupMenu({
   return (
     <Menu shadow="md" position="left-start" withArrow>
       <Menu.Target>
-        <Tooltip label={`Cancel all ${jobCount} jobs`}>
-          <ActionIcon color="red" variant="light" loading={isCancelling} size="sm">
-            <IconX size={16} />
-          </ActionIcon>
-        </Tooltip>
+        <ActionIcon color="red" variant="light" loading={isCancelling} size="sm"
+          aria-label={`Cancel all ${jobCount} jobs`}>
+          <IconX size={16} />
+        </ActionIcon>
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Item leftSection={<IconX size={14} />} onClick={onCancelAll}>
