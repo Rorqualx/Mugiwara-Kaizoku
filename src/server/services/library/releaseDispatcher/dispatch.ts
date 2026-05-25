@@ -544,16 +544,42 @@ async function dispatchProwlarrManual(
     return null;
   }
 
-  // Coverage: intersection of pack's parsed chapters with in-scope chapters.
-  // For unparseable packs (chapters: []) we credit the full scope.
+  // Coverage: derive from the pack's parsed chapter/volume claims.
+  //   - Explicit chapter list (e.g. "Ch.1-60") → intersect with scope.
+  //   - Volume-only pack (e.g. "Vol. 08") → look up which chapter numbers
+  //     belong to those volumes in the DB, intersect with scope.
+  //   - Both empty → unparseable. Crediting the entire scope (old behavior)
+  //     made a single one-volume pack claim every missing chapter for the
+  //     manga and blocked native fallback. Credit zero so the rest of the
+  //     scope routes through native/other-pack search; this pack still
+  //     downloads and pack-import will link whatever's actually inside it.
   const selectedCandidate = selected.result.title
     ? filtered.find(c => (c.payload as ProwlarrSearchResult).title === selected.result.title)
     : undefined;
   const packChapters = selectedCandidate?.coverage.chapters ?? [];
   const packVolumes = selectedCandidate?.coverage.volumes ?? [];
-  const covered = packChapters.length === 0
-    ? [...inScopeChapters]
-    : packChapters.filter(n => inScopeChapters.has(n));
+  let covered: number[];
+  let coverageSource: 'explicit-chapters' | 'volume-lookup' | 'unparseable';
+  if (packChapters.length > 0) {
+    covered = packChapters.filter(n => inScopeChapters.has(n));
+    coverageSource = 'explicit-chapters';
+  } else if (packVolumes.length > 0) {
+    const volChapters = await prisma.chapter.findMany({
+      where: {
+        mangaId: ctx.mangaId,
+        volume: { in: packVolumes },
+        chapterNumber: { not: null },
+      },
+      select: { chapterNumber: true },
+    });
+    covered = volChapters
+      .map(c => c.chapterNumber)
+      .filter((n): n is number => n !== null && inScopeChapters.has(n));
+    coverageSource = 'volume-lookup';
+  } else {
+    covered = [];
+    coverageSource = 'unparseable';
+  }
 
   log.info('Manual Prowlarr dispatch issued', {
     mangaId: ctx.mangaId,
@@ -561,6 +587,7 @@ async function dispatchProwlarrManual(
     indexer: selected.result.indexerName,
     score: selected.score,
     coveredChapters: covered.length,
+    coverageSource,
   });
 
   // iter-D1 + iter-EX: telemetry writes (coverage-claim + per-chapter
