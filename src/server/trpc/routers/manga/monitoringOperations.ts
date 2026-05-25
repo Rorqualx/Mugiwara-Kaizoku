@@ -13,6 +13,8 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, EventType, EventSource } from '@/utils/system-event-logger';
 
+import { invalidateMangaCache } from './crud-operations/get-manga-cache';
+
 // ============================================================================
 // Zod Schemas
 // ============================================================================
@@ -209,6 +211,12 @@ export const monitoringRouter = router({
 
       logger.info(`Updated ${result.count} chapters for manga ${mangaId}`);
 
+      // Bust the manga-detail cache so the next manga.get returns fresh
+      // chapter.monitored values. Without this the UI invalidates its tRPC
+      // cache, refetches, and the server returns the stale cached blob from
+      // hot/unified cache (10min TTL) — making the toggle appear no-op.
+      await invalidateMangaCache(mangaId);
+
       // Emit WebSocket event for series monitoring toggle
       void realtimeEmitter.emitSystemEvent({
         eventType: 'monitoring:series:toggled',
@@ -247,6 +255,8 @@ export const monitoringRouter = router({
 
       logger.info(`Updated ${result.count} chapters in volume ${volumeNumber} for manga ${mangaId}`);
 
+      await invalidateMangaCache(mangaId);
+
       // Emit WebSocket event for volume monitoring toggle
       void realtimeEmitter.emitSystemEvent({
         eventType: 'monitoring:volume:toggled',
@@ -278,6 +288,8 @@ export const monitoringRouter = router({
         where: { id: chapterId },
         data: { monitored }
       });
+
+      await invalidateMangaCache(result.mangaId);
 
       // Emit WebSocket event for chapter monitoring toggle
       void realtimeEmitter.emitChapterUpdate({
