@@ -340,38 +340,31 @@ export const bulkRouter = router({
       }
     }),
 
-  /**
-   * Mark chapters as read/unread for multiple manga
-   */
+  /** Mark all chapters as read/unread across multiple manga. */
   markChapters: protectedProcedure
     .input(bulkMarkChaptersSchema)
-    .mutation(({ input }) => {
+    .mutation(async ({ input }) => {
       const { mangaIds, isRead } = input;
-
       try {
-        // Since Chapter model doesn't have isRead field, this operation is not implemented
-        serverLogger.warn('Mark chapters operation not implemented - Chapter model lacks isRead field');
-
-        // Emit WebSocket event for real-time sync (even for stub)
+        const updated = await prisma.chapter.updateMany({
+          where: { mangaId: { in: mangaIds }, isRead: !isRead },
+          data: { isRead },
+        });
         void realtimeEmitter.emitSystemEvent({
           eventType: `bulk:chapters:${isRead ? 'read' : 'unread'}`,
           source: 'bulk-router',
-          message: `Mark chapters as ${isRead ? 'read' : 'unread'} requested (not yet implemented)`,
-          data: { mangaIds, isRead },
+          message: `Marked ${updated.count} chapters as ${isRead ? 'read' : 'unread'} across ${mangaIds.length} manga`,
+          data: { mangaIds, isRead, chaptersUpdated: updated.count },
         });
-
         return {
           success: true,
-          count: 0,
-          message: `Mark chapters as ${isRead ? 'read' : 'unread'} is not implemented yet`
+          count: updated.count,
+          message: `Marked ${updated.count} chapters as ${isRead ? 'read' : 'unread'}`,
         };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         serverLogger.error('Bulk mark chapters failed', { errorMessage });
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: errorMessage
-        });
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: errorMessage });
       }
     }),
 
