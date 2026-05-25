@@ -204,11 +204,17 @@ function applyAdvancedFilters(manga: MangaWithRelations[], filters: AdvancedFilt
         const maxRating = filters.ratingMax;
         filtered = filtered.filter(m => (m.Metadata?.rating ?? 0) <= maxRating);
     }
-    // Monitored filter
+    // Monitored filter. The Manga model has no top-level `monitored` field
+    // (the previous code read a non-existent property and always got `false`,
+    // so "Monitored: yes" matched zero manga). Derive the signal from the
+    // same chapter array the header bookmark icon uses — a manga counts as
+    // monitored iff at least one of its chapters has monitored=true. Keeps
+    // the library filter and the per-manga icon in lockstep.
     if (filters.monitored !== null && filters.monitored !== undefined) {
         const monitoredValue = filters.monitored;
         filtered = filtered.filter(m => {
-            const mangaMonitored = (m as MangaWithRelations & { monitored?: boolean }).monitored ?? false;
+            const chapters = (m as MangaWithRelations & { Chapter?: Array<{ monitored?: boolean }> }).Chapter ?? [];
+            const mangaMonitored = chapters.some(ch => ch.monitored === true);
             return mangaMonitored === monitoredValue;
         });
     }

@@ -246,6 +246,7 @@ export const crudRouter = router({
             id: true,
             index: true,
             isRead: true,
+            monitored: true,
             downloadStatus: true,
             updatedAt: true,
             chapterNumber: true,
