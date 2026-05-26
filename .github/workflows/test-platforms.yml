@@ -365,8 +365,19 @@ jobs:
       # ======================================================================
       - name: Run compatibility hook
         run: |
-          chmod +x .claude/hooks/check-bun-compatibility.sh
-          .claude/hooks/check-bun-compatibility.sh --fix
+          # The hook script is aspirational — it was referenced when the
+          # workflow was written but never actually committed to the repo.
+          # Skip gracefully when missing so this step doesn't gate the
+          # matrix on a non-existent file. If the hook is added later it
+          # will start running automatically.
+          if [ -x .claude/hooks/check-bun-compatibility.sh ]; then
+            .claude/hooks/check-bun-compatibility.sh --fix
+          elif [ -f .claude/hooks/check-bun-compatibility.sh ]; then
+            chmod +x .claude/hooks/check-bun-compatibility.sh
+            .claude/hooks/check-bun-compatibility.sh --fix
+          else
+            echo "ℹ .claude/hooks/check-bun-compatibility.sh not present — skipping"
+          fi
 
       - name: Generate compatibility report
         if: always()
