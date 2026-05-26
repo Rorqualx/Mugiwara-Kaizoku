@@ -16,6 +16,7 @@ import { prisma } from '@/server/db';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime';
+import { suwayomiService } from '@/server/services/suwayomi/service';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { getCpuUsagePercent } from '@/server/utils/system-cpu';
@@ -282,8 +283,16 @@ async function getIntegrationStatus(): Promise<IntegrationStatus> {
     metadata = { providers: {} };
   }
 
-  // Build integrations status from metadata
-  return buildIntegrationsFromMetadata(metadata);
+  // Build integrations status from metadata, then probe suwayomi for its actual
+  // running state. The probe is best-effort — a failed/slow probe degrades to
+  // 'inactive' rather than failing the whole status query.
+  const integrations = buildIntegrationsFromMetadata(metadata);
+  const suwayomiRunning = await suwayomiService.isServerRunning().catch((err: unknown) => {
+    logger.warn('suwayomi isServerRunning probe failed', err instanceof Error ? err.message : String(err));
+    return false;
+  });
+  integrations.sources.suwayomi.status = suwayomiRunning ? 'active' : 'inactive';
+  return integrations;
 }
 
 /** Processes metadata configuration entries into a structured object */
@@ -378,7 +387,7 @@ function buildIntegrationsFromMetadata(metadata: Record<string, unknown>): Integ
     },
     sources: {
       suwayomi: {
-        // TODO: Check actual suwayomi status
+        // Filled in by getIntegrationStatus after probing the live service.
         status: 'inactive',
         sourceCount: 0,
         availableSources: []
