@@ -4,13 +4,20 @@ name: Platform Compatibility Testing
 # Comprehensive platform compatibility testing for Bun + Next.js + SWC
 # ============================================================================
 # Tests across multiple combinations:
-# - Operating Systems: Ubuntu 22.04, macOS 14 (Intel), macOS 14 (ARM64)
-# - Package Managers: pnpm, npm, yarn, bun
-# - Architectures: x86_64, ARM64 (where supported)
+# - Operating Systems: Ubuntu 22.04, macOS 14 (ARM64), macOS 13 (x64)
+# - Package Manager:   bun (only — see note below)
+# - Architectures:     x86_64, ARM64
 #
 # This workflow validates that the application builds and runs correctly
-# across all supported platforms and package managers, with special attention
-# to Next.js SWC binary compatibility issues.
+# across all supported OS/arch combinations, with special attention to
+# Next.js SWC binary compatibility issues.
+#
+# Note on bun-only: the repo declares `"packageManager": "bun@…"` and
+# commits only `bun.lock`, so pnpm/npm/yarn cannot install dependencies
+# against it (corepack refuses with "This project is configured to use
+# bun"). Do not re-add pnpm/npm/yarn matrix entries here without also
+# checking in `pnpm-workspace.yaml` + lockfiles + dropping the
+# packageManager pin — otherwise every variant fails at install.
 #
 # Author: Development Team
 # Status: Active
@@ -70,27 +77,6 @@ jobs:
               {
                 "os": "ubuntu-22.04",
                 "arch": "x64",
-                "pm": "pnpm",
-                "pm_version": "10.7.1",
-                "node_version": "20"
-              },
-              {
-                "os": "ubuntu-22.04",
-                "arch": "x64",
-                "pm": "npm",
-                "pm_version": "latest",
-                "node_version": "20"
-              },
-              {
-                "os": "ubuntu-22.04",
-                "arch": "x64",
-                "pm": "yarn",
-                "pm_version": "1.22.19",
-                "node_version": "20"
-              },
-              {
-                "os": "ubuntu-22.04",
-                "arch": "x64",
                 "pm": "bun",
                 "pm_version": "1.3.0",
                 "node_version": "20"
@@ -98,36 +84,8 @@ jobs:
               {
                 "os": "macos-14",
                 "arch": "arm64",
-                "pm": "pnpm",
-                "pm_version": "10.7.1",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-14",
-                "arch": "arm64",
-                "pm": "npm",
-                "pm_version": "latest",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-14",
-                "arch": "arm64",
-                "pm": "yarn",
-                "pm_version": "1.22.19",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-14",
-                "arch": "arm64",
                 "pm": "bun",
                 "pm_version": "1.3.0",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-13",
-                "arch": "x64",
-                "pm": "pnpm",
-                "pm_version": "10.7.1",
                 "node_version": "20"
               },
               {
