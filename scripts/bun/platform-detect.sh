@@ -364,21 +364,31 @@ detect_environment() {
 # Output Functions
 # ============================================================================
 
+# Strip any control characters (U+0000..U+001F) and double-quote / backslash
+# escape a value so it can be safely embedded inside a JSON string. Detection
+# helpers shell out to commands (`file -b`, `bun --version`, `node -p`) whose
+# output occasionally includes stray control bytes (CR, ESC color codes) on
+# certain CI runners — without this, `jq` rejects the emitted file with
+# "Invalid string: control characters from U+0000 through U+001F".
+json_escape() {
+  printf '%s' "$1" | tr -d '\000-\037' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 output_json() {
   cat <<EOF
 {
-  "os": "$OS",
-  "osVersion": "$OS_VERSION",
-  "arch": "$ARCH",
+  "os": "$(json_escape "$OS")",
+  "osVersion": "$(json_escape "$OS_VERSION")",
+  "arch": "$(json_escape "$ARCH")",
   "bunInstalled": $BUN_INSTALLED,
-  "bunVersion": "$BUN_VERSION",
-  "bunArch": "$BUN_ARCH",
+  "bunVersion": "$(json_escape "$BUN_VERSION")",
+  "bunArch": "$(json_escape "$BUN_ARCH")",
   "nodeInstalled": $NODE_INSTALLED,
-  "nodeVersion": "$NODE_VERSION",
-  "packageManager": "$PACKAGE_MANAGER",
-  "packageManagerVersion": "$PACKAGE_MANAGER_VERSION",
-  "nextVersion": "$NEXT_VERSION",
-  "requiredSwcBinary": "$REQUIRED_SWC_BINARY",
+  "nodeVersion": "$(json_escape "$NODE_VERSION")",
+  "packageManager": "$(json_escape "$PACKAGE_MANAGER")",
+  "packageManagerVersion": "$(json_escape "$PACKAGE_MANAGER_VERSION")",
+  "nextVersion": "$(json_escape "$NEXT_VERSION")",
+  "requiredSwcBinary": "$(json_escape "$REQUIRED_SWC_BINARY")",
   "swcBinaryExists": $SWC_BINARY_EXISTS,
   "isRosetta": $IS_ROSETTA,
   "isDocker": $IS_DOCKER,
