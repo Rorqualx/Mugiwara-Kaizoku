@@ -191,11 +191,16 @@ detect_bun() {
           BUN_ARCH="x64"
         fi
       elif [ "$OS" = "linux" ]; then
-        BUN_ARCH=$(file -b "$bun_path" | grep -o 'aarch64\|x86-64' || echo "unknown")
+        BUN_ARCH=$(file -b "$bun_path" | grep -o 'aarch64\|x86-64' || echo "")
         if [ "$BUN_ARCH" = "aarch64" ]; then
           BUN_ARCH="arm64"
         elif [ "$BUN_ARCH" = "x86-64" ]; then
           BUN_ARCH="x64"
+        else
+          # `file -b` output didn't carry an arch token we recognize (some
+          # GitHub-hosted runners ship a `file` that prints a leaner string).
+          # Fall back to the system arch — bun installs match host arch.
+          BUN_ARCH="$ARCH"
         fi
       else
         BUN_ARCH="$ARCH"
@@ -288,8 +293,13 @@ detect_nextjs_swc() {
   fi
 
   # Determine required SWC binary based on OS and architecture
-  # Use Bun's architecture if Bun is installed, otherwise use system architecture
+  # Use Bun's architecture if Bun is installed, otherwise use system architecture.
+  # ${VAR:-default} only fires on unset/empty — a literal "unknown" would
+  # poison the case below, so treat that as a fallback too.
   local target_arch="${BUN_ARCH:-$ARCH}"
+  if [ "$target_arch" = "unknown" ]; then
+    target_arch="$ARCH"
+  fi
 
   case "$OS-$target_arch" in
     darwin-arm64)
