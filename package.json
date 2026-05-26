@@ -11,6 +11,8 @@
     "start:prod": "NODE_ENV=production bun src/server/index.ts",
     "create-admin": "node scripts/create-admin-simple.js",
     "generate": "prisma generate",
+    "ci:local": "bash scripts/ci-local.sh",
+    "ci:quick": "bash scripts/ci-local.sh --skip-tests --skip-security",
     "migrate": "prisma migrate deploy && prisma generate",
     "db:reset:dev": "./scripts/database/reset-dev.sh",
     "db:reset:safe": "./scripts/database/reset-dev-safe.sh",
