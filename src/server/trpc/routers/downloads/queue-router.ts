@@ -346,6 +346,17 @@ export const downloadsQueueRouter = router({
         mangaId: input.mangaId,
       });
 
+      // Fire job:created on jobs:active channel so the Jobs page's WebSocket
+      // subscription refetches immediately. Without this the new row only
+      // appears after the next 2s poll cycle — the user perceives the click
+      // as "failed" because the modal closes with nothing visible in the table.
+      void realtimeEmitter.emitJobCreated({
+        jobId: String(job.id),
+        status: 'running',
+        jobType: 'chapter_download',
+        metadata: { mangaId: input.mangaId, source: 'manual-track', releaseTitle: input.releaseName },
+      });
+
       return { success: true, jobId: String(job.id) };
     }),
 
