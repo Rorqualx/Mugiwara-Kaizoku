@@ -634,11 +634,16 @@ export class SuwayomiGraphQLClient {
   }
 
   /**
-   * Uninstall an extension
+   * Uninstall an extension. The UNINSTALL_EXTENSION GraphQL operation is named
+   * `UninstallExtension` but the actual mutation it sends is
+   * `updateExtension(patch: { uninstall: true })` — so Suwayomi's response root
+   * is `updateExtension`, not `uninstallExtension`. Reading the wrong key threw
+   * `undefined is not an object (evaluating 't.data.uninstallExtension.extension')`
+   * and surfaced as "Uninstall failed" in the UI.
    */
   public async uninstallExtension(pkgName: string): Promise<boolean> {
     const result = await this.mutate<
-      { uninstallExtension: { extension: ExtensionType } },
+      { updateExtension: { extension: ExtensionType } },
       { pkgName: string }
     >(UNINSTALL_EXTENSION, { pkgName });
 
@@ -647,7 +652,7 @@ export class SuwayomiGraphQLClient {
       return false;
     }
 
-    return !result.data.uninstallExtension.extension.isInstalled;
+    return !result.data.updateExtension.extension.isInstalled;
   }
 
   // ===========================================================================
