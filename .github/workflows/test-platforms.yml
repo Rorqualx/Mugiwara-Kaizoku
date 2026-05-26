@@ -194,10 +194,13 @@ jobs:
         id: platform-detect
         run: |
           chmod +x scripts/bun/platform-detect.sh
-          scripts/bun/platform-detect.sh --verbose
+          # --no-fail because the matrix runs npm/yarn/pnpm variants where
+          # Bun is intentionally absent; the script's documented
+          # "bun-missing → exit 1" otherwise kills detection there.
+          scripts/bun/platform-detect.sh --verbose --no-fail
 
           # Capture JSON output for later use
-          scripts/bun/platform-detect.sh --json > platform-info.json
+          scripts/bun/platform-detect.sh --json --no-fail > platform-info.json
 
           # Extract key information
           cat platform-info.json | jq -r '
@@ -300,6 +303,11 @@ jobs:
           esac
 
       - name: Run type check
+        env:
+          # tsc against this project's surface exits 134 (SIGABRT) under
+          # the default V8 heap on macos-14-arm64 runners. The other CI
+          # jobs (ci.yml, test.yml) already use 4096 MB.
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           case "${{ matrix.pm }}" in
             pnpm) pnpm run type-check ;;

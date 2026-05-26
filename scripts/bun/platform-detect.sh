@@ -7,11 +7,12 @@
 # Next.js SWC binaries for platform compatibility validation.
 #
 # Usage:
-#   ./scripts/bun/platform-detect.sh [--json] [--verbose]
+#   ./scripts/bun/platform-detect.sh [--json] [--verbose] [--no-fail]
 #
 # Options:
 #   --json      Output results in JSON format
 #   --verbose   Show detailed detection information
+#   --no-fail   Always exit 0 if OS/arch detected (bun-missing is advisory)
 #
 # Exit Codes:
 #   0 - Detection successful
@@ -35,6 +36,10 @@ NC='\033[0m' # No Color
 # Command line flags
 JSON_OUTPUT=false
 VERBOSE=false
+# When true, always exit 0 if the platform was detected — bun-missing /
+# swc-missing become advisory (still reported in JSON). The CI test-platform
+# matrix runs this script on non-bun variants where exit 1 is incorrect.
+NO_FAIL=false
 
 # Detection results
 OS=""
@@ -474,6 +479,10 @@ parse_args() {
         JSON_OUTPUT=true
         shift
         ;;
+      --no-fail)
+        NO_FAIL=true
+        shift
+        ;;
       --verbose)
         VERBOSE=true
         shift
@@ -487,6 +496,7 @@ Detect platform configuration for Bun compatibility validation.
 Options:
   --json      Output results in JSON format
   --verbose   Show detailed detection information
+  --no-fail   Always exit 0 if OS/arch detected (bun-missing is advisory)
   -h, --help  Show this help message
 
 Exit Codes:
@@ -525,11 +535,13 @@ main() {
     output_human
   fi
 
-  # Exit with appropriate code
-  if [ "$BUN_INSTALLED" = false ]; then
-    exit 1
-  elif [ "$OS" = "unknown" ] || [ "$ARCH" = "unknown" ]; then
+  # Exit with appropriate code. `--no-fail` collapses bun-missing into a
+  # success so reporting-only callers (CI matrix on non-bun variants) don't
+  # die just because Bun isn't installed.
+  if [ "$OS" = "unknown" ] || [ "$ARCH" = "unknown" ]; then
     exit 2
+  elif [ "$BUN_INSTALLED" = false ] && [ "$NO_FAIL" = false ]; then
+    exit 1
   else
     exit 0
   fi
