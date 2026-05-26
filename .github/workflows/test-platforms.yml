@@ -202,8 +202,19 @@ jobs:
 
       - name: Clean previous installation
         run: |
+          # Drop any restored node_modules from cache so the install runs fresh.
           rm -rf node_modules
-          rm -f bun.lock pnpm-lock.yaml package-lock.json yarn.lock
+          # Preserve the current PM's lockfile so --frozen-lockfile has a
+          # source of truth. Deleting bun.lock here caused bun to redo
+          # resolution and land on a different DAG (nested @types/pg,
+          # drifted @types/express) than ci.yml/test.yml produce, which
+          # then broke `tsc --noEmit` only in this matrix job.
+          case "${{ matrix.pm }}" in
+            pnpm) rm -f bun.lock package-lock.json yarn.lock ;;
+            npm)  rm -f bun.lock pnpm-lock.yaml yarn.lock ;;
+            yarn) rm -f bun.lock pnpm-lock.yaml package-lock.json ;;
+            bun)  rm -f pnpm-lock.yaml package-lock.json yarn.lock ;;
+          esac
 
       - name: Install dependencies with ${{ matrix.pm }}
         run: |
