@@ -376,18 +376,25 @@ export class PostgreSQLQueueWorker extends EventEmitter {
         // Execute handler
         await handler(job, abortController.signal);
 
-        // Fetch current job result (handler may have stored data)
+        // Re-read job state. `status` is load-bearing: long-running handlers
+        // (DownloadManager.processTask for torrents) intentionally leave the
+        // job 'active' with result.downloadId set so the out-of-band progress
+        // loop finishes it when the torrent + pack import complete. Without
+        // this check we'd auto-complete in ~500ms while the torrent runs.
         const currentJob = await prisma.jobs.findFirst({
           where: { id: job["id"] },
-          select: { result: true, partition_key: true }
+          select: { result: true, partition_key: true, status: true }
         });
 
-        logger.debug('Fetched job result after handler', {
-          jobId: String(job["id"]),
-          hasResult: !!currentJob?.result,
-          resultType: typeof currentJob?.result,
-          partitionKey: currentJob?.partition_key
-        });
+        const result = currentJob?.result;
+        const hasDownloadId = typeof result === 'object' && result !== null
+          && typeof (result as Record<string, unknown>)['downloadId'] === 'string';
+        if (currentJob?.status === 'active' && hasDownloadId) {
+          logger.info(`Job ${job["id"]} ongoing (downloadId set); skipping auto-complete`, { jobType: job.job_type });
+          this.stats.jobsProcessed++;
+          this.emit('job:ongoing', { job, processingTimeMs: Date.now() - startTime });
+          return;
+        }
 
         // Merge handler result with processingTimeMs
         const mergedResult = {
@@ -396,11 +403,6 @@ export class PostgreSQLQueueWorker extends EventEmitter {
             : {}),
           processingTimeMs: Date.now() - startTime
         };
-
-        logger.debug('Merged result', {
-          jobId: String(job["id"]),
-          mergedKeys: Object.keys(mergedResult)
-        });
 
         // Mark job as completed with merged result
         await this.completeJob(job["id"], mergedResult);
