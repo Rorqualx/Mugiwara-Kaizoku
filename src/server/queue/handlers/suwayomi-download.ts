@@ -10,7 +10,7 @@
  */
 import path from 'path';
 
-import { ChapterStatus, jobs, NativeDownloadStatus } from '@prisma/client';
+import { ChapterStatus, jobs, NativeDownloadStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
@@ -21,6 +21,8 @@ import type {
   SuwayomiDownloadResult,
 } from '@/server/services/native-download/downloaders/suwayomi-downloader';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { getSuwayomiGraphQLClient } from '@/server/services/suwayomi/graphql/client';
+import { readSuwayomiPluginConfig } from '@/server/services/suwayomi/manga-matcher';
 import { invalidateMangaCache } from '@/server/trpc/routers/manga/crud-operations/get-manga-cache';
 import { logger } from '@/utils/logger';
 
@@ -29,7 +31,12 @@ const log = logger.child('suwayomiDownloadHandler');
 const SuwayomiDownloadPayloadSchema = z.object({
   mangaId: z.number(),
   downloadId: z.string(),                 // cuid from NativeDownload
-  suwayomiChapterId: z.number(),          // Suwayomi-internal chapter id
+  // Suwayomi-internal chapter id. Stored as `text` on Chapter.suwayomiChapterId,
+  // so requeues that read straight from the DB (scripts, recovery sweeps) hand
+  // us a numeric string; the dispatcher hands us a number. Accept either and
+  // normalize to number so downstream code stays unchanged.
+  suwayomiChapterId: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)])
+    .transform((v) => (typeof v === 'string' ? Number(v) : v)),
   chapterNumber: z.number().optional(),
   destinationPath: z.string(),
   metadata: z.object({
@@ -257,6 +264,50 @@ async function finalizeFailure(
   log.error('Suwayomi download failed', {
     jobId: jobIdNum, downloadId: payload.downloadId, error: errorMessage,
   });
+  await detectStaleBindingOnFailure(payload, errorMessage);
+}
+
+/**
+ * When the failure is `No pages returned from Suwayomi`, probe Suwayomi for
+ * the bound `cfg.mangaId`. If Suwayomi has no record of it the binding is
+ * stale (datastore wiped, breaking upgrade, etc.) and every future job for
+ * this manga will fail the same way. Null out `cfg.mangaId` so subsequent
+ * dispatches stop using the dead pointer; the next monitor cycle (or an
+ * operator running `scripts/rebind-suwayomi.ts`) can re-discover.
+ *
+ * Best-effort: errors are swallowed so detection failure never masks the
+ * original job error or blocks retry semantics.
+ */
+async function detectStaleBindingOnFailure(
+  payload: SuwayomiDownloadPayload, errorMessage: string,
+): Promise<void> {
+  if (errorMessage !== 'No pages returned from Suwayomi') return;
+  try {
+    const manga = await prisma.manga.findUnique({
+      where: { id: payload.mangaId },
+      select: { suwayomiPluginConfig: true },
+    });
+    const cfg = readSuwayomiPluginConfig(manga?.suwayomiPluginConfig);
+    if (typeof cfg.mangaId !== 'number') return;
+    const probe = await getSuwayomiGraphQLClient().getManga(cfg.mangaId);
+    if (probe !== null) return;
+    const { mangaId: _drop, ...rest } = cfg;
+    await prisma.manga.update({
+      where: { id: payload.mangaId },
+      data: { suwayomiPluginConfig: rest as unknown as Prisma.InputJsonValue },
+    });
+    log.warn('suwayomi:stale-binding-detected', {
+      kaizokuMangaId: payload.mangaId,
+      staleSuwayomiMangaId: cfg.mangaId,
+      sourceId: cfg.sourceId ?? null,
+      action: 'cleared cfg.mangaId — run scripts/rebind-suwayomi.ts to re-discover',
+    });
+  } catch (err) {
+    log.warn('Stale-binding detection failed (non-fatal)', {
+      mangaId: payload.mangaId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 async function finalizeSuccess(
