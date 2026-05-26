@@ -201,15 +201,17 @@ export default function MangaDetailPage(): React.ReactElement {
 
     // Derive monitoring statistics directly from chapter data (single source of truth)
     // Memoized to avoid recomputing on every render for 1000+ chapter manga
-    const { totalChapters, monitoredCount, allMonitored, someMonitored, noneMonitored } = React.useMemo(() => {
+    const { totalChapters, monitoredCount, allMonitored, someMonitored, noneMonitored, hasAnyFailedChapter } = React.useMemo(() => {
         const total = manga?.Chapter?.length ?? 0;
         const monitored = manga?.Chapter?.filter(ch => ch.monitored).length ?? 0;
+        const anyFailed = manga?.Chapter?.some(ch => ch.downloadStatus === 'ERROR') ?? false;
         return {
             totalChapters: total,
             monitoredCount: monitored,
             allMonitored: total > 0 && monitored === total,
             someMonitored: monitored > 0 && monitored < total,
             noneMonitored: monitored === 0,
+            hasAnyFailedChapter: anyFailed,
         };
     }, [manga?.Chapter]);
 
@@ -220,8 +222,10 @@ export default function MangaDetailPage(): React.ReactElement {
         removeMangaMutation,
         downloadMutation,
         refreshMetadataMutation,
+        resetAllFailedDownloadsMutation,
         handleToggleMangaBookmark,
-        handleSeriesQuickDownload
+        handleSeriesQuickDownload,
+        handleResetAllFailed
     } = useMangaDetailMutations({
         mangaId,
         manga,
@@ -397,8 +401,11 @@ export default function MangaDetailPage(): React.ReactElement {
           setIsDetailsExpanded={setIsDetailsExpanded}
           toggleSeriesMonitoringMutation={toggleSeriesMonitoringMutation}
           seriesQuickDownloadMutation={seriesQuickDownloadMutation}
+          resetAllFailedDownloadsMutation={resetAllFailedDownloadsMutation}
           handleToggleMangaBookmark={() => { void handleToggleMangaBookmark(); }}
           handleSeriesQuickDownload={() => { void handleSeriesQuickDownload(); }}
+          handleResetAllFailed={() => { void handleResetAllFailed(); }}
+          hasAnyFailedChapter={hasAnyFailedChapter}
           isProviderBound={isProviderBound}
         />
 

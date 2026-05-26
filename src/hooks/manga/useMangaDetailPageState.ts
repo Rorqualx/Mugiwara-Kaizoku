@@ -69,6 +69,7 @@ export interface MangaDetailPageState {
   allMonitored: boolean;
   someMonitored: boolean;
   noneMonitored: boolean;
+  hasAnyFailedChapter: boolean;
 
   // Mutations
   mutations: ReturnType<typeof useMangaDetailMutations>;
@@ -118,6 +119,11 @@ export function useMangaDetailPageState(): MangaDetailPageState {
   const allMonitored = totalChapters > 0 && monitoredCount === totalChapters;
   const someMonitored = monitoredCount > 0 && monitoredCount < totalChapters;
   const noneMonitored = monitoredCount === 0;
+  // Drives visibility of the manga-header "Reset all failed" action. Uses the
+  // same chapter slim-select the bookmark icon math reads from (server includes
+  // downloadStatus). Stringly-typed compare to avoid a Prisma enum import on
+  // the client.
+  const hasAnyFailedChapter = manga?.Chapter.some(ch => ch.downloadStatus === 'ERROR') ?? false;
 
   // Get all mutations
   const {
@@ -126,8 +132,10 @@ export function useMangaDetailPageState(): MangaDetailPageState {
     removeMangaMutation,
     downloadMutation,
     refreshMetadataMutation,
+    resetAllFailedDownloadsMutation,
     handleToggleMangaBookmark,
-    handleSeriesQuickDownload
+    handleSeriesQuickDownload,
+    handleResetAllFailed
   } = useMangaDetailMutations({
     mangaId,
     manga,
@@ -160,14 +168,17 @@ export function useMangaDetailPageState(): MangaDetailPageState {
     allMonitored,
     someMonitored,
     noneMonitored,
+    hasAnyFailedChapter,
     mutations: {
       toggleSeriesMonitoringMutation,
       seriesQuickDownloadMutation,
       removeMangaMutation,
       downloadMutation,
       refreshMetadataMutation,
+      resetAllFailedDownloadsMutation,
       handleToggleMangaBookmark,
-      handleSeriesQuickDownload
+      handleSeriesQuickDownload,
+      handleResetAllFailed
     }
   };
 }

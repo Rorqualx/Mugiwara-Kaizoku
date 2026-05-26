@@ -28,6 +28,13 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, logError, EventType, EventSource } from '@/utils/system-event-logger';
 
+import {
+  buildResetResult,
+  invalidateMangaCacheFor,
+  runDispatchForReset,
+  type ResetFailedDownloadsResult,
+} from './resetFailedDownloadsHelpers';
+
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -696,37 +703,57 @@ export const downloadRouter = router({
    */
   resetFailedDownloads: protectedProcedure
     .input(z.object({ id: z.number(), volumeNumber: z.number().optional() }))
-    .mutation(async ({ input }): Promise<{ success: boolean; clearedCount: number; message: string }> => {
+    .mutation(async ({ input }): Promise<ResetFailedDownloadsResult> => {
       const { clearFailedAttemptsForManga } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
       const clearedChapterIds = await clearFailedAttemptsForManga(input.id, input.volumeNumber);
       if (clearedChapterIds.length === 0) {
-        return { success: true, clearedCount: 0, message: 'No failed chapters to reset' };
+        return { success: true, clearedCount: 0, queuedCount: 0, uncoveredCount: 0, message: 'No failed chapters to reset' };
       }
       await prisma.chapter.updateMany({
         where: { id: { in: clearedChapterIds } },
         data: { downloadStatus: ChapterStatus.PENDING },
       });
+      // Bust the manga.get cache so the per-volume "All chapters failed"
+      // banner clears on the next refetch instead of sitting on the
+      // pre-reset snapshot.
+      await invalidateMangaCacheFor(input.id);
       const { invalidateSuwayomiReachabilityCache } = await import('@/server/services/suwayomi/server-reachable');
       invalidateSuwayomiReachabilityCache();
-      const { runUnifiedReleaseSearch } = await import('@/server/services/library/releaseDispatcher/dispatch');
-      const scope = input.volumeNumber !== undefined
-        ? { mode: 'VOLUME' as const, volumeNumber: input.volumeNumber }
-        : undefined;
-      void runUnifiedReleaseSearch(input.id, {
-        bypassRuleCheck: true,
-        ...(scope ? { scope } : {}),
-      }).catch((err: unknown) => {
-        logger.error('Post-reset dispatch failed', {
-          mangaId: input.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
+      // Await the dispatch so the response can report what actually happened.
+      // Previously fire-and-forget: toast said "searching enabled sources…"
+      // even when the dispatcher produced zero jobs (per-volume scope filter
+      // too narrow, sources blocklisted, etc.) and the user had no signal.
+      // The wait is bounded by Prowlarr / native search latency, typically
+      // 5-15s; the mutation's isPending keeps the UI button in a loading
+      // state for the duration.
+      const summary = await runDispatchForReset(input.id, input.volumeNumber);
       const scopeLabel = input.volumeNumber !== undefined ? ` in Vol. ${input.volumeNumber}` : '';
-      return {
-        success: true,
-        clearedCount: clearedChapterIds.length,
-        message: `Reset ${clearedChapterIds.length} failed chapter${clearedChapterIds.length === 1 ? '' : 's'}${scopeLabel}; searching enabled sources…`,
-      };
+      return buildResetResult(clearedChapterIds.length, summary, scopeLabel);
+    }),
+
+  /**
+   * Manga-wide variant of {@link resetFailedDownloads}: clears every failed
+   * chapter on the manga, resets them to PENDING, and fires a single BULK
+   * dispatch. Saves the user from clicking per-volume reset 35 times on a
+   * Berserk-sized manga.
+   */
+  resetAllFailedDownloads: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }): Promise<ResetFailedDownloadsResult> => {
+      const { clearFailedAttemptsForManga } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
+      const clearedChapterIds = await clearFailedAttemptsForManga(input.id);
+      if (clearedChapterIds.length === 0) {
+        return { success: true, clearedCount: 0, queuedCount: 0, uncoveredCount: 0, message: 'No failed chapters to reset' };
+      }
+      await prisma.chapter.updateMany({
+        where: { id: { in: clearedChapterIds } },
+        data: { downloadStatus: ChapterStatus.PENDING },
+      });
+      await invalidateMangaCacheFor(input.id);
+      const { invalidateSuwayomiReachabilityCache } = await import('@/server/services/suwayomi/server-reachable');
+      invalidateSuwayomiReachabilityCache();
+      const summary = await runDispatchForReset(input.id, undefined);
+      return buildResetResult(clearedChapterIds.length, summary, '');
     }),
 
   /**

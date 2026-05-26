@@ -398,8 +398,10 @@ interface MangaDetailMutationsReturn {
   removeMangaMutation: TRPCMutationResult<RemoveResult, { id: number; shouldRemoveFiles?: boolean }>;
   downloadMutation: TRPCMutationResult<DownloadResult, { mangaId: number; chapterIndex?: number }>;
   refreshMetadataMutation: TRPCMutationResult<MangaWithRelations | null, { id: number; forceRefresh?: boolean }>;
+  resetAllFailedDownloadsMutation: { isPending: boolean };
   handleToggleMangaBookmark: () => void;
   handleSeriesQuickDownload: () => void;
+  handleResetAllFailed: () => void;
 }
 
 /** Typed shims for tRPC mutations to pass to extracted helpers without complex generics */
@@ -585,6 +587,36 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     toggleSubscriptionMutation.mutate({ mangaId, enabled: target });
   };
 
+  // Reset every ERROR chapter on the manga back to PENDING + fire a BULK
+  // dispatch. Server awaits the dispatch so the success toast reflects what
+  // actually happened ("queued N downloads" vs "no sources found") instead
+  // of the prior misleading "searching enabled sources…" that left users
+  // staring at an empty Jobs > Active table.
+  const resetAllFailedDownloadsMutation = trpc.manga.resetAllFailedDownloads.useMutation({
+    onSuccess: async (data) => {
+      await utils.manga.get.invalidate();
+      await refetch();
+      notify({
+        severity: data.clearedCount === 0 ? 'INFO' : data.queuedCount === 0 ? 'WARNING' : 'SUCCESS',
+        title: data.clearedCount === 0 ? 'Nothing to Reset' : data.queuedCount === 0 ? 'Reset Complete' : 'Reset & Dispatched',
+        message: data.message,
+      });
+    },
+    onError: (error: unknown) => {
+      logger.error('Error resetting all failed downloads:', error);
+      notify({
+        severity: 'ERROR',
+        title: 'Reset Failed',
+        message: error instanceof Error ? error.message : 'Failed to reset failed downloads',
+      });
+    },
+  });
+
+  const handleResetAllFailed = (): void => {
+    if (!mangaId || !manga) return;
+    resetAllFailedDownloadsMutation.mutate({ id: mangaId });
+  };
+
   // Handler for series quick download — downloads all chapters via BULK mode
   // Auto-refreshes metadata if no chapters exist before searching
   const handleSeriesQuickDownload = (): void => {
@@ -605,7 +637,9 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     removeMangaMutation,
     downloadMutation,
     refreshMetadataMutation,
+    resetAllFailedDownloadsMutation,
     handleToggleMangaBookmark,
-    handleSeriesQuickDownload
+    handleSeriesQuickDownload,
+    handleResetAllFailed
   };
 }

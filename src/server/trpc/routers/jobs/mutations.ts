@@ -44,6 +44,24 @@ export const jobsMutationsRouter = router({
         status: 'pending',
       });
 
+      // Flipping job status to pending only puts it back in the queue's eligible
+      // pool. Without an active dispatch trigger the chapter(s) the job covers
+      // sit idle until the next autoDownloadScheduler poll (1h). Fire the
+      // unified search so a new attempt actually launches immediately. Fire-
+      // and-forget — Jobs page polling at 2s will surface the new job row.
+      if (result.manga_id !== null) {
+        const mangaId = result.manga_id;
+        void import('@/server/services/library/releaseDispatcher/dispatch')
+          .then(({ runUnifiedReleaseSearch }) => runUnifiedReleaseSearch(mangaId, { bypassRuleCheck: true }))
+          .catch((err: unknown) => {
+            logger.error('Post-retry dispatch failed', {
+              jobId: input.id,
+              mangaId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+      }
+
       return result;
     }),
 

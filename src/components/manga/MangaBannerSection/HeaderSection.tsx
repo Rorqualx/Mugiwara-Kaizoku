@@ -20,6 +20,7 @@ import {
   IconChevronUp,
   IconDownload,
   IconPalette,
+  IconRefresh,
   IconUser
 } from '@tabler/icons-react';
 
@@ -49,10 +50,16 @@ export interface HeaderSectionProps {
   toggleSeriesMonitoringMutation: { isPending: boolean };
   /** Mutation for series quick download */
   seriesQuickDownloadMutation: { isPending: boolean };
+  /** Mutation for the manga-wide "Reset all failed" action */
+  resetAllFailedDownloadsMutation: { isPending: boolean };
   /** Handler for toggling manga bookmark */
   handleToggleMangaBookmark: () => void;
   /** Handler for series quick download */
   handleSeriesQuickDownload: () => void;
+  /** Handler for the manga-wide "Reset all failed" action */
+  handleResetAllFailed: () => void;
+  /** True when at least one chapter has downloadStatus === 'ERROR' — gates the icon's visibility */
+  hasAnyFailedChapter: boolean;
 }
 
 /**
@@ -79,8 +86,11 @@ export function HeaderSection({
   setIsDetailsExpanded,
   toggleSeriesMonitoringMutation,
   seriesQuickDownloadMutation,
+  resetAllFailedDownloadsMutation,
   handleToggleMangaBookmark,
-  handleSeriesQuickDownload
+  handleSeriesQuickDownload,
+  handleResetAllFailed,
+  hasAnyFailedChapter
 }: HeaderSectionProps): React.ReactElement {
   return (
     <Group justify="flex-start" w="100%" align="center" wrap="wrap">
@@ -121,6 +131,22 @@ export function HeaderSection({
       >
         <IconDownload size={24} />
       </ActionIcon>
+
+      {/* Reset all failed downloads (manga-wide) — only when at least one
+          chapter is in ERROR state, so finished/clean series don't see it. */}
+      {hasAnyFailedChapter && (
+        <ActionIcon
+          variant="subtle"
+          color="orange"
+          size="lg"
+          title="Reset all failed chapters in this series and search every enabled source"
+          style={{ marginBottom: '1rem' }}
+          onClick={() => { handleResetAllFailed(); }}
+          loading={resetAllFailedDownloadsMutation.isPending}
+        >
+          <IconRefresh size={24} />
+        </ActionIcon>
+      )}
 
       {/* Manga title */}
       <Title order={1} c="white" mb="md">

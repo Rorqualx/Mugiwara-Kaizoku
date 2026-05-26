@@ -81,10 +81,17 @@ export interface MangaBannerSectionProps {
   toggleSeriesMonitoringMutation: { isPending: boolean };
   /** Mutation for series quick download */
   seriesQuickDownloadMutation: { isPending: boolean };
+  /** Mutation for resetting every failed chapter on the manga (manga-wide) */
+  resetAllFailedDownloadsMutation: { isPending: boolean };
   /** Handler for toggling manga bookmark */
   handleToggleMangaBookmark: () => void;
   /** Handler for series quick download */
   handleSeriesQuickDownload: () => void;
+  /** Handler for the manga-wide "Reset all failed" header action */
+  handleResetAllFailed: () => void;
+  /** True when at least one chapter has downloadStatus === 'ERROR' — gates
+   *  the visibility of the header "Reset all failed" action icon. */
+  hasAnyFailedChapter: boolean;
   /** Function to check if provider is bound */
   isProviderBound: (provider: string) => boolean;
 }
