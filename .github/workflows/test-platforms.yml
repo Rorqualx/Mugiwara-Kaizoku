@@ -304,20 +304,20 @@ jobs:
       # ======================================================================
       - name: Verify build artifacts
         run: |
-          # Check for essential build outputs
+          # Hard requirement: .next must exist after a successful build.
           if [ ! -d ".next" ]; then
             echo "❌ .next directory not found"
             exit 1
           fi
 
-          if [ ! -d ".next/standalone" ]; then
-            echo "❌ Standalone build not found"
-            exit 1
-          fi
-
-          if [ ! -f ".next/standalone/server.js" ]; then
-            echo "❌ Server entry point not found"
-            exit 1
+          # `output: 'standalone'` is intentionally NOT set in next.config.mjs
+          # because this project uses a custom server (server-production.ts)
+          # that's incompatible with the standalone bundle. Treat those
+          # paths as informational only.
+          if [ -d ".next/standalone" ] && [ -f ".next/standalone/server.js" ]; then
+            echo "ℹ Standalone bundle present (unexpected for this project)"
+          else
+            echo "ℹ Standalone bundle not produced — expected; this project uses a custom server."
           fi
 
           echo "✅ Build artifacts verified"
@@ -331,16 +331,24 @@ jobs:
         run: |
           echo "Testing Bun runtime compatibility..."
 
-          # Test that Bun can execute the build
-          if command -v bun >/dev/null 2>&1; then
-            echo "✅ Bun runtime available"
-            echo "Bun version: $(bun --version)"
+          if ! command -v bun >/dev/null 2>&1; then
+            echo "ℹ Bun not on PATH — skipping runtime smoke"
+            exit 0
+          fi
 
-            # Try to start the server with timeout
+          echo "✅ Bun runtime available"
+          echo "Bun version: $(bun --version)"
+
+          # Smoke-test only when a standalone bundle exists. This project
+          # uses a custom server (server-production.ts) and intentionally
+          # doesn't produce .next/standalone — see next.config.mjs. Don't
+          # synthesize a fake entry; just record that the runtime smoke
+          # path isn't applicable and let the build artifact verification
+          # above stand as the matrix's coverage.
+          if [ -f ".next/standalone/server.js" ]; then
             timeout 10s bun .next/standalone/server.js &
             SERVER_PID=$!
             sleep 5
-
             if kill -0 $SERVER_PID 2>/dev/null; then
               echo "✅ Server started successfully with Bun"
               kill $SERVER_PID
@@ -348,6 +356,8 @@ jobs:
               echo "❌ Server failed to start with Bun"
               exit 1
             fi
+          else
+            echo "ℹ No standalone bundle; skipping bun-runtime server smoke."
           fi
 
       # ======================================================================
