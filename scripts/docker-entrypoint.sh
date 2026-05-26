@@ -42,6 +42,32 @@ chown app:app /config /config/data /config/logs
 chown postgres:postgres /config/postgres
 chmod 700 /config/postgres
 
+# Persist app data across container recreates. The Node app resolves several
+# state dirs via process.cwd()/data — Suwayomi-Server JAR cache, installed
+# Suwayomi extensions (the user-visible one — extensions vanished after every
+# CI redeploy), parser pattern-recognition state, reader image cache.
+# /app/data is ephemeral container storage. /config/data IS the persistent
+# bind mount. Symlink before the app starts so writes land on the host
+# volume without touching any TS code.
+#
+# Conditions:
+#   - First boot, no /app/data yet → create symlink fresh.
+#   - Subsequent boots, /app/data already a symlink → ln -sfn refreshes
+#     atomically (no-op if target unchanged).
+#   - /app/data exists as a non-empty dir (someone mounted into it or an
+#     old image populated it) → move contents into /config/data first, then
+#     replace with symlink. One-shot migration is idempotent.
+if [ -d /app/data ] && [ ! -L /app/data ]; then
+  # Real directory — migrate any contents then collapse to symlink.
+  if [ -n "$(ls -A /app/data 2>/dev/null)" ]; then
+    echo -e "${BLUE}📦 Migrating /app/data → /config/data (one-time)${NC}"
+    cp -a /app/data/. /config/data/ 2>/dev/null || true
+  fi
+  rm -rf /app/data
+fi
+ln -sfn /config/data /app/data
+chown -h app:app /app/data || true
+
 SECRETS_FILE="/config/secrets.env"
 
 if [ -f "$SECRETS_FILE" ]; then
