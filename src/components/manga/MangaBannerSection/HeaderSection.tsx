@@ -82,6 +82,57 @@ export interface HeaderSectionProps {
  * - Publisher badge (from extracted metadata)
  * - Details expansion toggle button
  */
+/** Recovery-action icon group rendered after the Quick-Download icon. Pulled
+ *  out of HeaderSection so the parent stays under the complexity cap when both
+ *  conditional icons coexist. Each icon self-hides via its gate prop so the
+ *  group renders nothing on a clean series. */
+function RecoveryIcons({
+  hasAnyFailedChapter,
+  blocklistCount,
+  handleResetAllFailed,
+  handleClearBlocklist,
+  resetAllFailedDownloadsMutation,
+  clearBlocklistForMangaMutation,
+}: {
+  hasAnyFailedChapter: boolean;
+  blocklistCount: number;
+  handleResetAllFailed: () => void;
+  handleClearBlocklist: () => void;
+  resetAllFailedDownloadsMutation: { isPending: boolean };
+  clearBlocklistForMangaMutation: { isPending: boolean };
+}): React.ReactElement {
+  return (
+    <>
+      {hasAnyFailedChapter && (
+        <ActionIcon
+          variant="subtle"
+          color="orange"
+          size="lg"
+          title="Reset all failed chapters in this series and search every enabled source"
+          style={{ marginBottom: '1rem' }}
+          onClick={() => { handleResetAllFailed(); }}
+          loading={resetAllFailedDownloadsMutation.isPending}
+        >
+          <IconRefresh size={24} />
+        </ActionIcon>
+      )}
+      {blocklistCount > 0 && (
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          size="lg"
+          title={`Clear ${blocklistCount} blocklist entr${blocklistCount === 1 ? 'y' : 'ies'} so previously-blocked releases become eligible again`}
+          style={{ marginBottom: '1rem' }}
+          onClick={() => { handleClearBlocklist(); }}
+          loading={clearBlocklistForMangaMutation.isPending}
+        >
+          <IconShieldX size={24} />
+        </ActionIcon>
+      )}
+    </>
+  );
+}
+
 export function HeaderSection({
   manga,
   extractedMetadata,
@@ -142,40 +193,14 @@ export function HeaderSection({
         <IconDownload size={24} />
       </ActionIcon>
 
-      {/* Reset all failed downloads (manga-wide) — only when at least one
-          chapter is in ERROR state, so finished/clean series don't see it. */}
-      {hasAnyFailedChapter && (
-        <ActionIcon
-          variant="subtle"
-          color="orange"
-          size="lg"
-          title="Reset all failed chapters in this series and search every enabled source"
-          style={{ marginBottom: '1rem' }}
-          onClick={() => { handleResetAllFailed(); }}
-          loading={resetAllFailedDownloadsMutation.isPending}
-        >
-          <IconRefresh size={24} />
-        </ActionIcon>
-      )}
-
-      {/* Clear ReleaseBlocklist (manga-wide) — only when at least one
-          release is currently blocked, so we don't render a dead icon on
-          a clean series. Recovery hatch for the "auto-blocklist starves
-          dispatcher" failure mode where cancelled torrents pile up as
-          DOWNLOAD_FAILED entries and filter out every Prowlarr candidate. */}
-      {blocklistCount > 0 && (
-        <ActionIcon
-          variant="subtle"
-          color="red"
-          size="lg"
-          title={`Clear ${blocklistCount} blocklist entr${blocklistCount === 1 ? 'y' : 'ies'} so previously-blocked releases become eligible again`}
-          style={{ marginBottom: '1rem' }}
-          onClick={() => { handleClearBlocklist(); }}
-          loading={clearBlocklistForMangaMutation.isPending}
-        >
-          <IconShieldX size={24} />
-        </ActionIcon>
-      )}
+      <RecoveryIcons
+        hasAnyFailedChapter={hasAnyFailedChapter}
+        blocklistCount={blocklistCount}
+        handleResetAllFailed={handleResetAllFailed}
+        handleClearBlocklist={handleClearBlocklist}
+        resetAllFailedDownloadsMutation={resetAllFailedDownloadsMutation}
+        clearBlocklistForMangaMutation={clearBlocklistForMangaMutation}
+      />
 
       {/* Manga title */}
       <Title order={1} c="white" mb="md">
