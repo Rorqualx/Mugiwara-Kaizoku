@@ -215,6 +215,15 @@ export default function MangaDetailPage(): React.ReactElement {
         };
     }, [manga?.Chapter]);
 
+    // Blocklist count for this manga — drives the visibility of the header
+    // "Clear blocklist" icon. The mutation invalidates this query on success
+    // so the icon hides itself once the operation completes.
+    const blocklistCountQuery = trpc.releaseBlocklist.countForManga.useQuery(
+      { mangaId: mangaId ?? 0 },
+      { enabled: mangaId !== undefined && mangaId > 0 },
+    );
+    const blocklistCount = blocklistCountQuery.data?.count ?? 0;
+
     // All mutations and handlers for the manga detail page
     const {
         toggleSeriesMonitoringMutation,
@@ -223,9 +232,11 @@ export default function MangaDetailPage(): React.ReactElement {
         downloadMutation,
         refreshMetadataMutation,
         resetAllFailedDownloadsMutation,
+        clearBlocklistForMangaMutation,
         handleToggleMangaBookmark,
         handleSeriesQuickDownload,
-        handleResetAllFailed
+        handleResetAllFailed,
+        handleClearBlocklist
     } = useMangaDetailMutations({
         mangaId,
         manga,
@@ -402,10 +413,13 @@ export default function MangaDetailPage(): React.ReactElement {
           toggleSeriesMonitoringMutation={toggleSeriesMonitoringMutation}
           seriesQuickDownloadMutation={seriesQuickDownloadMutation}
           resetAllFailedDownloadsMutation={resetAllFailedDownloadsMutation}
+          clearBlocklistForMangaMutation={clearBlocklistForMangaMutation}
           handleToggleMangaBookmark={() => { void handleToggleMangaBookmark(); }}
           handleSeriesQuickDownload={() => { void handleSeriesQuickDownload(); }}
           handleResetAllFailed={() => { void handleResetAllFailed(); }}
+          handleClearBlocklist={() => { void handleClearBlocklist(); }}
           hasAnyFailedChapter={hasAnyFailedChapter}
+          blocklistCount={blocklistCount}
           isProviderBound={isProviderBound}
         />
 

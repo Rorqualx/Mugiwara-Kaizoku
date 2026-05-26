@@ -21,6 +21,7 @@ import {
   IconDownload,
   IconPalette,
   IconRefresh,
+  IconShieldX,
   IconUser
 } from '@tabler/icons-react';
 
@@ -52,14 +53,20 @@ export interface HeaderSectionProps {
   seriesQuickDownloadMutation: { isPending: boolean };
   /** Mutation for the manga-wide "Reset all failed" action */
   resetAllFailedDownloadsMutation: { isPending: boolean };
+  /** Mutation for the manga-wide "Clear blocklist" action */
+  clearBlocklistForMangaMutation: { isPending: boolean };
   /** Handler for toggling manga bookmark */
   handleToggleMangaBookmark: () => void;
   /** Handler for series quick download */
   handleSeriesQuickDownload: () => void;
   /** Handler for the manga-wide "Reset all failed" action */
   handleResetAllFailed: () => void;
+  /** Handler for the manga-wide "Clear blocklist" action */
+  handleClearBlocklist: () => void;
   /** True when at least one chapter has downloadStatus === 'ERROR' — gates the icon's visibility */
   hasAnyFailedChapter: boolean;
+  /** Count of active blocklist entries on this manga — gates "Clear blocklist" visibility */
+  blocklistCount: number;
 }
 
 /**
@@ -87,10 +94,13 @@ export function HeaderSection({
   toggleSeriesMonitoringMutation,
   seriesQuickDownloadMutation,
   resetAllFailedDownloadsMutation,
+  clearBlocklistForMangaMutation,
   handleToggleMangaBookmark,
   handleSeriesQuickDownload,
   handleResetAllFailed,
-  hasAnyFailedChapter
+  handleClearBlocklist,
+  hasAnyFailedChapter,
+  blocklistCount
 }: HeaderSectionProps): React.ReactElement {
   return (
     <Group justify="flex-start" w="100%" align="center" wrap="wrap">
@@ -145,6 +155,25 @@ export function HeaderSection({
           loading={resetAllFailedDownloadsMutation.isPending}
         >
           <IconRefresh size={24} />
+        </ActionIcon>
+      )}
+
+      {/* Clear ReleaseBlocklist (manga-wide) — only when at least one
+          release is currently blocked, so we don't render a dead icon on
+          a clean series. Recovery hatch for the "auto-blocklist starves
+          dispatcher" failure mode where cancelled torrents pile up as
+          DOWNLOAD_FAILED entries and filter out every Prowlarr candidate. */}
+      {blocklistCount > 0 && (
+        <ActionIcon
+          variant="subtle"
+          color="red"
+          size="lg"
+          title={`Clear ${blocklistCount} blocklist entr${blocklistCount === 1 ? 'y' : 'ies'} so previously-blocked releases become eligible again`}
+          style={{ marginBottom: '1rem' }}
+          onClick={() => { handleClearBlocklist(); }}
+          loading={clearBlocklistForMangaMutation.isPending}
+        >
+          <IconShieldX size={24} />
         </ActionIcon>
       )}
 

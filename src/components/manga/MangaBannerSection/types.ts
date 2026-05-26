@@ -83,15 +83,22 @@ export interface MangaBannerSectionProps {
   seriesQuickDownloadMutation: { isPending: boolean };
   /** Mutation for resetting every failed chapter on the manga (manga-wide) */
   resetAllFailedDownloadsMutation: { isPending: boolean };
+  /** Mutation for clearing every active ReleaseBlocklist entry on the manga */
+  clearBlocklistForMangaMutation: { isPending: boolean };
   /** Handler for toggling manga bookmark */
   handleToggleMangaBookmark: () => void;
   /** Handler for series quick download */
   handleSeriesQuickDownload: () => void;
   /** Handler for the manga-wide "Reset all failed" header action */
   handleResetAllFailed: () => void;
+  /** Handler for the manga-wide "Clear blocklist" header action */
+  handleClearBlocklist: () => void;
   /** True when at least one chapter has downloadStatus === 'ERROR' — gates
    *  the visibility of the header "Reset all failed" action icon. */
   hasAnyFailedChapter: boolean;
+  /** Count of active ReleaseBlocklist entries scoped to this manga — gates the
+   *  visibility of the header "Clear blocklist" action icon. */
+  blocklistCount: number;
   /** Function to check if provider is bound */
   isProviderBound: (provider: string) => boolean;
 }

@@ -128,6 +128,46 @@ export const releaseBlocklistRouter = router({
     };
   }),
   /**
+   * Count active blocklist entries scoped to a single manga. Drives the
+   * visibility of the manga-header "Clear blocklist" action — we don't want
+   * to render the icon when there's nothing to clear.
+   */
+  countForManga: protectedProcedure.input(z.object({
+    mangaId: z.number()
+  })).query(async ({ input }) => {
+    const count = await prisma.releaseBlocklist.count({
+      where: { mangaId: input.mangaId, isActive: true }
+    });
+    return { count };
+  }),
+
+  /**
+   * Bulk-clear all active blocklist entries for a single manga. Used by the
+   * manga-header "Clear blocklist" action when the dispatcher gets starved
+   * by auto-blocklisted releases (typical after multiple cancelled torrents
+   * with no peers). Soft-clears via isActive=false to mirror {@link remove},
+   * preserving history.
+   */
+  clearForManga: protectedProcedure.input(z.object({
+    mangaId: z.number()
+  })).mutation(async ({ input }) => {
+    const updated = await prisma.releaseBlocklist.updateMany({
+      where: { mangaId: input.mangaId, isActive: true },
+      data: { isActive: false }
+    });
+    void realtimeEmitter.emitSystemEvent({
+      eventType: 'blocklist:cleared',
+      source: 'releaseBlocklist-router',
+      message: `Cleared ${updated.count} blocklist entries for manga ${input.mangaId}`,
+      data: { mangaId: input.mangaId, clearedCount: updated.count },
+    });
+    return {
+      success: true,
+      clearedCount: updated.count,
+    };
+  }),
+
+  /**
    * Search blocklist entries
    */
   search: protectedProcedure.input(searchBlocklistSchema).query(async ({ input }) => {

@@ -106,10 +106,13 @@ export function MangaBannerSection({
   toggleSeriesMonitoringMutation,
   seriesQuickDownloadMutation,
   resetAllFailedDownloadsMutation,
+  clearBlocklistForMangaMutation,
   handleToggleMangaBookmark,
   handleSeriesQuickDownload,
   handleResetAllFailed,
+  handleClearBlocklist,
   hasAnyFailedChapter,
+  blocklistCount,
   isProviderBound
 }: MangaBannerSectionProps): React.ReactElement {
   return (
@@ -201,10 +204,13 @@ export function MangaBannerSection({
               toggleSeriesMonitoringMutation={toggleSeriesMonitoringMutation}
               seriesQuickDownloadMutation={seriesQuickDownloadMutation}
               resetAllFailedDownloadsMutation={resetAllFailedDownloadsMutation}
+              clearBlocklistForMangaMutation={clearBlocklistForMangaMutation}
               handleToggleMangaBookmark={handleToggleMangaBookmark}
               handleSeriesQuickDownload={handleSeriesQuickDownload}
               handleResetAllFailed={handleResetAllFailed}
+              handleClearBlocklist={handleClearBlocklist}
               hasAnyFailedChapter={hasAnyFailedChapter}
+              blocklistCount={blocklistCount}
             />
 
             <StatsSection

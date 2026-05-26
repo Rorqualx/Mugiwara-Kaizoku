@@ -399,9 +399,11 @@ interface MangaDetailMutationsReturn {
   downloadMutation: TRPCMutationResult<DownloadResult, { mangaId: number; chapterIndex?: number }>;
   refreshMetadataMutation: TRPCMutationResult<MangaWithRelations | null, { id: number; forceRefresh?: boolean }>;
   resetAllFailedDownloadsMutation: { isPending: boolean };
+  clearBlocklistForMangaMutation: { isPending: boolean };
   handleToggleMangaBookmark: () => void;
   handleSeriesQuickDownload: () => void;
   handleResetAllFailed: () => void;
+  handleClearBlocklist: () => void;
 }
 
 /** Typed shims for tRPC mutations to pass to extracted helpers without complex generics */
@@ -617,6 +619,48 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     resetAllFailedDownloadsMutation.mutate({ id: mangaId });
   };
 
+  // Bulk-clear every active ReleaseBlocklist row scoped to this manga.
+  // Recovery hatch for the "auto-blocklist starves dispatcher" failure mode:
+  // when too many cancelled torrents have piled up as DOWNLOAD_FAILED
+  // entries, every remaining Prowlarr candidate gets filtered out and the
+  // user sees "no torrents found" forever. One click flips them all
+  // inactive — history preserved, but next dispatch sees them as eligible
+  // again.
+  const clearBlocklistForMangaMutation = trpc.releaseBlocklist.clearForManga.useMutation({
+    onSuccess: async (data) => {
+      // Refresh the count query so the header icon hides itself when the
+      // operation succeeded and there's nothing left to clear.
+      await utils.releaseBlocklist.countForManga.invalidate();
+      notify({
+        severity: data.clearedCount === 0 ? 'INFO' : 'SUCCESS',
+        title: data.clearedCount === 0 ? 'Nothing to Clear' : 'Blocklist Cleared',
+        message: data.clearedCount === 0
+          ? 'No active blocklist entries for this series'
+          : `Cleared ${data.clearedCount} blocklist entr${data.clearedCount === 1 ? 'y' : 'ies'} — try resetting failed downloads again`,
+      });
+    },
+    onError: (error: unknown) => {
+      logger.error('Error clearing manga blocklist:', error);
+      notify({
+        severity: 'ERROR',
+        title: 'Clear Blocklist Failed',
+        message: error instanceof Error ? error.message : 'Failed to clear blocklist',
+      });
+    },
+  });
+
+  const handleClearBlocklist = (): void => {
+    if (!mangaId || !manga) return;
+    // Confirm dialog so a stray click doesn't wipe the user's curated
+    // blocklist. window.confirm is the existing pattern in the codebase
+    // (see deleteAllCompleted in active.tsx).
+    if (typeof window !== 'undefined' &&
+        !window.confirm('Clear every blocklist entry for this series? Cancelled/failed releases will become eligible again.')) {
+      return;
+    }
+    clearBlocklistForMangaMutation.mutate({ mangaId });
+  };
+
   // Handler for series quick download — downloads all chapters via BULK mode
   // Auto-refreshes metadata if no chapters exist before searching
   const handleSeriesQuickDownload = (): void => {
@@ -638,8 +682,10 @@ export function useMangaDetailMutations(options: UseMangaDetailMutationsOptions)
     downloadMutation,
     refreshMetadataMutation,
     resetAllFailedDownloadsMutation,
+    clearBlocklistForMangaMutation,
     handleToggleMangaBookmark,
     handleSeriesQuickDownload,
-    handleResetAllFailed
+    handleResetAllFailed,
+    handleClearBlocklist
   };
 }

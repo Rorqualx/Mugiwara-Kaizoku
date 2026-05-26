@@ -70,6 +70,8 @@ export interface MangaDetailPageState {
   someMonitored: boolean;
   noneMonitored: boolean;
   hasAnyFailedChapter: boolean;
+  hasBlocklistedReleases: boolean;
+  blocklistCount: number;
 
   // Mutations
   mutations: ReturnType<typeof useMangaDetailMutations>;
@@ -125,6 +127,16 @@ export function useMangaDetailPageState(): MangaDetailPageState {
   // the client.
   const hasAnyFailedChapter = manga?.Chapter.some(ch => ch.downloadStatus === 'ERROR') ?? false;
 
+  // Drives visibility of the manga-header "Clear blocklist" action. Counts
+  // active ReleaseBlocklist rows for this manga via a lightweight query the
+  // clear mutation invalidates on success so the icon disappears after use.
+  const blocklistCountQuery = trpc.releaseBlocklist.countForManga.useQuery(
+    { mangaId: mangaId ?? 0 },
+    { enabled: mangaId !== undefined && mangaId > 0 },
+  );
+  const blocklistCount = blocklistCountQuery.data?.count ?? 0;
+  const hasBlocklistedReleases = blocklistCount > 0;
+
   // Get all mutations
   const {
     toggleSeriesMonitoringMutation,
@@ -133,9 +145,11 @@ export function useMangaDetailPageState(): MangaDetailPageState {
     downloadMutation,
     refreshMetadataMutation,
     resetAllFailedDownloadsMutation,
+    clearBlocklistForMangaMutation,
     handleToggleMangaBookmark,
     handleSeriesQuickDownload,
-    handleResetAllFailed
+    handleResetAllFailed,
+    handleClearBlocklist
   } = useMangaDetailMutations({
     mangaId,
     manga,
@@ -169,6 +183,8 @@ export function useMangaDetailPageState(): MangaDetailPageState {
     someMonitored,
     noneMonitored,
     hasAnyFailedChapter,
+    hasBlocklistedReleases,
+    blocklistCount,
     mutations: {
       toggleSeriesMonitoringMutation,
       seriesQuickDownloadMutation,
@@ -176,9 +192,11 @@ export function useMangaDetailPageState(): MangaDetailPageState {
       downloadMutation,
       refreshMetadataMutation,
       resetAllFailedDownloadsMutation,
+      clearBlocklistForMangaMutation,
       handleToggleMangaBookmark,
       handleSeriesQuickDownload,
-      handleResetAllFailed
+      handleResetAllFailed,
+      handleClearBlocklist
     }
   };
 }
