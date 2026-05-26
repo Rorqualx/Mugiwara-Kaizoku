@@ -109,8 +109,8 @@ export function SystemSettings(): React.ReactElement {
             const status = await utils.system.getStatus.fetch();
             const dbOk = status.database.isConnected;
             const suwayomiOk = status.integrations.sources.suwayomi.status === 'active';
-            const metadataProviders: Array<{ enabled: boolean }> = Object.values(status.integrations.metadata);
-            const enabledProviders = metadataProviders.filter((p) => p.enabled).length;
+            const meta = status.integrations.metadata;
+            const enabledProviders = (meta.anilist.enabled ? 1 : 0) + (meta.comicvine.enabled ? 1 : 0) + (meta.fandom.enabled ? 1 : 0);
             const severity = dbOk ? 'SUCCESS' : 'ERROR';
             const lines = [
                 `DB: ${dbOk ? 'connected' : 'disconnected'}`,
