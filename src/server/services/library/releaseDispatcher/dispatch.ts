@@ -811,34 +811,74 @@ export async function runUnifiedReleaseSearch(
     summary.triggeredProwlarr = maybeTriggerProwlarr(ctx, prowlarrCands);
     summary.prowlarrCoveredChapters = [...prowlarrCoverage];
   } else if (prowlarrCands.length > 0) {
-    // Subtract native-covered chapters from Prowlarr's working set.
+    // Iterate the Prowlarr pack picker: dispatch best-fit pack, subtract its
+    // coverage from the remaining missing pool, repeat until either the pool
+    // is empty, no candidate fits, or we hit the safety cap. Previously the
+    // loop body ran exactly once — for a 62-chapter backlog with 48 candidate
+    // packs in Prowlarr, that meant 1 pack (≈4 chapters) per scheduler poll
+    // and ~15h to finish. Iterating lets a single search call queue every
+    // complementary pack in ~6-10s and propagates the new coverage into
+    // ctx.prowlarrCoverage so downstream telemetry stays accurate.
+    //
+    // Safety:
+    //   - MAX_PACKS_PER_CALL caps runaway dispatches.
+    //   - dispatchedTitles dedupes packs across iterations so we don't
+    //     redispatch the same magnet twice when its volumes only partially
+    //     overlap the reduced scope.
     const nativeCoveredNums = new Set(summary.nativeEnqueued.map(n => n.chapterNumber));
-    const missingForProwlarr = missing.filter(m =>
+    let remainingMissing = missing.filter(m =>
       m.chapterNumber === null || !nativeCoveredNums.has(m.chapterNumber));
-    if (missingForProwlarr.length > 0) {
-      const inScope = chapterNumbersInScope(missingForProwlarr);
-      const inScopeVolumes = volumesInScope(missingForProwlarr);
+    if (remainingMissing.length > 0) {
       const titles = await loadMangaTitles(mangaId);
-      const scopedChapterIds = missingForProwlarr.map(m => m.id);
       const effectiveCriteria: QuickDownloadCriteria = {
         ...DEFAULT_QUICK_DOWNLOAD_CRITERIA,
         ...options.criteria,
       };
-      const outcome = await dispatchProwlarrManual(
-        ctx,
-        prowlarrCands,
-        { chapters: inScope, volumes: inScopeVolumes, chapterIds: scopedChapterIds, titles },
-        effectiveCriteria,
-      );
-      if (outcome) {
+      const MAX_PACKS_PER_CALL = 20;
+      const dispatchedTitles = new Set<string>();
+      const aggregatedCovered: number[] = [];
+      let firstOutcome: ProwlarrDispatchOutcome | null = null;
+      for (let iter = 0; iter < MAX_PACKS_PER_CALL && remainingMissing.length > 0; iter += 1) {
+        const eligibleCands = prowlarrCands.filter(c => {
+          const title = (c.payload as ProwlarrSearchResult).title;
+          return typeof title === 'string' && !dispatchedTitles.has(title);
+        });
+        if (eligibleCands.length === 0) break;
+        const inScope = chapterNumbersInScope(remainingMissing);
+        const inScopeVolumes = volumesInScope(remainingMissing);
+        const scopedChapterIds = remainingMissing.map(m => m.id);
+        // eslint-disable-next-line no-await-in-loop -- sequential by design: each
+        // dispatch mutates chapter status (DOWNLOADING + packDownloadId) that the
+        // next iteration's scope filter must observe.
+        const outcome = await dispatchProwlarrManual(
+          ctx,
+          eligibleCands,
+          { chapters: inScope, volumes: inScopeVolumes, chapterIds: scopedChapterIds, titles },
+          effectiveCriteria,
+        );
+        if (!outcome) break;
+        firstOutcome ??= outcome;
+        if (outcome.releaseTitle !== undefined) dispatchedTitles.add(outcome.releaseTitle);
+        for (const n of outcome.coveredChapters) {
+          aggregatedCovered.push(n);
+          ctx.prowlarrCoverage.add(n);
+        }
+        const coveredSet = new Set(outcome.coveredChapters);
+        remainingMissing = remainingMissing.filter(m =>
+          m.chapterNumber === null || !coveredSet.has(m.chapterNumber));
+      }
+      if (firstOutcome !== null) {
         summary.triggeredProwlarr = true;
-        summary.prowlarrCoveredChapters = outcome.coveredChapters;
+        summary.prowlarrCoveredChapters = aggregatedCovered;
+        // prowlarrSelected mirrors the first (highest-scoring) pack — gives
+        // the UI a single representative title to render even when many
+        // packs were dispatched. queuedCount in the reset path comes from
+        // aggregatedCovered.length so the total stays accurate.
         summary.prowlarrSelected = {
-          ...(outcome.releaseTitle !== undefined ? { releaseTitle: outcome.releaseTitle } : {}),
-          ...(outcome.indexer !== undefined ? { indexer: outcome.indexer } : {}),
-          ...(outcome.score !== undefined ? { score: outcome.score } : {}),
+          ...(firstOutcome.releaseTitle !== undefined ? { releaseTitle: firstOutcome.releaseTitle } : {}),
+          ...(firstOutcome.indexer !== undefined ? { indexer: firstOutcome.indexer } : {}),
+          ...(firstOutcome.score !== undefined ? { score: firstOutcome.score } : {}),
         };
-        for (const n of outcome.coveredChapters) ctx.prowlarrCoverage.add(n);
       }
     }
   }
