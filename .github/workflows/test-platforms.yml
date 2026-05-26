@@ -442,12 +442,15 @@ jobs:
 
           for report in reports/*/compatibility-report.md; do
             if [ -f "$report" ]; then
-              ((TOTAL++))
+              # `((VAR++))` returns the OLD value; under `bash -e` it
+              # exits the script when VAR was 0. Use $(( … )) assignment
+              # which always succeeds.
+              TOTAL=$((TOTAL + 1))
               # Check if build was successful (basic heuristic)
               if grep -q "Build artifacts verified" "$report" 2>/dev/null; then
-                ((SUCCESS++))
+                SUCCESS=$((SUCCESS + 1))
               else
-                ((FAILURE++))
+                FAILURE=$((FAILURE + 1))
               fi
             fi
           done
