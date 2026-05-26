@@ -218,7 +218,12 @@ jobs:
               yarn install
               ;;
             bun)
-              bun install
+              # --frozen-lockfile to match what ci.yml + test.yml do.
+              # Without it, bun's resolver picks slightly different nested
+              # versions and ends up double-installing @types/pg (top-level
+              # and nested under @prisma/adapter-pg), which creates two
+              # incompatible Pool types and fails `tsc --noEmit`.
+              bun install --frozen-lockfile
               ;;
           esac
 
