@@ -51,6 +51,7 @@ export async function phaseFinalize(
   await persistProviderBindings(mangaId, providerResults);
   await cacheProviderVolumeData(mangaId, providerResults);
   await persistExternalLinks(mangaId, providerResults);
+  await persistMergedSynonyms(mangaId, providerResults);
   await aggregateChapterReleaseDates(mangaId);
   await inheritSeriesPublisherToVolumes(mangaId);
   await inheritVolumeReleaseDatesToChapters(mangaId);
@@ -369,6 +370,71 @@ async function persistExternalLinks(
     logger.info(`[enrichmentPipeline] Persisted external links for manga ${mangaId} (added=${added}, replaced=${replaced})`);
   } catch (err) {
     logger.warn(`[enrichmentPipeline] Failed to persist external links for manga ${mangaId} (non-critical)`, err);
+  }
+}
+
+/**
+ * Union alt-titles from every provider that fetched them and persist into
+ * Metadata.synonyms (deduped). Sources:
+ *   - AniList: title.romaji / english / native + synonyms (via unified.manga.altTitles
+ *     once `expandLocalizedTitles` is in the ts-mangadex-adapter)
+ *   - MangaUpdates: associated titles via mangaupdatesResult.alternativeTitles
+ *   - Kitsu: locale titles via kitsuResult.alternativeTitles + canonicalTitle
+ *   - MAL: title via malResult.title (single, but adds the official English/JP form)
+ *
+ * The bind-loop harness found 14+ cases where the wiki/CV/MD slug for a manga
+ * matched a romaji/english variant that AniList exposed but our Metadata.synonyms
+ * didn't store (e.g. Erased → "Boku dake ga Inai Machi"). Unioning here gives
+ * downstream discovery much better search material.
+ */
+async function persistMergedSynonyms(
+  mangaId: number,
+  providerResults: UnifiedProviderResults,
+): Promise<void> {
+  try {
+    const manga = await prisma.manga.findUnique({
+      where: { id: mangaId },
+      select: { metadataId: true, Metadata: { select: { synonyms: true } } },
+    });
+    if (!manga?.metadataId) return;
+
+    const collected = new Set<string>(manga.Metadata?.synonyms ?? []);
+    const enrichedData = providerResults.enrichmentResult.enrichedData as Record<string, unknown> | undefined;
+    const unifiedManga = enrichedData?.['manga'] as Record<string, unknown> | undefined;
+    const ulAlts = unifiedManga?.['altTitles'];
+    if (Array.isArray(ulAlts)) {
+      for (const t of ulAlts) if (typeof t === 'string' && t.length > 0) collected.add(t);
+    }
+
+    const muAlts = providerResults.mangaupdatesResult?.alternativeTitles;
+    if (Array.isArray(muAlts)) {
+      for (const t of muAlts) if (typeof t === 'string' && t.length > 0) collected.add(t);
+    }
+
+    const kitsu = providerResults.kitsuResult;
+    if (kitsu) {
+      if (typeof kitsu.canonicalTitle === 'string' && kitsu.canonicalTitle.length > 0) {
+        collected.add(kitsu.canonicalTitle);
+      }
+      if (Array.isArray(kitsu.alternativeTitles)) {
+        for (const t of kitsu.alternativeTitles) if (typeof t === 'string' && t.length > 0) collected.add(t);
+      }
+    }
+
+    const malTitle = providerResults.malResult?.title;
+    if (typeof malTitle === 'string' && malTitle.length > 0) collected.add(malTitle);
+
+    const merged = [...collected];
+    const existingCount = manga.Metadata?.synonyms?.length ?? 0;
+    if (merged.length === existingCount) return;
+
+    await prisma.metadata.update({
+      where: { id: manga.metadataId },
+      data: { synonyms: merged },
+    });
+    logger.info(`[enrichmentPipeline] Merged synonyms for manga ${mangaId} (${existingCount} → ${merged.length})`);
+  } catch (err) {
+    logger.warn(`[enrichmentPipeline] Failed to persist merged synonyms for manga ${mangaId} (non-critical)`, err);
   }
 }
 

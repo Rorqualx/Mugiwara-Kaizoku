@@ -54,6 +54,18 @@ export function resolveTitle(title: LocalizedString | undefined): string {
   return title['en'] || title['ja-ro'] || title['ja'] || Object.values(title)[0] || 'Unknown Title';
 }
 
+/** Expand a LocalizedString map into an array of unique non-empty string values.
+ *  Used to ensure every title variant (English / Romaji / Native / etc.) flows
+ *  into `Metadata.synonyms`, not just the single resolved primary title. */
+export function expandLocalizedTitles(title: LocalizedString | undefined): string[] {
+  if (!title) return [];
+  const out = new Set<string>();
+  for (const v of Object.values(title)) {
+    if (typeof v === 'string' && v.length > 0) out.add(v);
+  }
+  return [...out];
+}
+
 /** Extract best string description from a LocalizedString map */
 function resolveDescription(desc: LocalizedString | undefined): string {
   if (!desc) return '';
@@ -192,10 +204,17 @@ export function adaptUnifiedMangaToMetadata(
   const description = resolveDescription(manga.description);
   const covers = manga.covers;
 
+  // Union every locale variant of manga.title with manga.altTitles so the
+  // persisted synonyms include Hepburn romaji / English / native forms. The
+  // bind-loop harness surfaced cases (e.g. Erased) where the wiki subdomain
+  // matched the JP romaji, but only the English title was in synonyms.
+  const titleVariants = expandLocalizedTitles(manga.title);
+  const combinedTitles = [...new Set([...(manga.altTitles ?? []), ...titleVariants])];
+
   const metadata: MangaMetadata = {
     title,
-    alternativeTitles: manga.altTitles ?? [],
-    synonyms: manga.altTitles ?? [],
+    alternativeTitles: combinedTitles,
+    synonyms: combinedTitles,
     description,
     coverImage: resolveCoverImage(covers),
     coverExtraLarge: covers?.large ?? covers?.original,
