@@ -23,9 +23,9 @@ export function adaptMUSearchResult(hit: MUSearchHit): SearchResult {
     id: String(record.series_id),
     title: record.title,
     description: record.description,
-    coverImage: record.image.url.original,
+    coverImage: record.image?.url?.original ?? '',
     provider: 'mangaupdates',
-    genres: record.genres.map(g => g.genre),
+    genres: Array.isArray(record.genres) ? record.genres.map(g => g.genre) : [],
     score: record.bayesian_rating,
     url: record.url,
   };
