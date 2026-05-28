@@ -26,6 +26,7 @@ export interface ClearAutoBindingsResult {
   detachedChapters: number;
   deletedStubChapters: number;
   resetUserChapters: number;
+  resetDerivedCounts: boolean;
 }
 
 function parseProviderMetadata(raw: unknown): Record<string, unknown> {
@@ -232,6 +233,29 @@ async function deleteProviderVolumes(
   return { removedVolumes: vols.length, detachedChapters: detached.count };
 }
 
+/**
+ * Provider-derived summary counts on Metadata (volumes/chapters) go stale when a
+ * manga was previously bound to a different entry — classically a spin-off left
+ * carrying its parent series' counts (e.g. "Before the Fall" stuck on the main
+ * AoT 34 volumes / 139 chapters). Nothing downstream overwrites a positive value
+ * — both count-backfills are fill-only — so the volume browser keeps synthesising
+ * phantom volume rows up to the stale count (volume-processing's
+ * addMissingPlaceholderVolumes loops 1..Metadata.volumes). Null them on
+ * reidentify so the fresh enrichment + fill-only backfills rebuild the counts
+ * from the rebuilt Volume/Chapter rows instead of preserving parent-series noise.
+ */
+async function resetDerivedMetadataCounts(
+  prisma: PrismaClient,
+  metadataId: number | null,
+): Promise<boolean> {
+  if (!metadataId) return false;
+  await prisma.metadata.update({
+    where: { id: metadataId },
+    data: { volumes: null, chapters: null },
+  });
+  return true;
+}
+
 const EMPTY_RESULT: ClearAutoBindingsResult = {
   providersCleared: [],
   providersPreserved: [],
@@ -240,6 +264,7 @@ const EMPTY_RESULT: ClearAutoBindingsResult = {
   detachedChapters: 0,
   deletedStubChapters: 0,
   resetUserChapters: 0,
+  resetDerivedCounts: false,
 };
 
 /**
@@ -280,6 +305,7 @@ export async function clearAutoBindingsForReidentify(
   );
   const { removedVolumes, detachedChapters } = await deleteProviderVolumes(prisma, mangaId, cleared);
   const { deletedStubChapters, resetUserChapters } = await resetProviderSourcedChapters(prisma, mangaId);
+  const resetDerivedCounts = await resetDerivedMetadataCounts(prisma, manga.metadataId);
 
   await prisma.manga.update({
     where: { id: mangaId },
@@ -290,7 +316,8 @@ export async function clearAutoBindingsForReidentify(
     `[clearAutoBindings] manga=${mangaId} cleared=[${cleared.join(',')}]`
     + ` preserved=[${preserved.join(',')}]`
     + ` links=-${removedLinks} volumes=-${removedVolumes} detachedChapters=${detachedChapters}`
-    + ` stubChapters=-${deletedStubChapters} userChaptersReset=${resetUserChapters}`,
+    + ` stubChapters=-${deletedStubChapters} userChaptersReset=${resetUserChapters}`
+    + ` derivedCounts=${resetDerivedCounts ? 'reset' : 'kept'}`,
   );
 
   return {
@@ -301,5 +328,6 @@ export async function clearAutoBindingsForReidentify(
     detachedChapters,
     deletedStubChapters,
     resetUserChapters,
+    resetDerivedCounts,
   };
 }
