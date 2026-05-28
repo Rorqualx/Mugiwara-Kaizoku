@@ -71,19 +71,23 @@ function scoreCandidate(hit: KitsuManga, query: string, hints?: KitsuSearchHints
   candidates.push(hit.attributes.canonicalTitle);
   const queryVariants = [normQuery, ...(hints?.alternativeTitles ?? []).map(normalizeTitle)];
 
+  // Per-candidate length penalty: apply the length-ratio penalty against the
+  // SPECIFIC title being matched, not blanket on the canonical title. The old
+  // code penalized the best titleScore (which may have come from a short
+  // alt-title match) using the canonical title's length — so a candidate whose
+  // short English alt-title was a near-exact query match got docked for having
+  // a long JP canonical. Mirrors pickBestMUMatch's per-candidate treatment.
+  const normQueryLen = Math.max(normQuery.length, 1);
   let titleScore = 0;
   for (const c of candidates) {
     const normC = normalizeTitle(c);
+    if (normC.length === 0) continue;
+    const lengthRatio = normC.length / normQueryLen;
+    const lengthMultiplier = lengthRatio > 1.5 ? Math.max(0.5, 1 / lengthRatio) : 1;
     for (const qv of queryVariants) {
-      const s = diceCoefficient(qv, normC);
-      if (s > titleScore) titleScore = s;
+      const adjusted = diceCoefficient(qv, normC) * lengthMultiplier;
+      if (adjusted > titleScore) titleScore = adjusted;
     }
-  }
-
-  const normCanonical = normalizeTitle(hit.attributes.canonicalTitle);
-  const lengthRatio = normCanonical.length / Math.max(normQuery.length, 1);
-  if (lengthRatio > 1.5) {
-    titleScore *= Math.max(0.5, 1 / lengthRatio);
   }
 
   const popularityBonus = hit.attributes.favoritesCount > 0

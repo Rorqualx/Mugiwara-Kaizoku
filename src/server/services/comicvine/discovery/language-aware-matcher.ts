@@ -116,8 +116,11 @@ function buildSearchVariants(anilist: AniListMangaDetails): VariantQuery[] {
 
 /** Bigram Dice coefficient for fuzzy title similarity (0..1) */
 function diceCoefficient(a: string, b: string): number {
-  if (a === b) return 1;
+  // Length guard BEFORE the equality short-circuit: normalizeForComicVineSearch
+  // reduces any non-latin title to "", and "" === "" would otherwise return 1.0.
+  // Empty/single-char strings must score 0 (mirrors enrichment-pipeline utils).
   if (a.length < 2 || b.length < 2) return 0;
+  if (a === b) return 1;
 
   const bigramsA = new Map<string, number>();
   for (let i = 0; i < a.length - 1; i++) {

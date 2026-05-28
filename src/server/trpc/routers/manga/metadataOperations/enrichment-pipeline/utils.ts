@@ -81,8 +81,14 @@ export function hasEditionMismatch(query: string, candidateTitle: string): boole
  *  repeating bigrams to score >1 (e.g. "dandadan" vs "dadadadan" scored 1.33,
  *  beating the real "Dandadan" exact match). */
 export function diceCoefficient(a: string, b: string): number {
-  if (a === b) return 1;
+  // Length guard BEFORE the equality short-circuit: normalizeTitle() reduces
+  // any non-latin title (e.g. "スキップ・ビート") to "", and "" === "" would
+  // otherwise return a perfect 1.0. That made every candidate carrying a
+  // foreign alt-title (almost all of them) tie at 1.0 against any empty query
+  // variant, so the most *popular* pooled hit won regardless of title — e.g.
+  // "Skip Beat!" binding to "One Piece". Empty/single-char strings must score 0.
   if (a.length < 2 || b.length < 2) return 0;
+  if (a === b) return 1;
 
   const bigramsA = new Map<string, number>();
   for (let i = 0; i < a.length - 1; i++) {
