@@ -120,9 +120,19 @@ export async function phaseProviderFetch(
   // wrong entity (e.g. an anthology vs the actual spin-off).
   const mangaPin = await prisma.manga.findUnique({
     where: { id: mangaId },
-    select: { selectedSourceId: true },
+    select: { selectedSourceId: true, providerMetadata: true },
   });
-  const pinnedAlId = mangaPin?.selectedSourceId ?? null;
+  // Manual pin (selectedSourceId) wins. Otherwise reuse the AniList id already
+  // bound in providerMetadata.anilist.providerId so re-enrichment fetches by ID
+  // instead of re-searching by title. AniList's search can't reproduce some
+  // titles at all (e.g. "Völundio ~Divergent Sword Saga~" returns nothing for
+  // EVERY title/synonym variant, but id 123314 resolves fine) — and a failed
+  // AniList anchor cascades into garbage ComicVine/Wikipedia matches. REIDENTIFY
+  // clears providerMetadata.anilist first (clearAutoBindingsForReidentify), so
+  // this fallback only fires when the binding is intentionally being kept.
+  const pinnedAlId = mangaPin?.selectedSourceId
+    ?? extractBoundAniListId(mangaPin?.providerMetadata)
+    ?? null;
 
   // Only fetch from enabled providers (all in parallel).
   // Each call is capped at 60s so a hung provider can't stall the whole phase.
@@ -453,6 +463,20 @@ async function fetchMALWithCrossValidation(
 interface AniListDirectResult {
   id: number;
   details: AniListMangaDetails;
+}
+
+/**
+ * Read the persisted AniList binding id from `providerMetadata.anilist.providerId`.
+ * Skips the manual-unbound sentinel (providerId: null) and returns null when no
+ * AniList binding is present. Used to pin re-enrichment to the already-bound AL
+ * entity when AniList's title search can't reproduce the match.
+ */
+export function extractBoundAniListId(providerMetadata: unknown): string | null {
+  if (providerMetadata === null || typeof providerMetadata !== 'object') return null;
+  const al = (providerMetadata as Record<string, unknown>)['anilist'];
+  if (al === null || typeof al !== 'object') return null;
+  const pid = (al as Record<string, unknown>)['providerId'];
+  return typeof pid === 'string' && pid.length > 0 ? pid : null;
 }
 
 /**
