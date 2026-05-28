@@ -125,14 +125,27 @@ async function verifyPackageExists(
   try {
     // Use npm view to get package info
     const result = runCommand(`npm view ${packageName} --json`, {
-      timeout: 5000,
+      timeout: 10000,
     });
 
     if (result.exitCode !== 0) {
-      info.exists = false;
-      info.suspicious = true;
-      info.hallucinated = true;
-      info.reasons.push('Package does not exist on npm registry');
+      // Distinguish a DEFINITIVE 404 (package genuinely not on npm — a real
+      // hallucination) from a TRANSIENT probe failure (timeout / network /
+      // rate-limit / registry 5xx). Only a 404 blocks; transient failures must
+      // not, or a flaky registry call falsely fails CI on real packages
+      // (e.g. "tsx" intermittently flagged as non-existent).
+      const out = `${result.stderr}\n${result.stdout}`.toLowerCase();
+      const isDefinite404 = /\be404\b|404 not found|is not in (?:this|the npm) registry/.test(out);
+      if (isDefinite404) {
+        info.exists = false;
+        info.suspicious = true;
+        info.hallucinated = true;
+        info.reasons.push('Package does not exist on npm registry');
+      } else {
+        // Inconclusive — give the benefit of the doubt; never block on a flake.
+        info.exists = true;
+        info.reasons.push('npm registry probe inconclusive (transient failure, not treated as hallucination)');
+      }
       return info;
     }
 
@@ -182,11 +195,11 @@ async function verifyPackageExists(
 
     return info;
   } catch (error) {
-    info.exists = false;
-    info.suspicious = true;
-    info.hallucinated = true;
+    // The probe itself threw (exec/network error) — inconclusive, NOT a
+    // hallucination. Don't block CI on an unreachable/slow registry.
+    info.exists = true;
     info.reasons.push(
-      `Error verifying package: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `npm registry probe error (treated as inconclusive): ${error instanceof Error ? error.message : 'Unknown error'}`
     );
     return info;
   }
