@@ -5,13 +5,14 @@
  * Uses mangadex-ts-client's AniListProvider under the hood.
  */
 import { MetadataProvider } from '@prisma/client';
-import { AniListProvider } from 'mangadex-ts-client';
+
 
 import type { SearchResult, MangaMetadata } from '@/types/search.types';
 import type { AsyncResult } from '@/utils/async-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
+import { AniListProvider } from 'mangadex-ts-client';
 
 
 import { adaptSearchResult, adaptUnifiedMangaToMetadata } from '../adapters';

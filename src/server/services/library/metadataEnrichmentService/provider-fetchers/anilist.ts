@@ -8,13 +8,14 @@
  */
 
 import { MetadataProvider } from '@prisma/client';
-import { AniListProvider } from 'mangadex-ts-client';
+
 
 import { adaptUnifiedMangaToMetadata } from '@/server/services/providers/adapters/ts-mangadex-adapter';
 import { logger } from '@/utils/logger';
 import { EnrichmentLevel } from '@/utils/metadata-cache';
 import { isObject, hasProperty } from '@/utils/type-guards';
 
+import { AniListProvider } from 'mangadex-ts-client';
 
 
 
