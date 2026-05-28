@@ -133,9 +133,6 @@ export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSe
     // Skip doujinshi (fan works)
     if (DOUJINSHI_PATTERN.test(title) || DOUJINSHI_PATTERN.test(hit.hit_title)) continue;
 
-    // Skip edition/spinoff mismatches (e.g. "Overlord: Shin Sekai-hen" for "Overlord")
-    if (hasEditionMismatch(query, title)) continue;
-
     // Per-candidate adjusted scoring. The length-ratio penalty must follow
     // the candidate that produced the score, not be applied blanket from
     // `record.title`. Otherwise a perfect `hit_title` exact match (e.g. MU's
@@ -143,6 +140,18 @@ export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSe
     // halved by the canonical title's length and loses to coincidental
     // shorter matches like "Alice in Hell" → "Jigoku no Alice".
     const queryVariants = [normalized, ...(hints?.alternativeTitles ?? []).map(normalizeTitle)];
+
+    // A candidate that exactly (or near-exactly) matches a known title variant
+    // is a confirmed alias — bypass the edition/spinoff gate. Otherwise markers
+    // like "Shin" in "Shin Seiki Evangelion" (新世紀 = New Century, part of NGE's
+    // real title) wrongly trip the spinoff filter even though MU returned it as
+    // a known synonym of the queried series.
+    const normTitle = normalizeTitle(title);
+    const matchesKnownVariant = queryVariants.some(
+      qv => qv.length >= 4 && diceCoefficient(qv, normTitle) >= 0.9,
+    );
+    if (!matchesKnownVariant && hasEditionMismatch(query, title)) continue;
+
     const candidates = [hit.hit_title, title].filter(Boolean);
     let titleScore = 0;
     for (const c of candidates) {

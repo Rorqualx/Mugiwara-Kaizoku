@@ -75,4 +75,18 @@ describe('pickBestMUMatch — length-ratio penalty applied per-candidate', () =>
     const result = pickBestMUMatch(hits, 'Foo Bar Baz');
     expect(result).toBeNull();
   });
+
+  it('does not spinoff-reject a candidate that exactly matches a known synonym (NGE "Shin Seiki Evangelion")', () => {
+    // "Shin Seiki Evangelion" (New Century) is NGE's real JP title, but the bare
+    // word-boundary spinoff marker would reject it. The alt-title exemption must
+    // let it through when it matches a known synonym.
+    const hits = [
+      makeHit({ series_id: 42358856015, title: 'Shin Seiki Evangelion', hit_title: 'Shin Seiki Evangelion', votes: 800, year: '1994' }),
+      makeHit({ series_id: 51516852269, title: 'Neon Genesis Evangelion dj - Renge Ver.EVA', hit_title: 'Renge Ver.EVA', votes: 5, year: '2008' }),
+    ];
+    const result = pickBestMUMatch(hits, 'Neon Genesis Evangelion', {
+      alternativeTitles: ['Shin Seiki Evangelion', '新世紀エヴァンゲリオン'],
+    });
+    expect(result?.record.series_id).toBe(42358856015);
+  });
 });
