@@ -15,6 +15,7 @@ import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
 import { runEnrichmentPipeline } from '../enrichment-pipeline';
+import { extractBoundAniListId } from '../enrichment-pipeline/phase-provider-fetch';
 import { handleError } from '../utils';
 
 import { clearAutoBindingsForReidentify } from './clear-auto-bindings';
@@ -89,6 +90,13 @@ export const metadataRefreshProcedures = router({
       try {
         await emitProgress(id, 'starting', 0, 'Starting metadata refresh...');
 
+        // Capture the bound AniList id BEFORE reidentify clears it, so the
+        // pipeline can fall back to it when the fresh AniList title search finds
+        // nothing (AniList can't reproduce some titles by search — see
+        // fetchAniListDirect). Without this, reidentify destroys a correct
+        // binding and cascades garbage into ComicVine/Wikipedia.
+        const previousAniListId = extractBoundAniListId(manga.providerMetadata);
+
         if (forceRefresh === true) {
           const cleared = await clearAutoBindingsForReidentify(ctx.prisma, id);
           if (cleared.providersCleared.length > 0) {
@@ -109,7 +117,7 @@ export const metadataRefreshProcedures = router({
               await emitProgress(id, mapped.phase, mapped.index, message);
             }
           },
-          { forceRefresh: forceRefresh ?? false },
+          { forceRefresh: forceRefresh ?? false, previousAniListId },
         );
 
         await emitProgress(id, 'completed', TOTAL_PHASES, 'Metadata refresh complete');

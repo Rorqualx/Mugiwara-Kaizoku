@@ -140,7 +140,7 @@ export async function phaseProviderFetch(
   const T = 60_000;
   const [anilistSettled, mangadexSettled, comicvineSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId), T, 'anilist-fetch') : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId), T, 'anilist-fetch') : noop,
       enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch') : noop,
       enabled.has('comicvine') ? withTimeoutOrNull(fetchComicVineDirect(title), T, 'comicvine-fetch') : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch') : noop,
@@ -509,7 +509,9 @@ async function fetchAniListByPinnedId(pinnedId: string | null | undefined): Prom
  * pick a different AL entity (e.g. an anthology with more chapter data
  * than the spin-off the user actually wants).
  */
-async function fetchAniListDirect(title: string, pinnedId?: string | null): Promise<AniListDirectResult | null> {
+async function fetchAniListDirect(
+  title: string, pinnedId?: string | null, fallbackId?: string | null,
+): Promise<AniListDirectResult | null> {
   await anilistService.initialize();
 
   const pinned = await fetchAniListByPinnedId(pinnedId);
@@ -537,6 +539,18 @@ async function fetchAniListDirect(title: string, pinnedId?: string | null): Prom
     }
   }
   if (results.length === 0) {
+    // The fresh title search found nothing. On reidentify the bound id was
+    // cleared before the pipeline ran (clearAutoBindingsForReidentify), so a
+    // correct binding would otherwise be destroyed whenever AniList's search
+    // can't reproduce the title — e.g. "Völundio ~Divergent Sword Saga~"
+    // returns 0 results for every title/synonym variant, but id 123314 resolves
+    // fine. Fall back to the previous binding rather than failing the anchor
+    // (a failed AniList anchor cascades into garbage ComicVine/Wikipedia matches).
+    const fallback = await fetchAniListByPinnedId(fallbackId);
+    if (fallback) {
+      log.info('AniList: title search empty — falling back to previous binding id', { title, fallbackId });
+      return fallback;
+    }
     log.info('AniList: no results found', { title, searchQuery });
     return null;
   }
