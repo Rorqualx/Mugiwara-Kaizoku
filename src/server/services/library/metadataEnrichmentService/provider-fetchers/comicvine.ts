@@ -8,7 +8,7 @@
  */
 
 import { MetadataProvider } from '@prisma/client';
-
+import { ComicVineProvider } from 'mangadex-ts-client';
 
 import { comicvineConfigService } from '@/server/services/comicvine/configService';
 import { logParseFailure } from '@/server/services/metadata/parse-failure-logger';
@@ -18,7 +18,6 @@ import { logger } from '@/utils/logger';
 import { EnrichmentLevel } from '@/utils/metadata-cache';
 import { isObject, hasProperty } from '@/utils/type-guards';
 
-import { ComicVineProvider } from 'mangadex-ts-client';
 
 
 import { isMutation } from '../types';

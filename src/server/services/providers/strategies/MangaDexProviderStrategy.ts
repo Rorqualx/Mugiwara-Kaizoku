@@ -5,8 +5,7 @@
  * Uses mangadex-ts-client's MangaDexProvider under the hood.
  */
 import { MetadataProvider } from '@prisma/client';
-
-
+import { MangaDexProvider } from 'mangadex-ts-client';
 
 import { tsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
 import type { SearchResult, MangaMetadata } from '@/types/search.types';
@@ -14,7 +13,6 @@ import type { AsyncResult } from '@/utils/async-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
-import { MangaDexProvider } from 'mangadex-ts-client';
 
 
 import { adaptSearchResult, adaptUnifiedMangaToMetadata } from '../adapters';

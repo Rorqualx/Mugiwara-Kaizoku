@@ -6,10 +6,10 @@
  */
 
 import axios from 'axios';
+import { MangaDexClient, MangaDexApiError } from 'mangadex-ts-client';
 
 import { logger } from '@/utils/logger';
 
-import { MangaDexClient, MangaDexApiError } from 'mangadex-ts-client';
 
 
 

@@ -11,18 +11,19 @@
 
 
 
-import { comicvineConfigService } from '@/server/services/comicvine/configService';
-import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
-import { adaptEnrichedToMangaMetadata } from '@/server/services/providers/adapters/ts-mangadex-adapter';
-import type { MangaMetadata } from '@/types/search.types';
-import { logger } from '@/utils/logger';
-
 import {
   MetadataEnricher,
   MangaDexProvider,
   AniListProvider,
   ComicVineProvider,
 } from 'mangadex-ts-client';
+
+import { comicvineConfigService } from '@/server/services/comicvine/configService';
+import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
+import { adaptEnrichedToMangaMetadata } from '@/server/services/providers/adapters/ts-mangadex-adapter';
+import type { MangaMetadata } from '@/types/search.types';
+import { logger } from '@/utils/logger';
+
 
 
 import type {
