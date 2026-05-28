@@ -121,8 +121,9 @@ function computeHintAdjustment(hit: MUSearchHit, hints: MUSearchHints): number {
  * to disambiguate same-name series. Filters out doujinshi and
  * edition/spinoff mismatches.
  */
-function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSearchHints): MUSearchHit | null {
+export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSearchHints): MUSearchHit | null {
   const normalized = normalizeTitle(query);
+  const normalizedQueryLen = Math.max(normalized.length, 1);
   let best: MUSearchHit | null = null;
   let bestScore = 0;
 
@@ -132,27 +133,35 @@ function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSearchHin
     // Skip doujinshi (fan works)
     if (DOUJINSHI_PATTERN.test(title) || DOUJINSHI_PATTERN.test(hit.hit_title)) continue;
 
-    // Skip edition/spinoff mismatches (e.g. "Overlord: Shin Sekai-hen" for "Overlord")
-    if (hasEditionMismatch(query, title)) continue;
-
-    // Score from both hit_title and record.title, also check against alternative titles
+    // Per-candidate adjusted scoring. The length-ratio penalty must follow
+    // the candidate that produced the score, not be applied blanket from
+    // `record.title`. Otherwise a perfect `hit_title` exact match (e.g. MU's
+    // "Love in Hell" alias on entry "Jigokuren - Love in the Hell") gets
+    // halved by the canonical title's length and loses to coincidental
+    // shorter matches like "Alice in Hell" → "Jigoku no Alice".
     const queryVariants = [normalized, ...(hints?.alternativeTitles ?? []).map(normalizeTitle)];
+
+    // A candidate that exactly (or near-exactly) matches a known title variant
+    // is a confirmed alias — bypass the edition/spinoff gate. Otherwise markers
+    // like "Shin" in "Shin Seiki Evangelion" (新世紀 = New Century, part of NGE's
+    // real title) wrongly trip the spinoff filter even though MU returned it as
+    // a known synonym of the queried series.
+    const normTitle = normalizeTitle(title);
+    const matchesKnownVariant = queryVariants.some(
+      qv => qv.length >= 4 && diceCoefficient(qv, normTitle) >= 0.9,
+    );
+    if (!matchesKnownVariant && hasEditionMismatch(query, title)) continue;
+
     const candidates = [hit.hit_title, title].filter(Boolean);
     let titleScore = 0;
     for (const c of candidates) {
       const normC = normalizeTitle(c);
+      const lengthRatio = normC.length / normalizedQueryLen;
+      const lengthMultiplier = lengthRatio > 1.5 ? Math.max(0.5, 1 / lengthRatio) : 1;
       for (const qv of queryVariants) {
-        const s = diceCoefficient(qv, normC);
-        if (s > titleScore) titleScore = s;
+        const adjusted = diceCoefficient(qv, normC) * lengthMultiplier;
+        if (adjusted > titleScore) titleScore = adjusted;
       }
-    }
-
-    // Penalize substring inflation: if the candidate is much longer than the
-    // query, the dice coefficient can be inflated by shared bigrams.
-    const normCandidate = normalizeTitle(title);
-    const lengthRatio = normCandidate.length / Math.max(normalized.length, 1);
-    if (lengthRatio > 1.5) {
-      titleScore *= Math.max(0.5, 1 / lengthRatio);
     }
 
     // Popularity boost (log scale, max +0.15)

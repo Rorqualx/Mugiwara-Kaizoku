@@ -18,6 +18,13 @@ export interface EnrichmentProgress {
 export interface EnrichmentPipelineOptions {
   /** When true, skip cached provider URLs (e.g. Fandom) and re-discover from scratch */
   forceRefresh?: boolean;
+  /**
+   * AniList id that was bound before a reidentify cleared it. Used only as a
+   * last-resort fallback when the fresh AniList title search returns nothing —
+   * so a correct binding isn't destroyed because AniList's search can't
+   * reproduce the title (e.g. "Völundio ~Divergent Sword Saga~" → id 123314).
+   */
+  previousAniListId?: string | null;
 }
 
 export interface EnrichmentPipelineResult {

@@ -26,6 +26,7 @@ import { IconRefresh } from '@tabler/icons-react';
 import { useSettings } from '@/hooks/useSettings';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';
+import { trpc } from '@/utils/trpc-client';
 // TypeScript interface for settings object
 interface SystemSettingsConfig {
     // Cache settings
@@ -52,6 +53,7 @@ interface SystemSettingsConfig {
  */
 export function SystemSettings(): React.ReactElement {
     const { settings, updateSetting } = useSettings();
+    const utils = trpc.useUtils();
     // Type guard to check if settings exists and is an object
     const isValidSettings = (val: unknown): val is SystemSettingsConfig => {
         return val !== null && typeof val === 'object';
@@ -97,21 +99,31 @@ export function SystemSettings(): React.ReactElement {
         }
     };
     /**
-     * Check system health
+     * Check system health — calls the real getStatus admin procedure and
+     * surfaces per-subsystem status (DB, suwayomi, providers) in the toast.
+     * Previously this was a setTimeout that always reported "operational"
+     * regardless of actual state.
      */
-    const checkHealth = (): Promise<void> => {
+    const checkHealth = async (): Promise<void> => {
         try {
-            // This would be implemented in a real application
-            // Simulating success for now
-            setTimeout(() => {
-                notify({ severity: 'SUCCESS', title: 'System Health', message: 'All systems operational' });
-            }, 1000);
-            return Promise.resolve();
+            const status = await utils.system.getStatus.fetch();
+            const dbOk = status.database.isConnected;
+            const suwayomiOk = status.integrations.sources.suwayomi.status === 'active';
+            const meta = status.integrations.metadata;
+            const enabledProviders = (meta.anilist.enabled ? 1 : 0) + (meta.comicvine.enabled ? 1 : 0) + (meta.fandom.enabled ? 1 : 0);
+            const severity = dbOk ? 'SUCCESS' : 'ERROR';
+            const lines = [
+                `DB: ${dbOk ? 'connected' : 'disconnected'}`,
+                `Suwayomi: ${suwayomiOk ? 'running' : 'not running'}`,
+                `Metadata providers enabled: ${enabledProviders}/3`,
+                `Memory: ${status.system.memory.usagePercent.toFixed(0)}%  ·  Disk: ${status.system.disk.usagePercent.toFixed(0)}%`,
+            ];
+            notify({ severity, title: dbOk ? 'System Health' : 'System Health (issues)', message: lines.join('\n') });
         }
         catch (error: unknown) {
-            const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : 'Health check failed';
-            notify({ severity: 'ERROR', title: 'Error', message: errorMessage });
-            return Promise.resolve();
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            logger.error('Health check failed', errorMessage);
+            notify({ severity: 'ERROR', title: 'Health check failed', message: errorMessage });
         }
     };
     /**

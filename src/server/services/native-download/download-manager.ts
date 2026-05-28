@@ -186,14 +186,17 @@ export class DownloadManager {
     }
 
     /**
-     * Cancel a download
+     * Cancel a download — flips the NativeDownload row to CANCELLED.
      *
-     * Marks a download as cancelled and stops processing.
+     * There is no in-flight work to abort here: downloadChapter (above) is a
+     * documented loud-fail stub and real downloads route through dedicated
+     * handlers (mangadex-download.ts / suwayomi-download.ts) with their own
+     * cancellation paths. If that ever changes, wire an AbortController to
+     * the active fetch and signal it here before updating the DB status.
      *
-     * @param downloadId - Download record ID
+     * @param downloadId - NativeDownload record ID
      */
     async cancelDownload(downloadId: string): Promise<void> {
-        // TODO: Implement actual cancellation logic
         await this.updateDownloadStatus(downloadId, NativeDownloadStatus.CANCELLED);
         logger.info(`Download ${downloadId} cancelled`);
     }

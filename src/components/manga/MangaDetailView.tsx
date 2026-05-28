@@ -57,8 +57,11 @@ export function MangaDetailView({
   onRefreshMetadata,
   className = ''
 }: MangaDetailViewProps): React.ReactElement {
-  // Use custom state management hook
-  const state = useMangaDetailState(onRefreshMetadata);
+  // Extract mangaId before useMangaDetailState since the hook needs it for the
+  // conflicts query. Returns undefined while mangaResult is loading/error;
+  // the inner useQuery is gated on `enabled: mangaId > 0`.
+  const earlyMangaId = isSuccess(mangaResult) ? toNumberId(mangaResult.data["id"]) : undefined;
+  const state = useMangaDetailState(earlyMangaId, onRefreshMetadata);
 
   // Destructure state for easier access
   const {

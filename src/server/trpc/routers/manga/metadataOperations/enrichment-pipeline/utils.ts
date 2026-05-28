@@ -4,6 +4,11 @@
  * Shared helper functions used across pipeline phases.
  */
 
+// normalizeTitle + diceCoefficient live in the shared string util so the
+// services layer (Fandom adaptive parser) can reuse them without importing
+// across into the trpc layer. Re-exported here for existing pipeline callers.
+export { normalizeTitle, diceCoefficient } from '@/server/utils/string';
+
 /** Check if a chapter title is likely English using language tag + content heuristics */
 export function isLikelyEnglish(title: string, language?: string): boolean {
   if (!title) return false;
@@ -11,11 +16,6 @@ export function isLikelyEnglish(title: string, language?: string): boolean {
   if (/[àâãäåçéèêëìíîïñòóôõöùúûüýÿœæ]/i.test(title)) return false;
   if (/[\u3000-\u9FFF\uAC00-\uD7AF]/.test(title)) return false;
   return true;
-}
-
-/** Normalize a title for comparison: NFKD fold accents, lowercase, strip punctuation/whitespace */
-export function normalizeTitle(title: string): string {
-  return title.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 /**
@@ -73,32 +73,4 @@ export function hasEditionMismatch(query: string, candidateTitle: string): boole
     if (pattern.test(query) && !pattern.test(candidateTitle)) return true;
   }
   return false;
-}
-
-/** Bigram Sørensen–Dice coefficient for fuzzy title similarity (0-1).
- *  Uses multiset intersection so repeated bigrams on either side are only matched
- *  once each. The previous Set-based implementation allowed candidates with
- *  repeating bigrams to score >1 (e.g. "dandadan" vs "dadadadan" scored 1.33,
- *  beating the real "Dandadan" exact match). */
-export function diceCoefficient(a: string, b: string): number {
-  if (a === b) return 1;
-  if (a.length < 2 || b.length < 2) return 0;
-
-  const bigramsA = new Map<string, number>();
-  for (let i = 0; i < a.length - 1; i++) {
-    const bg = a.slice(i, i + 2);
-    bigramsA.set(bg, (bigramsA.get(bg) ?? 0) + 1);
-  }
-
-  let intersection = 0;
-  for (let i = 0; i < b.length - 1; i++) {
-    const bg = b.slice(i, i + 2);
-    const count = bigramsA.get(bg);
-    if (count !== undefined && count > 0) {
-      intersection++;
-      bigramsA.set(bg, count - 1);
-    }
-  }
-
-  return (2 * intersection) / ((a.length - 1) + (b.length - 1));
 }

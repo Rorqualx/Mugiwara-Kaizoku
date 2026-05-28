@@ -24,6 +24,7 @@ import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { logger } from '@/utils/logger';
 
+import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
 import { reassignBonusChaptersToParentVolumes } from './phase-bonus-reassignment';
 import { reconcileChapterCount, mergeAllSourceChapters } from './phase-chapter-reconciliation';
@@ -71,37 +72,6 @@ function extractMangaDexChapters(result: UnifiedProviderResults): ChapterDataIte
  * Computes expectedChapterCount using assembleSourceData, then creates
  * PENDING chapters for any chapter numbers missing from the database.
  */
-interface CrossSeriesGateConfig {
-  ratio: number;
-  minAniList: number;
-  minMangaDex: number;
-}
-
-/**
- * Decide whether Fandom's chapter list looks cross-series (Naruto wiki bound
- * to a Naruto Shinden spin-off, etc) and discard it if so. Mirrors the
- * tier-1/tier-2 logic in `phase-provider-fetch:shouldGate` — keep consistent.
- */
-function filterFandomChaptersByCrossSeriesGate<T>(
-  mangaId: number,
-  rawFandomChapters: T[],
-  counts: { mangadex: number; anilist: number },
-  cfg: CrossSeriesGateConfig,
-): T[] {
-  if (counts.anilist >= cfg.minAniList) {
-    if (rawFandomChapters.length > counts.anilist * cfg.ratio) {
-      logger.warn(`[enrichmentPipeline] Skipping Fandom chapters: ${rawFandomChapters.length} returned but AniList has ${counts.anilist} for manga ${mangaId} (likely cross-series wiki)`);
-      return [];
-    }
-    return rawFandomChapters;
-  }
-  if (counts.mangadex >= cfg.minMangaDex && rawFandomChapters.length > counts.mangadex * cfg.ratio) {
-    logger.warn(`[enrichmentPipeline] Skipping Fandom chapters: ${rawFandomChapters.length} returned but MangaDex has ${counts.mangadex} for manga ${mangaId} (likely cross-series wiki, AniList unavailable)`);
-    return [];
-  }
-  return rawFandomChapters;
-}
-
 async function reconcileFromProviderResults(
   mangaId: number,
   result: UnifiedProviderResults,
@@ -123,11 +93,17 @@ async function reconcileFromProviderResults(
   const FANDOM_OVERFLOW_RATIO = 2.0;
   const FANDOM_OVERFLOW_MIN_AL = 2;
   const FANDOM_OVERFLOW_MIN_MANGADEX = 10;
+  const FANDOM_TIGHT_RATIO = 1.5;
+  const FANDOM_ABS_OVERFLOW = 40;
+  const FANDOM_TIGHT_MIN_AL = 30;
   const fandomChapters = filterFandomChaptersByCrossSeriesGate(
     mangaId,
     rawFandomChapters,
     { mangadex: mangadexChapters.length, anilist: anilistChapterCount },
-    { ratio: FANDOM_OVERFLOW_RATIO, minAniList: FANDOM_OVERFLOW_MIN_AL, minMangaDex: FANDOM_OVERFLOW_MIN_MANGADEX },
+    {
+      ratio: FANDOM_OVERFLOW_RATIO, minAniList: FANDOM_OVERFLOW_MIN_AL, minMangaDex: FANDOM_OVERFLOW_MIN_MANGADEX,
+      tightRatio: FANDOM_TIGHT_RATIO, absOverflow: FANDOM_ABS_OVERFLOW, tightMinAniList: FANDOM_TIGHT_MIN_AL,
+    },
   );
 
   const dbChapterCount = await prisma.chapter.count({ where: { mangaId } });

@@ -120,9 +120,19 @@ export async function phaseProviderFetch(
   // wrong entity (e.g. an anthology vs the actual spin-off).
   const mangaPin = await prisma.manga.findUnique({
     where: { id: mangaId },
-    select: { selectedSourceId: true },
+    select: { selectedSourceId: true, providerMetadata: true },
   });
-  const pinnedAlId = mangaPin?.selectedSourceId ?? null;
+  // Manual pin (selectedSourceId) wins. Otherwise reuse the AniList id already
+  // bound in providerMetadata.anilist.providerId so re-enrichment fetches by ID
+  // instead of re-searching by title. AniList's search can't reproduce some
+  // titles at all (e.g. "Völundio ~Divergent Sword Saga~" returns nothing for
+  // EVERY title/synonym variant, but id 123314 resolves fine) — and a failed
+  // AniList anchor cascades into garbage ComicVine/Wikipedia matches. REIDENTIFY
+  // clears providerMetadata.anilist first (clearAutoBindingsForReidentify), so
+  // this fallback only fires when the binding is intentionally being kept.
+  const pinnedAlId = mangaPin?.selectedSourceId
+    ?? extractBoundAniListId(mangaPin?.providerMetadata)
+    ?? null;
 
   // Only fetch from enabled providers (all in parallel).
   // Each call is capped at 60s so a hung provider can't stall the whole phase.
@@ -130,7 +140,7 @@ export async function phaseProviderFetch(
   const T = 60_000;
   const [anilistSettled, mangadexSettled, comicvineSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId), T, 'anilist-fetch') : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId), T, 'anilist-fetch') : noop,
       enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch') : noop,
       enabled.has('comicvine') ? withTimeoutOrNull(fetchComicVineDirect(title), T, 'comicvine-fetch') : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch') : noop,
@@ -292,6 +302,14 @@ export async function phaseProviderFetch(
   //      are unavailable (AL outage) and the manga title matches a sub-series
   //      pattern (`Part N`, `Vol N`, `Season N`).
   const OVERFLOW_RATIO = 2.0;
+  // Same-universe spin-off backstop: catch a parent series' chapter list that
+  // overflows the spin-off's AniList count by a large ABSOLUTE margin while
+  // staying under the 2× ratio (e.g. AoT: Before the Fall AL=73, Fandom=139 →
+  // the main series' 139 chapters; 139 < 146 so the 2× rule alone misses it).
+  // Keep these mirrored with pipeline-orchestrator.ts.
+  const FANDOM_TIGHT_RATIO = 1.5;
+  const FANDOM_ABS_OVERFLOW = 40;
+  const FANDOM_TIGHT_MIN_AL = 30;
   // OVERFLOW_MIN_AL set low (2) so spin-offs with tiny AL chapter counts
   // (Vagabond Saigo no Manga-ten AL=2, JJK 0 AL=4, Chainsaw Man Buddy
   // Stories AL=4) still trip the gate when their main-series wiki floods
@@ -315,6 +333,12 @@ export async function phaseProviderFetch(
     if (alChCount >= OVERFLOW_MIN_AL) {
       if (wikiChCount > alChCount * OVERFLOW_RATIO) {
         return { gate: true, reason: `>${OVERFLOW_RATIO}x AniList (${wikiChCount} vs ${alChCount})` };
+      }
+      // Absolute-overflow backstop for same-universe spin-offs (1.5×–2× band).
+      if (alChCount >= FANDOM_TIGHT_MIN_AL
+          && wikiChCount > alChCount * FANDOM_TIGHT_RATIO
+          && wikiChCount - alChCount >= FANDOM_ABS_OVERFLOW) {
+        return { gate: true, reason: `>${FANDOM_TIGHT_RATIO}x & +${wikiChCount - alChCount} over AniList (${wikiChCount} vs ${alChCount})` };
       }
       return { gate: false, reason: '' };
     }
@@ -456,6 +480,20 @@ interface AniListDirectResult {
 }
 
 /**
+ * Read the persisted AniList binding id from `providerMetadata.anilist.providerId`.
+ * Skips the manual-unbound sentinel (providerId: null) and returns null when no
+ * AniList binding is present. Used to pin re-enrichment to the already-bound AL
+ * entity when AniList's title search can't reproduce the match.
+ */
+export function extractBoundAniListId(providerMetadata: unknown): string | null {
+  if (providerMetadata === null || typeof providerMetadata !== 'object') return null;
+  const al = (providerMetadata as Record<string, unknown>)['anilist'];
+  if (al === null || typeof al !== 'object') return null;
+  const pid = (al as Record<string, unknown>)['providerId'];
+  return typeof pid === 'string' && pid.length > 0 ? pid : null;
+}
+
+/**
  * Try to fetch AniList by pinned ID, bypassing search + matcher.
  * Returns null if pinnedId is missing, invalid, or the API returns no data.
  */
@@ -485,7 +523,9 @@ async function fetchAniListByPinnedId(pinnedId: string | null | undefined): Prom
  * pick a different AL entity (e.g. an anthology with more chapter data
  * than the spin-off the user actually wants).
  */
-async function fetchAniListDirect(title: string, pinnedId?: string | null): Promise<AniListDirectResult | null> {
+async function fetchAniListDirect(
+  title: string, pinnedId?: string | null, fallbackId?: string | null,
+): Promise<AniListDirectResult | null> {
   await anilistService.initialize();
 
   const pinned = await fetchAniListByPinnedId(pinnedId);
@@ -513,6 +553,18 @@ async function fetchAniListDirect(title: string, pinnedId?: string | null): Prom
     }
   }
   if (results.length === 0) {
+    // The fresh title search found nothing. On reidentify the bound id was
+    // cleared before the pipeline ran (clearAutoBindingsForReidentify), so a
+    // correct binding would otherwise be destroyed whenever AniList's search
+    // can't reproduce the title — e.g. "Völundio ~Divergent Sword Saga~"
+    // returns 0 results for every title/synonym variant, but id 123314 resolves
+    // fine. Fall back to the previous binding rather than failing the anchor
+    // (a failed AniList anchor cascades into garbage ComicVine/Wikipedia matches).
+    const fallback = await fetchAniListByPinnedId(fallbackId);
+    if (fallback) {
+      log.info('AniList: title search empty — falling back to previous binding id', { title, fallbackId });
+      return fallback;
+    }
     log.info('AniList: no results found', { title, searchQuery });
     return null;
   }
@@ -969,18 +1021,19 @@ async function fetchFandomForPhase1(
     ?? await discoverFandomWikiUrl(mangaId, title, forceRefresh, externalAltTitles);
   if (!fandomUrl) return null;
 
-  const fetchResult = await fetchFandomChapterData(fandomUrl, title);
+  const fetchResult = await fetchFandomChapterData(fandomUrl, title, externalAltTitles);
 
-  // If adaptive parser followed a cross-wiki redirect, update the cached URL
-  // so Phase 3 uses the correct wiki (e.g., monstermanga → obluda)
-  if (fetchResult.resolvedDomain && fetchResult.parseSuccess) {
-    const resolvedUrl = `https://${fetchResult.resolvedDomain}/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`;
-    void updateCachedFandomUrl(mangaId, resolvedUrl);
+  // Persist the actual article page the parser extracted from. This preserves
+  // the granular spin-off page (e.g. ".../Attack_on_Titan:_Before_the_Fall_
+  // (Manga)") instead of a title-reconstructed guess that drops the colon /
+  // "(Manga)" suffix and re-binds to the wiki root → parent-series chapters.
+  // Also covers cross-wiki redirects (e.g. monstermanga → obluda).
+  const resolvedPageUrl = fetchResult.parseSuccess ? fetchResult.resolvedPageUrl : undefined;
+  if (resolvedPageUrl) {
+    void updateCachedFandomUrl(mangaId, resolvedPageUrl);
   }
 
-  const effectiveUrl = fetchResult.resolvedDomain
-    ? `https://${fetchResult.resolvedDomain}/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`
-    : fandomUrl;
+  const effectiveUrl = resolvedPageUrl ?? fandomUrl;
 
   const result: NonNullable<UnifiedProviderResults['fandomResult']> = {
     url: effectiveUrl,

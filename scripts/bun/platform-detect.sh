@@ -7,11 +7,12 @@
 # Next.js SWC binaries for platform compatibility validation.
 #
 # Usage:
-#   ./scripts/bun/platform-detect.sh [--json] [--verbose]
+#   ./scripts/bun/platform-detect.sh [--json] [--verbose] [--no-fail]
 #
 # Options:
 #   --json      Output results in JSON format
 #   --verbose   Show detailed detection information
+#   --no-fail   Always exit 0 if OS/arch detected (bun-missing is advisory)
 #
 # Exit Codes:
 #   0 - Detection successful
@@ -35,6 +36,10 @@ NC='\033[0m' # No Color
 # Command line flags
 JSON_OUTPUT=false
 VERBOSE=false
+# When true, always exit 0 if the platform was detected — bun-missing /
+# swc-missing become advisory (still reported in JSON). The CI test-platform
+# matrix runs this script on non-bun variants where exit 1 is incorrect.
+NO_FAIL=false
 
 # Detection results
 OS=""
@@ -186,11 +191,16 @@ detect_bun() {
           BUN_ARCH="x64"
         fi
       elif [ "$OS" = "linux" ]; then
-        BUN_ARCH=$(file -b "$bun_path" | grep -o 'aarch64\|x86-64' || echo "unknown")
+        BUN_ARCH=$(file -b "$bun_path" | grep -o 'aarch64\|x86-64' || echo "")
         if [ "$BUN_ARCH" = "aarch64" ]; then
           BUN_ARCH="arm64"
         elif [ "$BUN_ARCH" = "x86-64" ]; then
           BUN_ARCH="x64"
+        else
+          # `file -b` output didn't carry an arch token we recognize (some
+          # GitHub-hosted runners ship a `file` that prints a leaner string).
+          # Fall back to the system arch — bun installs match host arch.
+          BUN_ARCH="$ARCH"
         fi
       else
         BUN_ARCH="$ARCH"
@@ -283,8 +293,13 @@ detect_nextjs_swc() {
   fi
 
   # Determine required SWC binary based on OS and architecture
-  # Use Bun's architecture if Bun is installed, otherwise use system architecture
+  # Use Bun's architecture if Bun is installed, otherwise use system architecture.
+  # ${VAR:-default} only fires on unset/empty — a literal "unknown" would
+  # poison the case below, so treat that as a fallback too.
   local target_arch="${BUN_ARCH:-$ARCH}"
+  if [ "$target_arch" = "unknown" ]; then
+    target_arch="$ARCH"
+  fi
 
   case "$OS-$target_arch" in
     darwin-arm64)
@@ -364,21 +379,31 @@ detect_environment() {
 # Output Functions
 # ============================================================================
 
+# Strip any control characters (U+0000..U+001F) and double-quote / backslash
+# escape a value so it can be safely embedded inside a JSON string. Detection
+# helpers shell out to commands (`file -b`, `bun --version`, `node -p`) whose
+# output occasionally includes stray control bytes (CR, ESC color codes) on
+# certain CI runners — without this, `jq` rejects the emitted file with
+# "Invalid string: control characters from U+0000 through U+001F".
+json_escape() {
+  printf '%s' "$1" | tr -d '\000-\037' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
 output_json() {
   cat <<EOF
 {
-  "os": "$OS",
-  "osVersion": "$OS_VERSION",
-  "arch": "$ARCH",
+  "os": "$(json_escape "$OS")",
+  "osVersion": "$(json_escape "$OS_VERSION")",
+  "arch": "$(json_escape "$ARCH")",
   "bunInstalled": $BUN_INSTALLED,
-  "bunVersion": "$BUN_VERSION",
-  "bunArch": "$BUN_ARCH",
+  "bunVersion": "$(json_escape "$BUN_VERSION")",
+  "bunArch": "$(json_escape "$BUN_ARCH")",
   "nodeInstalled": $NODE_INSTALLED,
-  "nodeVersion": "$NODE_VERSION",
-  "packageManager": "$PACKAGE_MANAGER",
-  "packageManagerVersion": "$PACKAGE_MANAGER_VERSION",
-  "nextVersion": "$NEXT_VERSION",
-  "requiredSwcBinary": "$REQUIRED_SWC_BINARY",
+  "nodeVersion": "$(json_escape "$NODE_VERSION")",
+  "packageManager": "$(json_escape "$PACKAGE_MANAGER")",
+  "packageManagerVersion": "$(json_escape "$PACKAGE_MANAGER_VERSION")",
+  "nextVersion": "$(json_escape "$NEXT_VERSION")",
+  "requiredSwcBinary": "$(json_escape "$REQUIRED_SWC_BINARY")",
   "swcBinaryExists": $SWC_BINARY_EXISTS,
   "isRosetta": $IS_ROSETTA,
   "isDocker": $IS_DOCKER,
@@ -464,6 +489,10 @@ parse_args() {
         JSON_OUTPUT=true
         shift
         ;;
+      --no-fail)
+        NO_FAIL=true
+        shift
+        ;;
       --verbose)
         VERBOSE=true
         shift
@@ -477,6 +506,7 @@ Detect platform configuration for Bun compatibility validation.
 Options:
   --json      Output results in JSON format
   --verbose   Show detailed detection information
+  --no-fail   Always exit 0 if OS/arch detected (bun-missing is advisory)
   -h, --help  Show this help message
 
 Exit Codes:
@@ -515,11 +545,13 @@ main() {
     output_human
   fi
 
-  # Exit with appropriate code
-  if [ "$BUN_INSTALLED" = false ]; then
-    exit 1
-  elif [ "$OS" = "unknown" ] || [ "$ARCH" = "unknown" ]; then
+  # Exit with appropriate code. `--no-fail` collapses bun-missing into a
+  # success so reporting-only callers (CI matrix on non-bun variants) don't
+  # die just because Bun isn't installed.
+  if [ "$OS" = "unknown" ] || [ "$ARCH" = "unknown" ]; then
     exit 2
+  elif [ "$BUN_INSTALLED" = false ] && [ "$NO_FAIL" = false ]; then
+    exit 1
   else
     exit 0
   fi

@@ -11,8 +11,8 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { autoDownloadScheduler } from '@/server/queue/autoDownloadScheduler';
 import { EventType, EventSource } from '@/server/services/events/eventTypes';
+import { runUnifiedReleaseSearch } from '@/server/services/library/releaseDispatcher/dispatch';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -73,21 +73,46 @@ export const searchChapters = protectedProcedure.input(searchChaptersInput).muta
       });
     }
 
-    logger.info(`[searchChapters] Triggering auto-download for ${targetMangaIds.length} manga (concurrency=${SEARCH_CONCURRENCY})`);
+    logger.info(`[searchChapters] Running unified release search for ${targetMangaIds.length} manga (concurrency=${SEARCH_CONCURRENCY}, bypassRuleCheck=true)`);
 
+    // Manual button-press: bypass the autoDownloadRule.enabled gate so manga
+    // with the per-manga auto-download switch off still get searched.
+    // The scheduler path (triggerManga → processAutoDownload) silently
+    // no-ops on those, which inflated `triggered` count and produced empty
+    // results from the user's perspective.
     const results = await mapConcurrent(
       targetMangaIds,
       SEARCH_CONCURRENCY,
-      (mangaId) => autoDownloadScheduler.triggerManga(mangaId)
+      (mangaId) => runUnifiedReleaseSearch(mangaId, { bypassRuleCheck: true })
     );
-    const succeeded = results.filter(r => r.status === 'fulfilled').length;
-    const failed = results.length - succeeded;
 
-    void logInfo(`Triggered search for ${succeeded} manga`, EventType.USER_ACTION, EventSource.SYSTEM, {
-      details: { mangaIds: targetMangaIds, succeeded, failed }
+    let triggered = 0;
+    let failed = 0;
+    let prowlarrDispatched = 0;
+    let nativeEnqueued = 0;
+    let uncoveredChapters = 0;
+    let noSourceMangaCount = 0;
+    for (const r of results) {
+      if (r.status === 'rejected') {
+        failed++;
+        continue;
+      }
+      const summary = r.value;
+      if (summary.triggeredProwlarr) prowlarrDispatched++;
+      nativeEnqueued += summary.nativeEnqueued.length;
+      uncoveredChapters += summary.uncoveredChapters.length;
+      if (summary.triggeredProwlarr || summary.nativeEnqueued.length > 0) {
+        triggered++;
+      } else {
+        noSourceMangaCount++;
+      }
+    }
+
+    void logInfo(`Triggered search for ${triggered}/${targetMangaIds.length} manga (no source: ${noSourceMangaCount}, failed: ${failed})`, EventType.USER_ACTION, EventSource.SYSTEM, {
+      details: { mangaIds: targetMangaIds, triggered, failed, prowlarrDispatched, nativeEnqueued, uncoveredChapters, noSourceMangaCount }
     });
 
-    return { success: true, triggered: succeeded, failed };
+    return { success: true, triggered, failed, prowlarrDispatched, nativeEnqueued, uncoveredChapters, noSourceMangaCount };
   }
   catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

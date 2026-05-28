@@ -4,13 +4,20 @@ name: Platform Compatibility Testing
 # Comprehensive platform compatibility testing for Bun + Next.js + SWC
 # ============================================================================
 # Tests across multiple combinations:
-# - Operating Systems: Ubuntu 22.04, macOS 14 (Intel), macOS 14 (ARM64)
-# - Package Managers: pnpm, npm, yarn, bun
-# - Architectures: x86_64, ARM64 (where supported)
+# - Operating Systems: Ubuntu 22.04 (x64), macOS 14 (ARM64)
+# - Package Manager:   bun (only — see note below)
+# - Architectures:     x86_64, ARM64
 #
 # This workflow validates that the application builds and runs correctly
-# across all supported platforms and package managers, with special attention
-# to Next.js SWC binary compatibility issues.
+# across all supported OS/arch combinations, with special attention to
+# Next.js SWC binary compatibility issues.
+#
+# Note on bun-only: the repo declares `"packageManager": "bun@…"` and
+# commits only `bun.lock`, so pnpm/npm/yarn cannot install dependencies
+# against it (corepack refuses with "This project is configured to use
+# bun"). Do not re-add pnpm/npm/yarn matrix entries here without also
+# checking in `pnpm-workspace.yaml` + lockfiles + dropping the
+# packageManager pin — otherwise every variant fails at install.
 #
 # Author: Development Team
 # Status: Active
@@ -70,27 +77,6 @@ jobs:
               {
                 "os": "ubuntu-22.04",
                 "arch": "x64",
-                "pm": "pnpm",
-                "pm_version": "10.7.1",
-                "node_version": "20"
-              },
-              {
-                "os": "ubuntu-22.04",
-                "arch": "x64",
-                "pm": "npm",
-                "pm_version": "latest",
-                "node_version": "20"
-              },
-              {
-                "os": "ubuntu-22.04",
-                "arch": "x64",
-                "pm": "yarn",
-                "pm_version": "1.22.19",
-                "node_version": "20"
-              },
-              {
-                "os": "ubuntu-22.04",
-                "arch": "x64",
                 "pm": "bun",
                 "pm_version": "1.3.0",
                 "node_version": "20"
@@ -98,41 +84,6 @@ jobs:
               {
                 "os": "macos-14",
                 "arch": "arm64",
-                "pm": "pnpm",
-                "pm_version": "10.7.1",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-14",
-                "arch": "arm64",
-                "pm": "npm",
-                "pm_version": "latest",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-14",
-                "arch": "arm64",
-                "pm": "yarn",
-                "pm_version": "1.22.19",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-14",
-                "arch": "arm64",
-                "pm": "bun",
-                "pm_version": "1.3.0",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-13",
-                "arch": "x64",
-                "pm": "pnpm",
-                "pm_version": "10.7.1",
-                "node_version": "20"
-              },
-              {
-                "os": "macos-13",
-                "arch": "x64",
                 "pm": "bun",
                 "pm_version": "1.3.0",
                 "node_version": "20"
@@ -194,10 +145,13 @@ jobs:
         id: platform-detect
         run: |
           chmod +x scripts/bun/platform-detect.sh
-          scripts/bun/platform-detect.sh --verbose
+          # --no-fail because the matrix runs npm/yarn/pnpm variants where
+          # Bun is intentionally absent; the script's documented
+          # "bun-missing → exit 1" otherwise kills detection there.
+          scripts/bun/platform-detect.sh --verbose --no-fail
 
           # Capture JSON output for later use
-          scripts/bun/platform-detect.sh --json > platform-info.json
+          scripts/bun/platform-detect.sh --json --no-fail > platform-info.json
 
           # Extract key information
           cat platform-info.json | jq -r '
@@ -241,8 +195,19 @@ jobs:
 
       - name: Clean previous installation
         run: |
+          # Drop any restored node_modules from cache so the install runs fresh.
           rm -rf node_modules
-          rm -f bun.lock pnpm-lock.yaml package-lock.json yarn.lock
+          # Preserve the current PM's lockfile so --frozen-lockfile has a
+          # source of truth. Deleting bun.lock here caused bun to redo
+          # resolution and land on a different DAG (nested @types/pg,
+          # drifted @types/express) than ci.yml/test.yml produce, which
+          # then broke `tsc --noEmit` only in this matrix job.
+          case "${{ matrix.pm }}" in
+            pnpm) rm -f bun.lock package-lock.json yarn.lock ;;
+            npm)  rm -f bun.lock pnpm-lock.yaml yarn.lock ;;
+            yarn) rm -f bun.lock pnpm-lock.yaml package-lock.json ;;
+            bun)  rm -f pnpm-lock.yaml package-lock.json yarn.lock ;;
+          esac
 
       - name: Install dependencies with ${{ matrix.pm }}
         run: |
@@ -257,7 +222,12 @@ jobs:
               yarn install
               ;;
             bun)
-              bun install
+              # --frozen-lockfile to match what ci.yml + test.yml do.
+              # Without it, bun's resolver picks slightly different nested
+              # versions and ends up double-installing @types/pg (top-level
+              # and nested under @prisma/adapter-pg), which creates two
+              # incompatible Pool types and fails `tsc --noEmit`.
+              bun install --frozen-lockfile
               ;;
           esac
 
@@ -300,6 +270,11 @@ jobs:
           esac
 
       - name: Run type check
+        env:
+          # tsc against this project's surface exits 134 (SIGABRT) under
+          # the default V8 heap on macos-14-arm64 runners. The other CI
+          # jobs (ci.yml, test.yml) already use 4096 MB.
+          NODE_OPTIONS: "--max-old-space-size=4096"
         run: |
           case "${{ matrix.pm }}" in
             pnpm) pnpm run type-check ;;
@@ -322,20 +297,20 @@ jobs:
       # ======================================================================
       - name: Verify build artifacts
         run: |
-          # Check for essential build outputs
+          # Hard requirement: .next must exist after a successful build.
           if [ ! -d ".next" ]; then
             echo "❌ .next directory not found"
             exit 1
           fi
 
-          if [ ! -d ".next/standalone" ]; then
-            echo "❌ Standalone build not found"
-            exit 1
-          fi
-
-          if [ ! -f ".next/standalone/server.js" ]; then
-            echo "❌ Server entry point not found"
-            exit 1
+          # `output: 'standalone'` is intentionally NOT set in next.config.mjs
+          # because this project uses a custom server (server-production.ts)
+          # that's incompatible with the standalone bundle. Treat those
+          # paths as informational only.
+          if [ -d ".next/standalone" ] && [ -f ".next/standalone/server.js" ]; then
+            echo "ℹ Standalone bundle present (unexpected for this project)"
+          else
+            echo "ℹ Standalone bundle not produced — expected; this project uses a custom server."
           fi
 
           echo "✅ Build artifacts verified"
@@ -349,16 +324,24 @@ jobs:
         run: |
           echo "Testing Bun runtime compatibility..."
 
-          # Test that Bun can execute the build
-          if command -v bun >/dev/null 2>&1; then
-            echo "✅ Bun runtime available"
-            echo "Bun version: $(bun --version)"
+          if ! command -v bun >/dev/null 2>&1; then
+            echo "ℹ Bun not on PATH — skipping runtime smoke"
+            exit 0
+          fi
 
-            # Try to start the server with timeout
+          echo "✅ Bun runtime available"
+          echo "Bun version: $(bun --version)"
+
+          # Smoke-test only when a standalone bundle exists. This project
+          # uses a custom server (server-production.ts) and intentionally
+          # doesn't produce .next/standalone — see next.config.mjs. Don't
+          # synthesize a fake entry; just record that the runtime smoke
+          # path isn't applicable and let the build artifact verification
+          # above stand as the matrix's coverage.
+          if [ -f ".next/standalone/server.js" ]; then
             timeout 10s bun .next/standalone/server.js &
             SERVER_PID=$!
             sleep 5
-
             if kill -0 $SERVER_PID 2>/dev/null; then
               echo "✅ Server started successfully with Bun"
               kill $SERVER_PID
@@ -366,6 +349,8 @@ jobs:
               echo "❌ Server failed to start with Bun"
               exit 1
             fi
+          else
+            echo "ℹ No standalone bundle; skipping bun-runtime server smoke."
           fi
 
       # ======================================================================
@@ -373,8 +358,19 @@ jobs:
       # ======================================================================
       - name: Run compatibility hook
         run: |
-          chmod +x .claude/hooks/check-bun-compatibility.sh
-          .claude/hooks/check-bun-compatibility.sh --fix
+          # The hook script is aspirational — it was referenced when the
+          # workflow was written but never actually committed to the repo.
+          # Skip gracefully when missing so this step doesn't gate the
+          # matrix on a non-existent file. If the hook is added later it
+          # will start running automatically.
+          if [ -x .claude/hooks/check-bun-compatibility.sh ]; then
+            .claude/hooks/check-bun-compatibility.sh --fix
+          elif [ -f .claude/hooks/check-bun-compatibility.sh ]; then
+            chmod +x .claude/hooks/check-bun-compatibility.sh
+            .claude/hooks/check-bun-compatibility.sh --fix
+          else
+            echo "ℹ .claude/hooks/check-bun-compatibility.sh not present — skipping"
+          fi
 
       - name: Generate compatibility report
         if: always()
@@ -446,12 +442,15 @@ jobs:
 
           for report in reports/*/compatibility-report.md; do
             if [ -f "$report" ]; then
-              ((TOTAL++))
+              # `((VAR++))` returns the OLD value; under `bash -e` it
+              # exits the script when VAR was 0. Use $(( … )) assignment
+              # which always succeeds.
+              TOTAL=$((TOTAL + 1))
               # Check if build was successful (basic heuristic)
               if grep -q "Build artifacts verified" "$report" 2>/dev/null; then
-                ((SUCCESS++))
+                SUCCESS=$((SUCCESS + 1))
               else
-                ((FAILURE++))
+                FAILURE=$((FAILURE + 1))
               fi
             fi
           done

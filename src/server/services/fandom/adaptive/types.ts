@@ -436,6 +436,9 @@ export interface AdaptiveParserOptions {
   userAgent?: string;
   /** Series title for filtering franchise wikis (e.g., "Stone Ocean" for jojos.fandom.com) */
   seriesTitle?: string;
+  /** Alternate titles (romaji/synonyms) used to resolve the series-specific
+   *  page on a shared franchise wiki (e.g. spin-offs on attackontitan.fandom.com) */
+  seriesAltTitles?: string[];
 }
 
 /**

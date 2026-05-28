@@ -197,6 +197,30 @@ export class DownloadManager {
 
             const payload = task.payload;
 
+            // Idempotency: if this job already has a downloadId recorded,
+            // dispatch already happened (queueMicrotask path raced with the
+            // queue worker, OR we restarted and recoverOrphanedJobs flipped
+            // the row back to 'pending'). Don't re-send the magnet — just
+            // ensure the progress loop is monitoring. Transmission would
+            // dedupe by infohash anyway, but skipping the network round-trip
+            // is cheaper and the realtime "download started" toast doesn't
+            // misfire a second time.
+            const existingResult = task.result as Record<string, unknown> | null;
+            const existingDownloadId = typeof existingResult?.['downloadId'] === 'string'
+                ? existingResult['downloadId']
+                : undefined;
+            if (existingDownloadId && payload.method === DownloadMethod.PROWLARR) {
+                logger.info(`Job ${taskId} already dispatched (downloadId=${existingDownloadId}); skipping re-dispatch, resuming progress loop`);
+                if (task.status !== 'active') {
+                    await this.prismaClient.jobs.update({
+                        where: { id_partition_key: { id: task.id, partition_key: task.partition_key } },
+                        data: { status: 'active' as JobStatus },
+                    });
+                }
+                void this.startProgressLoop(task.id, task.partition_key, task.manga.id);
+                return createSuccessResult(undefined);
+            }
+
             // Update task status to ACTIVE
             await this.prismaClient.jobs.update({
                 where: {

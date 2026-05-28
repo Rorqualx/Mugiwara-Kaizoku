@@ -116,18 +116,30 @@ export function useSearchDownload(): UseSearchDownloadResult {
       // Trigger the search via existing mutation
       const result = await searchMutation.mutateAsync({ mangaIds });
 
-      // Update notification with results
-      const failedMsg = result.failed > 0 ? ` (${result.failed} failed)` : '';
+      // Build a richer summary so the user can tell "started downloads" apart
+      // from "search ran but no source was available". The server returns
+      // granular fields from runUnifiedReleaseSearch.
+      const noSource = result.noSourceMangaCount;
+      const failedMsg = result.failed > 0 ? `  ·  ${result.failed} failed` : '';
+      const noSourceMsg = noSource > 0 ? `  ·  ${noSource} had no available source` : '';
+      const dispatchedMsg = `${result.prowlarrDispatched} Prowlarr, ${result.nativeEnqueued} native chapters`;
+      const color = result.failed > 0 ? 'red'
+        : result.triggered === 0 ? 'yellow'
+        : noSource > 0 ? 'yellow'
+        : 'green';
+      const title = result.triggered === 0
+        ? 'Search Complete — nothing dispatched'
+        : `Search Complete — ${result.triggered}/${mangaIds.length} manga dispatched`;
       notifications.update({
         id: notificationId,
-        title: 'Search Complete',
-        message: `Started ${result.triggered} downloads${failedMsg}. View progress on Jobs page.`,
-        color: result.failed > 0 ? 'yellow' : 'green',
+        title,
+        message: `${dispatchedMsg}${noSourceMsg}${failedMsg}. View progress on Jobs page.`,
+        color,
         loading: false,
-        autoClose: 5000,
+        autoClose: 7000,
       });
 
-      logger.info(`[SearchDownload] Triggered: ${result.triggered}, Failed: ${result.failed}`);
+      logger.info(`[SearchDownload] dispatched=${result.triggered}/${mangaIds.length}  prowlarr=${result.prowlarrDispatched}  native=${result.nativeEnqueued}  noSource=${noSource}  failed=${result.failed}`);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('[SearchDownload] Error:', errorMessage);

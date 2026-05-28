@@ -1,81 +1,59 @@
 /**
  * MangaDetailView State Management Hook
  *
- * Custom React hook that manages all state for the MangaDetailView component.
- * Provides centralized state management for UI toggles, conflicts data, and
- * related handlers.
- *
- * Features:
- * - Description expand/collapse state
- * - Synonyms/alternative titles expand/collapse state
- * - Conflict resolution modal state
- * - Metadata conflicts state with AsyncResult pattern
- * - Mock conflicts query (to be replaced with actual tRPC query)
- *
- * Returns: MangaDetailState interface with all state and handlers
- *
- * Extracted from: MangaDetailView.tsx (lines 124-211)
+ * Manages UI toggles + the metadata-conflicts query for the manga detail page.
+ * Conflicts are fetched via trpc.metadata.getConflicts (onlyUnresolved=true) and
+ * exposed as AsyncResult so the existing MetadataBadges / MangaDetailBanner
+ * consumers can keep using isLoading/isSuccess helpers unchanged.
  */
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 
 import type { MetadataConflict } from '@/types/metadata-types';
 import type { AsyncResult } from '@/utils/async-result';
 import {
+  createErrorResult,
   createIdleResult,
+  createLoadingResult,
   createSuccessResult,
-  isSuccess
 } from '@/utils/async-result';
+import { trpc } from '@/utils/trpc-client';
 
 import type { MangaDetailState } from './MangaDetailTypes';
 
-/**
- * Custom hook for managing MangaDetailView state
- *
- * @param onRefreshMetadata - Optional callback to refresh metadata after conflicts resolved
- * @returns MangaDetailState with all state values and handlers
- */
 export function useMangaDetailState(
+  mangaId: number | undefined,
   onRefreshMetadata?: () => void
 ): MangaDetailState {
-  // UI state - expand/collapse toggles
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isSynonymsExpanded, setIsSynonymsExpanded] = useState(false);
   const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
 
-  // Conflicts state with AsyncResult pattern
-  const [conflictsState, setConflictsState] = useState<
-    AsyncResult<MetadataConflict[], Error>
-  >(createIdleResult());
+  const utils = trpc.useUtils();
+  const conflictsQuery = trpc.metadata.getConflicts.useQuery(
+    { mangaId: mangaId ?? 0, onlyUnresolved: true },
+    { enabled: mangaId !== undefined && mangaId > 0 },
+  );
 
-  // Mock conflicts query - TODO: Replace with actual tRPC query
-  // Note: This is a static mock that always returns empty data
-  const refetchConflicts = (): void => {
-    // Mock implementation - no-op for now
-  };
+  const conflictsState = useMemo<AsyncResult<MetadataConflict[], Error>>(() => {
+    if (mangaId === undefined || mangaId <= 0) return createIdleResult();
+    if (conflictsQuery.isLoading) return createLoadingResult();
+    if (conflictsQuery.error) {
+      const err = conflictsQuery.error;
+      return createErrorResult(err instanceof Error ? err : new Error(String(err)));
+    }
+    return createSuccessResult<MetadataConflict[], Error>(conflictsQuery.data ?? []);
+  }, [mangaId, conflictsQuery.isLoading, conflictsQuery.error, conflictsQuery.data]);
 
-  // Initialize conflicts state with empty data (mock)
-  // TODO: Replace with actual tRPC query when available
-  useEffect(() => {
-    // Mock always returns empty conflicts
-    setConflictsState(createSuccessResult<MetadataConflict[], Error>([]));
-  }, []);
+  const conflictsCount = conflictsQuery.data?.length ?? 0;
 
-  /**
-   * Handle conflicts resolved event
-   * Refetches conflicts and triggers metadata refresh if callback provided
-   */
   const handleConflictsResolved = (): void => {
-    refetchConflicts();
+    if (mangaId !== undefined && mangaId > 0) {
+      void utils.metadata.getConflicts.invalidate({ mangaId, onlyUnresolved: true });
+    }
     onRefreshMetadata?.();
   };
 
-  // Calculate conflicts count safely using AsyncResult pattern
-  const conflictsCount = isSuccess(conflictsState)
-    ? conflictsState.data.length
-    : 0;
-
-  // Return all state and handlers
   return {
     isDescriptionExpanded,
     setIsDescriptionExpanded,
