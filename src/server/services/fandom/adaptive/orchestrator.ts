@@ -53,6 +53,7 @@ import { isParagraphLinkStructure, parseParagraphLinkStructureEnhanced } from '.
 import { getPatternCache } from './pattern-cache';
 import { iterateVolumePages, fetchVolumeZeroIfExists } from './per-volume-iterator';
 import { isPlainTableStructure, parsePlainTableStructure } from './plain-table-parser';
+import { resolveSeriesPageUrl } from './series-page-resolver';
 import { isShiftedColumnStructure, parseShiftedColumnStructure } from './shifted-column-parser';
 import { analyzePageStructure } from './static-analyzer';
 import { DEFAULT_PARSER_OPTIONS, URL_PROBE_PATTERNS } from './types';
@@ -1703,21 +1704,33 @@ export async function adaptiveParse(
     // (handles franchise wikis like jojos.fandom.com where generic discovery
     // would find the all-series chapter list instead of the part-specific one)
     if (mergedOptions.seriesTitle) {
-      const seriesSlug = mergedOptions.seriesTitle.replace(/[^a-zA-Z0-9]+/g, '_');
-      const seriesPatterns = [
-        `/wiki/${seriesSlug}_Chapters`,
-        `/wiki/List_of_${seriesSlug}_chapters`,
-        `/wiki/${seriesSlug}_Chapter_List`,
-        `/wiki/${seriesSlug}`,
-      ];
-      for (const pattern of seriesPatterns) {
-        const seriesUrl = `https://${domain}${pattern}`;
-        // eslint-disable-next-line no-await-in-loop -- Sequential probe with early return
-        const probed = await probeUrl(seriesUrl, { probeTimeoutMs: mergedOptions.probeTimeoutMs });
-        if (probed.exists) {
-          logger.info(`[adaptiveParse] Series-specific URL found: ${seriesUrl}`);
-          targetUrl = seriesUrl;
-          break;
+      // Granular resolution: find the spin-off's own article page via the
+      // MediaWiki API (handles colon↔dash + "(Manga)" disambiguation that
+      // slug-pattern probing misses, e.g. "Attack on Titan: Before the Fall
+      // (Manga)" on the shared attackontitan.fandom.com wiki).
+      targetUrl = await resolveSeriesPageUrl(
+        domain, mergedOptions.seriesTitle, mergedOptions.seriesAltTitles ?? [], mergedOptions.probeTimeoutMs,
+      );
+
+      // Secondary: slug-pattern probing for dedicated chapter-list pages
+      // (a real "_Chapters"/"List_of_… chapters" page beats a lore stub).
+      if (!targetUrl) {
+        const seriesSlug = mergedOptions.seriesTitle.replace(/[^a-zA-Z0-9]+/g, '_');
+        const seriesPatterns = [
+          `/wiki/${seriesSlug}_Chapters`,
+          `/wiki/List_of_${seriesSlug}_chapters`,
+          `/wiki/${seriesSlug}_Chapter_List`,
+          `/wiki/${seriesSlug}`,
+        ];
+        for (const pattern of seriesPatterns) {
+          const seriesUrl = `https://${domain}${pattern}`;
+          // eslint-disable-next-line no-await-in-loop -- Sequential probe with early return
+          const probed = await probeUrl(seriesUrl, { probeTimeoutMs: mergedOptions.probeTimeoutMs });
+          if (probed.exists) {
+            logger.info(`[adaptiveParse] Series-specific URL found: ${seriesUrl}`);
+            targetUrl = seriesUrl;
+            break;
+          }
         }
       }
     }

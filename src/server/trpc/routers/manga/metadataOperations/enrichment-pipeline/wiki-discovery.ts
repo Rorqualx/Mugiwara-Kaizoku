@@ -568,23 +568,42 @@ function generateFandomSlugs(title: string, altTitles: ReadonlyArray<string> = [
  * (e.g., monstermanga → obluda), the `resolvedDomain` is returned so callers
  * can update the cached URL.
  */
-export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: string): Promise<{
+// eslint-disable-next-line complexity -- Multi-strategy fetch: page-passthrough + self-heal retry + adaptive parse + direct-extract fallback + cross-wiki redirect detection. Each branch is a distinct, necessary fallback; splitting would scatter the single linear fetch flow.
+export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: string, seriesAltTitles?: string[]): Promise<{
   chapterList: ChapterDataItem[];
   volumeList: VolumeDataItem[];
   rawHtml?: string;
   parseSuccess: boolean;
   /** Domain the parser actually used, if different from the input URL */
   resolvedDomain?: string;
+  /** Full article-page URL the parser actually extracted from (for persistence) */
+  resolvedPageUrl?: string;
 }> {
   const { adaptiveParse } = await import('@/server/services/fandom/adaptive');
 
   try {
     const domain = extractFandomDomain(fandomUrl);
-    const result = await adaptiveParse(domain ?? fandomUrl, {
+    // When a full article-page URL is bound (e.g. a previously-resolved
+    // ".../wiki/Attack_on_Titan:_Before_the_Fall_(Manga)"), pass it through so
+    // adaptiveParse parses that page directly instead of re-stripping to the
+    // wiki root and re-running generic discovery (which finds the parent series).
+    const looksLikePage = /\.fandom\.com\/wiki\/.+/i.test(fandomUrl);
+    const parseInput = looksLikePage ? fandomUrl : (domain ?? fandomUrl);
+    const parseOpts = {
       fallbackToLegacy: true,
       useCache: false,
       ...(seriesTitle ? { seriesTitle } : {}),
-    });
+      ...(seriesAltTitles && seriesAltTitles.length > 0 ? { seriesAltTitles } : {}),
+    };
+    let result = await adaptiveParse(parseInput, parseOpts);
+
+    // Self-heal: a bound article page that no longer yields data (e.g. wiki
+    // rename / moved page) re-runs discovery from the domain, which
+    // re-resolves the current series page via resolveSeriesPageUrl.
+    if ((!result.success || !result.data) && looksLikePage && domain) {
+      log.info(`Bound page ${fandomUrl} yielded no data — retrying discovery from domain ${domain}`);
+      result = await adaptiveParse(domain, parseOpts);
+    }
 
     if (!result.success || !result.data) {
       log.info(`Adaptive parser returned no data for ${fandomUrl}, trying direct extraction`);
@@ -608,12 +627,12 @@ export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: st
       log.info(`Adaptive parser found 0 chapters (${volumeList.length} volumes) from ${fandomUrl}, trying direct extraction`);
       const directChapters = await directChapterExtract(fandomUrl);
       if (directChapters.length > 0) {
-        return { chapterList: directChapters, volumeList, parseSuccess: true, ...(resolvedDomain ? { resolvedDomain } : {}) };
+        return { chapterList: directChapters, volumeList, parseSuccess: true, resolvedPageUrl: result.parsedUrl, ...(resolvedDomain ? { resolvedDomain } : {}) };
       }
     }
 
     log.info(`Fandom fetch: ${chapterList.length} chapters, ${volumeList.length} volumes from ${fandomUrl}`);
-    return { chapterList, volumeList, parseSuccess: chapterList.length > 0, ...(resolvedDomain ? { resolvedDomain } : {}) };
+    return { chapterList, volumeList, parseSuccess: chapterList.length > 0, resolvedPageUrl: result.parsedUrl, ...(resolvedDomain ? { resolvedDomain } : {}) };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`Fandom fetch failed: ${msg}`);
