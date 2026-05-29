@@ -107,19 +107,21 @@ describe('correctedSlicePageCount', () => {
 });
 
 describe('planPageCountRepairs', () => {
-  const vrow = (
-    id: number, chapterNumber: number | null, file: string, volumeId: number,
-    pageCount: number | null, pages: number | null, index: number,
-  ): VolRow =>
-    ({ id, chapterNumber, title: chapterNumber === null ? '' : 'T', filePath: file,
-       packDownloadId: null, index, volumeId, pageCount, pages });
+  const vrow = (o: {
+    id: number; chapterNumber: number | null; file: string; volumeId: number;
+    pageCount: number | null; pages: number | null; index: number;
+  }): VolRow => ({
+    id: o.id, chapterNumber: o.chapterNumber, title: o.chapterNumber === null ? '' : 'T',
+    filePath: o.file, packDownloadId: null, index: o.index,
+    volumeId: o.volumeId, pageCount: o.pageCount, pages: o.pages,
+  });
 
   it('repairs real chapters stamped with the whole-archive count but leaves the volume-file row', () => {
     const vpc = new Map<number, number | null>([[200, 254]]);
     const chapters: VolRow[] = [
-      vrow(1, 128, 'v20.zip', 200, 27, 27, 255),
-      vrow(2, 137.5, 'v20.zip', 200, 255, 25, 343),
-      vrow(3, null, 'v20.zip', 200, 255, 25, 345),
+      vrow({ id: 1, chapterNumber: 128, file: 'v20.zip', volumeId: 200, pageCount: 27, pages: 27, index: 255 }),
+      vrow({ id: 2, chapterNumber: 137.5, file: 'v20.zip', volumeId: 200, pageCount: 255, pages: 25, index: 343 }),
+      vrow({ id: 3, chapterNumber: null, file: 'v20.zip', volumeId: 200, pageCount: 255, pages: 25, index: 345 }),
     ];
     const out: PageCountRepair[] = planPageCountRepairs(chapters, vpc);
     expect(out).toEqual([{ id: 2, pageCount: 25 }]);
@@ -127,7 +129,9 @@ describe('planPageCountRepairs', () => {
 
   it('skips repair when the chapter does not share its archive (single-file volume)', () => {
     const vpc = new Map<number, number | null>([[201, 200]]);
-    const chapters: VolRow[] = [vrow(1, 5, 'c5.cbz', 201, 200, null, 5)];
+    const chapters: VolRow[] = [
+      vrow({ id: 1, chapterNumber: 5, file: 'c5.cbz', volumeId: 201, pageCount: 200, pages: null, index: 5 }),
+    ];
     expect(planPageCountRepairs(chapters, vpc)).toEqual([]);
   });
 });
