@@ -22,9 +22,15 @@ describe('ComicVine Rate Limiting Integration', () => {
   describe('Rate Limiting + Velocity Detection', () => {
     it('should apply both rate limiting and velocity detection', async () => {
       const startTime = Date.now();
-      
-      // Make a few requests
+
+      // Make a few requests and snapshot the velocity stats RIGHT AFTER
+      // each one. The velocity detector's `recentRequests` is windowed
+      // over only 10s (SHORT_WINDOW_MS); under CI load the three
+      // throttled requests + post-loop work can take >10s, ageing the
+      // earliest samples out of the window before we assert at the end.
+      // Snapshotting in-the-moment makes the assertion immune to that.
       const results = [];
+      const velocitySnapshots: number[] = [];
       for (let i = 0; i < 3; i++) {
         // eslint-disable-next-line no-await-in-loop -- Sequential requests required to test rate limiting behavior
         const result = await throttleRequest(
@@ -33,27 +39,33 @@ describe('ComicVine Rate Limiting Integration', () => {
           'volumes'
         );
         results.push(result);
+        velocitySnapshots.push(getVelocityStats().recentRequests);
       }
-      
+
       const endTime = Date.now();
       const totalTime = endTime - startTime;
-      
+
       // All requests should succeed
       results.forEach(result => {
         expect(isSuccess(result)).toBe(true);
       });
-      
+
       // Should have taken some time due to delays
       expect(totalTime).toBeGreaterThan(0);
-      
-      // Check stats. The counters are stateful + windowed; under CI load
-      // a sliding window can drop the earliest sample before assertion.
-      // We assert "at least most of them" rather than exact equality.
+
+      // Rate limiter's hourly window is, well, an hour — safe to query at
+      // end. It catches whether requests were tracked at all.
       const rateLimitStats = getRateLimitStats('volumes');
       expect(rateLimitStats.requestsThisHour).toBeGreaterThanOrEqual(2);
 
-      const velocityStats = getVelocityStats();
-      expect(velocityStats.recentRequests).toBeGreaterThanOrEqual(2);
+      // Velocity detector saw the requests as we made them. After the
+      // 3rd call the snapshot must reflect at least 2 in-window samples
+      // (oldest sample could still age out between push and assert on
+      // a very slow runner, but that's a 10s gap inside the loop — not
+      // realistic, and the third snapshot itself records >=1 by being
+      // taken immediately after the request).
+      expect(velocitySnapshots[velocitySnapshots.length - 1]).toBeGreaterThanOrEqual(1);
+      expect(Math.max(...velocitySnapshots)).toBeGreaterThanOrEqual(2);
     }, 20000); // 20 second timeout
     
     it('should handle different resource types separately', async () => {
