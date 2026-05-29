@@ -38,6 +38,7 @@ import { resolveExpectedChapterCount } from './phase-volume-cross-validation/cha
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { assignOverflowChapters } from './phase-volume-overflow';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
+import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
@@ -632,6 +633,13 @@ async function executeEnrichmentPhases(
     logger.info(`[enrichmentPipeline] Found bonus titles in ${bonusTitleMap.size} volumes for manga ${mangaId}`);
   }
   await reassignBonusChaptersToParentVolumes(mangaId, bonusTitleMap);
+
+  // Phase 6.6: Prune redundant file-backed volume stubs + repair mis-stamped page counts.
+  // Whole-volume-archive imports scaffold one stub row per expected chapter (all sharing one
+  // vN.zip); after numbering, the unmatched stubs linger as empty NULL-chapterNumber rows that
+  // still carry the whole-archive pageCount, inflating the volume's CHAPTERS + PAGES badges.
+  // Runs last so it compares against the finalized chapter list.
+  await pruneRedundantVolumeFileStubs(mangaId);
 }
 
 // ============================================================================
