@@ -41,21 +41,21 @@ jobs:
       continue-on-error: true
 
     - name: Upload TypeScript error report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: typescript-error-report
         path: ts-error-report/
         if-no-files-found: warn
 
     - name: Upload ESLint report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: eslint-report
         path: eslint-report/
         if-no-files-found: warn
 
     - name: Upload type safety report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: type-safety-report
         path: type-safety-report/
