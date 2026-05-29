@@ -210,27 +210,42 @@ async function resetProviderSourcedChapters(
 /** Exported for testability — see clear-auto-bindings.spec. */
 export { chapterIsCarrier, chapterIsPointerOnly };
 
+/**
+ * A volume is auto-derived (clearable on reidentify) when it's a `reconciliation`
+ * volume, or its `source` is composed *entirely* of cleared provider names. This
+ * catches cross-validation compounds like `"comicvine+wikipedia+mangadex"` that a
+ * naive exact-name `IN` filter misses — the gap that left Dorohedoro's 23 provider
+ * volumes (+ 2 reconciliation phantoms) undeletable on reidentify. A compound that
+ * includes a preserved provider (e.g. a manual binding) is kept; null/empty/custom
+ * sources are left alone (ambiguous — may be user-created).
+ */
+export function shouldClearVolumeSource(source: string | null, clearedSources: Set<string>): boolean {
+  if (!source) return false;
+  if (source === 'reconciliation') return true;
+  const parts = source.split('+').map((s) => s.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every((p) => clearedSources.has(p));
+}
+
 async function deleteProviderVolumes(
   prisma: PrismaClient,
   mangaId: number,
   cleared: ClearableProvider[],
 ): Promise<{ removedVolumes: number; detachedChapters: number }> {
-  const sources = cleared.map((p) => PROVIDER_TO_VOLUME_SOURCE[p]).filter((s): s is string => Boolean(s));
-  if (sources.length === 0) return { removedVolumes: 0, detachedChapters: 0 };
+  const clearedSources = new Set(
+    cleared.map((p) => PROVIDER_TO_VOLUME_SOURCE[p]).filter((s): s is string => Boolean(s)),
+  );
+  if (clearedSources.size === 0) return { removedVolumes: 0, detachedChapters: 0 };
 
-  const vols = await prisma.volume.findMany({
-    where: { mangaId, source: { in: sources } },
-    select: { id: true },
-  });
-  if (vols.length === 0) return { removedVolumes: 0, detachedChapters: 0 };
+  const all = await prisma.volume.findMany({ where: { mangaId }, select: { id: true, source: true } });
+  const ids = all.filter((v) => shouldClearVolumeSource(v.source, clearedSources)).map((v) => v.id);
+  if (ids.length === 0) return { removedVolumes: 0, detachedChapters: 0 };
 
-  const ids = vols.map((v) => v.id);
   const detached = await prisma.chapter.updateMany({
     where: { volumeId: { in: ids } },
     data: { volumeId: null },
   });
   await prisma.volume.deleteMany({ where: { id: { in: ids } } });
-  return { removedVolumes: vols.length, detachedChapters: detached.count };
+  return { removedVolumes: ids.length, detachedChapters: detached.count };
 }
 
 /**
