@@ -77,11 +77,23 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          
-          // Read reports
-          const tsReport = fs.readFileSync('ts-error-report/report.md', 'utf8');
-          const eslintReport = fs.readFileSync('eslint-report/eslint-analysis.md', 'utf8');
-          const typeReport = fs.readFileSync('type-safety-report/report.md', 'utf8');
+
+          // A clean run produces no report file (e.g. zero TypeScript errors -> no
+          // ts-error-report/report.md), so a bare readFileSync threw ENOENT and
+          // failed the whole job on every passing PR. Swallow ENOENT with a
+          // friendly placeholder; bubble up anything else.
+          const readReport = (path, label) => {
+            try {
+              return fs.readFileSync(path, 'utf8');
+            } catch (err) {
+              if (err.code === 'ENOENT') return `_${label}: no report generated (clean run)_`;
+              throw err;
+            }
+          };
+
+          const tsReport = readReport('ts-error-report/report.md', 'TypeScript');
+          const eslintReport = readReport('eslint-report/eslint-analysis.md', 'ESLint');
+          const typeReport = readReport('type-safety-report/report.md', 'Type Safety');
           
           // Create comment body
           const body = `## Code Quality Report
