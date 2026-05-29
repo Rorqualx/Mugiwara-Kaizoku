@@ -286,6 +286,44 @@ async function sourceHasChapters(suwayomiMangaId: number): Promise<boolean> {
 }
 
 /**
+ * Per-source fanout for {@link matchMangaAcrossAllSuwayomiSources}: bounded
+ * rolling concurrency, settled-style.
+ *
+ * An unbounded `Promise.allSettled` over ~30 installed sources × the parallel
+ * `quickDownloadWithSearch` mutations a user can fire (one per volume) saturates
+ * Suwayomi's thread pool — observed 2026-05-29 with 535 chapters across 5
+ * concurrent mutations, every wrapper hit the upstream `suwayomi-search exceeded
+ * 120000ms — returning null` timeout. A cap of 4 lets slow Cloudflare-gated
+ * sources cool down without starving fast ones (a worker drains a shared cursor
+ * so as soon as one finishes the next starts — same pattern as `runLimited` in
+ * scanner/chapter-creator/chapter-file-service.ts).
+ */
+const SOURCE_FANOUT_CONCURRENCY = 4;
+
+async function runSourceFanout<S, R>(
+  sources: readonly S[],
+  fn: (s: S) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(sources.length);
+  const cursor = { value: 0 };
+  const worker = async (): Promise<void> => {
+    for (let idx = cursor.value++; idx < sources.length; idx = cursor.value++) {
+      const item = sources[idx];
+      if (item === undefined) continue;
+      try {
+        // eslint-disable-next-line no-await-in-loop -- worker drains a shared cursor; sequential by design for bounded concurrency
+        results[idx] = { status: 'fulfilled', value: await fn(item) };
+      } catch (reason) {
+        results[idx] = { status: 'rejected', reason };
+      }
+    }
+  };
+  const workerCount = Math.max(1, Math.min(SOURCE_FANOUT_CONCURRENCY, sources.length));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
+/**
  * Auto-discover binding by fanning out across every installed Suwayomi source
  * in parallel, ranking matches by confidence, and walking the ranked list
  * top-down — accepting the first candidate that *also* has at least one
@@ -339,9 +377,11 @@ export async function matchMangaAcrossAllSuwayomiSources(
     mangaId, title: ctx.queryTitle, sourceCount: sources.length,
   });
 
-  const results = await Promise.allSettled(
-    sources.map(async (s) => ({ sourceId: String(s.id), name: s.name, ...(await searchAndScore(String(s.id), ctx)) })),
-  );
+  const results = await runSourceFanout(sources, async (s) => ({
+    sourceId: String(s.id),
+    name: s.name,
+    ...(await searchAndScore(String(s.id), ctx)),
+  }));
 
   // Collect every above-threshold winner across all sources, sorted by
   // score desc, so we can walk the ranked list and accept the first one
