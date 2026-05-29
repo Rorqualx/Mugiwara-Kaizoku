@@ -163,6 +163,75 @@ function extractVolumeNumberFromFileName(fileName: string): number | null {
   return match?.[1] ? parseInt(match[1], 10) : null;
 }
 
+export interface VolumeRange { id: number; number: number; chapterStart: number | null; chapterEnd: number | null }
+
+/**
+ * Resolve the real volume for a NULL-numbered file row.
+ *
+ * A whole-volume archive ("v20.zip") maps by its filename volume number. A chapter file
+ * ("Chapter 167.75.cbz") maps by the volume range containing floor(its filename number). Returns
+ * null when no existing volume fits — we never invent a volume from a filename.
+ */
+export function resolveNullRowVolume(
+  fileName: string,
+  volumes: VolumeRange[],
+  volIdByNumber: Map<number, number>,
+): { id: number; number: number } | null {
+  if (isVolumeFileName(fileName)) {
+    const fileVol = extractVolumeNumberFromFileName(fileName);
+    const volId = fileVol !== null ? volIdByNumber.get(fileVol) : undefined;
+    return fileVol !== null && volId !== undefined ? { id: volId, number: fileVol } : null;
+  }
+  const match = fileName.match(/(\d+(?:\.\d+)?)/);
+  if (!match?.[1]) return null;
+  const floor = Math.floor(parseFloat(match[1]));
+  for (const v of volumes) {
+    if (v.chapterStart === null || v.chapterEnd === null) continue;
+    if (floor >= v.chapterStart && floor <= v.chapterEnd) return { id: v.id, number: v.number };
+  }
+  return null;
+}
+
+/**
+ * Reassign NULL-numbered file rows to their real volume before reconciliation.
+ *
+ * Whole-volume tankōbon archives ("v20.zip") and the occasional un-numbered chapter file
+ * ("Chapter 167.75.cbz") import with `chapterNumber = NULL`. The range-based correction in
+ * `correctVolumeAssignments` can't move them — it keys its UPDATE by `chapterNumber`, which is NULL
+ * — so they get stranded in a phantom `reconciliation` volume (Dorohedoro vols 24/25). Reassigning
+ * by row id, BEFORE `reconcileMissingVolumeRecords` runs, lets them land in their real volume so no
+ * phantom is created. Only `volume`/`volumeId` is set (never `chapterNumber`), so this can't collide
+ * with an existing decimal placeholder on the `(mangaId, chapterNumber)` unique index.
+ */
+export async function reassignNullNumberedVolumeArchives(mangaId: number): Promise<void> {
+  const rows = await prisma.chapter.findMany({
+    where: { mangaId, filePath: { not: null }, chapterNumber: null },
+    select: { id: true, volume: true, fileName: true },
+  });
+  if (rows.length === 0) return;
+
+  const volumes = await prisma.volume.findMany({
+    where: { mangaId },
+    select: { id: true, number: true, chapterStart: true, chapterEnd: true },
+  });
+  const volIdByNumber = new Map(volumes.map(v => [v.number, v.id]));
+
+  const updates: Array<{ id: number; volume: number; volumeId: number }> = [];
+  for (const ch of rows) {
+    const target = resolveNullRowVolume(ch.fileName, volumes, volIdByNumber);
+    if (target === null || target.number === ch.volume) continue;
+    updates.push({ id: ch.id, volume: target.number, volumeId: target.id });
+  }
+  if (updates.length === 0) return;
+
+  await Promise.all(updates.map(u =>
+    prisma.chapter.update({ where: { id: u.id }, data: { volume: u.volume, volumeId: u.volumeId } }),
+  ));
+  logger.info(
+    `[enrichmentPipeline] Reassigned ${updates.length} NULL-numbered file rows to a real volume for manga ${mangaId}`,
+  );
+}
+
 /** Classify each chapter as needing correction, orphan unlinking, or no action */
 // eslint-disable-next-line complexity -- complexity 22: per-chapter classification considers chapterNumber/volume/volumeId/filePath/fileName + correctionMap + confidence threshold; each branch maps to one of 3 distinct outcomes
 function classifyChapterCorrections(

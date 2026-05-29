@@ -37,7 +37,7 @@ import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { assignOverflowChapters } from './phase-volume-overflow';
-import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments } from './phase-volume-reconciliation';
+import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
@@ -599,6 +599,9 @@ async function executeEnrichmentPhases(
   // Phase 6: Safety net (should rarely fire with cross-validation)
   // Use the stronger expectedVolumeCount (AniList + Wikipedia) instead of just Wikipedia list length
   const expectedVolCount = expectedVolumeCount > 0 ? expectedVolumeCount : null;
+  // Pull NULL-numbered whole-volume archive rows into their real volume BEFORE reconciliation,
+  // so they can't seed phantom "reconciliation" volumes (Dorohedoro v19-v23.zip → vols 24/25).
+  await reassignNullNumberedVolumeArchives(mangaId);
   await reconcileMissingVolumeRecords(mangaId, expectedVolCount);
   await fillEmptyVolumeRanges(mangaId);
   await correctVolumeAssignments(mangaId);

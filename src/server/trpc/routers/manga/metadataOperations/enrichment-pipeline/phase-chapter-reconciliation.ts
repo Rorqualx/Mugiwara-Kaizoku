@@ -15,7 +15,8 @@
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-import type { ChapterDataItem } from './types';
+import { isBonusTitle, type ChapterDataItem } from './types';
+
 import type { Prisma } from '@prisma/client';
 
 const log = logger.child('ChapterReconciliation');
@@ -269,8 +270,54 @@ export function mergeAllSourceChapters(
 
   const merged = [...byNumber.values()].sort((a, b) => a.number - b.number);
 
+  // Drop overflow-integer duplicates / misnumbered extras (Dorohedoro phantom-volume class)
+  const deduped = suppressOverflowDuplicateExtras(merged, expectedChapterCount);
+
   // E6 + E2: Cap at 110% of expected, with metadata exception for outliers
-  return applyFusionCap(merged, expectedChapterCount);
+  return applyFusionCap(deduped, expectedChapterCount);
+}
+
+/**
+ * Drop overflow-integer chapters that are duplicates or misnumbered extras.
+ *
+ * A source occasionally re-lists a manga's per-volume omake (and the finale) as linear integers
+ * past the real chapter count — e.g. Dorohedoro's "Extra Evil"/"Special Chapter" surfacing as
+ * 169/178/179 when the canonical omake already exist as decimals (6.1/6.5/…/167.x). Left alone
+ * they inflate the chapter count and get bucketed into phantom `reconciliation` volumes (24/25).
+ *
+ * An integer strictly greater than `expectedChapterCount` is removed when it is either an
+ * exact-title duplicate of a non-overflow chapter or explicitly bonus/extra-titled: its canonical
+ * home is the decimal / in-range chapter that remains, so no content is lost.
+ *
+ * Conservative by construction — only fires when `expectedChapterCount` is a positive trusted
+ * value, and never touches decimals or chapters within the declared count. Real chapters beyond an
+ * undercounting scalar keep ordinary titles and survive.
+ */
+export function suppressOverflowDuplicateExtras(
+  chapters: ChapterDataItem[],
+  expectedChapterCount: number,
+): ChapterDataItem[] {
+  if (expectedChapterCount <= 0) return chapters;
+
+  const normalize = (t: string): string => t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const nonOverflowTitles = new Set<string>();
+  for (const ch of chapters) {
+    const isOverflowInteger = Number.isInteger(ch.number) && ch.number > expectedChapterCount;
+    if (!isOverflowInteger && ch.title) nonOverflowTitles.add(normalize(ch.title));
+  }
+
+  const kept = chapters.filter(ch => {
+    if (!Number.isInteger(ch.number) || ch.number <= expectedChapterCount) return true;
+    const isExactDuplicate = ch.title !== undefined && nonOverflowTitles.has(normalize(ch.title));
+    const isMisnumberedExtra = isBonusTitle(ch.title ?? null);
+    return !(isExactDuplicate || isMisnumberedExtra);
+  });
+
+  const dropped = chapters.length - kept.length;
+  if (dropped > 0) {
+    log.debug(`Suppressed ${dropped} overflow duplicate/extra chapters (expected=${expectedChapterCount})`);
+  }
+  return kept;
 }
 
 /**
