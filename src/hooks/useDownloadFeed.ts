@@ -41,7 +41,16 @@ export interface UseDownloadFeedResult {
 
 const MAX_MESSAGES = 50;
 const THROTTLE_MS = 300;
-const MESSAGE_TTL_MS = 10_000; // Auto-dismiss messages after 10 seconds
+const MESSAGE_TTL_MS = 10_000; // Auto-dismiss terminal messages after 10 seconds
+// In-flight messages (severity=info with progress unfinished) should NOT disappear after 10s —
+// the user explicitly wants the panel to keep showing what's currently updating. Cap them at
+// 5 minutes as a safety so a truly orphaned "started" event eventually clears itself.
+const IN_FLIGHT_TTL_MS = 5 * 60_000;
+
+function isInFlight(msg: FeedMessage): boolean {
+  if (msg.severity !== 'info') return false;
+  return msg.progress === undefined || msg.progress < 100;
+}
 
 // ============================================================================
 // Helpers
@@ -211,9 +220,10 @@ export function useDownloadFeed(): UseDownloadFeedResult {
     const interval = setInterval(() => {
       const now = Date.now();
       const before = bufferRef.current.length;
-      bufferRef.current = bufferRef.current.filter(
-        (msg) => now - new Date(msg.timestamp).getTime() < MESSAGE_TTL_MS
-      );
+      bufferRef.current = bufferRef.current.filter((msg) => {
+        const ageMs = now - new Date(msg.timestamp).getTime();
+        return ageMs < (isInFlight(msg) ? IN_FLIGHT_TTL_MS : MESSAGE_TTL_MS);
+      });
       if (bufferRef.current.length !== before) {
         flushBuffer();
       }

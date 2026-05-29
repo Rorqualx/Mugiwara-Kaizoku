@@ -16,10 +16,11 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-import { Box, Group, Text, UnstyledButton } from "@mantine/core";
+import { Box, Collapse, Group, Text, UnstyledButton } from "@mantine/core";
 import {
   IconApi,
   IconAlertTriangle,
+  IconChevronDown,
   IconClock,
   IconDownload,
   IconInfoCircle,
@@ -29,6 +30,7 @@ import Link from 'next/link';
 
 import type { ApiCallInfo } from '@/components/apiCallAlert';
 import { DownloadFeed } from '@/components/events/DownloadFeed';
+import { useDownloadFeed } from '@/hooks/useDownloadFeed';
 import { useEvents } from '@/hooks/useEvents';
 import { useRealTime } from '@/providers/RealTimeProvider';
 import type { WebSocketEvent } from '@/types/api/v1/websocket';
@@ -95,6 +97,12 @@ export function EventsPanel({ className = '' }: EventsPanelProps): React.ReactEl
     const { subscribe } = useRealTime();
 
     const { countsResult, active, queued, scheduled, failed, outOfSync, apiCalls, isLoading: eventsLoading } = useEvents();
+
+    // Pulled up so we can render the toggle header alongside the inline DownloadFeed below.
+    // (DownloadFeed also calls useDownloadFeed; both subscriptions hit the same RealTime
+    // dispatcher, no duplicate network cost.)
+    const { messageCount: feedMessageCount } = useDownloadFeed();
+    const [feedExpanded, setFeedExpanded] = useState(true);
 
     // Auto-dismiss: track when each activity count last changed
     const DISMISS_MS = 10_000;
@@ -228,7 +236,26 @@ export function EventsPanel({ className = '' }: EventsPanelProps): React.ReactEl
                 />
             )}
 
-            <DownloadFeed />
+            {feedMessageCount > 0 && (
+                <>
+                    <UnstyledButton
+                        onClick={() => setFeedExpanded(v => !v)}
+                        className={classes.event}
+                        style={{ width: '100%' }}
+                    >
+                        <Group gap="xs" wrap="nowrap">
+                            <IconChevronDown
+                                size={14}
+                                style={{ transform: feedExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 120ms ease' }}
+                            />
+                            <Text size="sm">Live feed ({feedMessageCount})</Text>
+                        </Group>
+                    </UnstyledButton>
+                    <Collapse in={feedExpanded}>
+                        <DownloadFeed />
+                    </Collapse>
+                </>
+            )}
 
             {recentApiCalls.map((call: ApiCallInfo) => (
                 <Group key={call.id} gap="xs" className={classes.event}>
