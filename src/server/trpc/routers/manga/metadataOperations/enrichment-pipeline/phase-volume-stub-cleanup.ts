@@ -132,6 +132,36 @@ export function planPageCountRepairs(
 }
 
 /**
+ * Stamp each kept volume-file row's pageCount with its volume's canonical page count
+ * (Volume.pageCount, cross-validated from providers). The file-derived counter sometimes mis-counts
+ * a whole-volume archive row (e.g. Dorohedoro v23 came out 24 instead of 354); since this row IS the
+ * volume, its count should equal the volume total — and the volume page badge reads from it. The
+ * owning volume is resolved via the archive filePath shared with the volume's numbered chapters
+ * (robust to the row's own volumeId being transiently NULL during a reidentify).
+ */
+export function planVolumeFilePageStamps(
+  chapters: VolumeChapterRow[],
+  deletedIds: Set<number>,
+  volumePageCount: Map<number, number | null>,
+): PageCountRepair[] {
+  const filePathToVolPages = new Map<string, number>();
+  for (const c of chapters) {
+    if (c.chapterNumber === null || c.volumeId === null || c.filePath === null) continue;
+    const vp = volumePageCount.get(c.volumeId);
+    if (typeof vp === 'number' && vp > 0) filePathToVolPages.set(c.filePath, vp);
+  }
+
+  const stamps: PageCountRepair[] = [];
+  for (const c of chapters) {
+    if (deletedIds.has(c.id) || c.chapterNumber !== null || c.filePath === null) continue;
+    const target = filePathToVolPages.get(c.filePath);
+    if (target === undefined || target === c.pageCount) continue;
+    stamps.push({ id: c.id, pageCount: target });
+  }
+  return stamps;
+}
+
+/**
  * Prune duplicate volume-file rows and repair mis-stamped per-chapter page counts.
  *
  * Queried by mangaId, NOT volumeId: during a reidentify the Volume rows are dropped and recreated,
@@ -158,21 +188,24 @@ export async function pruneRedundantVolumeFileStubs(mangaId: number): Promise<vo
 
   const stubIds = selectVolumeFileStubsToDelete(chapters);
   const deletedSet = new Set(stubIds);
-  const repairs = planPageCountRepairs(chapters.filter(c => !deletedSet.has(c.id)), volPageCount);
+  const updates: PageCountRepair[] = [
+    ...planPageCountRepairs(chapters.filter(c => !deletedSet.has(c.id)), volPageCount),
+    ...planVolumeFilePageStamps(chapters, deletedSet, volPageCount),
+  ];
 
   if (stubIds.length > 0) {
     await prisma.chapter.deleteMany({ where: { id: { in: stubIds } } });
   }
-  if (repairs.length > 0) {
+  if (updates.length > 0) {
     await prisma.$transaction(
-      repairs.map(r => prisma.chapter.update({ where: { id: r.id }, data: { pageCount: r.pageCount } })),
+      updates.map(u => prisma.chapter.update({ where: { id: u.id }, data: { pageCount: u.pageCount } })),
     );
   }
 
-  if (stubIds.length > 0 || repairs.length > 0) {
+  if (stubIds.length > 0 || updates.length > 0) {
     logger.info(
       `[enrichmentPipeline] Stub cleanup for manga ${mangaId}: deleted ${stubIds.length} ` +
-      `duplicate volume-file rows, repaired ${repairs.length} mis-stamped page counts`,
+      `duplicate volume-file rows, set ${updates.length} page counts`,
     );
   }
 }

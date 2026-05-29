@@ -3,14 +3,15 @@
  *
  * Guards the volume file-stub cleanup: duplicate volume-file rows (empty file-backed compilation
  * entries) are deduped to ONE per archive, real omake/extras + numbered chapters are preserved,
- * pack-download rows are never touched, and the mis-stamped page-count repair fixes real chapters
- * while leaving the kept volume-file row's whole-archive count intact.
+ * pack-download rows are never touched, the mis-stamped page-count repair fixes real chapters while
+ * leaving the kept volume-file row, and that kept row is stamped with the volume's canonical pages.
  */
 import {
   selectVolumeFileStubsToDelete,
   isMisStampedArchiveCount,
   correctedSlicePageCount,
   planPageCountRepairs,
+  planVolumeFilePageStamps,
   type PageCountRepair,
 } from '../phase-volume-stub-cleanup';
 
@@ -32,6 +33,14 @@ const numbered = (id: number, ch: number, title: string, file: string, index: nu
   ({ id, chapterNumber: ch, title, filePath: file, packDownloadId: null, index });
 const stub = (id: number, file: string | null, index: number, title: string | null = null): StubRow =>
   ({ id, chapterNumber: null, title, filePath: file, packDownloadId: null, index });
+const vrow = (o: {
+  id: number; chapterNumber: number | null; file: string; volumeId: number;
+  pageCount: number | null; pages: number | null; index: number;
+}): VolRow => ({
+  id: o.id, chapterNumber: o.chapterNumber, title: o.chapterNumber === null ? '' : 'T',
+  filePath: o.file, packDownloadId: null, index: o.index,
+  volumeId: o.volumeId, pageCount: o.pageCount, pages: o.pages,
+});
 
 describe('selectVolumeFileStubsToDelete', () => {
   it('keeps one volume-file row per archive and deletes the duplicates (Dorohedoro vol 20)', () => {
@@ -107,15 +116,6 @@ describe('correctedSlicePageCount', () => {
 });
 
 describe('planPageCountRepairs', () => {
-  const vrow = (o: {
-    id: number; chapterNumber: number | null; file: string; volumeId: number;
-    pageCount: number | null; pages: number | null; index: number;
-  }): VolRow => ({
-    id: o.id, chapterNumber: o.chapterNumber, title: o.chapterNumber === null ? '' : 'T',
-    filePath: o.file, packDownloadId: null, index: o.index,
-    volumeId: o.volumeId, pageCount: o.pageCount, pages: o.pages,
-  });
-
   it('repairs real chapters stamped with the whole-archive count but leaves the volume-file row', () => {
     const vpc = new Map<number, number | null>([[200, 254]]);
     const chapters: VolRow[] = [
@@ -133,5 +133,26 @@ describe('planPageCountRepairs', () => {
       vrow({ id: 1, chapterNumber: 5, file: 'c5.cbz', volumeId: 201, pageCount: 200, pages: null, index: 5 }),
     ];
     expect(planPageCountRepairs(chapters, vpc)).toEqual([]);
+  });
+});
+
+describe('planVolumeFilePageStamps', () => {
+  it('stamps the kept volume-file row with the volume canonical page count (vol 23: 24 -> 354)', () => {
+    const vpc = new Map<number, number | null>([[223, 354]]);
+    const chapters: VolRow[] = [
+      vrow({ id: 1, chapterNumber: 156, file: 'v23.zip', volumeId: 223, pageCount: 25, pages: 24, index: 321 }),
+      vrow({ id: 2, chapterNumber: null, file: 'v23.zip', volumeId: 223, pageCount: 24, pages: 24, index: 317 }),
+    ];
+    expect(planVolumeFilePageStamps(chapters, new Set(), vpc)).toEqual([{ id: 2, pageCount: 354 }]);
+  });
+
+  it('skips a row already correct and a row being deleted', () => {
+    const vpc = new Map<number, number | null>([[223, 354]]);
+    const chapters: VolRow[] = [
+      vrow({ id: 1, chapterNumber: 156, file: 'v23.zip', volumeId: 223, pageCount: 25, pages: 24, index: 321 }),
+      vrow({ id: 2, chapterNumber: null, file: 'v23.zip', volumeId: 223, pageCount: 354, pages: 24, index: 317 }),
+      vrow({ id: 3, chapterNumber: null, file: 'v23.zip', volumeId: 223, pageCount: 99, pages: 24, index: 318 }),
+    ];
+    expect(planVolumeFilePageStamps(chapters, new Set([3]), vpc)).toEqual([]);
   });
 });
