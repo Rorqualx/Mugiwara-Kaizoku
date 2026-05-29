@@ -50,14 +50,22 @@ export function useVolumeStatistics({
             (chapter: Chapter): chapter is Chapter => chapter instanceof Object
         );
 
-        const size = validChapters.reduce((sum: number, chapter: Chapter) => {
-            return sum + chapter.size;
-        }, 0);
+        // A whole-volume archive is represented by a "volume-file" row (chapterNumber === null):
+        // its size/pageCount cover the ENTIRE volume, while the numbered chapters are slices of the
+        // same archive. Summing both double-counts (a tankōbon reads as ~2x its real size/pages), so
+        // when a volume-file row exists it alone defines the volume totals; otherwise sum the
+        // per-chapter rows (volumes stored as individual chapter files, e.g. clean Dorohedoro v18).
+        const volumeFileRows = validChapters.filter(
+            (c: Chapter) => c.chapterNumber === null && c.filePath !== null
+        );
 
-        const pageCount = validChapters.reduce((sum: number, chapter: Chapter) => {
-            // Use file-based pageCount first, fall back to metadata pages
-            return sum + (chapter.pageCount ?? chapter.pages ?? 0);
-        }, 0);
+        const size = volumeFileRows.length > 0
+            ? Math.max(...volumeFileRows.map((c: Chapter) => c.size))
+            : validChapters.reduce((sum: number, c: Chapter) => sum + c.size, 0);
+
+        const pageCount = volumeFileRows.length > 0
+            ? Math.max(...volumeFileRows.map((c: Chapter) => c.pageCount ?? c.pages ?? 0))
+            : validChapters.reduce((sum: number, c: Chapter) => sum + (c.pageCount ?? c.pages ?? 0), 0);
 
         return {
             volumeSize: size,

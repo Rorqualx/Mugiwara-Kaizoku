@@ -1,15 +1,16 @@
 /**
  * Volume File-Stub Cleanup
  *
- * Whole-volume-archive imports (one `vN.zip` = one tankōbon) scaffold one chapter row per
- * expected chapter, all sharing that single archive file. Reconciliation numbers the rows that
- * match a provider chapter list and orphans the rest as empty stubs (chapterNumber=NULL, empty
- * title, filePath=vN.zip) that still carry the whole archive's pageCount. These inflate both the
- * volume's CHAPTERS count and its PAGES badge (useVolumeStatistics sums every chapter's pageCount).
+ * A whole-volume archive (`vN.zip` = one tankōbon) is legitimately represented by ONE "volume-file"
+ * row — an empty file-backed row (chapterNumber=NULL, empty title) the browser renders as the
+ * volume's chapter range ("128-137") and reads as the whole-volume compilation. Imports scaffold
+ * MANY such rows for the same archive; the duplicates inflate the volume's CHAPTERS count and its
+ * PAGES badge (each carries the whole-archive pageCount). This phase keeps one volume-file row per
+ * archive and deletes the duplicates, and repairs per-chapter page counts that were stamped with
+ * the whole-archive total — so a reidentify self-heals the data.
  *
- * The `Chapter_one_null_per_volume` partial index can't catch them — it requires filePath IS NULL;
- * these are file-backed. This phase prunes the redundant stubs and repairs the per-chapter page
- * counts that were stamped with the whole-archive total, so a reidentify self-heals the data.
+ * The `Chapter_one_null_per_volume` partial index can't catch the duplicates — it requires
+ * filePath IS NULL; these are file-backed.
  */
 
 import { prisma } from '@/server/db';
@@ -30,24 +31,19 @@ function isEmptyTitle(title: string | null): boolean {
 }
 
 /**
- * Stub rows to delete within a single volume.
+ * Duplicate volume-file rows to delete.
  *
- * - Empty file-backed rows duplicating a numbered chapter's archive are fully redundant (the
- *   numbered chapters already represent that archive) → delete all of them.
- * - Among remaining empty stubs whose file no numbered chapter covers, keep one per filePath as
- *   the legitimate "volume file" entry the browser renders → delete the rest.
+ * Groups empty file-backed rows (chapterNumber=NULL, empty title — the volume-file compilation
+ * entries) by their archive path and keeps exactly one per archive (lowest index), deleting the
+ * rest.
+ *
  * - Never touch packDownloadId rows: a pack download legitimately emits N pre-numbering rows for
  *   the same volume (see Chapter_one_null_per_volume.sql).
- *
- * Real omake/extras (which carry a chapterNumber and a title) never match and are preserved.
+ * - Real omake/extras + numbered chapters (which carry a chapterNumber) are never matched here and
+ *   are always preserved.
  */
-export function selectVolumeFileStubsToDelete(
-  stubs: StubRow[],
-  numberedFilePaths: Set<string>,
-): number[] {
-  const toDelete = new Set<number>();
-  const uncovered: StubRow[] = [];
-
+export function selectVolumeFileStubsToDelete(stubs: StubRow[]): number[] {
+  const byPath = new Map<string, StubRow[]>();
   for (const s of stubs) {
     const isEmptyFileStub =
       s.packDownloadId === null &&
@@ -55,28 +51,19 @@ export function selectVolumeFileStubsToDelete(
       s.chapterNumber === null &&
       isEmptyTitle(s.title);
     if (!isEmptyFileStub) continue;
-
-    if (numberedFilePaths.has(s.filePath as string)) {
-      toDelete.add(s.id);
-    } else {
-      uncovered.push(s);
-    }
-  }
-
-  const byPath = new Map<string, StubRow[]>();
-  for (const s of uncovered) {
     const key = s.filePath as string;
     const arr = byPath.get(key);
     if (arr) arr.push(s);
     else byPath.set(key, [s]);
   }
+
+  const toDelete: number[] = [];
   for (const arr of byPath.values()) {
     if (arr.length <= 1) continue;
     arr.sort((a, b) => a.index - b.index);
-    for (const s of arr.slice(1)) toDelete.add(s.id);
+    for (const s of arr.slice(1)) toDelete.push(s.id);
   }
-
-  return [...toDelete];
+  return toDelete;
 }
 
 /**
@@ -101,62 +88,67 @@ export function correctedSlicePageCount(pages: number | null): number | null {
 }
 
 interface VolumeChapterRow extends StubRow {
+  volumeId: number | null;
   pageCount: number | null;
   pages: number | null;
 }
 
-export interface VolumeCleanupPlan {
-  stubIds: number[];
-  repairs: Array<{ id: number; pageCount: number | null }>;
+export type PageCountRepair = { id: number; pageCount: number | null };
+
+/** Composite grouping key for "shared archive within a volume". */
+function volumeFileKey(volumeId: number, filePath: string): string {
+  return `${volumeId}|${filePath}`;
 }
 
 /**
- * Pure per-volume plan: which empty stub rows to delete and which mis-stamped page counts to
- * repair. Composes the three guards above so the async runner stays a thin read → plan → write.
+ * Mis-stamped page-count repairs, keyed by (volumeId, filePath) so "shared archive" is judged
+ * within a volume. A real chapter that claims ~the entire volume archive while sharing it with
+ * other rows is a slice that inherited the whole-archive count → reset to the provider `pages`.
+ *
+ * The volume-file row (chapterNumber=NULL) is deliberately skipped: it IS the whole volume, so its
+ * whole-archive count is correct and feeds the volume's page badge.
  */
-export function planVolumeCleanup(
+export function planPageCountRepairs(
   chapters: VolumeChapterRow[],
-  volumePageCount: number | null,
-): VolumeCleanupPlan {
-  const numberedFilePaths = new Set<string>();
-  for (const c of chapters) {
-    if (c.chapterNumber !== null && c.filePath !== null) numberedFilePaths.add(c.filePath);
-  }
-  const stubIds = selectVolumeFileStubsToDelete(chapters, numberedFilePaths);
-
-  const deletedSet = new Set(stubIds);
-  const survivors = chapters.filter(c => !deletedSet.has(c.id));
+  volumePageCount: Map<number, number | null>,
+): PageCountRepair[] {
   const sharedCount = new Map<string, number>();
-  for (const c of survivors) {
-    if (c.filePath !== null) sharedCount.set(c.filePath, (sharedCount.get(c.filePath) ?? 0) + 1);
+  for (const c of chapters) {
+    if (c.volumeId === null || c.filePath === null) continue;
+    const key = volumeFileKey(c.volumeId, c.filePath);
+    sharedCount.set(key, (sharedCount.get(key) ?? 0) + 1);
   }
 
-  const repairs: VolumeCleanupPlan['repairs'] = [];
-  for (const c of survivors) {
-    if (c.filePath === null) continue;
-    const shared = sharedCount.get(c.filePath) ?? 0;
-    if (!isMisStampedArchiveCount(c.pageCount, volumePageCount, shared)) continue;
+  const repairs: PageCountRepair[] = [];
+  for (const c of chapters) {
+    if (c.chapterNumber === null || c.volumeId === null || c.filePath === null) continue;
+    const shared = sharedCount.get(volumeFileKey(c.volumeId, c.filePath)) ?? 0;
+    if (!isMisStampedArchiveCount(c.pageCount, volumePageCount.get(c.volumeId) ?? null, shared)) continue;
     const corrected = correctedSlicePageCount(c.pages);
     if (corrected === c.pageCount) continue;
     repairs.push({ id: c.id, pageCount: corrected });
   }
-  return { stubIds, repairs };
+  return repairs;
 }
 
 /**
- * Prune redundant file-backed volume stubs and repair mis-stamped per-chapter page counts.
- * Runs late in the pipeline (after numbering, overflow, and bonus reassignment) so the surviving
- * rows are the canonical chapter list before this cleanup compares against it.
+ * Prune duplicate volume-file rows and repair mis-stamped per-chapter page counts.
+ *
+ * Queried by mangaId, NOT volumeId: during a reidentify the Volume rows are dropped and recreated,
+ * which NULLs each stub's volumeId via FK cascade, and a later raw-SQL pass re-homes them — so at
+ * this phase a stub may not yet sit in any volume. Dedup matches stubs by archive filePath (a
+ * whole-volume `vN.zip` path is unique to one volume), which is stable regardless of volume-
+ * assignment timing. The page-count repair is volume-scoped and only touches rows already assigned.
  */
 export async function pruneRedundantVolumeFileStubs(mangaId: number): Promise<void> {
   const volumes = await prisma.volume.findMany({
     where: { mangaId, number: { gt: 0 } },
     select: { id: true, pageCount: true },
   });
-  if (volumes.length === 0) return;
+  const volPageCount = new Map(volumes.map(v => [v.id, v.pageCount]));
 
   const chapters = await prisma.chapter.findMany({
-    where: { volumeId: { in: volumes.map(v => v.id) } },
+    where: { mangaId },
     select: {
       id: true, volumeId: true, chapterNumber: true, title: true, filePath: true,
       packDownloadId: true, index: true, pageCount: true, pages: true,
@@ -164,37 +156,23 @@ export async function pruneRedundantVolumeFileStubs(mangaId: number): Promise<vo
   });
   if (chapters.length === 0) return;
 
-  const byVolume = new Map<number, typeof chapters>();
-  for (const c of chapters) {
-    if (c.volumeId === null) continue;
-    const arr = byVolume.get(c.volumeId);
-    if (arr) arr.push(c);
-    else byVolume.set(c.volumeId, [c]);
-  }
+  const stubIds = selectVolumeFileStubsToDelete(chapters);
+  const deletedSet = new Set(stubIds);
+  const repairs = planPageCountRepairs(chapters.filter(c => !deletedSet.has(c.id)), volPageCount);
 
-  const volPageCount = new Map(volumes.map(v => [v.id, v.pageCount]));
-  const stubIdsToDelete: number[] = [];
-  const pageCountRepairs: VolumeCleanupPlan['repairs'] = [];
-  for (const [volumeId, volChapters] of byVolume) {
-    const plan = planVolumeCleanup(volChapters, volPageCount.get(volumeId) ?? null);
-    stubIdsToDelete.push(...plan.stubIds);
-    pageCountRepairs.push(...plan.repairs);
+  if (stubIds.length > 0) {
+    await prisma.chapter.deleteMany({ where: { id: { in: stubIds } } });
   }
-
-  if (stubIdsToDelete.length > 0) {
-    await prisma.chapter.deleteMany({ where: { id: { in: stubIdsToDelete } } });
-  }
-  if (pageCountRepairs.length > 0) {
+  if (repairs.length > 0) {
     await prisma.$transaction(
-      pageCountRepairs.map(r =>
-        prisma.chapter.update({ where: { id: r.id }, data: { pageCount: r.pageCount } })),
+      repairs.map(r => prisma.chapter.update({ where: { id: r.id }, data: { pageCount: r.pageCount } })),
     );
   }
 
-  if (stubIdsToDelete.length > 0 || pageCountRepairs.length > 0) {
+  if (stubIds.length > 0 || repairs.length > 0) {
     logger.info(
-      `[enrichmentPipeline] Stub cleanup for manga ${mangaId}: deleted ${stubIdsToDelete.length} ` +
-      `redundant file-backed volume stubs, repaired ${pageCountRepairs.length} mis-stamped page counts`,
+      `[enrichmentPipeline] Stub cleanup for manga ${mangaId}: deleted ${stubIds.length} ` +
+      `duplicate volume-file rows, repaired ${repairs.length} mis-stamped page counts`,
     );
   }
 }
