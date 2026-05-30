@@ -27,6 +27,18 @@ export interface MALDirectResult {
   rank: number | null;
   genres: string[];
   isAdult: boolean;
+  /**
+   * Phase 5 Sprint #2: MAL recommendations (manga-to-manga). Resolved
+   * downstream into MangaRecommendation rows with externalSource='mal'.
+   */
+  recommendations?: Array<{
+    anilistId: number; // shared edge shape — carries malId here
+    title: string;
+    format: string | null;
+    coverUrl: string | null;
+    medium: 'MANGA' | 'ANIME' | 'NOVEL' | 'OTHER' | null;
+    rating: number | null;
+  }>;
 }
 
 /**
@@ -65,7 +77,11 @@ export async function fetchMALDirect(malId: number): Promise<MALDirectResult | n
     isAdult: result.isAdult,
   });
 
-  return {
+  // Phase 5 Sprint #2: pull MAL recommendations alongside the metadata call.
+  // Best-effort — failures here don't block the main metadata path.
+  const recommendations = await jikanService.getMangaRecommendationsByMALId(malId);
+
+  const out: MALDirectResult = {
     malId: result.malId,
     title: result.title,
     chapters: result.chapters,
@@ -77,6 +93,8 @@ export async function fetchMALDirect(malId: number): Promise<MALDirectResult | n
     genres: result.genres,
     isAdult: result.isAdult,
   };
+  if (recommendations.length > 0) out.recommendations = recommendations;
+  return out;
 }
 
 /**

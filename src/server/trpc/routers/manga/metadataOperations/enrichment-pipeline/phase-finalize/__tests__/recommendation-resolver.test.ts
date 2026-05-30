@@ -1,6 +1,6 @@
 import { prisma } from '@/server/db';
 
-import { backfillRecommendationsForNewManga, resolveAniListRecommendations } from '../recommendation-resolver';
+import { backfillRecommendationsForNewManga, resolveAniListRecommendations, resolveRecommendations } from '../recommendation-resolver';
 
 jest.mock('@/server/db', () => ({
   prisma: {
@@ -94,6 +94,27 @@ describe('resolveAniListRecommendations', () => {
       { anilistId: 111, title: 'X', format: null, coverUrl: null, medium: null, rating: null },
     ]);
     expect(r.skipped).toBe(1);
+  });
+});
+
+describe('resolveRecommendations (Sprint #2 — multi-source)', () => {
+  it('writes externalSource=mal when called with the mal arg', async () => {
+    const edges = [{ anilistId: 999, title: 'MAL Rec', format: null, coverUrl: null, medium: 'MANGA' as const, rating: 42 }];
+    await resolveRecommendations(50, edges, 'mal');
+    const writeCall = mockUpsert.mock.calls[0]?.[0] as unknown as {
+      where: { fromMangaId_externalSource_externalToId: { externalSource: string } };
+      create: { externalSource: string };
+    };
+    expect(writeCall.where.fromMangaId_externalSource_externalToId.externalSource).toBe('mal');
+    expect(writeCall.create.externalSource).toBe('mal');
+  });
+
+  it('queries the mal providerId path when resolving target manga (Sprint #2)', async () => {
+    mockQueryRaw.mockResolvedValueOnce([{ id: 777 }] as never);
+    const edges = [{ anilistId: 999, title: 'Local MAL Rec', format: null, coverUrl: null, medium: 'MANGA' as const, rating: null }];
+    await resolveRecommendations(50, edges, 'mal');
+    const createPayload = mockUpsert.mock.calls[0]?.[0].create as { toMangaId: number | null };
+    expect(createPayload.toMangaId).toBe(777);
   });
 });
 

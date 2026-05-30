@@ -75,7 +75,7 @@ export interface BuildEnrichmentParams {
  * `phase-db-persistence` can stamp real per-field provenance instead of
  * uniformly stamping every key with the match-level provider.
  */
-// eslint-disable-next-line complexity -- complexity 34: bridge between 7 provider results (AniList/MangaDex/ComicVine/MangaUpdates/MAL/Kitsu/Fandom) and the unified EnrichmentResult shape; each branch conditionally appends to sources/ids/metadata. Splitting would scatter the orchestration across multiple files for marginal gain.
+// eslint-disable-next-line complexity, max-lines-per-function -- complexity 34 + length: bridge between 7 provider results (AniList/MangaDex/ComicVine/MangaUpdates/MAL/Kitsu/Fandom) and the unified EnrichmentResult shape; each branch conditionally appends to sources/ids/metadata. Splitting would scatter the orchestration across multiple files for marginal gain.
 export function buildEnrichmentResult(params: BuildEnrichmentParams): EnrichmentResult {
   const { mangaId, title, anilist, mangadex, comicvine, mangaupdates, mal, kitsu } = params;
   const details = anilist?.details;
@@ -152,6 +152,11 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
       mangadexExternalIds: mangadex?.externalIds ?? undefined,
       anilistExternalLinks: extractAniListExternalLinks(anilist),
       anilistRecommendations: extractAniListRecommendations(anilist),
+      // Phase 5 Sprint #2: MAL recommendations from Jikan, persisted alongside
+      // AL recommendations into MangaRecommendation rows with
+      // externalSource='mal'.
+      malRecommendations: mal?.recommendations,
+      malId: mal?.malId,
       // Phase 1: AL relations.edges[] passed through for phase-finalize/manga-relation-resolver.
       anilistRelations: extractAniListRelations(anilist),
     },

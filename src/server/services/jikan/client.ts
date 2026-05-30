@@ -32,12 +32,12 @@ async function enforceRateLimit(): Promise<void> {
   lastRequestTime = Date.now();
 }
 
-/** Build and validate a Jikan URL for a given MAL ID */
-function buildJikanUrl(malId: number): string {
+/** Build and validate a Jikan URL for a given MAL ID + optional sub-path */
+function buildJikanUrl(malId: number, subPath = ''): string {
   if (!Number.isInteger(malId) || malId <= 0) {
     throw new Error(`Invalid MAL ID: ${malId}`);
   }
-  const url = `${JIKAN_BASE_URL}/${malId}`;
+  const url = `${JIKAN_BASE_URL}/${malId}${subPath}`;
   if (!url.startsWith(ALLOWED_ORIGIN)) {
     throw new Error(`URL does not match allowed origin: ${url}`);
   }
@@ -112,4 +112,63 @@ export async function isAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ============================================================================
+// Phase 5 Sprint #2: extended MAL surfaces (recommendations, relations)
+// ============================================================================
+
+export interface JikanRecommendationEntry {
+  mal_id: number;
+  url?: string;
+  images?: { jpg?: { image_url?: string; large_image_url?: string } };
+  title?: string;
+}
+
+export interface JikanRecommendationsResponse {
+  data?: Array<{ entry?: JikanRecommendationEntry; votes?: number }>;
+}
+
+/**
+ * Fetch MAL recommendations for a manga.
+ * Returns null on failure; empty data → empty array.
+ *
+ * Endpoint: GET /manga/{id}/recommendations
+ */
+export async function fetchRecommendationsByMALId(
+  malId: number,
+  retries: number = 2,
+): Promise<JikanRecommendationsResponse | null> {
+  const url = buildJikanUrl(malId, '/recommendations');
+  /* eslint-disable no-await-in-loop -- retry loop must sequence rate-limit/request/backoff */
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      await enforceRateLimit();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => { controller.abort(); }, DEFAULT_TIMEOUT_MS);
+      const resp = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (resp.status === 429) {
+        const wait = Math.min(10_000, (attempt + 1) * 2_000);
+        log.warn('Jikan recommendations rate-limited, retrying', { malId, attempt, waitMs: wait });
+        await new Promise<void>((r) => { setTimeout(r, wait); });
+        continue;
+      }
+      if (!resp.ok) {
+        log.debug('Jikan recommendations non-OK', { malId, status: resp.status });
+        return null;
+      }
+      return (await resp.json()) as JikanRecommendationsResponse;
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (attempt < retries - 1) {
+        log.debug('Jikan recommendations fetch error, retrying', { malId, attempt, error: msg });
+        await new Promise<void>((r) => { setTimeout(r, 1_000); });
+      } else {
+        log.warn('Jikan recommendations fetch failed after retries', { malId, retries, error: msg });
+      }
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+  return null;
 }

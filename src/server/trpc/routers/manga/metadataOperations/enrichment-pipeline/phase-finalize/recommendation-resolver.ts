@@ -29,8 +29,18 @@ interface AniListRecommendationEdge {
 
 interface UpsertCounts { created: number; updated: number; skipped: number }
 
-async function findTargetMangaId(externalToId: string): Promise<number | null> {
-  // Same JSON-path query the relation resolver uses.
+async function findTargetMangaId(externalToId: string, externalSource = 'anilist'): Promise<number | null> {
+  // Same JSON-path query the relation resolver uses. Sprint #2 widens the
+  // source parameter so MAL recommendations can resolve via
+  // providerMetadata.mal.providerId on the same path.
+  if (externalSource === 'mal') {
+    const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+      SELECT id FROM "Manga"
+      WHERE "providerMetadata"->'mal'->>'providerId' = ${externalToId}
+      LIMIT 1
+    `;
+    return rows[0]?.id ?? null;
+  }
   const rows = await prisma.$queryRaw<Array<{ id: number }>>`
     SELECT id FROM "Manga"
     WHERE "providerMetadata"->'anilist'->>'providerId' = ${externalToId}
@@ -43,10 +53,11 @@ async function upsertSingleRecommendation(
   fromMangaId: number,
   edge: AniListRecommendationEdge,
   toMangaId: number | null,
+  externalSource = 'anilist',
 ): Promise<'created' | 'updated' | 'skipped'> {
   const data = {
     fromMangaId,
-    externalSource: 'anilist',
+    externalSource,
     externalToId: String(edge.anilistId),
     toMangaId,
     targetTitle: edge.title.slice(0, 500),
@@ -59,15 +70,12 @@ async function upsertSingleRecommendation(
     where: {
       fromMangaId_externalSource_externalToId: {
         fromMangaId,
-        externalSource: 'anilist',
+        externalSource,
         externalToId: String(edge.anilistId),
       },
     },
     create: data,
     update: {
-      // Only fields that can drift over time — title/medium/format don't
-      // change. toMangaId fills as the target manga gets imported; rating
-      // changes as AL users vote.
       toMangaId,
       targetCoverUrl: edge.coverUrl,
       rating: edge.rating,
@@ -79,13 +87,14 @@ async function upsertSingleRecommendation(
 async function processEdge(
   fromMangaId: number,
   edge: AniListRecommendationEdge,
+  externalSource = 'anilist',
 ): Promise<'created' | 'updated' | 'skipped'> {
-  const toMangaId = await findTargetMangaId(String(edge.anilistId));
+  const toMangaId = await findTargetMangaId(String(edge.anilistId), externalSource);
   try {
-    return await upsertSingleRecommendation(fromMangaId, edge, toMangaId);
+    return await upsertSingleRecommendation(fromMangaId, edge, toMangaId, externalSource);
   } catch (err: unknown) {
     log.warn('Failed to upsert MangaRecommendation', {
-      fromMangaId, externalToId: edge.anilistId,
+      fromMangaId, externalSource, externalToId: edge.anilistId,
       error: err instanceof Error ? err.message : String(err),
     });
     return 'skipped';
@@ -96,17 +105,26 @@ export async function resolveAniListRecommendations(
   fromMangaId: number,
   edges: AniListRecommendationEdge[],
 ): Promise<UpsertCounts> {
+  return resolveRecommendations(fromMangaId, edges, 'anilist');
+}
+
+/** Sprint #2: shared resolver that the AL + MAL flows both reach. */
+export async function resolveRecommendations(
+  fromMangaId: number,
+  edges: AniListRecommendationEdge[],
+  externalSource: 'anilist' | 'mal',
+): Promise<UpsertCounts> {
   if (edges.length === 0) return { created: 0, updated: 0, skipped: 0 };
   let created = 0; let updated = 0; let skipped = 0;
   for (const edge of edges) {
     // eslint-disable-next-line no-await-in-loop -- sequential keeps logs ordered; ≤ 20 edges typical
-    const verdict = await processEdge(fromMangaId, edge);
+    const verdict = await processEdge(fromMangaId, edge, externalSource);
     if (verdict === 'created') created++;
     else if (verdict === 'updated') updated++;
     else skipped++;
   }
   log.info('MangaRecommendation persistence complete', {
-    fromMangaId, created, updated, skipped, total: edges.length,
+    fromMangaId, externalSource, created, updated, skipped, total: edges.length,
   });
   return { created, updated, skipped };
 }
@@ -142,20 +160,47 @@ export async function persistAniListRecommendationsForManga(
 ): Promise<void> {
   const enrichedData = providerResults.enrichmentResult.enrichedData as Record<string, unknown> | undefined;
   const unifiedManga = enrichedData?.['manga'] as Record<string, unknown> | undefined;
-  const edges = unifiedManga?.['anilistRecommendations'] as AniListRecommendationEdge[] | undefined;
+  const alEdges = unifiedManga?.['anilistRecommendations'] as AniListRecommendationEdge[] | undefined;
+  const malEdges = unifiedManga?.['malRecommendations'] as AniListRecommendationEdge[] | undefined;
+  const malId = unifiedManga?.['malId'] as number | undefined;
   try {
-    if (Array.isArray(edges) && edges.length > 0) {
-      await resolveAniListRecommendations(mangaId, edges);
+    if (Array.isArray(alEdges) && alEdges.length > 0) {
+      await resolveAniListRecommendations(mangaId, alEdges);
     }
-    // Inverse direction: other manga may have been waiting for this manga's
+    // Phase 5 Sprint #2: MAL recommendations land in the same table with
+    // externalSource='mal'. The inverse-resolve runs against MAL ids too.
+    if (Array.isArray(malEdges) && malEdges.length > 0) {
+      await resolveRecommendations(mangaId, malEdges, 'mal');
+    }
+    // Inverse direction (AL): other manga may have been waiting for this manga's
     // AL id to be imported as a target.
     const alId = await readMangaAniListId(mangaId);
     if (alId !== null) await backfillRecommendationsForNewManga(mangaId, alId);
+    // Inverse direction (MAL): backfill MAL recs whose target is this manga.
+    if (typeof malId === 'number') {
+      await backfillRecommendationsForNewMangaMAL(mangaId, String(malId));
+    }
   } catch (err: unknown) {
     log.warn('MangaRecommendation resolver failed (non-critical)', {
       mangaId, error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+async function backfillRecommendationsForNewMangaMAL(
+  newMangaId: number,
+  malId: string,
+): Promise<number> {
+  const result = await prisma.mangaRecommendation.updateMany({
+    where: { externalSource: 'mal', externalToId: malId, toMangaId: null },
+    data: { toMangaId: newMangaId },
+  });
+  if (result.count > 0) {
+    log.info('Back-filled MAL MangaRecommendation toMangaId', {
+      newMangaId, malId, count: result.count,
+    });
+  }
+  return result.count;
 }
 
 async function readMangaAniListId(mangaId: number): Promise<string | null> {
