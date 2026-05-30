@@ -79,8 +79,15 @@ export function selectCategorical(ctx: SelectorContext): SelectorResult {
     };
   }
 
+  // CRITICAL: return the NORMALIZED value, not the raw provider string.
+  // The overlay writes this directly to a Prisma column; for `status` etc.
+  // the column is an enum (MangaPublicationStatus) and the persister will
+  // throw `Invalid value for argument 'status'` on lowercase raw input.
+  // The categorical-field normalizers (status / format / contentRating /
+  // demographic / countryOfOrigin) all map the raw to the canonical enum
+  // form already; emit that here.
   return {
-    winner: winnerParsed.candidate,
+    winner: { ...winnerParsed.candidate, value: winnerParsed.normalized },
     confidence: winnerConfidence,
     alternatives,
     guardRefused: false,
