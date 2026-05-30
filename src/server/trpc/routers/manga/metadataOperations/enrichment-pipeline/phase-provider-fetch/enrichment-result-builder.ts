@@ -420,7 +420,7 @@ function extractAniListRecommendations(
         edges?: Array<{ node?: { rating?: number; mediaRecommendation?: Record<string, unknown> } }>;
       }
     | undefined;
-  const nodesFromEdges = rec?.edges?.map(e => e.node).filter((n): n is NonNullable<typeof n> => n !== undefined && n !== null);
+  const nodesFromEdges = rec?.edges?.map(e => e.node).filter((n): n is NonNullable<typeof n> => n !== undefined);
   const recommendationNodes = rec?.nodes ?? nodesFromEdges ?? [];
   const out: AniListRecommendation[] = [];
   for (const node of recommendationNodes.slice(0, 20)) {
