@@ -381,17 +381,35 @@ function extractAniListExternalLinks(
  * Extract AniList recommendations (related manga) — capped at 20.
  * AniList types don't expose recommendations, so cast safely.
  */
+export interface AniListRecommendation {
+  anilistId: number;
+  title: string;
+  format: string | null;
+  coverUrl: string | null;
+  /**
+   * Phase 5 #1.2: AL media `type` — MANGA / ANIME / NOVEL. UI uses this to
+   * decide whether a click lands on a local detail page or an external link.
+   * `null` when AL didn't include the type field for this recommendation.
+   */
+  medium: 'MANGA' | 'ANIME' | 'NOVEL' | 'OTHER' | null;
+  /**
+   * Phase 5 #1.2: AL `Recommendation.rating` (upvote count). Higher = more
+   * users agreed this was a good recommendation. UI sorts by this.
+   */
+  rating: number | null;
+}
+
 // eslint-disable-next-line complexity -- complexity 22: defensive type-narrowing across an unknown nested AniList recommendations shape; each ?. guards a different optional field
 function extractAniListRecommendations(
   anilist: AniListDirectResult | null,
-): Array<{ anilistId: number; title: string; format: string | null; coverUrl: string | null }> | undefined {
+): AniListRecommendation[] | undefined {
   if (!anilist) return undefined;
   const details = anilist.details as unknown as Record<string, unknown>;
   const rec = details['recommendations'] as
-    | { edges?: Array<{ node?: { mediaRecommendation?: Record<string, unknown> } }> }
+    | { edges?: Array<{ node?: { rating?: number; mediaRecommendation?: Record<string, unknown> } }> }
     | undefined;
   const edges = rec?.edges ?? [];
-  const out: Array<{ anilistId: number; title: string; format: string | null; coverUrl: string | null }> = [];
+  const out: AniListRecommendation[] = [];
   for (const edge of edges.slice(0, 20)) {
     const m = edge.node?.mediaRecommendation;
     if (!m) continue;
@@ -406,11 +424,20 @@ function extractAniListRecommendations(
     const coverUrl = typeof cover?.['large'] === 'string' ? cover['large']
       : typeof cover?.['medium'] === 'string' ? cover['medium']
       : null;
+    const mediumRaw = m['type'];
+    const medium: AniListRecommendation['medium'] =
+      mediumRaw === 'MANGA' ? 'MANGA'
+      : mediumRaw === 'ANIME' ? 'ANIME'
+      : mediumRaw === 'NOVEL' ? 'NOVEL'
+      : mediumRaw === undefined || mediumRaw === null ? null
+      : 'OTHER';
     out.push({
       anilistId: id,
       title: title as string,
       format: typeof m['format'] === 'string' ? m['format'] as string : null,
       coverUrl,
+      medium,
+      rating: typeof edge.node?.rating === 'number' ? edge.node.rating : null,
     });
   }
   return out.length > 0 ? out : undefined;

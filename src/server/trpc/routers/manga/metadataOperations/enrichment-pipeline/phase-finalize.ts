@@ -1,4 +1,5 @@
-// @file-size-justified: orchestrator over 14+ sub-fillers in phase-finalize/.
+// @file-size-justified: orchestrator over 15+ sub-fillers in phase-finalize/.
+/* eslint-disable max-lines -- @file-size-justified above */
 /**
  * Phase 4: Finalize
  *
@@ -24,6 +25,7 @@ import { unionVolumeChapterCoversIntoGallery } from './phase-finalize/gallery-un
 import { persistAniListRelationsForManga } from './phase-finalize/manga-relation-resolver';
 import { syncMangaStatusFromMetadata } from './phase-finalize/manga-status-sync';
 import { persistMergedSynonyms } from './phase-finalize/merged-synonyms';
+import { persistAniListRecommendationsForManga } from './phase-finalize/recommendation-resolver';
 import { cacheProviderVolumeData } from './phase-finalize/volume-cache-writer';
 import { backfillMetadataVolumesFromVolumeRows } from './phase-finalize/volume-count-backfill';
 import { backfillChapterVolumeIds } from './phase-finalize/volume-id-backfill';
@@ -50,6 +52,7 @@ export async function phaseFinalize(
   await inheritParentSeriesMetadata(mangaId);
   await persistProviderBindings(mangaId, providerResults);
   await persistAniListRelationsForManga(mangaId, providerResults);
+  await persistAniListRecommendationsForManga(mangaId, providerResults);
   await cacheProviderVolumeData(mangaId, providerResults);
   await persistExternalLinks(mangaId, providerResults);
   await persistMergedSynonyms(mangaId, providerResults);
