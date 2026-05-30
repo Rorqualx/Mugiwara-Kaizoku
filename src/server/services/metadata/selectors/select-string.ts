@@ -159,7 +159,6 @@ const COVER_FIELDS: ReadonlySet<MetadataField> = new Set([
   'coverExtraLarge',
   'coverLarge',
   'coverMedium',
-  'coverSmall',
 ]);
 
 function isCoverField(field: MetadataField): boolean {

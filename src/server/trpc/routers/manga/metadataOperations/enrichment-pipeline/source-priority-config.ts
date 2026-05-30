@@ -38,7 +38,7 @@ export type VolumeField = 'coverImage' | 'title' | 'description' | 'releaseDate'
  */
 export type MetadataField =
   // strings
-  | 'summary' | 'cover' | 'coverExtraLarge' | 'coverLarge' | 'coverMedium' | 'coverSmall'
+  | 'summary' | 'cover' | 'coverExtraLarge' | 'coverLarge' | 'coverMedium'
   | 'bannerImage' | 'format' | 'countryOfOrigin' | 'status'
   | 'contentRating' | 'publicationDemographic'
   // numeric
@@ -107,7 +107,6 @@ export const METADATA_FIELD_PRIORITY: Record<MetadataField, SourceName[]> = {
   coverExtraLarge:        ['anilist', 'mangadex', 'kitsu'],
   coverLarge:             ['anilist', 'mangadex', 'kitsu'],
   coverMedium:            ['anilist', 'mangadex', 'kitsu'],
-  coverSmall:             ['anilist', 'kitsu'],
   bannerImage:            ['anilist'],
   format:                 ['anilist', 'mangadex', 'mal', 'kitsu'],
   countryOfOrigin:        ['anilist'],

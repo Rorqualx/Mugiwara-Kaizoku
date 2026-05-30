@@ -25,7 +25,6 @@ export function getCoverUrl(manga: MangaWithRelations, mangaId?: number): string
     metadata?.coverImage ??
     manga.Metadata?.coverLarge ??
     manga.Metadata?.coverMedium ??
-    manga.Metadata?.coverSmall ??
     null;
 
   if (!raw) {

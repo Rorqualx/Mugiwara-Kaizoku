@@ -60,17 +60,6 @@ export interface UseMetadataResult {
 }
 
 /**
- * Extract string field from raw metadata
- */
-function extractStringField(
-  raw: Record<string, unknown>,
-  key: string
-): string | undefined {
-  const value = raw[key];
-  return typeof value === 'string' ? value : undefined;
-}
-
-/**
  * Extract number field from raw metadata
  */
 function extractNumberField(
@@ -132,17 +121,12 @@ function extractExternalLinks(
 }
 
 /**
- * Extract string fields from raw metadata and convert undefined to null
+ * Phase 2: coverSmall dropped (no providers populated it). This stub
+ * remains a no-op for the assembleMetadata call site so a future
+ * string-field extraction can plug in without re-threading wiring.
  */
-// Phase 1: coverUrl, publisher, language dropped from Metadata schema.
-// Only coverSmall remains as a string field on Metadata; the rest moved to
-// publishers[] (array) or were deleted entirely.
-function mapStringFields(
-  raw: Record<string, unknown>
-): Pick<MangaMetadata, 'coverSmall'> {
-  return {
-    coverSmall: extractStringField(raw, "coverSmall") ?? null,
-  };
+function mapStringFields(_raw: Record<string, unknown>): Record<string, never> {
+  return {};
 }
 
 /**

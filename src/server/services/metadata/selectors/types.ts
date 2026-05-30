@@ -118,7 +118,6 @@ export const FIELD_TYPE_REGISTRY: Record<MetadataField, FieldType> = {
   coverExtraLarge: 'string',
   coverLarge:      'string',
   coverMedium:     'string',
-  coverSmall:      'string',
   bannerImage:     'string',
   // list
   genres:     'list',

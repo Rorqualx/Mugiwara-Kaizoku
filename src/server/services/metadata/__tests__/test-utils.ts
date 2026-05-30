@@ -161,7 +161,6 @@ export function createMockMetadata(overrides?: Partial<Metadata>): Metadata {
     coverExtraLarge: null,
     coverLarge: null,
     coverMedium: null,
-    coverSmall: null,
     startDate: null,
     endDate: null,
     chapters: null,

@@ -260,7 +260,6 @@ model Metadata {
   coverExtraLarge        String?
   coverLarge             String?
   coverMedium            String?
-  coverSmall             String?
   summary                String?
   genres                 String[]               @default([])
   authors                String[]               @default([])

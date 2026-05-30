@@ -93,7 +93,6 @@ interface MetadataUpdateData {
   coverExtraLarge?: string;
   coverLarge?: string;
   coverMedium?: string;
-  coverSmall?: string;
   cover: string;
   summary: string;
   genres: string[];
@@ -470,7 +469,7 @@ export class MetadataPersistenceService {
   private buildCoverVariants(
     metadata: UnifiedMangaMetadata,
     existingMetadata: Metadata | null
-  ): Partial<Pick<MetadataUpdateData, 'coverExtraLarge' | 'coverLarge' | 'coverMedium' | 'coverSmall'>> {
+  ): Partial<Pick<MetadataUpdateData, 'coverExtraLarge' | 'coverLarge' | 'coverMedium'>> {
     const getOptionalValue = <T>(newValue: T | undefined, existingValue: T | null | undefined): T | undefined => {
       if (newValue !== undefined && newValue !== null) return newValue;
       if (existingValue !== undefined && existingValue !== null) return existingValue;
@@ -483,12 +482,10 @@ export class MetadataPersistenceService {
     const coverExtraLarge = getOptionalValue(covers?.extraLarge, existingMetadata?.coverExtraLarge);
     const coverLarge = getOptionalValue(covers?.large, existingMetadata?.coverLarge);
     const coverMedium = getOptionalValue(covers?.medium, existingMetadata?.coverMedium);
-    const coverSmall = getOptionalValue(covers?.small, existingMetadata?.coverSmall);
 
     if (coverExtraLarge !== undefined) result.coverExtraLarge = coverExtraLarge;
     if (coverLarge !== undefined) result.coverLarge = coverLarge;
     if (coverMedium !== undefined) result.coverMedium = coverMedium;
-    if (coverSmall !== undefined) result.coverSmall = coverSmall;
 
     return result;
   }

@@ -117,8 +117,7 @@ describe('MetadataPersistenceService - Create Operations', () => {
         covers: {
           extraLarge: '/xl-cover.jpg',
           large: '/lg-cover.jpg',
-          medium: '/md-cover.jpg',
-          small: '/sm-cover.jpg'
+          medium: '/md-cover.jpg'
         }
       };
 
@@ -146,7 +145,6 @@ describe('MetadataPersistenceService - Create Operations', () => {
       expect(capturedMetadataData?.coverExtraLarge).toBe('/xl-cover.jpg');
       expect(capturedMetadataData?.coverLarge).toBe('/lg-cover.jpg');
       expect(capturedMetadataData?.coverMedium).toBe('/md-cover.jpg');
-      expect(capturedMetadataData?.coverSmall).toBe('/sm-cover.jpg');
     });
 
     it('should use default cover when none provided', async () => {
