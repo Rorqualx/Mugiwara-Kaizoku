@@ -16,9 +16,16 @@ import { getComicVineSearchConfig } from './search-config';
  * legacy title-similarity behaviour (stripTitlePatterns → lowercase → alnum+space).
  */
 function normalizeTitle(title: string): string {
+  // Replace punctuation with a SPACE (not deletion). Without the space,
+  // "Kaiju No.8" → "Kaiju No8" and "Kaiju No. 8" → "Kaiju No 8" — they
+  // don't canonicalize, so an AL english title with a punctuation-attached
+  // digit ("Kaiju No.8") scores 1.00 against a CV record using the same
+  // typography (Polish "Kaiju No.8") and <1.00 against the canonical Viz
+  // "Kaiju No. 8". The trailing `\s+` collapse + trim cleans up the
+  // resulting multi-spaces. Verified on the Kaiju 79 → 148344 incident.
   return stripTitlePatterns(title)
     .toLowerCase()
-    .replace(/[^\w\s]/g, '')
+    .replace(/[^\w\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }

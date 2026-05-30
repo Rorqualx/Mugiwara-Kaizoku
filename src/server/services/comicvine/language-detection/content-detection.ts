@@ -5,7 +5,7 @@
 
 import { LANGUAGE_CONFIGS } from './publisher-data';
 
-import type { ContentDetectionResult, DetectionMethodResult } from './types';
+import type { ContentDetectionResult, DetectionMethodResult, SupportedLanguage } from './types';
 
 /**
  * Normalize publisher name for comparison
@@ -151,6 +151,77 @@ export function detectFromTitleIndicator(title: string): DetectionMethodResult {
   }
 
   return checkTitleIndicators(title);
+}
+
+/**
+ * Description self-identification clauses. ComicVine volume descriptions for
+ * translated editions routinely begin with phrases like "Polish edition of",
+ * "Russian edition of", "Hungarian edition of" — written IN ENGLISH but
+ * describing a NON-English book. The Kaiju 79 → 148344 incident landed
+ * because the description "Polish edition of Kaiju No. 8 manga..." tricked
+ * the script-fallback into voting English at 0.3, after Studio JG failed
+ * the publisher list and Polish wasn't a supported language at all.
+ *
+ * These run BEFORE the script fallback in detectFromContent. The pattern
+ * deliberately covers languages we don't yet have publisher lists for
+ * (Polish, Russian, Czech, Hungarian, Dutch, Swedish, Turkish, etc.) —
+ * any one of them is a clear non-English signal.
+ */
+const FOREIGN_EDITION_DESCRIPTION_CLAUSES: Array<{ pattern: RegExp; language: 'en' | 'ja' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ko' | 'zh' | 'unknown' }> = [
+  // Languages we already model — re-detect them from description for safety.
+  { pattern: /\bfrench\s+(?:edition|version|translation)\s+of\b/i, language: 'fr' },
+  { pattern: /\bgerman\s+(?:edition|version|translation)\s+of\b/i, language: 'de' },
+  { pattern: /\bspanish\s+(?:edition|version|translation)\s+of\b/i, language: 'es' },
+  { pattern: /\bitalian\s+(?:edition|version|translation)\s+of\b/i, language: 'it' },
+  { pattern: /\bportuguese\s+(?:edition|version|translation)\s+of\b/i, language: 'pt' },
+  { pattern: /\bkorean\s+(?:edition|version|translation)\s+of\b/i, language: 'ko' },
+  { pattern: /\bchinese\s+(?:edition|version|translation)\s+of\b/i, language: 'zh' },
+  { pattern: /\bjapanese\s+(?:edition|version|original)\s+of\b/i, language: 'ja' },
+  // Languages we DON'T yet model — folded into the catch-all 'unknown' bucket.
+  // Anything tagged 'unknown' will fail the `=== preferredLanguage` check in
+  // the matcher (correct behavior: don't bind), regardless of which exotic
+  // language it actually is.
+  { pattern: /\bpolish\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\brussian\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bczech\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bhungarian\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bdutch\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bswedish\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bnorwegian\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bdanish\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bfinnish\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bturkish\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bgreek\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bromanian\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bukrainian\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bvietnamese\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bindonesian\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+  { pattern: /\bthai\s+(?:edition|version|translation)\s+of\b/i, language: 'unknown' },
+];
+
+/**
+ * Detect language from description self-identification clauses.
+ *
+ * Returns `'unknown'` for languages we don't yet model — that's intentional:
+ * the matcher's `detectedLanguage === preferredLanguage` check will then
+ * reject the candidate (because preferredLanguage is never 'unknown'),
+ * which is exactly the right outcome.
+ */
+function detectFromDescriptionEditionClause(description: string): DetectionMethodResult {
+  if (!description || description.length === 0) {
+    return { match: false, confidence: 0, reason: 'No description provided' };
+  }
+  for (const marker of FOREIGN_EDITION_DESCRIPTION_CLAUSES) {
+    if (marker.pattern.test(description)) {
+      return {
+        match: true,
+        language: marker.language as SupportedLanguage,
+        confidence: 0.97,
+        reason: `Description self-identifies as a ${marker.language.toUpperCase()} edition`,
+      };
+    }
+  }
+  return { match: false, confidence: 0, reason: 'No foreign-edition clause in description' };
 }
 
 /**
@@ -316,13 +387,17 @@ const AUTHORITATIVE_PUBLISHER_CONFIDENCE = 0.8;
  *                    (e.g., "One Piece (French Edition)"). When provided, this is
  *                    the highest-confidence signal.
  */
-export function detectFromContent(
-  publisher: string,
+/**
+ * High-confidence early-return chain. Volume-name marker > title indicator >
+ * description self-identification clause. Each returns at 0.95+ confidence and
+ * is decisive enough to skip the publisher + script aggregation below. Pulled
+ * out of detectFromContent to keep that function under the complexity cap.
+ */
+function detectFromHighConfidenceMarkers(
   title: string,
   description?: string,
-  volumeName?: string
-): ContentDetectionResult {
-  // Edition markers and title indicators win outright when present.
+  volumeName?: string,
+): ContentDetectionResult | null {
   if (volumeName) {
     const editionMarker = detectFromVolumeName(volumeName);
     if (editionMarker.match && editionMarker.language) {
@@ -333,6 +408,27 @@ export function detectFromContent(
   if (titleIndicator.match && titleIndicator.language) {
     return createSingleContentMatchResult(titleIndicator);
   }
+  if (description) {
+    const editionClause = detectFromDescriptionEditionClause(description);
+    if (editionClause.match && editionClause.language) {
+      return createSingleContentMatchResult(editionClause);
+    }
+  }
+  return null;
+}
+
+export function detectFromContent(
+  publisher: string,
+  title: string,
+  description?: string,
+  volumeName?: string
+): ContentDetectionResult {
+  // 1. High-confidence markers (volume-name / title indicator / description
+  //    self-identification) win outright. Description override is what catches
+  //    the Kaiju 79 → 148344 case: "Polish edition of …" in English text
+  //    would otherwise script-fallback to English at 0.3 confidence.
+  const earlyReturn = detectFromHighConfidenceMarkers(title, description, volumeName);
+  if (earlyReturn) return earlyReturn;
 
   const publisherResult = detectFromPublisher(publisher);
   const scriptResult = detectFromScript(title + (description ?? ''));

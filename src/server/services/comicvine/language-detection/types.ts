@@ -17,6 +17,13 @@ export type SupportedLanguage =
   | 'pt' // Portuguese
   | 'ko' // Korean
   | 'zh' // Chinese
+  | 'unknown' // Detected as non-English foreign edition but the specific
+              // language isn't modeled. Used by detectFromDescriptionEditionClause
+              // for Polish/Russian/Czech/etc. The matcher's preferredLanguage
+              // check will reject any candidate detected as 'unknown' (since
+              // preferredLanguage is never set to 'unknown'), which is the
+              // correct outcome — we don't want to silently bind to an
+              // unrecognized foreign edition.
   | 'any'; // Any language (no filter)
 
 /**
