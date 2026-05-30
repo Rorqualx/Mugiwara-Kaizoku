@@ -24,6 +24,7 @@ import { buildEnhancedProvenance } from '@/components/manga/MetadataProvenance/a
 import { FieldProvenanceBadge } from '@/components/manga/MetadataProvenance/FieldProvenanceBadge';
 
 
+import { MultiSourceRating } from './MultiSourceRating';
 import { SeriesPathEditor } from './SeriesPathEditor';
 
 import type { MangaMetadata, MangaWithRelations } from './types';
@@ -211,16 +212,7 @@ export function StatsSection({
             </Group>
           ) : null}
 
-          {manga.Metadata?.averageScore ? (
-            <Badge
-              color="yellow"
-              size="lg"
-              variant="filled"
-              leftSection="*"
-            >
-              {(manga.Metadata.averageScore / 10).toFixed(1)}/10
-            </Badge>
-          ) : null}
+          <MultiSourceRating manga={manga} />
 
           {manga.Metadata?.format ? (
             <Badge color="grape" size="lg" variant="light">
