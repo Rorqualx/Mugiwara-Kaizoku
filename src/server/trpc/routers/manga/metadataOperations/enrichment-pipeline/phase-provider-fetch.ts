@@ -32,6 +32,9 @@ import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvin
 import { comicvineService } from '@/server/services/comicvine/service';
 import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
 import type { MangaDexManga } from '@/server/services/mangadex/types';
+import { aniListClaimFields, collectCandidates, type ProviderClaim } from '@/server/services/metadata/selectors/collect-candidates';
+import { persistSelectionAttempt } from '@/server/services/metadata/selectors/persist-attempt';
+import { computeShadowDeltas, runShadowSelection } from '@/server/services/metadata/selectors/shadow-mode';
 import { detectNonEnglishVariant } from '@/server/services/search/providers/comicvine-language-filter';
 import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
 import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
@@ -42,11 +45,11 @@ import { pickBestTitleMatch } from './phase-provider-fetch/anilist-match';
 import { buildEnrichmentResult } from './phase-provider-fetch/enrichment-result-builder';
 import { extractMangaDexLinks } from './phase-provider-fetch/external-id-extractor';
 import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } from './phase-provider-fetch/kitsu-fetch';
-import { fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal-fetch';
+import { buildMALMetadataSupplements, fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal-fetch';
 import { fetchMangaDexAggregate } from './phase-provider-fetch/mangadex-aggregate';
 import { fetchMangaDexChapters } from './phase-provider-fetch/mangadex-chapter-list';
 import { pickBestMangaDexMatch } from './phase-provider-fetch/mangadex-matcher';
-import { fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
+import { buildMangaUpdatesMetadataSupplements, fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
 import { diceCoefficient, normalizeTitle } from './utils';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
@@ -383,6 +386,22 @@ export async function phaseProviderFetch(
   const enrichmentResult = buildEnrichmentResult({
     mangaId, title, anilist: anilistData, mangadex: mangadexData,
     comicvine: comicvineData, mangaupdates: muData, mal: malData, kitsu: kitsuData,
+  });
+
+  // Phase 1.5 shadow mode: run the cross-source consensus selector against
+  // the same provider data the Object.assign chain just consumed, write a
+  // MetadataSelectionAttempt row capturing where they disagree. Fire-and-
+  // forget — selector errors must never block enrichment (commit #12 turns
+  // the selector into the primary path).
+  void runAndPersistShadowSelection({
+    mangaId,
+    anilist: anilistData,
+    mangadex: mangadexData,
+    mangaupdates: muData,
+    mal: malData,
+    kitsu: kitsuData,
+    comicvine: comicvineData,
+    enrichmentResult,
   });
 
   logPhase1Summary(enrichmentResult, {
@@ -1098,5 +1117,111 @@ function logPhase1Summary(
     kitsu: kitsu
       ? `${kitsu.canonicalTitle} (${kitsu.slug}, ageRating=${kitsu.ageRating ?? 'n/a'})`
       : 'none',
+  });
+}
+
+// ============================================================================
+// Phase 1.5 shadow-mode wrapper
+// ============================================================================
+
+/**
+ * Build ProviderClaim[] from the same direct results buildEnrichmentResult
+ * sees, run the cross-source consensus selector against them, and write a
+ * MetadataSelectionAttempt row capturing the shadow output + deltas against
+ * the legacy Object.assign chain's pick.
+ *
+ * Fire-and-forget — caller must not await. Errors are caught + logged
+ * inside persistSelectionAttempt; nothing here can fail the enrichment.
+ */
+interface ShadowInputs {
+  mangaId: number;
+  anilist: AniListDirectResult | null;
+  mangadex: MangaDexDirectResult | null;
+  mangaupdates: MangaUpdatesDirectResult | null;
+  mal: MALDirectResult | null;
+  kitsu: KitsuDirectResult | null;
+  comicvine: ComicVineDirectResult | null;
+  enrichmentResult: EnrichmentResult;
+}
+
+async function runAndPersistShadowSelection(inputs: ShadowInputs): Promise<void> {
+  try {
+    const claims = buildClaimsForShadow(inputs);
+    if (claims.length === 0) return;
+    const byField = collectCandidates(claims);
+    const shadow = runShadowSelection(byField);
+    const legacyMetadata = (inputs.enrichmentResult.appliedMatch?.metadata ?? {}) as Record<string, unknown>;
+    const legacyProvenance = (inputs.enrichmentResult.appliedMatch?.perFieldProvenance ?? {}) as Record<string, string>;
+    const deltas = computeShadowDeltas(shadow, legacyMetadata, legacyProvenance);
+    await persistSelectionAttempt(inputs.mangaId, shadow, deltas);
+  } catch (err: unknown) {
+    logger.warn(
+      `Phase 1.5 shadow selection failed for manga ${inputs.mangaId}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+function buildClaimsForShadow(inputs: ShadowInputs): ProviderClaim[] {
+  const claims: ProviderClaim[] = [];
+  pushAniListClaim(inputs.anilist, claims);
+  pushMangaDexClaim(inputs.mangadex, claims);
+  pushMangaUpdatesClaim(inputs.mangaupdates, inputs.comicvine, claims);
+  pushMALClaim(inputs.mal, claims);
+  pushKitsuClaim(inputs.kitsu, claims);
+  pushComicVinePublisherClaim(inputs.comicvine, claims);
+  return claims;
+}
+
+function pushAniListClaim(anilist: AniListDirectResult | null, claims: ProviderClaim[]): void {
+  if (!anilist) return;
+  claims.push({ provider: 'anilist', matchConfidence: 0.95, fields: aniListClaimFields(anilist.details) });
+}
+
+function pushMangaDexClaim(mangadex: MangaDexDirectResult | null, claims: ProviderClaim[]): void {
+  if (!mangadex) return;
+  const fields: Record<string, unknown> = { status: mangadex.status };
+  if (mangadex.description) fields['summary'] = mangadex.description;
+  if (mangadex.contentRating) fields['contentRating'] = mangadex.contentRating;
+  if (mangadex.publicationDemographic) fields['publicationDemographic'] = mangadex.publicationDemographic;
+  claims.push({ provider: 'mangadex', matchConfidence: 0.95, fields });
+}
+
+function pushMangaUpdatesClaim(
+  mangaupdates: MangaUpdatesDirectResult | null,
+  comicvine: ComicVineDirectResult | null,
+  claims: ProviderClaim[],
+): void {
+  if (!mangaupdates) return;
+  claims.push({
+    provider: 'mangaupdates',
+    matchConfidence: 0.92,
+    fields: buildMangaUpdatesMetadataSupplements({}, mangaupdates, comicvine?.publisherName),
+  });
+}
+
+function pushMALClaim(mal: MALDirectResult | null, claims: ProviderClaim[]): void {
+  if (!mal) return;
+  claims.push({ provider: 'mal', matchConfidence: 0.92, fields: buildMALMetadataSupplements({}, mal) });
+}
+
+function pushKitsuClaim(kitsu: KitsuDirectResult | null, claims: ProviderClaim[]): void {
+  if (!kitsu) return;
+  const fields: Record<string, unknown> = {};
+  if (kitsu.ageRating) fields['contentRating'] = kitsu.ageRating;
+  if (kitsu.synopsis) fields['summary'] = kitsu.synopsis;
+  if (kitsu.alternativeTitles.length > 0) fields['synonyms'] = kitsu.alternativeTitles;
+  if (kitsu.subtype) fields['format'] = kitsu.subtype.toUpperCase();
+  if (kitsu.posterImageUrl) fields['cover'] = kitsu.posterImageUrl;
+  if (kitsu.chapterCount && kitsu.chapterCount > 0) fields['chapters'] = kitsu.chapterCount;
+  if (kitsu.volumeCount && kitsu.volumeCount > 0) fields['volumes'] = kitsu.volumeCount;
+  claims.push({ provider: 'kitsu', matchConfidence: 0.85, fields });
+}
+
+function pushComicVinePublisherClaim(comicvine: ComicVineDirectResult | null, claims: ProviderClaim[]): void {
+  if (!comicvine?.publisherName) return;
+  claims.push({
+    provider: 'comicvine',
+    matchConfidence: 0.85,
+    fields: { publishers: [comicvine.publisherName] },
   });
 }
