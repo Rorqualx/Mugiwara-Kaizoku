@@ -113,3 +113,27 @@ export function pickBestTitleMatch(
 
   return best;
 }
+
+/**
+ * Variant that returns both the picked result and the best score, so the
+ * pipeline can hand the score to `validateBindingFreshness` without
+ * re-computing it. Phase 3 #2.
+ */
+export function pickBestTitleMatchWithScore(
+  results: AniListMangaResult[],
+  query: string,
+): { result: AniListMangaResult; score: number } | null {
+  const pick = pickBestTitleMatch(results, query);
+  if (!pick) return null;
+  // Re-derive the score for the picked result against the query — small cost
+  // (one dice + a few normalizations) compared to the matcher's outer loop.
+  const normalized = normalizeTitle(query);
+  const candidates = [pick.title.english, pick.title.romaji, pick.title.native, ...(pick.synonyms ?? [])]
+    .filter((t): t is string => typeof t === 'string');
+  let score = 0;
+  for (const c of candidates) {
+    const s = diceCoefficient(normalized, normalizeTitle(c));
+    if (s > score) score = s;
+  }
+  return { result: pick, score };
+}

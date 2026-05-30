@@ -20,6 +20,8 @@ import {
 } from '@tabler/icons-react';
 
 import { countVolumes } from '@/components/manga/mangaDetailUtils';
+import { buildEnhancedProvenance } from '@/components/manga/MetadataProvenance/adapter';
+import { FieldProvenanceBadge } from '@/components/manga/MetadataProvenance/FieldProvenanceBadge';
 
 
 import { SeriesPathEditor } from './SeriesPathEditor';
@@ -177,13 +179,26 @@ export function StatsSection({
           )}
 
           {/* Status Badge - Use metadata status if available */}
-          <Badge
-            size="lg"
-            color={getStatusColor(manga.Metadata?.status)}
-            variant="filled"
-          >
-            {getStatusLabel(manga.Metadata?.status)}
-          </Badge>
+          <Group gap={4}>
+            <Badge
+              size="lg"
+              color={getStatusColor(manga.Metadata?.status)}
+              variant="filled"
+            >
+              {getStatusLabel(manga.Metadata?.status)}
+            </Badge>
+            {(() => {
+              const enhanced = buildEnhancedProvenance(
+                'status',
+                manga.providerMetadata,
+                null,
+                manga.Metadata?.fieldAlternatives,
+              );
+              return enhanced
+                ? <FieldProvenanceBadge field="status" provenance={enhanced} size="xs" />
+                : null;
+            })()}
+          </Group>
 
           {manga.Metadata?.popularity ? (
             <Group gap="xs">

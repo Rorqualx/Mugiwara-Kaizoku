@@ -32,6 +32,7 @@ import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvin
 import { comicvineService } from '@/server/services/comicvine/service';
 import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
 import type { MangaDexManga } from '@/server/services/mangadex/types';
+import { validateBindingFreshness } from '@/server/services/metadata/binding-validators/freshness-check';
 import { aniListClaimFields, collectCandidates, type ProviderClaim } from '@/server/services/metadata/selectors/collect-candidates';
 import { persistSelectionAttempt } from '@/server/services/metadata/selectors/persist-attempt';
 import { computeShadowDeltas, runShadowSelection } from '@/server/services/metadata/selectors/shadow-mode';
@@ -41,7 +42,7 @@ import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { logger } from '@/utils/logger';
 
 import { buildFallbackSearchQuery, stripTitlePatterns } from './matching/title-normalization';
-import { pickBestTitleMatch } from './phase-provider-fetch/anilist-match';
+import { pickBestTitleMatchWithScore } from './phase-provider-fetch/anilist-match';
 import { buildEnrichmentResult } from './phase-provider-fetch/enrichment-result-builder';
 import { extractMangaDexLinks } from './phase-provider-fetch/external-id-extractor';
 import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } from './phase-provider-fetch/kitsu-fetch';
@@ -153,6 +154,21 @@ export async function phaseProviderFetch(
     ]);
 
   const anilistData = anilistSettled.status === 'fulfilled' ? anilistSettled.value : null;
+
+  // Phase 3 #2 — sticky-binding freshness check. Skipped when the AL entity
+  // was pin-fetched (matchScore undefined → manual binding) or when there's
+  // no prior binding to compare against. Warns only; auto-invalidation is
+  // gated on calibration.
+  if (anilistData && typeof anilistData.matchScore === 'number') {
+    const boundAlId = extractBoundAniListId(mangaPin?.providerMetadata);
+    validateBindingFreshness({
+      mangaId,
+      provider: 'anilist',
+      currentScore: anilistData.matchScore,
+      boundEntityId: boundAlId,
+      manualPin: Boolean(mangaPin?.selectedSourceId),
+    });
+  }
   let mangadexData = mangadexSettled.status === 'fulfilled' ? mangadexSettled.value : null;
   let comicvineData = comicvineSettled.status === 'fulfilled' ? comicvineSettled.value : null;
   let fandomResult = fandomSettled.status === 'fulfilled' ? fandomSettled.value : null;
@@ -496,6 +512,12 @@ async function fetchMALWithCrossValidation(
 interface AniListDirectResult {
   id: number;
   details: AniListMangaDetails;
+  /**
+   * Phase 3 #2: match score the matcher computed for this result against the
+   * search query. Undefined when the AL entity was pin-fetched by id (manual
+   * binding) — the freshness check skips those.
+   */
+  matchScore?: number;
 }
 
 /**
@@ -587,21 +609,22 @@ async function fetchAniListDirect(
     log.info('AniList: no results found', { title, searchQuery });
     return null;
   }
-  const bestMatch = pickBestTitleMatch(results, title);
-  if (!bestMatch) return null;
+  const matched = pickBestTitleMatchWithScore(results, title);
+  if (!matched) return null;
 
   // Get full details
-  const details = await anilistService.getMangaDetails(bestMatch.id);
+  const details = await anilistService.getMangaDetails(matched.result.id);
   if (!details) return null;
 
   log.info('AniList: matched', {
-    id: bestMatch.id,
-    title: bestMatch.title.english ?? bestMatch.title.romaji,
+    id: matched.result.id,
+    title: matched.result.title.english ?? matched.result.title.romaji,
     chapters: details.chapters,
     volumes: details.volumes,
+    matchScore: matched.score.toFixed(2),
   });
 
-  return { id: bestMatch.id, details };
+  return { id: matched.result.id, details, matchScore: matched.score };
 }
 
 // ============================================================================
