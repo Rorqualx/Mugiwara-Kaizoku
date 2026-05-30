@@ -94,8 +94,8 @@ export function MetadataModals(props: MetadataModalsProps): React.ReactElement {
       tags: meta.tags,
       author: meta.authors[0],
       artist: meta.artists[0],
-      publisher: meta.publisher,
-      language: meta.language,
+      // Phase 1: publishers[] replaces publisher; language column dropped.
+      publisher: meta.publishers[0],
       startDate: meta.startDate,
       endDate: meta.endDate,
       chapters: meta.chapters,
@@ -119,11 +119,11 @@ export function MetadataModals(props: MetadataModalsProps): React.ReactElement {
   };
 
   const getCurrentCover = (): string => {
+    // Phase 1: coverUrl column dropped.
     return (
       manga?.Metadata?.coverLarge ??
       manga?.Metadata?.coverMedium ??
       manga?.Metadata?.cover ??
-      manga?.Metadata?.coverUrl ??
       ''
     );
   };

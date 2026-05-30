@@ -13,7 +13,7 @@
 
 import { z } from 'zod';
 
-import { calculateTotalChapters } from '@/server/services/metadata/refreshService';
+import { calculateTotalChapters } from '@/server/services/metadata/chapter-count-helpers';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createSuccessResult, createErrorResult, isError, isSuccess } from '@/utils/async-result';

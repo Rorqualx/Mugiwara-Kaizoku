@@ -30,7 +30,7 @@ const mangaCardSelect = {
       coverLarge: true,
       authors: true,
       artists: true,
-      publisher: true,
+      publishers: true,
       genres: true,
       status: true,
       averageScore: true,
@@ -123,7 +123,8 @@ export const browseRouter = router({
 
       const manga = await prisma.manga.findMany({
         where: {
-          Metadata: { publisher },
+          // Phase 1: Metadata.publisher → Metadata.publishers[]. Match any element.
+          Metadata: { publishers: { has: publisher } },
         },
         select: mangaCardSelect,
         take: limit + 1,
@@ -208,15 +209,18 @@ export const browseRouter = router({
     .query(async ({ input }) => {
       const { search, limit } = input;
 
+      // Phase 1: publishers TEXT[] — unnest then group/count each distinct entry.
       const result = search
         ? await prisma.$queryRaw<Array<{ publisher: string; count: bigint }>>`
-            SELECT publisher, COUNT(*) as count FROM "Metadata"
-            WHERE publisher IS NOT NULL AND publisher != '' AND publisher ILIKE ${'%' + search + '%'}
-            GROUP BY publisher ORDER BY count DESC, publisher ASC LIMIT ${limit}`
+            SELECT p AS publisher, COUNT(*) as count
+            FROM "Metadata", unnest(publishers) AS p
+            WHERE array_length(publishers, 1) > 0 AND p ILIKE ${'%' + search + '%'}
+            GROUP BY p ORDER BY count DESC, p ASC LIMIT ${limit}`
         : await prisma.$queryRaw<Array<{ publisher: string; count: bigint }>>`
-            SELECT publisher, COUNT(*) as count FROM "Metadata"
-            WHERE publisher IS NOT NULL AND publisher != ''
-            GROUP BY publisher ORDER BY count DESC, publisher ASC LIMIT ${limit}`;
+            SELECT p AS publisher, COUNT(*) as count
+            FROM "Metadata", unnest(publishers) AS p
+            WHERE array_length(publishers, 1) > 0
+            GROUP BY p ORDER BY count DESC, p ASC LIMIT ${limit}`;
 
       return result.map(r => ({ name: r.publisher, mangaCount: Number(r.count) }));
     }),
@@ -326,7 +330,8 @@ export const browseRouter = router({
           : Promise.resolve([]),
         publisherName
           ? prisma.manga.findMany({
-              where: { Metadata: { publisher: publisherName } },
+              // Phase 1: Metadata.publisher → Metadata.publishers[]. Match any element.
+              where: { Metadata: { publishers: { has: publisherName } } },
               select: mangaCardSelect, take: 20, orderBy: { title: 'asc' },
             })
           : Promise.resolve([]),

@@ -35,7 +35,8 @@ export function MobileMangaHeader({
   const [showActions, setShowActions] = useState(false);
 
   const metadata = manga.Metadata;
-  const coverUrl = metadata?.coverUrl ?? '/cover-not-found.jpg';
+  // Phase 1: coverUrl dropped — fall back through Large/Medium/cover variants.
+  const coverUrl = metadata?.coverLarge ?? metadata?.coverMedium ?? metadata?.cover ?? '/cover-not-found.jpg';
 
   return (
     <Stack gap="md">

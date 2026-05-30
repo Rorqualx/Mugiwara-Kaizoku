@@ -171,7 +171,6 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       authors: (mergeResult.metadata['authors'] as string[] | undefined) ?? [],
       tags: mergeResult.metadata.tags?.map(t => t.name) ?? [],
       themes: [],
-      characters: mergeResult.metadata.characters?.map(c => c.name) ?? [],
       startDate: null,
       endDate: null,
       synonyms: (mergeResult.metadata['alternativeTitles'] as string[] | undefined) ?? [],
@@ -182,11 +181,6 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       lastFetch: new Date(),
       source: 'anilist',
       sourceId: 'anilist-30013',
-      language: null,
-      languages: [],
-      qualityProfile: null,
-      averageResolution: null,
-      pageCount: null,
       volumes: mergeResult.metadata.volumeCount ?? null,
       chapters: mergeResult.metadata.chapterCount ?? null,
       artists: (mergeResult.metadata['artists'] as string[] | undefined) ?? [],
@@ -197,9 +191,10 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       format: null,
       idMal: null,
       popularity: null,
-      publisher: null,
-      coverUrl: null,
       rating: null,
+      publishers: [],
+      contentRating: null,
+      publicationDemographic: null,
       status: (mergeResult.metadata['status'] ?? 'UNKNOWN') as MangaPublicationStatus,
       galleryImages: []
     };
@@ -243,7 +238,6 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
         chapters: 1100,
         volumes: 106,
         synonyms: expect.arrayContaining(['ワンピース']),
-        characters: expect.arrayContaining(['Monkey D. Luffy', 'Roronoa Zoro', 'Nami'])
       })
     });
 
@@ -374,7 +368,6 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       authors: ['Eiichiro Oda'],
       tags: [],
       themes: [],
-      characters: [],
       startDate: null,
       endDate: null,
       synonyms: [],
@@ -385,11 +378,6 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       lastFetch: new Date('2024-01-01'),
       source: 'mangadex',
       sourceId: null,
-      language: null,
-      languages: [],
-      qualityProfile: null,
-      averageResolution: null,
-      pageCount: null,
       volumes: null,
       chapters: 1050,
       artists: [],
@@ -400,9 +388,10 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       format: null,
       idMal: null,
       popularity: null,
-      publisher: null,
-      coverUrl: null,
       rating: null,
+      publishers: [],
+      contentRating: null,
+      publicationDemographic: null,
       status: 'ONGOING',
       galleryImages: []
     };

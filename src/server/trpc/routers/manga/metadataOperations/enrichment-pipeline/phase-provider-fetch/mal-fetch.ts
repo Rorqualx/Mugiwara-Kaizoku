@@ -22,6 +22,9 @@ export interface MALDirectResult {
   volumes: number | null;
   status: string;
   score: number | null;
+  /** Phase 1: scored_by + rank surfaced for Metadata.rating JSON. */
+  scoredBy: number | null;
+  rank: number | null;
   genres: string[];
   isAdult: boolean;
 }
@@ -69,6 +72,8 @@ export async function fetchMALDirect(malId: number): Promise<MALDirectResult | n
     volumes: result.volumes,
     status: result.status,
     score: result.score,
+    scoredBy: result.scoredBy,
+    rank: result.rank,
     genres: result.genres,
     isAdult: result.isAdult,
   };
@@ -106,6 +111,17 @@ export function buildMALMetadataSupplements(
   if (!metadata['averageScore'] && mal.score !== null && mal.score > 0) {
     supplements['averageScore'] = Math.round(mal.score * 10);
     log.debug('MAL: supplementing score', { malId: mal.malId, malScore: mal.score });
+  }
+
+  // Phase 1: rating JSON. MAL contributes value + scoredBy + rank when no
+  // higher-priority source (AniList) already wrote it.
+  if (!metadata['rating'] && mal.score !== null && mal.score > 0) {
+    supplements['rating'] = {
+      value: Math.round(mal.score * 10),
+      scoredBy: mal.scoredBy !== null && mal.scoredBy > 0 ? mal.scoredBy : undefined,
+      rank: mal.rank !== null && mal.rank > 0 ? mal.rank : undefined,
+      source: 'mal' as const,
+    };
   }
 
   return supplements;

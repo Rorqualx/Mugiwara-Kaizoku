@@ -41,10 +41,6 @@ const mockDuplicateDetector = {
   findDuplicates: jest.fn()
 };
 
-const mockMetadataEnrichmentService = {
-  enrichManga: jest.fn()
-};
-
 const mockImportRuleEngine = jest.fn();
 
 // Mock modules
@@ -59,10 +55,6 @@ jest.mock('@/utils/file-utils', () => ({
 
 jest.mock('@/server/services/library/duplicateDetector', () => ({
   DuplicateDetector: jest.fn(() => mockDuplicateDetector)
-}));
-
-jest.mock('@/server/services/library/metadataEnrichmentService', () => ({
-  MetadataEnrichmentService: jest.fn(() => mockMetadataEnrichmentService)
 }));
 
 jest.mock('@/server/services/library/importRuleEngine', () => ({

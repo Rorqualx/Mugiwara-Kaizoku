@@ -20,14 +20,6 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { updateRawProviderData } from '@/server/services/metadata/rawProviderDataService';
-import {
-  parseSelectedProviders,
-  enrichMangaWithProviders,
-  determineVolumeSource,
-  handleComicVineScraping,
-  handleFandomScraping,
-} from '@/server/services/metadata/refreshService';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createSuccessResult, createErrorResult, isError } from '@/utils/async-result';
@@ -347,99 +339,6 @@ export const metadataCoreRouter = router({
         return createErrorResult(new Error(`Failed to clear metadata cache: ${errorMessage}`));
       }
     }),
-
-  /**
-   * Refresh metadata for a manga and detect conflicts
-   */
-  refreshMetadata: publicProcedure
-    .input(
-      z.object({
-        mangaId: z.number(),
-      })
-    )
-    .mutation(
-      async ({
-        input,
-      }): Promise<
-        AsyncResult<
-          {
-            success: boolean;
-            conflictCount: number;
-          },
-          Error
-        >
-      > => {
-        try {
-          const { mangaId } = input;
-          // Get the manga with its selected providers
-          const manga = await prisma.manga.findUnique({
-            where: { id: mangaId },
-            select: {
-              selectedSourceId: true,
-              providerMetadata: true,
-              source: true,
-              title: true,
-            },
-          });
-          if (!manga) {
-            return createErrorResult(new Error(`Manga with ID ${mangaId} not found`));
-          }
-          // Parse the selected providers from selectedSourceId and enrich metadata
-          const selectedProviders = parseSelectedProviders(manga.selectedSourceId);
-          const enrichResult = await enrichMangaWithProviders(mangaId, selectedProviders);
-
-          if (isError(enrichResult)) {
-            return enrichResult;
-          }
-
-          // PHASE 2: Re-fetch detailed volume/chapter data for ComicVine
-          await handleComicVineScraping(mangaId, selectedProviders, manga.source);
-
-          // PHASE 2.5: Re-fetch detailed chapter data for Fandom
-          await handleFandomScraping(mangaId, manga.title, selectedProviders, manga.source);
-
-          // PHASE 3: Update rawProviderData with enriched volume/chapter data
-          try {
-            const volumeSource = determineVolumeSource(selectedProviders, manga.source);
-            const rawDataResult = await updateRawProviderData(mangaId, volumeSource);
-            if (isError(rawDataResult)) {
-              logger.error(
-                `[refreshMetadata] Error updating rawProviderData: ${rawDataResult.error.message}`
-              );
-            }
-          } catch (rawDataError: unknown) {
-            logger.error(
-              `[refreshMetadata] Exception updating rawProviderData: ${rawDataError instanceof Error ? rawDataError.message : String(rawDataError)}`
-            );
-          }
-
-          // Get updated conflicts - check if model exists
-          let conflictCount = 0;
-          // Use typed extended client
-          const extendedPrisma = prisma as ExtendedPrismaClient;
-          if (extendedPrisma.metadataConflict) {
-            const conflicts = await extendedPrisma.metadataConflict.findMany({
-              where: {
-                mangaId,
-                resolved: false,
-              },
-            });
-            conflictCount = conflicts.length;
-          } else {
-            logger.warn('MetadataConflict model not available, cannot fetch conflicts');
-          }
-          return createSuccessResult({
-            success: true,
-            conflictCount,
-          });
-        } catch (error: unknown) {
-          logger.error(
-            `Error refreshing metadata: ${error instanceof Error ? error.message : String(error)}`
-          );
-          return createErrorResult(handleError(error));
-        }
-      }
-    ),
 
   /**
    * Update metadata URLs for a manga

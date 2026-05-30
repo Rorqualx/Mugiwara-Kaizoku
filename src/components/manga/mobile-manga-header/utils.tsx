@@ -8,7 +8,6 @@ import React from 'react';
 
 import {
   IconCalendar,
-  IconLanguage,
   IconFolder
 } from '@tabler/icons-react';
 
@@ -60,19 +59,7 @@ function createCountItem(
   };
 }
 
-/**
- * Creates the language info item if language exists
- */
-function createLanguageItem(language: string | null | undefined): InfoItemData | null {
-  if (!language) return null;
-
-  return {
-    key: 'language',
-    icon: <IconLanguage size={18} />,
-    label: 'Language',
-    value: language || 'Unknown'
-  };
-}
+// Phase 1: createLanguageItem removed — Metadata.language column dropped.
 
 /**
  * Creates the location info item from library path
@@ -98,12 +85,12 @@ function createLocationItem(libraryPath: string | unknown): InfoItemData | null 
 function buildMetadataItems(metadata: Metadata | null | undefined): InfoItemData[] {
   if (!metadata) return [];
 
+  // Phase 1: Metadata.language column dropped — language info item removed.
   const items: (InfoItemData | null)[] = [
     createDateItem('startDate', 'Started', metadata.startDate),
     createDateItem('endDate', 'Ended', metadata.endDate),
     createCountItem('volumes', 'Volumes', metadata.volumes),
     createCountItem('chapters', 'Chapters', metadata.chapters),
-    createLanguageItem(metadata.language)
   ];
 
   return items.filter((item): item is InfoItemData => item !== null);

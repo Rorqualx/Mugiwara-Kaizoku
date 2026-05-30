@@ -51,6 +51,10 @@ export interface MALResult {
   volumes: number | null;
   status: string;
   score: number | null;
+  /** Phase 1: number of users who scored — feeds Metadata.rating JSON. */
+  scoredBy: number | null;
+  /** Phase 1: MAL ordinal rank (lower = better) — feeds Metadata.rating JSON. */
+  rank: number | null;
   /** Combined genres (safe + explicit) — lowercase names */
   genres: string[];
   /** True when MAL flags this title as hentai/erotica/adult */

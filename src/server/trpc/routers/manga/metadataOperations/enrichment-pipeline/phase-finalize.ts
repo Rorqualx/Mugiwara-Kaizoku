@@ -1,3 +1,4 @@
+// @file-size-justified: orchestrator over 14+ sub-fillers in phase-finalize/.
 /**
  * Phase 4: Finalize
  *
@@ -20,6 +21,7 @@ import { fillChapterPagesFromProviders } from './phase-finalize/chapter-pages-fi
 import { fillGenericChapterTitlesFromProviders } from './phase-finalize/chapter-title-fill';
 import { appendComicVineGalleryImages } from './phase-finalize/gallery-from-comicvine';
 import { unionVolumeChapterCoversIntoGallery } from './phase-finalize/gallery-union';
+import { persistAniListRelationsForManga } from './phase-finalize/manga-relation-resolver';
 import { syncMangaStatusFromMetadata } from './phase-finalize/manga-status-sync';
 import { persistMergedSynonyms } from './phase-finalize/merged-synonyms';
 import { cacheProviderVolumeData } from './phase-finalize/volume-cache-writer';
@@ -47,6 +49,7 @@ export async function phaseFinalize(
   await labelVolumeFileChapters(mangaId);
   await inheritParentSeriesMetadata(mangaId);
   await persistProviderBindings(mangaId, providerResults);
+  await persistAniListRelationsForManga(mangaId, providerResults);
   await cacheProviderVolumeData(mangaId, providerResults);
   await persistExternalLinks(mangaId, providerResults);
   await persistMergedSynonyms(mangaId, providerResults);
@@ -281,11 +284,12 @@ async function prunePhantomVolumes(
  */
 async function inheritSeriesPublisherToVolumes(mangaId: number): Promise<void> {
   try {
+    // Phase 1: publishers[] → Volume.publisher (single) takes the first entry.
     const manga = await prisma.manga.findUnique({
       where: { id: mangaId },
-      select: { Metadata: { select: { publisher: true } } },
+      select: { Metadata: { select: { publishers: true } } },
     });
-    const publisher = manga?.Metadata?.publisher;
+    const publisher = manga?.Metadata?.publishers[0];
     if (!publisher || publisher.trim().length === 0) return;
 
     const updated = await prisma.volume.updateMany({
@@ -471,8 +475,7 @@ async function copyMissingMetadata(
   const [current, parent] = await Promise.all([
     prisma.metadata.findUnique({ where: { id: targetId },
       select: { cover: true, coverLarge: true, summary: true, genres: true } }),
-    prisma.metadata.findUnique({ where: { id: sourceId },
-      select: { cover: true, coverLarge: true, coverMedium: true, summary: true, genres: true, authors: true, artists: true, publisher: true } }),
+    prisma.metadata.findUnique({ where: { id: sourceId }, select: { cover: true, coverLarge: true, coverMedium: true, summary: true, genres: true, authors: true, artists: true, publishers: true } }),
   ]);
   if (!current || !parent) return;
 
@@ -484,10 +487,7 @@ async function copyMissingMetadata(
 }
 
 /** Build the set of fields to copy from parent to child metadata */
-function buildInheritanceUpdates(
-  current: { cover: string | null; coverLarge: string | null; summary: string | null; genres: string[] },
-  parent: { cover: string | null; coverLarge: string | null; coverMedium: string | null; summary: string | null; genres: string[]; authors: string[]; artists: string[]; publisher: string | null },
-): Record<string, unknown> {
+function buildInheritanceUpdates(current: { cover: string | null; coverLarge: string | null; summary: string | null; genres: string[] }, parent: { cover: string | null; coverLarge: string | null; coverMedium: string | null; summary: string | null; genres: string[]; authors: string[]; artists: string[]; publishers: string[] }): Record<string, unknown> {
   const updates: Record<string, unknown> = {};
   const noCover = !current.cover || current.cover === '/cover-not-found.jpg';
   if (noCover && parent.cover && parent.cover !== '/cover-not-found.jpg') updates['cover'] = parent.cover;
@@ -497,7 +497,7 @@ function buildInheritanceUpdates(
   if (current.genres.length === 0 && parent.genres.length > 0) updates['genres'] = parent.genres;
   if (parent.authors.length > 0) updates['authors'] = parent.authors;
   if (parent.artists.length > 0) updates['artists'] = parent.artists;
-  if (parent.publisher) updates['publisher'] = parent.publisher;
+  if (parent.publishers.length > 0) updates['publishers'] = parent.publishers;
   return updates;
 }
 
@@ -572,6 +572,7 @@ function buildKitsuSection(
  * Persist all discovered provider IDs to providerMetadata so the UI
  * shows "Bound to ..." for every provider that returned data.
  *
+/**
  * Merge-only: never overwrites an existing providerId (manual bindings win).
  */
 // eslint-disable-next-line complexity -- complexity 28: collects bindings from 5 providers (AniList/MangaDex/ComicVine/MangaUpdates/Fandom/Wikipedia) + AL recommendations + MU extended data into a single merge-only update; each section guards against overwriting manual bindings

@@ -13,6 +13,8 @@
 
 import { MangaPublicationStatus, ChapterStatus } from '@prisma/client';
 
+import { getRatingValue } from './rating-extractor';
+
 import type { SortOption, FilterOption, AdvancedFilter, SearchField } from '@/store/libraryViewSlice';
 import { logger } from '@/utils/logger';
 
@@ -198,11 +200,11 @@ function applyAdvancedFilters(manga: MangaWithRelations[], filters: AdvancedFilt
     // Rating filter
     if (filters.ratingMin !== null && filters.ratingMin !== undefined) {
         const minRating = filters.ratingMin;
-        filtered = filtered.filter(m => (m.Metadata?.rating ?? 0) >= minRating);
+        filtered = filtered.filter(m => getRatingValue(m.Metadata?.rating) >= minRating);
     }
     if (filters.ratingMax !== null && filters.ratingMax !== undefined) {
         const maxRating = filters.ratingMax;
-        filtered = filtered.filter(m => (m.Metadata?.rating ?? 0) <= maxRating);
+        filtered = filtered.filter(m => getRatingValue(m.Metadata?.rating) <= maxRating);
     }
     // Monitored filter. The Manga model has no top-level `monitored` field
     // (the previous code read a non-existent property and always got `false`,
@@ -377,9 +379,9 @@ export function filterAndSortManga(manga: MangaWithRelations[], options: FilterS
                 return bProgress - aProgress;
             }
             case 'rating': {
-                // Sort by rating (if available in metadata)
-                const aRating = a.Metadata?.rating ?? 0;
-                const bRating = b.Metadata?.rating ?? 0;
+                // Sort by rating (if available in metadata); Phase 1: JSON shape.
+                const aRating = getRatingValue(a.Metadata?.rating);
+                const bRating = getRatingValue(b.Metadata?.rating);
                 return bRating - aRating;
             }
             default: {

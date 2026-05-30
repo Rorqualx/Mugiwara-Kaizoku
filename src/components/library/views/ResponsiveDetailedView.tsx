@@ -75,10 +75,10 @@ function CoverImage({ manga, showCovers, coverDimensions, onNavigate }: CoverIma
   if (!showCovers) return null;
 
   // Get cover URL with fallback chain
+  // Phase 1: coverUrl column dropped from Metadata.
   const coverUrl = manga.Metadata?.coverLarge ??
                    manga.Metadata?.coverMedium ??
                    manga.Metadata?.cover ??
-                   manga.Metadata?.coverUrl ??
                    undefined;
 
   return (

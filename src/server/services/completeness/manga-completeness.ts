@@ -122,7 +122,7 @@ function scoreCore(manga: MangaForScoring, missing: string[]): CompletenessBucke
     ['Metadata.startDate', isPopulatedDate(md?.startDate)],
     ['Metadata.endDate', isPopulatedDate(md?.endDate)],
     ['Metadata.countryOfOrigin', isPopulatedString(md?.countryOfOrigin)],
-    ['Metadata.publisher', isPopulatedString(md?.publisher)],
+    ['Metadata.publishers', Array.isArray(md?.publishers) && md.publishers.length > 0],
     ['Metadata.averageScore', isPopulatedNumber(md?.averageScore)],
   ];
   return scoreChecks(checks, missing);

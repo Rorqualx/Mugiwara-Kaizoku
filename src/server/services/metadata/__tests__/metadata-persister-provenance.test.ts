@@ -99,7 +99,14 @@ describe('MetadataPersistenceService - Provenance Storage', () => {
 
       const providerMeta = capturedProviderMetadata as Record<string, unknown>;
       expect(providerMeta).toBeDefined();
-      expect(providerMeta['metadataProvenance']).toEqual(provenance);
+      // Phase 0: persister wraps each provenance entry in ProvenanceEntry
+      // shape ({provider}) on persist — forward-compatible with Phase 1.5's
+      // confidence + alternatives. In-memory we still pass bare strings.
+      expect(providerMeta['metadataProvenance']).toEqual({
+        title: { provider: 'anilist' },
+        description: { provider: 'comicvine' },
+        genres: { provider: 'anilist' },
+      });
       expect(providerMeta['existingData']).toBe('preserved');
     });
 

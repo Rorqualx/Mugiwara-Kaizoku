@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 
-import type { ProviderMatch } from '@/server/services/library/metadataEnrichmentService';
 import type { ScanResult, ScanItem } from '@/server/services/library/scanner';
+import type { ProviderMatch } from '@/types/domain/enrichment-result-types';
 import type { SearchResult } from '@/types/search.types';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';

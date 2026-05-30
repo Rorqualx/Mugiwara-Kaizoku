@@ -29,7 +29,6 @@ import { serverLogger } from '@/utils/serverLogger';
 
 import { DuplicateDetector } from './duplicateDetector';
 import { ImportRuleEngine } from './importRuleEngine';
-import { MetadataEnrichmentService } from './metadataEnrichmentService';
 import { processMangaGroupsBatch } from './scanner/batch-processor';
 import { createChaptersFromFileList } from './scanner/chapter-creator';
 import { checkForDuplicates } from './scanner/duplicate-checker';
@@ -81,12 +80,10 @@ function resolveMangaRoot(filePath: string): string {
  */
 export class EnhancedScanner {
   private duplicateDetector: DuplicateDetector;
-  private enrichmentService: MetadataEnrichmentService;
   private ruleEngine: ImportRuleEngine | null = null;
 
   constructor() {
     this.duplicateDetector = new DuplicateDetector();
-    this.enrichmentService = new MetadataEnrichmentService();
   }
 
   /**
@@ -451,10 +448,7 @@ export class EnhancedScanner {
 
     // Auto-match metadata (delegated to enrichment-handler)
     if (autoMatch) {
-      const enrichmentResult = await enrichMangaMetadata(
-        manga,
-        this.enrichmentService,
-      );
+      const enrichmentResult = await enrichMangaMetadata(manga);
 
       if (enrichmentResult) {
         scanItem.enrichment = enrichmentResult;

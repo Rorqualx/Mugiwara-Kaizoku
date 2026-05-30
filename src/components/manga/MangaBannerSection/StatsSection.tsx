@@ -113,7 +113,7 @@ function getChapterCount(manga: MangaWithRelations): number {
  *
  * Renders manga statistics including counts, badges, and path information.
  */
-// eslint-disable-next-line complexity -- UI component with many conditional renders based on data availability
+ 
 export function StatsSection({
   manga,
   extractedMetadata,
@@ -219,11 +219,7 @@ export function StatsSection({
             </Badge>
           )}
 
-          {manga.Metadata?.language && (
-            <Badge color="gray" size="lg" variant="light">
-              {manga.Metadata.language}
-            </Badge>
-          )}
+          {/* Phase 1: Metadata.language column dropped. */}
         </Group>
       </Box>
 

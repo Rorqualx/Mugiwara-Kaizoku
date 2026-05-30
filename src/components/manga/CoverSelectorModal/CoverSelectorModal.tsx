@@ -78,7 +78,7 @@ export function CoverSelectorModal({
       ...(metadata.coverMedium && { coverMedium: metadata.coverMedium }),
       ...(metadata.coverSmall && { coverSmall: metadata.coverSmall }),
       ...(metadata.cover && { cover: metadata.cover }),
-      ...(metadata.coverUrl && { coverUrl: metadata.coverUrl }),
+      // Phase 1: coverUrl column dropped.
       ...(metadata.bannerImage && { bannerImage: metadata.bannerImage })
     } : undefined;
 

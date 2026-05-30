@@ -71,7 +71,6 @@ describe('MetadataPersistenceService - Field Mapping', () => {
         authors: ['Author 1', 'Author 2'],
         artists: ['Artist 1'],
         tags: [{ name: 'Magic' }, { name: 'Swords' }],
-        characters: [{ name: 'Hero' }, { name: 'Villain' }],
         coverImage: '/cover.jpg',
         bannerImage: '/banner.jpg',
         alternativeTitles: ['Alt Title 1', 'Alt Title 2'],
@@ -113,7 +112,6 @@ describe('MetadataPersistenceService - Field Mapping', () => {
       expect(capturedMetadataData?.authors).toEqual(['Author 1', 'Author 2']);
       expect(capturedMetadataData?.artists).toEqual(['Artist 1']);
       expect(capturedMetadataData?.tags).toEqual(['Magic', 'Swords']);
-      expect(capturedMetadataData?.characters).toEqual(['Hero', 'Villain']);
       expect(capturedMetadataData?.synonyms).toEqual(['Alt Title 1', 'Alt Title 2']);
       expect(capturedMetadataData?.urls).toEqual(['http://example.com']);
       expect(capturedMetadataData?.chapters).toBe(150);
@@ -122,7 +120,7 @@ describe('MetadataPersistenceService - Field Mapping', () => {
       expect(capturedMetadataData?.averageScore).toBe(92);
       expect(capturedMetadataData?.popularity).toBe(75000);
       expect(capturedMetadataData?.countryOfOrigin).toBe('JP');
-      expect(capturedMetadataData?.publisher).toBe('Amazing Publisher');
+      expect(capturedMetadataData?.['publishers']).toEqual(['Amazing Publisher']);
       expect(capturedMetadataData?.bannerImage).toBe('/banner.jpg');
       expect(capturedMetadataData?.format).toBe('MANGA');
       expect(capturedMetadataData?.status).toBe('FINISHED');
@@ -238,42 +236,6 @@ describe('MetadataPersistenceService - Field Mapping', () => {
 
       const metadata = capturedMetadataData as TestMetadataData;
       expect(metadata['tags']).toEqual(['Action', 'School']);
-    });
-
-    it('should handle characters as objects and extract names', async () => {
-      const mockManga = createMockManga();
-
-      const unifiedMetadata: UnifiedMangaMetadata = {
-        title: 'Test Manga',
-        description: 'Test',
-        characters: [
-          { name: 'Protagonist', role: 'MAIN' },
-          { name: 'Sidekick', role: 'SUPPORTING' }
-        ]
-      };
-
-      let capturedMetadataData: unknown;
-      const mockTx = createMockTransactionClient();
-      mockTx.manga.findUnique.mockResolvedValue(mockManga);
-      mockTx.manga.update.mockResolvedValue({ ...mockManga, metadataId: 100, metadata: {} });
-      mockTx.metadata.create.mockImplementation((data: unknown) => {
-        const extracted = extractData(data);
-        capturedMetadataData = extracted;
-        return Promise.resolve({ id: 100, ...(isObject(extracted) ? extracted : {}) });
-      });
-
-      (prisma.$transaction as jest.Mock).mockImplementation(
-        async <T>(callback: (tx: MockTransactionClient) => Promise<T>): Promise<T> => callback(mockTx)
-      );
-
-      await service.persistMetadata({
-        mangaId: 1,
-        metadata: unifiedMetadata,
-        metadataProvenance: {}
-      });
-
-      const metadata = capturedMetadataData as TestMetadataData;
-      expect(metadata['characters']).toEqual(['Protagonist', 'Sidekick']);
     });
 
     it('should extract URLs from externalLinks array', async () => {

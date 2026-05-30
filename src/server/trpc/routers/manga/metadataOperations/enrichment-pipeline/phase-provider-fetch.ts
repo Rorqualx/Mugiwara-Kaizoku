@@ -30,11 +30,11 @@ import { isSupportedLanguage } from '@/server/services/comicvine/language-detect
 import type { SupportedLanguage } from '@/server/services/comicvine/language-detection/types';
 import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvine/service';
 import { comicvineService } from '@/server/services/comicvine/service';
-import type { EnrichmentResult } from '@/server/services/library/metadataEnrichmentService/types';
 import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
 import type { MangaDexManga } from '@/server/services/mangadex/types';
 import { detectNonEnglishVariant } from '@/server/services/search/providers/comicvine-language-filter';
 import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
+import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { logger } from '@/utils/logger';
 
 import { buildFallbackSearchQuery, stripTitlePatterns } from './matching/title-normalization';
@@ -609,6 +609,10 @@ interface MangaDexDirectResult {
   description: string | undefined;
   /** All non-empty entries from MangaDex attributes.links — al, mu, ap, kt, bw, amz, ebj, etc. */
   externalIds: Record<string, string>;
+  /** Phase 1: MangaDex contentRating ('safe'/'suggestive'/'erotica'/'pornographic'). */
+  contentRating: string | undefined;
+  /** Phase 1: publicationDemographic ('shounen'/'shoujo'/'josei'/'seinen'). */
+  publicationDemographic: string | undefined;
 }
 
 /** Pick the best-localized MangaDex description. English first, then JP-romaji, then any other. */
@@ -668,6 +672,37 @@ async function fetchMangaDexDirect(title: string): Promise<MangaDexDirectResult 
     malId: parseMalLink(bestManga.attributes.links?.mal),
     description: pickMangaDexDescription(bestManga.attributes.description as Record<string, string> | null | undefined),
     externalIds: extractMangaDexLinks(bestManga.attributes.links),
+    // Phase 1: surface contentRating + publicationDemographic so the persister
+    // can write the dedicated Metadata columns. Always present on attributes.
+    contentRating: bestManga.attributes.contentRating,
+    publicationDemographic: bestManga.attributes.publicationDemographic ?? undefined,
+  };
+}
+
+/**
+ * Build a MangaDexDirectResult from a `MangaDexManga` payload + side-fetched
+ * aggregate/chapter list. Extracted from `verifyMangaDexWithAniList` to keep
+ * the verifier's branching focused on discovery vs. result assembly.
+ */
+async function buildMangaDexDirectResult(
+  client: Awaited<ReturnType<typeof getTsMangadexClient>>,
+  best: MangaDexManga,
+): Promise<MangaDexDirectResult> {
+  const [aggregate, chapterList] = await Promise.all([
+    fetchMangaDexAggregate(client, best.id),
+    fetchMangaDexChapters(client, best.id),
+  ]);
+  return {
+    mangaId: best.id, status: best.attributes.status,
+    lastVolume: best.attributes.lastVolume ?? undefined,
+    lastChapter: best.attributes.lastChapter ?? undefined,
+    aggregate,
+    chapterList,
+    malId: parseMalLink(best.attributes.links?.mal),
+    description: pickMangaDexDescription(best.attributes.description as Record<string, string> | null | undefined),
+    externalIds: extractMangaDexLinks(best.attributes.links),
+    contentRating: best.attributes.contentRating,
+    publicationDemographic: best.attributes.publicationDemographic ?? undefined,
   };
 }
 
@@ -709,20 +744,7 @@ async function verifyMangaDexWithAniList(
   // If re-discovery found the same manga, keep existing (already has aggregate)
   if (existing && best.id === existing.mangaId) return existing;
 
-  const [aggregate, chapterList] = await Promise.all([
-    fetchMangaDexAggregate(client, best.id),
-    fetchMangaDexChapters(client, best.id),
-  ]);
-  return {
-    mangaId: best.id, status: best.attributes.status,
-    lastVolume: best.attributes.lastVolume ?? undefined,
-    lastChapter: best.attributes.lastChapter ?? undefined,
-    aggregate,
-    chapterList,
-    malId: parseMalLink(best.attributes.links?.mal),
-    description: pickMangaDexDescription(best.attributes.description as Record<string, string> | null | undefined),
-    externalIds: extractMangaDexLinks(best.attributes.links),
-  };
+  return buildMangaDexDirectResult(client, best);
 }
 
 // ============================================================================

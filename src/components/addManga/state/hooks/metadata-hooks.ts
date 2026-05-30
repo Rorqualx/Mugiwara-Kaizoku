@@ -11,7 +11,6 @@ import { useCallback } from 'react';
 import { useFieldProviderPreferences } from '@/hooks/useFieldProviderPreferences';
 import { getFieldConfidence } from '@/lib/confidence';
 import { DEFAULT_FIELD_PRIORITIES } from '@/types/search-types/configuration.types';
-import { logger } from '@/utils/logger';
 
 import type { Selectors } from '../types';
 
@@ -123,27 +122,18 @@ function extractFieldProvenance(aggregated: Record<string, unknown>): {
 }
 
 /**
- * Perform intelligent aggregation using metadata merger service
+ * Aggregate metadata across selected sources using the local priority/confidence
+ * scorer. (Previously fanned out to a server-side merger that ignored its result
+ * and was removed during Phase 1 legacy retirement.)
  */
-async function performIntelligentAggregation(
-  sources: Record<string, unknown>,
+function performIntelligentAggregation(
   aggregateMetadata: () => Record<string, unknown>,
   fallbackConfidence: number
-): Promise<{
+): {
   selectedMetadata: Record<string, unknown>;
   fieldProvenance: Record<string, { provider: string; confidence: number }>;
   overallConfidence: number;
-}> {
-  const availableProviders = Object.keys(sources);
-
-  try {
-    const { getMetadataMergerService } = await import('@/server/services/metadataMerger');
-    const metadataMerger = getMetadataMergerService();
-    await metadataMerger.enrichMangaMetadataIntelligently(0, availableProviders, undefined);
-  } catch (error) {
-    logger.error('Failed to use intelligent merger:', error);
-  }
-
+} {
   const aggregated = aggregateMetadata();
   const { selectedMetadata, fieldProvenance, totalConfidence, fieldCount } = extractFieldProvenance(aggregated);
   const overallConfidence = fieldCount > 0 ? Math.round(totalConfidence / fieldCount) : fallbackConfidence;
@@ -161,11 +151,11 @@ async function performIntelligentAggregation(
 export function useMetadataAggregation(selectors: Selectors): {
   aggregateMetadata: () => Record<string, unknown>;
   calculateFieldConfidence: (field: string, value: unknown, provider: string) => number;
-  aggregateMetadataIntelligently: () => Promise<{
+  aggregateMetadataIntelligently: () => {
     selectedMetadata: Record<string, unknown>;
     fieldProvenance: Record<string, { provider: string; confidence: number }>;
     overallConfidence: number;
-  }>;
+  };
 } {
   const { preferences } = useFieldProviderPreferences();
 
@@ -186,12 +176,12 @@ export function useMetadataAggregation(selectors: Selectors): {
     return aggregated;
   }, [selectors, calculateFieldConfidence, preferences]);
 
-  const aggregateMetadataIntelligently = useCallback(async () => {
+  const aggregateMetadataIntelligently = useCallback(() => {
     const sources = selectors.getAllSelectedSources();
     if (Object.keys(sources).length === 0) {
       return { selectedMetadata: {}, fieldProvenance: {}, overallConfidence: 0 };
     }
-    return performIntelligentAggregation(sources, aggregateMetadata, selectors.getOverallConfidence());
+    return performIntelligentAggregation(aggregateMetadata, selectors.getOverallConfidence());
   }, [selectors, aggregateMetadata]);
 
   return { aggregateMetadata, calculateFieldConfidence, aggregateMetadataIntelligently };

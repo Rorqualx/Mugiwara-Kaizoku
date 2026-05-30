@@ -8,7 +8,7 @@
  * @module components/library/import-pipeline/types
  */
 
-import type { ProviderMatch } from '@/server/services/library/metadataEnrichmentService/types';
+import type { ProviderMatch } from '@/types/domain/enrichment-result-types';
 import type { ExtendedMangaSearchResult } from '@/types/search.types';
 
 // ============================================================================

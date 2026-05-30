@@ -15,12 +15,36 @@
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { parseRatingJson } from '@/types/domain/rating-types';
 import type { UnifiedMangaMetadata } from '@/types/search.types';
 import { AsyncResult, createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 
 import type { Manga, Metadata, MangaPublicationStatus } from '@prisma/client';
+
+/**
+ * Per-field provenance entry persisted to `Manga.providerMetadata.metadataProvenance`.
+ *
+ * Phase 0 stores `{ provider }` for every field. Phase 1.5 will extend this with
+ * `confidence` and `alternatives` (dissenting candidates with their providers
+ * and confidence scores) when the cross-source consensus selector ships.
+ *
+ * Read-side accepts both the rich object shape and the legacy bare-string shape
+ * (`Record<string, string>` rows written before Phase 0). Re-enrichment upgrades
+ * legacy rows to the new shape; no separate migration needed.
+ */
+export interface ProvenanceEntry {
+  provider: string;
+  /** Phase 1.5: cross-source consensus confidence (0..1) */
+  confidence?: number;
+  /** Phase 1.5: dissenting candidates not selected, retained for UI provenance badges */
+  alternatives?: Array<{
+    provider: string;
+    value: unknown;
+    confidence: number;
+  }>;
+}
 
 /**
  * Input for persisting metadata
@@ -45,6 +69,24 @@ export interface PersistMetadataResult {
 }
 
 /**
+ * Coerce a raw `metadataProvenance` entry to a provider-name string.
+ *
+ * Accepts:
+ * - bare string (legacy shape pre-Phase 0)
+ * - `{ provider: string, confidence?, alternatives? }` (Phase 0+ shape)
+ *
+ * Returns null when the entry is malformed (skips it instead of throwing).
+ */
+function normalizeProvenanceEntry(raw: unknown): string | null {
+  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'object' && raw !== null && 'provider' in raw) {
+    const provider = (raw as { provider: unknown }).provider;
+    if (typeof provider === 'string') return provider;
+  }
+  return null;
+}
+
+/**
  * Type-safe metadata update data matching Prisma's Metadata model
  */
 interface MetadataUpdateData {
@@ -59,7 +101,7 @@ interface MetadataUpdateData {
   artists: string[];
   tags: string[];
   themes: string[];
-  characters: string[];
+  // Phase 1: characters dropped (out of app scope).
   startDate?: Date;
   endDate?: Date;
   synonyms: string[];
@@ -72,7 +114,12 @@ interface MetadataUpdateData {
   averageScore?: number;
   popularity?: number;
   countryOfOrigin?: string;
-  publisher?: string;
+  publishers?: string[];
+  // Phase 1: MangaDex content classification.
+  contentRating?: string;
+  publicationDemographic?: string;
+  // Phase 1: rating widened from Float? to Json?. Persister Zod-validates at boundary.
+  rating?: import('@/types/domain/rating-types').RatingJson;
   source?: string;
   sourceId?: string;
   status: MangaPublicationStatus;
@@ -139,10 +186,25 @@ export class MetadataPersistenceService {
           if (!refused.has(k)) mergedProvenance[k] = v;
         }
 
+        // Phase 0: persist the rich ProvenanceEntry shape forward-compatible
+        // with Phase 1.5's confidence + alternatives. In-memory we still use
+        // bare provider names (Record<string, string>); the conversion lives
+        // only at the write boundary.
+        //
+        // Local write-shape is narrowed to `{provider: string}` so it satisfies
+        // Prisma's InputJsonValue (the wider ProvenanceEntry type has
+        // `alternatives.value: unknown` which isn't JSON-assignable). Phase 1.5
+        // will widen this when it writes confidence/alternatives, with a Prisma-
+        // JSON-compatible value type.
+        const provenanceForDb: Record<string, { provider: string }> = {};
+        for (const [k, v] of Object.entries(mergedProvenance)) {
+          provenanceForDb[k] = { provider: v };
+        }
+
         // Prepare provider metadata with merged provenance
         const providerMetadata = {
           ...(typeof manga.providerMetadata === 'object' && manga.providerMetadata !== null ? manga.providerMetadata : {}),
-          metadataProvenance: mergedProvenance
+          metadataProvenance: provenanceForDb
         };
 
         let updatedMetadata: Metadata;
@@ -224,6 +286,14 @@ export class MetadataPersistenceService {
    * iter-MM-9-A: extract per-field provenance from a manga's persisted
    * `providerMetadata.metadataProvenance` object. Returns an empty record
    * when the manga has never had provenance written.
+   *
+   * Phase 0: accepts BOTH the legacy `Record<string, string>` shape and the
+   * new `Record<string, ProvenanceEntry>` shape. Legacy rows upgrade to the
+   * new shape on next re-enrichment; no separate migration needed.
+   *
+   * Returns `Record<string, string>` (provider name only) — in-memory
+   * representation stays narrow. Phase 1.5 will widen this when the
+   * cross-source selector starts reading confidence/alternatives.
    */
   private extractExistingProvenance(providerMetadata: unknown): Record<string, string> {
     if (typeof providerMetadata !== 'object' || providerMetadata === null) return {};
@@ -232,7 +302,8 @@ export class MetadataPersistenceService {
     if (typeof prov !== 'object' || prov === null) return {};
     const result: Record<string, string> = {};
     for (const [k, v] of Object.entries(prov as Record<string, unknown>)) {
-      if (typeof v === 'string') result[k] = v;
+      const providerName = normalizeProvenanceEntry(v);
+      if (providerName !== null) result[k] = providerName;
     }
     return result;
   }
@@ -320,7 +391,7 @@ export class MetadataPersistenceService {
   private buildRequiredFields(
     metadata: UnifiedMangaMetadata,
     existingMetadata: Metadata | null
-  ): Pick<MetadataUpdateData, 'cover' | 'summary' | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'characters' | 'synonyms' | 'urls' | 'status' | 'lastFetch'> {
+  ): Pick<MetadataUpdateData, 'cover' | 'summary' | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'synonyms' | 'urls' | 'status' | 'lastFetch'> {
     const getValue = <T>(newValue: T | undefined, existingValue: T | null | undefined, defaultValue: T): T => {
       if (newValue !== undefined && newValue !== null) return newValue;
       if (existingValue !== undefined && existingValue !== null) return existingValue;
@@ -351,10 +422,7 @@ export class MetadataPersistenceService {
       (metadata['themes'] as Array<string | { name: string }> | undefined)?.map(t => typeof t === 'string' ? t : t.name),
       existingMetadata?.themes
     );
-    const characters = getArrayValue(
-      (metadata['characters'] as Array<string | { name: string }> | undefined)?.map(c => typeof c === 'string' ? c : c.name),
-      existingMetadata?.characters
-    );
+    // Phase 1: Metadata.characters dropped (out of app scope).
     const synonyms = getArrayValue(metadata['alternativeTitles'] as string[] | undefined, existingMetadata?.synonyms);
 
     // URLs
@@ -374,7 +442,6 @@ export class MetadataPersistenceService {
       artists,
       tags,
       themes,
-      characters,
       synonyms,
       urls,
       status,
@@ -388,7 +455,7 @@ export class MetadataPersistenceService {
   private buildOptionalFields(
     metadata: UnifiedMangaMetadata,
     existingMetadata: Metadata | null
-  ): Partial<Omit<MetadataUpdateData, 'cover' | 'summary' | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'characters' | 'synonyms' | 'urls' | 'status' | 'lastFetch'>> {
+  ): Partial<Omit<MetadataUpdateData, 'cover' | 'summary' | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'synonyms' | 'urls' | 'status' | 'lastFetch'>> {
     return {
       ...this.buildCoverVariants(metadata, existingMetadata),
       ...this.buildDateFields(metadata, existingMetadata),
@@ -471,8 +538,20 @@ export class MetadataPersistenceService {
 
     const result: Partial<MetadataUpdateData> = {};
 
-    const chapters = getOptionalValue(metadata['chapterCount'], existingMetadata?.chapters);
-    const volumes = getOptionalValue(metadata['volumeCount'], existingMetadata?.volumes);
+    // Phase 0: prefer the column-name key (`chapters`/`volumes`) so AL-only
+    // matches don't silently drop counts. Fall back to the legacy
+    // `chapterCount`/`volumeCount` keys for the brief window before fetchers
+    // stop emitting them. After commit 6 lands those duplicate writes are
+    // gone, but the fallback stays for any legacy path that still emits the
+    // suffix shape — legacy retirement is Phase 3 scope.
+    const chapters = getOptionalValue(
+      (metadata['chapters'] as number | undefined) ?? metadata['chapterCount'],
+      existingMetadata?.chapters,
+    );
+    const volumes = getOptionalValue(
+      (metadata['volumes'] as number | undefined) ?? metadata['volumeCount'],
+      existingMetadata?.volumes,
+    );
     const idMal = getOptionalValue(metadata['externalIds']?.malId, existingMetadata?.idMal);
     const averageScore = getOptionalValue(metadata['averageScore'] as number | undefined, existingMetadata?.averageScore);
     const popularity = getOptionalValue(metadata['popularity'] as number | undefined, existingMetadata?.popularity);
@@ -492,7 +571,7 @@ export class MetadataPersistenceService {
   private buildStringFields(
     metadata: UnifiedMangaMetadata,
     existingMetadata: Metadata | null
-  ): Partial<Pick<MetadataUpdateData, 'bannerImage' | 'format' | 'countryOfOrigin' | 'publisher' | 'source' | 'sourceId'>> {
+  ): Partial<Pick<MetadataUpdateData, 'bannerImage' | 'format' | 'countryOfOrigin' | 'publishers' | 'source' | 'sourceId' | 'contentRating' | 'publicationDemographic' | 'rating'>> {
     const getOptionalValue = <T>(newValue: T | undefined, existingValue: T | null | undefined): T | undefined => {
       if (newValue !== undefined && newValue !== null) return newValue;
       if (existingValue !== undefined && existingValue !== null) return existingValue;
@@ -504,7 +583,15 @@ export class MetadataPersistenceService {
     const bannerImage = getOptionalValue(metadata['bannerImage'] as string | undefined, existingMetadata?.bannerImage);
     const format = getOptionalValue(metadata['format'] as string | undefined, existingMetadata?.format);
     const countryOfOrigin = getOptionalValue(metadata['countryOfOrigin'] as string | undefined, existingMetadata?.countryOfOrigin);
-    const publisher = getOptionalValue(metadata['publisher'] as string | undefined, existingMetadata?.publisher);
+    // Phase 1: publishers[] replaces single publisher. Accept either:
+    // - metadata['publishers'] as string[] (Phase 1 fetchers)
+    // - metadata['publisher'] as string (legacy single-source) wrapped to []
+    const incomingPublishers = Array.isArray(metadata['publishers'])
+      ? (metadata['publishers'] as string[]).filter((p): p is string => typeof p === 'string' && p.length > 0)
+      : typeof metadata['publisher'] === 'string' && (metadata['publisher'] as string).length > 0
+        ? [metadata['publisher'] as string]
+        : undefined;
+    const publishers = incomingPublishers ?? existingMetadata?.publishers ?? undefined;
 
     // sourceId ties the Metadata row back to the canonical provider record
     // (e.g. AniList ID). Previously never persisted despite being surfaced elsewhere.
@@ -517,12 +604,39 @@ export class MetadataPersistenceService {
     if (bannerImage !== undefined) result.bannerImage = bannerImage;
     if (format !== undefined) result.format = format;
     if (countryOfOrigin !== undefined) result.countryOfOrigin = countryOfOrigin;
-    if (publisher !== undefined) result.publisher = publisher;
+    if (publishers !== undefined) result.publishers = publishers;
+    Object.assign(result, extractPhase1ClassificationFields(metadata));
     if (source !== undefined) result.source = source;
     if (sourceId !== undefined) result.sourceId = sourceId;
 
     return result;
   }
+}
+
+/**
+ * Pull Phase 1 classification fields (`contentRating`, `publicationDemographic`,
+ * `rating`) off the incoming metadata record. Each is independently optional;
+ * `rating` is Zod-validated at this boundary so a bogus shape from a provider
+ * fetcher can't poison the DB.
+ */
+function extractPhase1ClassificationFields(
+  metadata: UnifiedMangaMetadata,
+): Partial<Pick<MetadataUpdateData, 'contentRating' | 'publicationDemographic' | 'rating'>> {
+  const out: Partial<Pick<MetadataUpdateData, 'contentRating' | 'publicationDemographic' | 'rating'>> = {};
+  const contentRating = metadata['contentRating'] as string | undefined;
+  if (typeof contentRating === 'string' && contentRating.length > 0) {
+    out.contentRating = contentRating;
+  }
+  const publicationDemographic = metadata['publicationDemographic'] as string | undefined;
+  if (typeof publicationDemographic === 'string' && publicationDemographic.length > 0) {
+    out.publicationDemographic = publicationDemographic;
+  }
+  const incomingRating = metadata['rating'];
+  if (incomingRating !== undefined && incomingRating !== null) {
+    const parsed = parseRatingJson(incomingRating);
+    if (parsed !== null) out.rating = parsed;
+  }
+  return out;
 }
 
 /**

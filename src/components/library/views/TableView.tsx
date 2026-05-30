@@ -145,10 +145,10 @@ export function TableView({
   };
   // Helper to get cover URL with fallback chain
   const getCoverUrl = (manga: MangaEntity, mangaId?: number): string | undefined => {
+    // Phase 1: coverUrl column dropped from Metadata.
     const raw = manga.Metadata?.coverLarge ??
            manga.Metadata?.coverMedium ??
            manga.Metadata?.cover ??
-           manga.Metadata?.coverUrl ??
            undefined;
     if (!raw && mangaId !== undefined) return `/api/local-cover/${mangaId}`;
     return raw;

@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 
-import type { ProviderMatch } from '@/server/services/library/metadataEnrichmentService';
+import type { ProviderMatch } from '@/types/domain/enrichment-result-types';
 
 import type {
   MangaForMatching,

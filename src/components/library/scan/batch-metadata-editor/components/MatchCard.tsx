@@ -15,7 +15,7 @@ import React from 'react';
 
 import { Card, Group, Radio, Badge, Box, Text, Image } from '@mantine/core';
 
-import type { ProviderMatch } from '@/server/services/library/metadataEnrichmentService';
+import type { ProviderMatch } from '@/types/domain/enrichment-result-types';
 
 import { getProviderColor } from '../utils';
 

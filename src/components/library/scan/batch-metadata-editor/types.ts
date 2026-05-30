@@ -7,7 +7,7 @@
  * Extracted from: BatchMetadataEditor.tsx (lines 7-30)
  */
 
-import type { ProviderMatch } from '@/server/services/library/metadataEnrichmentService';
+import type { ProviderMatch } from '@/types/domain/enrichment-result-types';
 
 /**
  * Manga entity for metadata matching

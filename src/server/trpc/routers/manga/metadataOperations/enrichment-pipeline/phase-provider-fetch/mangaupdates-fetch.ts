@@ -297,6 +297,48 @@ export async function fetchMangaUpdatesDirect(
 // ============================================================================
 
 /**
+ * Build the publishers[] array. MU is the canonical multi-publisher source
+ * (Original JP + EN licensor often co-listed); ComicVine's single-publisher
+ * string sits in slot 0 when present so legacy `/publisher/<name>` URLs still
+ * resolve. Returns null when metadata already has publishers or MU has none
+ * to contribute.
+ */
+function buildMangaUpdatesPublishers(
+  metadata: Record<string, unknown>,
+  mu: MangaUpdatesDirectResult,
+  comicvinePublisher: string | undefined,
+): string[] | null {
+  const existing = metadata['publishers'];
+  if (Array.isArray(existing) && existing.length > 0) return null;
+  const names: string[] = [];
+  if (comicvinePublisher) names.push(comicvinePublisher);
+  for (const p of mu.publishers) {
+    if (p.name && p.name.length > 0 && !names.includes(p.name)) names.push(p.name);
+  }
+  if (names.length === 0 && mu.publisher) names.push(mu.publisher);
+  return names.length > 0 ? names : null;
+}
+
+/**
+ * Build a rating JSON record from MU's Bayesian rating + vote count.
+ * Returns null when MU has no rating or the metadata record already has one
+ * from a higher-priority source. The Phase 1.5 consensus selector will
+ * merge per-source candidates once it lands.
+ */
+function buildMangaUpdatesRatingJson(
+  metadata: Record<string, unknown>,
+  mu: MangaUpdatesDirectResult,
+): { value: number; scoredBy: number | undefined; source: 'mangaupdates' } | null {
+  if (metadata['rating']) return null;
+  if (typeof mu.bayesianRating !== 'number' || mu.bayesianRating <= 0) return null;
+  return {
+    value: Math.round(mu.bayesianRating * 10),
+    scoredBy: mu.ratingVotes > 0 ? mu.ratingVotes : undefined,
+    source: 'mangaupdates' as const,
+  };
+}
+
+/**
  * Merge MangaUpdates series-level metadata into the metadata record.
  * AniList fields take priority; MU fills gaps (publisher, genres, tags).
  * Returns an object with fields to merge (caller applies to metadata).
@@ -310,12 +352,8 @@ export function buildMangaUpdatesMetadataSupplements(
 
   const supplements: Record<string, unknown> = {};
 
-  // Publisher: ComicVine > MU (ComicVine has the actual publisher name,
-  // MU often returns the digital platform e.g. "Azuki" instead of "Kodansha USA")
-  if (!metadata['publisher']) {
-    const publisher = comicvinePublisher ?? mu.publisher;
-    if (publisher) supplements['publisher'] = publisher;
-  }
+  const muPublishers = buildMangaUpdatesPublishers(metadata, mu, comicvinePublisher);
+  if (muPublishers !== null) supplements['publishers'] = muPublishers;
 
   // Genres: supplement AniList genres with MU genres
   const existingGenres = Array.isArray(metadata['genres']) ? metadata['genres'] as string[] : [];
@@ -347,16 +385,19 @@ export function buildMangaUpdatesMetadataSupplements(
     supplements['averageScore'] = Math.round(mu.bayesianRating * 10);
   }
 
+  const muRating = buildMangaUpdatesRatingJson(metadata, mu);
+  if (muRating !== null) supplements['rating'] = muRating;
+
   // Chapter count fallback: MU's latest_chapter is the highest released
   // chapter number, identical in meaning to AniList's `chapters` for ongoing
   // series. Manual-research agents found this data in MU for several titles
   // the pipeline left null — iter-4 closes that gap by wiring it here.
-  // Persister reads metadata['chapterCount'] (camelCase suffix); AL builder
-  // writes metadata['chapters'] — write both so downstream conversion
-  // finds the value regardless of path.
+  //
+  // Phase 0: persister now reads `metadata['chapters']` first (with legacy
+  // `chapterCount` fallback). Drop the duplicate write — single source of
+  // truth simplifies provenance stamping.
   if (metadata['chapters'] === undefined && typeof mu.latestChapter === 'number' && mu.latestChapter > 0) {
     supplements['chapters'] = mu.latestChapter;
-    supplements['chapterCount'] = mu.latestChapter;
   }
 
   return supplements;

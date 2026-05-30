@@ -288,11 +288,10 @@ function MangaDetailCard({
   const progress = calculateProgress(manga);
   const downloadStatus = getDownloadStatus(manga);
 
-  // Get cover URL with fallback chain
+  // Get cover URL with fallback chain (Phase 1: coverUrl column dropped)
   const coverUrl = manga.Metadata?.coverLarge ??
                    manga.Metadata?.coverMedium ??
                    manga.Metadata?.cover ??
-                   manga.Metadata?.coverUrl ??
                    undefined;
 
   // Description JSX element

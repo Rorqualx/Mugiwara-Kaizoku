@@ -196,8 +196,7 @@ export const metadataCoreProcedures = router({
     }),
 
   /**
-   * One-click enrichment using ts-mangadex MetadataEnricher.
-   * Fetches from MangaDex + AniList + ComicVine in parallel and returns merged metadata.
+   * One-click enrichment via the modern enrichment pipeline.
    * Emits WebSocket progress events so the frontend can show real-time status.
    */
   oneClickEnrich: protectedProcedure

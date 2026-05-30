@@ -185,6 +185,24 @@ export interface AniListMangaDetails extends AniListMangaResult {
     url?: string;
     site?: string;
   }>;
+  /**
+   * Phase 1: directed relations from AL (prequel/sequel/side_story/etc.).
+   * Fed into the MangaRelation table by phase-finalize/manga-relation-resolver.
+   */
+  relations?: {
+    edges?: Array<{
+      id?: number;
+      relationType?: string;
+      node?: {
+        id?: number;
+        title?: { romaji?: string; english?: string };
+        format?: string;
+        type?: string;
+        status?: string;
+        coverImage?: { medium?: string };
+      };
+    }>;
+  };
 }
 
 /**

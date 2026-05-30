@@ -8,7 +8,7 @@
 
 import type { AniListMangaDetails } from '@/server/services/anilist/service';
 import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvine/service';
-import type { EnrichmentResult } from '@/server/services/library/metadataEnrichmentService/types';
+import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { mapToMangaStatus } from '@/utils/status-mapper';
 
@@ -38,6 +38,10 @@ interface MangaDexDirectResult {
   chapterList?: ChapterDataItem[];
   /** Manga-level description (MangaDex attributes.description, best-localized). Matches the phase-provider-fetch version's `string | undefined`. */
   description: string | undefined;
+  /** Phase 1: surfaced for persistence to Metadata.contentRating. */
+  contentRating?: string | undefined;
+  /** Phase 1: surfaced for persistence to Metadata.publicationDemographic. */
+  publicationDemographic?: string | undefined;
 }
 
 interface ComicVineDirectResult {
@@ -65,12 +69,18 @@ export interface BuildEnrichmentParams {
 /**
  * Build an EnrichmentResult compatible with downstream consumers.
  * MangaUpdates supplements AniList metadata (publisher, genres, tags).
+ *
+ * Phase 0: per-field provenance is tracked alongside `metadata` as each
+ * provider's value lands. Returned on `appliedMatch.perFieldProvenance` so
+ * `phase-db-persistence` can stamp real per-field provenance instead of
+ * uniformly stamping every key with the match-level provider.
  */
 // eslint-disable-next-line complexity -- complexity 34: bridge between 7 provider results (AniList/MangaDex/ComicVine/MangaUpdates/MAL/Kitsu/Fandom) and the unified EnrichmentResult shape; each branch conditionally appends to sources/ids/metadata. Splitting would scatter the orchestration across multiple files for marginal gain.
 export function buildEnrichmentResult(params: BuildEnrichmentParams): EnrichmentResult {
   const { mangaId, title, anilist, mangadex, comicvine, mangaupdates, mal, kitsu } = params;
   const details = anilist?.details;
-  const metadata = buildMetadataFromAniList(title, details);
+  const perFieldProvenance: Record<string, string> = {};
+  const metadata = buildMetadataFromAniList(title, details, perFieldProvenance);
 
   // Iter-27: prefer MangaDex description when AniList has none OR a filler-short
   // one. Threshold matches the audit tier boundary (80 chars = C_GENERIC line),
@@ -81,18 +91,42 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
   const mdLen = mangadex?.description ? mangadex.description.trim().length : 0;
   if (alLen < 80 && mdLen >= 80 && mangadex?.description) {
     metadata['description'] = mangadex.description;
+    perFieldProvenance['description'] = 'mangadex';
+  }
+
+  // Phase 1: MangaDex content classification (always when MD matched).
+  if (mangadex?.contentRating) {
+    metadata['contentRating'] = mangadex.contentRating;
+    perFieldProvenance['contentRating'] = 'mangadex';
+  }
+  if (mangadex?.publicationDemographic) {
+    metadata['publicationDemographic'] = mangadex.publicationDemographic;
+    perFieldProvenance['publicationDemographic'] = 'mangadex';
+  }
+
+  // Phase 1: ComicVine volume.description as final summary fallback for
+  // titles where AL + MD both come up empty. Threshold mirrors the MD/Kitsu
+  // override semantics — only fill when current description is <80 chars
+  // and ComicVine has substantive content.
+  const cvDesc = comicvine?.seriesVolume.description;
+  const currentDesc = metadata['description'];
+  const currentLen = typeof currentDesc === 'string' ? currentDesc.trim().length : 0;
+  if (currentLen < 80 && typeof cvDesc === 'string' && cvDesc.trim().length >= 80) {
+    metadata['description'] = cvDesc.trim();
+    perFieldProvenance['description'] = 'comicvine';
   }
 
   // Merge MangaUpdates data into metadata (AniList takes priority, MU fills gaps)
   const muSupplements = buildMangaUpdatesMetadataSupplements(metadata, mangaupdates, comicvine?.publisherName);
-  Object.assign(metadata, muSupplements);
+  assignWithProvenance(metadata, perFieldProvenance, 'mangaupdates', muSupplements);
 
   // Merge MAL data into metadata (fills chapter/volume/score gaps)
   const malSupplements = buildMALMetadataSupplements(metadata, mal);
-  Object.assign(metadata, malSupplements);
+  assignWithProvenance(metadata, perFieldProvenance, 'mal', malSupplements);
 
   // Merge Kitsu supplements (age rating, alt titles, fallback synopsis)
-  Object.assign(metadata, buildKitsuMetadataSupplements(metadata, kitsu));
+  const kitsuSupplements = buildKitsuMetadataSupplements(metadata, kitsu);
+  assignWithProvenance(metadata, perFieldProvenance, 'kitsu', kitsuSupplements);
 
   const sources = buildSourcesList(mangadex, anilist, comicvine);
   if (mangaupdates) sources.push('mangaupdates');
@@ -118,6 +152,8 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
       mangadexExternalIds: mangadex?.externalIds ?? undefined,
       anilistExternalLinks: extractAniListExternalLinks(anilist),
       anilistRecommendations: extractAniListRecommendations(anilist),
+      // Phase 1: AL relations.edges[] passed through for phase-finalize/manga-relation-resolver.
+      anilistRelations: extractAniListRelations(anilist),
     },
   };
 
@@ -135,23 +171,49 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
       title: matchTitle,
       confidence: 0.9,
       metadata,
+      perFieldProvenance,
     },
     enrichedData,
   };
+}
+
+/**
+ * Object.assign + record provenance per key. Each key in `fields` gets stamped
+ * with `source` in the provenance map. Keys already in `perFieldProvenance`
+ * are overwritten — call order encodes priority (later supplements take
+ * precedence over earlier ones, mirroring Object.assign semantics).
+ */
+function assignWithProvenance(
+  target: Record<string, unknown>,
+  perFieldProvenance: Record<string, string>,
+  source: string,
+  fields: Record<string, unknown>,
+): void {
+  Object.assign(target, fields);
+  for (const key of Object.keys(fields)) {
+    // eslint-disable-next-line no-param-reassign -- documented: helper records provenance into caller's map by design
+    perFieldProvenance[key] = source;
+  }
 }
 
 // ============================================================================
 // AniList Metadata Builders
 // ============================================================================
 
-/** Build metadata Record from AniList details for persistence downstream */
+/** Build metadata Record from AniList details for persistence downstream.
+ *  Mutates `perFieldProvenance` to stamp every produced key with 'anilist'. */
 function buildMetadataFromAniList(
   fallbackTitle: string,
   details: AniListMangaDetails | undefined,
+  perFieldProvenance: Record<string, string>,
 ): Record<string, unknown> {
-  if (!details) return { title: fallbackTitle };
+  if (!details) {
+    // eslint-disable-next-line no-param-reassign -- documented: builder writes perFieldProvenance map for caller (parallel to metadata)
+    perFieldProvenance['title'] = 'anilist';
+    return { title: fallbackTitle };
+  }
 
-  return {
+  const metadata: Record<string, unknown> = {
     ...buildAniListCoreFields(details, fallbackTitle),
     ...extractAniListStaff(details),
     alternativeTitles: [
@@ -164,6 +226,11 @@ function buildMetadataFromAniList(
       native: details.title.native,
     },
   };
+  for (const key of Object.keys(metadata)) {
+    // eslint-disable-next-line no-param-reassign -- documented: builder writes perFieldProvenance map for caller
+    perFieldProvenance[key] = 'anilist';
+  }
+  return metadata;
 }
 
 /** Build core metadata fields from AniList details */
@@ -197,6 +264,14 @@ function buildAniListCoreFields(
   if (details.status) fields['status'] = mapToMangaStatus(mapAniListStatus(details.status));
   if (details.averageScore) fields['averageScore'] = details.averageScore;
   if (details.popularity) fields['popularity'] = details.popularity;
+  // Phase 1: rating JSON. AL contributes value (averageScore) — scoredBy/rank
+  // not in the local AL surface; selector merges with MAL/MU contributions.
+  if (details.averageScore) {
+    fields['rating'] = {
+      value: details.averageScore,
+      source: 'anilist' as const,
+    };
+  }
   if (details.startDate?.year) fields['startDate'] = formatAniListDate(details.startDate);
   if (details.endDate?.year) fields['endDate'] = formatAniListDate(details.endDate);
   if (details.tags) {
@@ -336,6 +411,45 @@ function extractAniListRecommendations(
       title: title as string,
       format: typeof m['format'] === 'string' ? m['format'] as string : null,
       coverUrl,
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Phase 1: extract AniList relations.edges[] in the shape the
+ * phase-finalize MangaRelation resolver expects. Returns undefined when
+ * AniList didn't match or returned no relations.
+ */
+function extractAniListRelations(
+  anilist: AniListDirectResult | null,
+): Array<{
+  externalToId: string;
+  relationType: string;
+  targetTitle: string;
+  targetMedium: 'MANGA' | 'ANIME' | 'NOVEL' | 'OTHER';
+}> | undefined {
+  const edges = anilist?.details.relations?.edges;
+  if (!Array.isArray(edges) || edges.length === 0) return undefined;
+  const out: Array<{ externalToId: string; relationType: string; targetTitle: string; targetMedium: 'MANGA' | 'ANIME' | 'NOVEL' | 'OTHER' }> = [];
+  for (const edge of edges) {
+    const node = edge.node;
+    if (!node || typeof node.id !== 'number') continue;
+    const title = node.title?.english ?? node.title?.romaji;
+    if (typeof title !== 'string' || title.length === 0) continue;
+    const rt = edge.relationType;
+    if (typeof rt !== 'string') continue;
+    const mediumRaw = node.type;
+    const targetMedium: 'MANGA' | 'ANIME' | 'NOVEL' | 'OTHER' =
+      mediumRaw === 'MANGA' ? 'MANGA'
+      : mediumRaw === 'ANIME' ? 'ANIME'
+      : mediumRaw === 'NOVEL' ? 'NOVEL'
+      : 'OTHER';
+    out.push({
+      externalToId: String(node.id),
+      relationType: rt,
+      targetTitle: title,
+      targetMedium,
     });
   }
   return out.length > 0 ? out : undefined;
@@ -512,16 +626,15 @@ function buildKitsuMetadataSupplements(
   }
 
   // Numeric fallbacks — only when AniList provided no value AND Kitsu has > 0
-  // (Kitsu sometimes returns 0 for unknown counts). Persister reads chapterCount/
-  // volumeCount (camelCase suffix), AL builder writes chapters/volumes — write
-  // both so downstream conversion finds the value regardless of path.
+  // (Kitsu sometimes returns 0 for unknown counts).
+  //
+  // Phase 0: persister now reads `metadata['chapters']`/`metadata['volumes']`
+  // first (with legacy `chapterCount`/`volumeCount` fallback). Single key write.
   if (metadata['chapters'] === undefined && kitsu.chapterCount && kitsu.chapterCount > 0) {
     supplements['chapters'] = kitsu.chapterCount;
-    supplements['chapterCount'] = kitsu.chapterCount;
   }
   if (metadata['volumes'] === undefined && kitsu.volumeCount && kitsu.volumeCount > 0) {
     supplements['volumes'] = kitsu.volumeCount;
-    supplements['volumeCount'] = kitsu.volumeCount;
   }
 
   // Format / publisher fallbacks

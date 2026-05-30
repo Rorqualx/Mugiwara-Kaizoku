@@ -6,9 +6,9 @@
 
 import type { RawProviderData } from '@/lib/validation/common-schemas';
 import type { CompletenessReport } from '@/server/services/completeness/manga-completeness';
-import type { EnrichmentResult } from '@/server/services/library/metadataEnrichmentService/types';
 import type { WikipediaMangaData } from '@/server/services/wikipedia/wikipedia/types';
 import type { MangaWithRelations } from '@/server/trpc/routers/manga/shared';
+import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 
 export interface EnrichmentProgress {
   (phase: string, message: string): Promise<void>;

@@ -212,13 +212,13 @@ export const comicvineRouter = router({
 
       const metadata = await ctx.prisma.metadata.create({
         data: {
+          // Phase 1: coverUrl dropped, publisher → publishers[].
           cover: cover ?? '/cover-not-found.jpg',
-          coverUrl: cover,
           summary: description,
           source: 'comicvine',
           sourceId,
           chapters: issueCount,
-          publisher,
+          publishers: publisher ? [publisher] : [],
         },
       });
 

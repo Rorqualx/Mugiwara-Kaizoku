@@ -12,9 +12,9 @@
 
 import { prisma } from '@/server/db';
 import { isPlaceholderVolumeTitle } from '@/server/parsers/extractors/table-extractor/volume-extractors';
-import type { EnrichmentResult } from '@/server/services/library/metadataEnrichmentService/types';
 import { metadataPersistenceService } from '@/server/services/metadata/metadata-persister';
-import { persistNormalizedVolumes } from '@/server/services/metadataMerger/volume-persister';
+import { persistNormalizedVolumes } from '@/server/services/volume-persister';
+import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
@@ -110,9 +110,12 @@ export async function phaseDbPersistence(
   if (!result.appliedMatch?.metadata) return;
 
   const metadata = result.appliedMatch.metadata as Record<string, unknown>;
-  const providerName = result.appliedMatch.provider;
+  // Phase 0: prefer the builder's per-field provenance map. Empty fallback is
+  // safe — metadata-persister treats missing entries as "no known source" and
+  // skips provenance-stamping for those keys rather than mis-attributing them.
+  const perFieldProvenance = result.appliedMatch.perFieldProvenance ?? {};
 
-  await persistMetadataToDb(mangaId, metadata, providerName);
+  await persistMetadataToDb(mangaId, metadata, perFieldProvenance);
 
   const enrichedData = result.enrichedData as
     Record<string, unknown> | undefined;
@@ -120,23 +123,25 @@ export async function phaseDbPersistence(
   await createChaptersAndVolumes(mangaId, metadata, enrichedData, mangadexAggregateChapterCount, chapterConsensus);
 }
 
-/** Persist metadata fields to the database */
+/**
+ * Persist metadata fields to the database.
+ *
+ * Phase 0: `perFieldProvenance` carries the per-field contributor map built by
+ * `enrichment-result-builder`. Passed straight through to the persister, which
+ * uses it as the authoritative provenance for `Metadata.providerMetadata.metadataProvenance`.
+ *
+ * Pre-Phase-0 behaviour stamped every key with a single match-level provider
+ * (typically 'anilist'), making `applyProvenanceGuards` a no-op against itself.
+ */
 async function persistMetadataToDb(
   mangaId: number,
   metadata: Record<string, unknown>,
-  providerName: string,
+  perFieldProvenance: Record<string, string>,
 ): Promise<void> {
-  const provenance: Record<string, string> = {};
-  for (const key of Object.keys(metadata)) {
-    if (metadata[key] !== undefined && metadata[key] !== null) {
-      provenance[key] = providerName;
-    }
-  }
-
   const persistResult = await metadataPersistenceService.persistMetadata({
     mangaId,
     metadata: metadata as import('@/types/search.types').UnifiedMangaMetadata,
-    metadataProvenance: provenance,
+    metadataProvenance: perFieldProvenance,
   });
 
   if (isError(persistResult)) {

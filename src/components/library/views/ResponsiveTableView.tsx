@@ -127,12 +127,11 @@ export function ResponsiveTableView({
     return sorted;
   }, [manga, searchedManga, searchQuery, searchField, enableRegexSearch, advancedFilters, filterBy, sortBy, tableSort]);
 
-  // Helper to get cover URL with fallback chain
+  // Helper to get cover URL with fallback chain (Phase 1: coverUrl dropped)
   const getCoverUrl = (manga: MangaEntity, mangaId?: number): string | undefined => {
     const raw = manga.Metadata?.coverLarge ??
            manga.Metadata?.coverMedium ??
            manga.Metadata?.cover ??
-           manga.Metadata?.coverUrl ??
            undefined;
     if (!raw && mangaId !== undefined) return `/api/local-cover/${mangaId}`;
     return raw;

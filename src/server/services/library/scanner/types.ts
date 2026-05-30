@@ -5,10 +5,10 @@
  * Extracted from scanner.ts (lines 28-102)
  */
 
+import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import type { ImportActions, ImportRule } from '@/types/import-rules';
 import type { ParsedMangaInfo } from '@/utils/parsers/mangaFileParser';
 
-import type { EnrichmentResult } from '../metadataEnrichmentService';
 
 /**
  * Default subfolder names to exclude from scanning

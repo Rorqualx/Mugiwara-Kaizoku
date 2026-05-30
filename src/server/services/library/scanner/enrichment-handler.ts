@@ -1,47 +1,43 @@
 /**
- * Enrichment Handler Module
+ * Scanner Enrichment Handler
  *
- * Handles metadata enrichment for scanned manga entries via
- * `MetadataEnrichmentService.oneClickEnrich` (ts-mangadex:
- * MangaDex + AniList + ComicVine in parallel). When it returns `no_matches`
- * or `error`, the caller surfaces that state — users trigger explicit
- * re-enrichment via the wizard (which runs the full pipeline) if they
- * want a deeper pass.
+ * Auto-matches a freshly-scanned manga via the modern enrichment pipeline
+ * (`runEnrichmentPipeline`). Reads the underlying `EnrichmentResult` envelope
+ * from the pipeline's UnifiedProviderResults and returns it so scanner
+ * downstream (queue handler, ScanPreview UI) can read `appliedMatch.provider`
+ * and friends.
  *
- * @module scanner/enrichment-handler
+ * Errors are logged but swallowed — failed auto-match shouldn't block the
+ * scan.
  */
-
+import { runEnrichmentPipeline } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/pipeline-orchestrator';
+import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { toNumberId } from '@/utils/id-converters';
 import { serverLogger } from '@/utils/serverLogger';
 
-import type { MetadataEnrichmentService } from '../metadataEnrichmentService';
-import type { EnrichmentResult } from '../metadataEnrichmentService/types';
-
-interface MangaInput {
-  id: number;
-  title: string;
+interface UnifiedResultsShape {
+  enrichmentResult?: EnrichmentResult;
 }
 
-/**
- * Enrich manga with metadata from providers.
- * Logs warnings but doesn't fail on enrichment errors.
- */
 export async function enrichMangaMetadata(
   manga: Record<string, unknown>,
-  enrichmentService: MetadataEnrichmentService,
 ): Promise<EnrichmentResult | null> {
-  try {
-    const mangaId = typeof manga['id'] === 'number' ? manga['id'] : 0;
-    const mangaTitle = typeof manga['title'] === 'string' ? manga['title'] : '';
-    const mangaInput: MangaInput = { id: mangaId, title: mangaTitle };
+  const mangaId = typeof manga['id'] === 'number' ? manga['id'] : 0;
+  const mangaTitle = typeof manga['title'] === 'string' ? manga['title'] : '';
 
-    return await enrichmentService.oneClickEnrich(mangaInput);
+  if (mangaId === 0 || mangaTitle === '') {
+    serverLogger.warn('Skipping auto-enrich — missing id/title', { mangaId: toNumberId(mangaId) });
+    return null;
+  }
+
+  try {
+    const { result } = await runEnrichmentPipeline(mangaId, mangaTitle);
+    const unified = result as UnifiedResultsShape | undefined;
+    return unified?.enrichmentResult ?? null;
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const mangaId = typeof manga['id'] === 'number' ? manga['id'] : 0;
     serverLogger.warn('Failed to auto-enrich manga', {
       mangaId: toNumberId(mangaId),
-      error: errorMessage,
+      error: error instanceof Error ? error.message : String(error),
     });
     return null;
   }

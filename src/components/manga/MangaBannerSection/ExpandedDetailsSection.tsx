@@ -10,7 +10,7 @@
  * @module components/manga/MangaBannerSection/ExpandedDetailsSection
  */
 
-import { Badge, Box, Button, Group, Stack, Text } from '@mantine/core';
+import { Box, Button, Group, Stack, Text } from '@mantine/core';
 import {
   IconCalendar,
   IconCalendarOff,
@@ -252,37 +252,8 @@ function AlternativeTitlesSection({ manga }: { manga: MangaWithRelations }): Rea
   );
 }
 
-/**
- * Characters Section
- * Shows up to 5 characters with "+X more" indicator
- */
-function CharactersSection({ manga }: { manga: MangaWithRelations }): React.ReactNode {
-  if (!manga.Metadata?.characters || manga.Metadata.characters.length === 0) return null;
-
-  const characters = manga.Metadata.characters;
-  const displayLimit = 5;
-  const hasMore = characters.length > displayLimit;
-
-  return (
-    <Box mb="lg">
-      <Text size="sm" fw={600} c="gray.3" mb="xs">
-        Characters:
-      </Text>
-      <Group gap="xs">
-        {characters.slice(0, displayLimit).map((character: string, index: number) => (
-          <Badge key={index} size="sm" variant="outline" color="gray">
-            {character}
-          </Badge>
-        ))}
-        {hasMore && (
-          <Text size="xs" c="dimmed">
-            +{characters.length - displayLimit} more
-          </Text>
-        )}
-      </Group>
-    </Box>
-  );
-}
+// Phase 1: CharactersSection removed — Metadata.characters column dropped
+// (out of app scope; no provider was reliably populating it).
 
 /**
  * Provider Links Section
@@ -434,7 +405,6 @@ export function ExpandedDetailsSection({
       <PublicationDatesSection extractedMetadata={extractedMetadata} />
       <AniListStatsSection extractedMetadata={extractedMetadata} />
       <AlternativeTitlesSection manga={manga} />
-      <CharactersSection manga={manga} />
       <ProviderLinksSection manga={manga} />
       <ExternalLinksSection manga={manga} />
       <DynamicSections manga={manga} />

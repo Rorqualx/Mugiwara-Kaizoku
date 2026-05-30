@@ -80,13 +80,15 @@ export function getArrayFieldsFromMetadata(
   m: MetadataRelation
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  // Phase 1: Metadata.characters dropped (out of app scope).
+  // Phase 1: publishers[] (array) now lives alongside genres/tags etc.
   const arrayMappings: Array<{ key: string; source: string[] }> = [
     { key: 'authors', source: m.authors },
     { key: 'artists', source: m.artists },
     { key: 'genres', source: m.genres },
     { key: 'tags', source: m.tags },
     { key: 'themes', source: m.themes },
-    { key: 'characters', source: m.characters },
+    { key: 'publishers', source: m.publishers },
   ];
 
   for (const { key, source } of arrayMappings) {
@@ -102,13 +104,12 @@ export function getStringFieldsFromMetadata(
   metadata: Record<string, unknown>,
   m: MetadataRelation
 ): Record<string, unknown> {
+  // Phase 1: language dropped (column removed). publisher → publishers (array).
   const result: Record<string, unknown> = {};
-  if (!metadata['publisher'] && m.publisher) result['publisher'] = m.publisher;
   if (!metadata['description'] && m.summary) result['description'] = m.summary;
   // Status defaults to UNKNOWN in Prisma, only use if it's a meaningful value
   if (!metadata['status'] && m.status !== 'UNKNOWN') result['status'] = m.status;
   if (!metadata['format'] && m.format) result['format'] = m.format;
-  if (!metadata['language'] && m.language) result['language'] = m.language;
   if (!metadata['countryOfOrigin'] && m.countryOfOrigin) result['countryOfOrigin'] = m.countryOfOrigin;
   if (!metadata['startDate'] && m.startDate) result['startDate'] = m.startDate;
   if (!metadata['endDate'] && m.endDate) result['endDate'] = m.endDate;
@@ -136,12 +137,12 @@ export function buildFromMergedMetadata(m: MetadataRelation): Record<string, unk
   if (m.genres.length > 0) metadata['genres'] = m.genres;
   if (m.tags.length > 0) metadata['tags'] = m.tags;
   if (m.themes.length > 0) metadata['themes'] = m.themes;
-  if (m.characters.length > 0) metadata['characters'] = m.characters;
-  if (m.publisher) metadata['publisher'] = m.publisher;
+  // Phase 1: characters dropped (out of scope). publishers[] replaces publisher.
+  if (m.publishers.length > 0) metadata['publishers'] = m.publishers;
   if (m.summary) metadata['description'] = m.summary;
   if (m.status !== 'UNKNOWN') metadata['status'] = m.status;
   if (m.format) metadata['format'] = m.format;
-  if (m.language) metadata['language'] = m.language;
+  // Phase 1: language dropped.
   if (m.countryOfOrigin) metadata['countryOfOrigin'] = m.countryOfOrigin;
   if (m.startDate) metadata['startDate'] = m.startDate;
   if (m.endDate) metadata['endDate'] = m.endDate;

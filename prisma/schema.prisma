@@ -216,6 +216,10 @@ model Manga {
   // Pipeline Relations
   PendingRelease PendingRelease[]
 
+  // Phase 1: manga-to-manga relations (prequel/sequel/side-story/etc.)
+  mangaRelationsFrom MangaRelation[] @relation("MangaRelationFrom")
+  mangaRelationsTo   MangaRelation[] @relation("MangaRelationTo")
+
   @@unique([libraryId, libraryPath])
   @@index([createdAt])
   @@index([lastChecked])
@@ -223,49 +227,75 @@ model Manga {
   @@index([mediaType, createdAt])
 }
 
+/// Phase 1: directed relation between manga (prequel/sequel/side-story/etc.).
+/// `toMangaId` is nullable so we can persist relations whose target isn't in
+/// the library yet; the inverse-resolver on Manga.create back-fills it when
+/// the target manga is later imported. `targetTitle` is denormalized so the
+/// chip renders correctly even if the target is later deleted. Sourced from
+/// AniList in Phase 1 (`externalSource = 'anilist'`); MangaDex relationships
+/// could supplement in a later phase via additional rows per provider.
+model MangaRelation {
+  id             Int                       @id @default(autoincrement())
+  fromMangaId    Int
+  toMangaId      Int?
+  externalSource String
+  externalToId   String
+  targetTitle    String
+  targetMedium   MangaRelationTargetMedium
+  relationType   MangaRelationType
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  fromManga Manga  @relation("MangaRelationFrom", fields: [fromMangaId], references: [id], onDelete: Cascade)
+  toManga   Manga? @relation("MangaRelationTo", fields: [toMangaId], references: [id], onDelete: SetNull)
+
+  @@unique([fromMangaId, externalSource, externalToId, relationType])
+  @@index([fromMangaId])
+  @@index([toMangaId])
+  @@index([externalSource, externalToId])
+}
+
 model Metadata {
-  id                Int                    @id @default(autoincrement())
-  coverExtraLarge   String?
-  coverLarge        String?
-  coverMedium       String?
-  coverSmall        String?
-  summary           String?
-  genres            String[]               @default([])
-  authors           String[]               @default([])
-  tags              String[]               @default([])
-  themes            String[]               @default([])
-  characters        String[]               @default([])
-  startDate         DateTime?
-  endDate           DateTime?
-  synonyms          String[]               @default([])
-  urls              String[]               @default([])
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime?
-  cover             String                 @default("/cover-not-found.jpg")
-  lastFetch         DateTime?
-  source            String?                @db.VarChar(100)
-  sourceId          String?                @db.VarChar(100)
-  language          String?
-  languages         String[]               @default([])
-  qualityProfile    String?
-  averageResolution String?
-  pageCount         Int?
-  chapters          Int?
-  volumes           Int?
-  artists           String[]               @default([])
-  averageScore      Float?
-  bannerImage       String?
-  countryOfOrigin   String?
-  coverUrl          String?
-  externalLinks     Json?
-  format            String?
-  idMal             Int?
-  popularity        Int?
-  publisher         String?
-  rating            Float?
-  status            MangaPublicationStatus @default(UNKNOWN)
-  galleryImages     String[]               @default([])
-  Manga             Manga?
+  id                     Int                    @id @default(autoincrement())
+  coverExtraLarge        String?
+  coverLarge             String?
+  coverMedium            String?
+  coverSmall             String?
+  summary                String?
+  genres                 String[]               @default([])
+  authors                String[]               @default([])
+  tags                   String[]               @default([])
+  themes                 String[]               @default([])
+  startDate              DateTime?
+  endDate                DateTime?
+  synonyms               String[]               @default([])
+  urls                   String[]               @default([])
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime?
+  cover                  String                 @default("/cover-not-found.jpg")
+  lastFetch              DateTime?
+  source                 String?                @db.VarChar(100)
+  sourceId               String?                @db.VarChar(100)
+  chapters               Int?
+  volumes                Int?
+  artists                String[]               @default([])
+  averageScore           Float?
+  bannerImage            String?
+  countryOfOrigin        String?
+  externalLinks          Json?
+  format                 String?
+  idMal                  Int?
+  popularity             Int?
+  // Phase 1: publishers[] replaces single publisher; multi-publisher (JP licensor + EN licensor) is the actual data shape from MU.
+  publishers             String[]               @default([])
+  // Phase 1: rating widened to JSON {value, scoredBy?, rank?, source?} aggregating AL/MAL/MU/Kitsu signals.
+  rating                 Json?
+  status                 MangaPublicationStatus @default(UNKNOWN)
+  galleryImages          String[]               @default([])
+  // Phase 1: content rating + publication demographic from MangaDex.
+  contentRating          String?
+  publicationDemographic String?
+  Manga                  Manga?
 
   @@index([createdAt])
   @@index([source, sourceId])
@@ -1625,6 +1655,33 @@ enum CalendarEventType {
   HIATUS_END
   SPECIAL_RELEASE
   ANNOUNCEMENT
+}
+
+/// Phase 1: AniList relation taxonomy (version: 2). Closed set; rows whose
+/// upstream value doesn't fit map to OTHER.
+enum MangaRelationType {
+  PREQUEL
+  SEQUEL
+  SIDE_STORY
+  PARENT
+  SPIN_OFF
+  ALTERNATIVE
+  ADAPTATION
+  CHARACTER
+  SUMMARY
+  COMPILATION
+  CONTAINS
+  SOURCE
+  OTHER
+}
+
+/// Phase 1: medium of a MangaRelation target. Most are MANGA but AL surfaces
+/// cross-medium relations (anime/novel adaptations) that we keep with attribution.
+enum MangaRelationTargetMedium {
+  MANGA
+  ANIME
+  NOVEL
+  OTHER
 }
 
 enum ChapterStatus {

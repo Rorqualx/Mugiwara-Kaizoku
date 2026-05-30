@@ -15,7 +15,7 @@ import {
   extractFandomVolumeData,
   transformComicVineVolumeData,
   transformFandomVolumeData,
-} from './volume-persister/provider-transformers';
+} from './provider-transformers';
 
 import type { Prisma, PrismaClient, CreatorRole, VolumeFormat } from '@prisma/client';
 

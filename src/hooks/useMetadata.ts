@@ -134,27 +134,28 @@ function extractExternalLinks(
 /**
  * Extract string fields from raw metadata and convert undefined to null
  */
+// Phase 1: coverUrl, publisher, language dropped from Metadata schema.
+// Only coverSmall remains as a string field on Metadata; the rest moved to
+// publishers[] (array) or were deleted entirely.
 function mapStringFields(
   raw: Record<string, unknown>
-): Pick<MangaMetadata, 'coverUrl' | 'coverSmall' | 'publisher' | 'language'> {
+): Pick<MangaMetadata, 'coverSmall'> {
   return {
-    coverUrl: extractStringField(raw, "coverUrl") ?? null,
     coverSmall: extractStringField(raw, "coverSmall") ?? null,
-    publisher: extractStringField(raw, "publisher") ?? null,
-    language: extractStringField(raw, "language") ?? null
   };
 }
 
 /**
  * Extract number fields from raw metadata and convert undefined to null
  */
+// Phase 1: rating widened to Json. Numeric extraction no longer applies — UI
+// consumers read rating.value via the dedicated mapRatingJson helper.
 function mapNumberFields(
   raw: Record<string, unknown>
-): Pick<MangaMetadata, 'chapters' | 'volumes' | 'rating'> {
+): Pick<MangaMetadata, 'chapters' | 'volumes'> {
   return {
     chapters: extractNumberField(raw, "chapters") ?? null,
     volumes: extractNumberField(raw, "volumes") ?? null,
-    rating: extractNumberField(raw, "rating") ?? null
   };
 }
 

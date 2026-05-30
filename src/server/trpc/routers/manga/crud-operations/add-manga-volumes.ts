@@ -14,7 +14,7 @@
 import {
   persistNormalizedVolumes,
   extractVolumeDataFromProvider
-} from '@/server/services/metadataMerger/volume-persister';
+} from '@/server/services/volume-persister';
 import { DEFAULT_FIELD_PRIORITIES } from '@/types/search-types/configuration.types';
 import type { EnhancedVolumeData } from '@/types/search-types/metadata.types';
 import { logger } from '@/utils/logger';

@@ -127,7 +127,6 @@ describe('MetadataPersistenceService - Update Operations', () => {
         authors: ['Existing Author'],
         artists: ['Existing Artist'],
         tags: ['Tag1', 'Tag2'],
-        characters: ['Character1'],
         synonyms: ['Alt Title'],
         urls: ['http://example.com'],
         status: 'ONGOING' as MangaPublicationStatus,
@@ -140,7 +139,7 @@ describe('MetadataPersistenceService - Update Operations', () => {
         averageScore: 85,
         popularity: 50000,
         countryOfOrigin: 'JP',
-        publisher: 'Test Publisher'
+        publishers: ['Test Publisher']
       });
 
       const mockManga = createMockManga({

@@ -48,6 +48,9 @@ class JikanService {
         volumes: data.volumes ?? null,
         status: MAL_STATUS_MAP[data.status ?? ''] ?? 'UNKNOWN',
         score: data.score ?? null,
+        // Phase 1: surfaced for Metadata.rating JSON aggregation.
+        scoredBy: data.scored_by ?? null,
+        rank: data.rank ?? null,
         genres,
         isAdult,
       };
