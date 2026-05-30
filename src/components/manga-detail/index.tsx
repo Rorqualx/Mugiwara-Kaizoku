@@ -26,6 +26,7 @@ import { CoverSection } from "./sections/CoverSection";
 import { GenresTagsSection } from "./sections/GenresTagsSection";
 import { MetadataSection } from "./sections/MetadataSection";
 import { RelatedSeriesSection } from "./sections/RelatedSeriesSection";
+import { RelatedWorksCarousel } from "./sections/RelatedWorksCarousel";
 import { TechnicalInfoSection } from "./sections/TechnicalInfoSection";
 import { VolumesSection } from "./sections/VolumesSection";
 
@@ -74,7 +75,10 @@ export function MangaDetail({ manga }: MangaDetailProps): React.ReactElement {
       {/* Genres and Tags */}
       <GenresTagsSection manga={manga} />
 
-      {/* Related Series & Recommendations (MangaUpdates) */}
+      {/* Phase 4 v2-B: AL + MAL recommendations + structural relations */}
+      <RelatedWorksCarousel mangaId={manga.id} />
+
+      {/* Related Series & Recommendations (MangaUpdates — legacy JSON blob) */}
       <RelatedSeriesSection mangaId={manga.id} />
 
       {/* Technical Information */}

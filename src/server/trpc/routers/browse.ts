@@ -7,6 +7,7 @@
  * @module server/trpc/routers/browse
  */
 
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
@@ -40,6 +41,129 @@ const mangaCardSelect = {
     },
   },
 } as const;
+
+// ============================================================================
+// Phase 4 v2-B helpers — pulled out of the router body so the procedure
+// stays within the 100-line limit (lint: max-lines-per-function).
+// ============================================================================
+
+type RecommendationRow = {
+  externalSource: string;
+  externalToId: string;
+  toMangaId: number | null;
+  targetTitle: string;
+  targetMedium: string | null;
+  targetFormat: string | null;
+  targetCoverUrl: string | null;
+  rating: number | null;
+};
+
+interface RecommendationBucket {
+  externalSources: string[];
+  externalToIds: Record<string, string>;
+  toMangaId: number | null;
+  targetTitle: string;
+  targetMedium: string | null;
+  targetFormat: string | null;
+  targetCoverUrl: string | null;
+  rating: number | null;
+}
+
+/**
+ * Collapse AL + MAL recommendations onto the same target (when both bind
+ * to the same local manga) so the carousel can render one card with both
+ * source badges. External-only entries stay distinct per source — their
+ * external ids namespace independently.
+ */
+function bucketRecommendations(recs: RecommendationRow[]): RecommendationBucket[] {
+  const buckets = new Map<string, RecommendationBucket>();
+  for (const rec of recs) {
+    const key = rec.toMangaId !== null
+      ? `local:${rec.toMangaId}`
+      : `${rec.externalSource}:${rec.externalToId}`;
+    const existing = buckets.get(key);
+    if (existing) {
+      if (!existing.externalSources.includes(rec.externalSource)) {
+        existing.externalSources.push(rec.externalSource);
+        existing.externalToIds[rec.externalSource] = rec.externalToId;
+      }
+      if ((rec.rating ?? -1) > (existing.rating ?? -1)) existing.rating = rec.rating;
+      existing.targetCoverUrl ??= rec.targetCoverUrl;
+    } else {
+      buckets.set(key, {
+        externalSources: [rec.externalSource],
+        externalToIds: { [rec.externalSource]: rec.externalToId },
+        toMangaId: rec.toMangaId,
+        targetTitle: rec.targetTitle,
+        targetMedium: rec.targetMedium,
+        targetFormat: rec.targetFormat,
+        targetCoverUrl: rec.targetCoverUrl,
+        rating: rec.rating,
+      });
+    }
+  }
+  return [...buckets.values()];
+}
+
+type LocalMangaCard = Prisma.MangaGetPayload<{ select: typeof mangaCardSelect }>;
+
+interface RelatedWorksResult {
+  relations: Array<{
+    externalSource: string;
+    externalToId: string;
+    targetTitle: string;
+    targetMedium: string | null;
+    relationType: string;
+    localManga: LocalMangaCard | null;
+  }>;
+  recommendations: Array<RecommendationBucket & { localManga: LocalMangaCard | null }>;
+}
+
+async function fetchRelatedWorks(mangaId: number): Promise<RelatedWorksResult> {
+  const [relations, recommendations] = await Promise.all([
+    prisma.mangaRelation.findMany({
+      where: { fromMangaId: mangaId },
+      orderBy: [{ relationType: 'asc' }, { id: 'asc' }],
+      select: {
+        externalSource: true, externalToId: true, toMangaId: true,
+        targetTitle: true, targetMedium: true, relationType: true,
+      },
+    }),
+    prisma.mangaRecommendation.findMany({
+      where: { fromMangaId: mangaId },
+      orderBy: [{ rating: 'desc' }, { id: 'asc' }],
+      select: {
+        externalSource: true, externalToId: true, toMangaId: true,
+        targetTitle: true, targetMedium: true, targetFormat: true,
+        targetCoverUrl: true, rating: true,
+      },
+    }),
+  ]);
+
+  const localIds = [
+    ...relations.map(r => r.toMangaId),
+    ...recommendations.map(r => r.toMangaId),
+  ].filter((id): id is number => id !== null);
+  const localRows = localIds.length > 0
+    ? await prisma.manga.findMany({ where: { id: { in: localIds } }, select: mangaCardSelect })
+    : [];
+  const byId = new Map(localRows.map(m => [m.id, m]));
+
+  return {
+    relations: relations.map(r => ({
+      externalSource: r.externalSource,
+      externalToId: r.externalToId,
+      targetTitle: r.targetTitle,
+      targetMedium: r.targetMedium,
+      relationType: r.relationType,
+      localManga: r.toMangaId !== null ? byId.get(r.toMangaId) ?? null : null,
+    })),
+    recommendations: bucketRecommendations(recommendations).map(b => ({
+      ...b,
+      localManga: b.toMangaId !== null ? byId.get(b.toMangaId) ?? null : null,
+    })),
+  };
+}
 
 // ============================================================================
 // Browse Procedures
@@ -238,6 +362,23 @@ export const browseRouter = router({
 
       return result.map(r => ({ name: r.genre, mangaCount: Number(r.count) }));
     }),
+
+  /**
+   * Phase 4 v2-B: rich related-works carousel feed.
+   *
+   * Pulls from the structural `MangaRelation` table (sequel/prequel/spin-off)
+   * and the taste-similarity `MangaRecommendation` table (AL + MAL pass)
+   * — both populated by the modern enrichment pipeline — and joins to local
+   * Manga/Metadata for cover art + status. Returns a single feed-friendly
+   * shape so the carousel can render in-library and external-only targets
+   * uniformly.
+   *
+   * Distinct from `getRelatedAndRecommendations` which reads the legacy
+   * `providerMetadata.mangaupdates` JSON blob — kept for the MU text card.
+   */
+  getRelatedWorks: publicProcedure
+    .input(z.object({ mangaId: z.number() }))
+    .query(async ({ input }) => fetchRelatedWorks(input.mangaId)),
 
   /**
    * Get related series and recommendations for a manga.
