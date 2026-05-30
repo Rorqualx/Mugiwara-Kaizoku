@@ -410,13 +410,21 @@ function extractAniListRecommendations(
 ): AniListRecommendation[] | undefined {
   if (!anilist) return undefined;
   const details = anilist.details as unknown as Record<string, unknown>;
+  // The AL GraphQL query in services/anilist/queries.ts uses `recommendations.nodes[]`,
+  // not `edges[].node`. Earlier versions of the extractor read edges and silently
+  // dropped everything. Accept both shapes for forward-compat — `nodes[]` is the
+  // canonical AL shape today, `edges[].node` is the v2 GraphQL Connection pattern.
   const rec = details['recommendations'] as
-    | { edges?: Array<{ node?: { rating?: number; mediaRecommendation?: Record<string, unknown> } }> }
+    | {
+        nodes?: Array<{ rating?: number; mediaRecommendation?: Record<string, unknown> }>;
+        edges?: Array<{ node?: { rating?: number; mediaRecommendation?: Record<string, unknown> } }>;
+      }
     | undefined;
-  const edges = rec?.edges ?? [];
+  const nodesFromEdges = rec?.edges?.map(e => e.node).filter((n): n is NonNullable<typeof n> => n !== undefined && n !== null);
+  const recommendationNodes = rec?.nodes ?? nodesFromEdges ?? [];
   const out: AniListRecommendation[] = [];
-  for (const edge of edges.slice(0, 20)) {
-    const m = edge.node?.mediaRecommendation;
+  for (const node of recommendationNodes.slice(0, 20)) {
+    const m = node.mediaRecommendation;
     if (!m) continue;
     const id = typeof m['id'] === 'number' ? m['id'] : null;
     const titleObj = m['title'] as Record<string, unknown> | undefined;
@@ -442,7 +450,7 @@ function extractAniListRecommendations(
       format: typeof m['format'] === 'string' ? m['format'] as string : null,
       coverUrl,
       medium,
-      rating: typeof edge.node?.rating === 'number' ? edge.node.rating : null,
+      rating: typeof node.rating === 'number' ? node.rating : null,
     });
   }
   return out.length > 0 ? out : undefined;
