@@ -34,6 +34,7 @@ import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factor
 import type { MangaDexManga } from '@/server/services/mangadex/types';
 import { validateBindingFreshness } from '@/server/services/metadata/binding-validators/freshness-check';
 import { aniListClaimFields, collectCandidates, type ProviderClaim } from '@/server/services/metadata/selectors/collect-candidates';
+import { applySelectorCutover } from '@/server/services/metadata/selectors/cutover-overlay';
 import { persistSelectionAttempt } from '@/server/services/metadata/selectors/persist-attempt';
 import { computeShadowDeltas, runShadowSelection } from '@/server/services/metadata/selectors/shadow-mode';
 import { detectNonEnglishVariant } from '@/server/services/search/providers/comicvine-language-filter';
@@ -417,12 +418,14 @@ export async function phaseProviderFetch(
     comicvine: comicvineData, mangaupdates: muData, mal: malData, kitsu: kitsuData,
   });
 
-  // Phase 1.5 shadow mode: run the cross-source consensus selector against
-  // the same provider data the Object.assign chain just consumed, write a
-  // MetadataSelectionAttempt row capturing where they disagree. Fire-and-
-  // forget — selector errors must never block enrichment (commit #12 turns
-  // the selector into the primary path).
-  void runAndPersistShadowSelection({
+  // Phase 1.5 #12 cutover: the selector is now the primary picker. Overlay
+  // its winners onto the legacy enrichmentResult before persistence; legacy
+  // Object.assign picks remain only for fields the selector couldn't decide
+  // on (drift-guard refusals, all-candidates-failed cases).
+  //
+  // The telemetry row that used to be the "shadow" record is now the LIVE
+  // record — same schema (MetadataSelectionAttempt), same write path.
+  applySelectorCutoverInPlace({
     mangaId,
     anilist: anilistData,
     mangadex: mangadexData,
@@ -1184,7 +1187,16 @@ interface ShadowInputs {
   enrichmentResult: EnrichmentResult;
 }
 
-async function runAndPersistShadowSelection(inputs: ShadowInputs): Promise<void> {
+/**
+ * Phase 1.5 #12 cutover: runs the selector synchronously, OVERLAYS its
+ * winners onto the legacy enrichmentResult, and fires the telemetry write
+ * fire-and-forget. The overlay is the load-bearing change; the telemetry is
+ * for the selector-loop scorecard.
+ *
+ * Failures in the overlay path are caught + logged so a selector bug never
+ * blocks enrichment — legacy picks remain as the fall-through.
+ */
+function applySelectorCutoverInPlace(inputs: ShadowInputs): void {
   try {
     const claims = buildClaimsForShadow(inputs);
     if (claims.length === 0) return;
@@ -1192,11 +1204,42 @@ async function runAndPersistShadowSelection(inputs: ShadowInputs): Promise<void>
     const shadow = runShadowSelection(byField);
     const legacyMetadata = (inputs.enrichmentResult.appliedMatch?.metadata ?? {}) as Record<string, unknown>;
     const legacyProvenance = (inputs.enrichmentResult.appliedMatch?.perFieldProvenance ?? {}) as Record<string, string>;
-    const deltas = computeShadowDeltas(shadow, legacyMetadata, legacyProvenance);
-    await persistSelectionAttempt(inputs.mangaId, shadow, deltas);
+
+    // Capture the pre-overlay state so the telemetry shadowDeltas still
+    // record what the legacy Object.assign chain would have picked. The
+    // overlay then replaces it in-place for downstream persistence.
+    const snapshotMetadata = { ...legacyMetadata };
+    const snapshotProvenance = { ...legacyProvenance };
+    const deltas = computeShadowDeltas(shadow, snapshotMetadata, snapshotProvenance);
+
+    const cutover = applySelectorCutover(shadow, legacyMetadata, legacyProvenance);
+
+    // Stash fieldAlternatives on the result so the persister can write
+    // Metadata.fieldAlternatives. Lives on appliedMatch so it flows through
+    // the existing channel.
+    if (inputs.enrichmentResult.appliedMatch && Object.keys(cutover.fieldAlternatives).length > 0) {
+      const am = inputs.enrichmentResult.appliedMatch as { metadata?: Record<string, unknown> };
+      if (am.metadata) {
+        am.metadata['fieldAlternatives'] = cutover.fieldAlternatives;
+      }
+    }
+
+    logger.info('Phase 1.5 cutover overlay applied', {
+      mangaId: inputs.mangaId,
+      fieldsOverlaid: cutover.fieldsOverlaid,
+      fieldsSkipped: cutover.fieldsSkipped,
+      refusedFieldCount: cutover.refusedFields.length,
+    });
+
+    // Fire-and-forget telemetry — must not block enrichment.
+    void persistSelectionAttempt(inputs.mangaId, shadow, deltas).catch((err: unknown) => {
+      logger.warn(
+        `Phase 1.5 telemetry write failed for manga ${inputs.mangaId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
   } catch (err: unknown) {
     logger.warn(
-      `Phase 1.5 shadow selection failed for manga ${inputs.mangaId}: ${err instanceof Error ? err.message : String(err)}`,
+      `Phase 1.5 selector cutover failed for manga ${inputs.mangaId} — keeping legacy picks: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }

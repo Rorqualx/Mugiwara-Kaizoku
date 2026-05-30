@@ -15,13 +15,14 @@
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { parseFieldAlternatives } from '@/types/domain/field-alternatives-types';
 import { parseRatingJson } from '@/types/domain/rating-types';
 import type { UnifiedMangaMetadata } from '@/types/search.types';
 import { AsyncResult, createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 
-import type { Manga, Metadata, MangaPublicationStatus } from '@prisma/client';
+import type { Manga, Metadata, MangaPublicationStatus, Prisma } from '@prisma/client';
 
 /**
  * Per-field provenance entry persisted to `Manga.providerMetadata.metadataProvenance`.
@@ -123,6 +124,10 @@ interface MetadataUpdateData {
   sourceId?: string;
   status: MangaPublicationStatus;
   lastFetch: Date;
+  // Phase 1.5 #12: per-field dissenting candidates from the cross-source
+  // consensus selector. Validated at the persister boundary via
+  // parseFieldAlternatives before write.
+  fieldAlternatives?: Prisma.InputJsonValue;
 }
 
 /**
@@ -459,8 +464,24 @@ export class MetadataPersistenceService {
       ...this.buildCoverVariants(metadata, existingMetadata),
       ...this.buildDateFields(metadata, existingMetadata),
       ...this.buildNumericFields(metadata, existingMetadata),
-      ...this.buildStringFields(metadata, existingMetadata)
+      ...this.buildStringFields(metadata, existingMetadata),
+      ...this.buildFieldAlternatives(metadata),
     };
+  }
+
+  /**
+   * Phase 1.5 #12 cutover: extract `fieldAlternatives` from the metadata
+   * Record (set by the selector overlay) + validate via Zod before write.
+   * Malformed payloads are silently dropped — the column stays null.
+   */
+  private buildFieldAlternatives(
+    metadata: UnifiedMangaMetadata,
+  ): Partial<Pick<MetadataUpdateData, 'fieldAlternatives'>> {
+    const raw = (metadata as Record<string, unknown>)['fieldAlternatives'];
+    if (raw === undefined || raw === null) return {};
+    const parsed = parseFieldAlternatives(raw);
+    if (parsed === null) return {};
+    return { fieldAlternatives: parsed as unknown as Prisma.InputJsonValue };
   }
 
   /**
