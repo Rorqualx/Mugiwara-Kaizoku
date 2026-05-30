@@ -13,8 +13,6 @@
 
 import { MangaPublicationStatus, ChapterStatus } from '@prisma/client';
 
-import { getRatingValue } from './rating-extractor';
-
 import type { SortOption, FilterOption, AdvancedFilter, SearchField } from '@/store/libraryViewSlice';
 import { logger } from '@/utils/logger';
 
@@ -28,6 +26,7 @@ import {
   checkTagMatch,
   checkAllFieldsMatch,
 } from './library-utils-helpers';
+import { getRatingValue } from './rating-extractor';
 
 import type { Prisma } from '@prisma/client';
 

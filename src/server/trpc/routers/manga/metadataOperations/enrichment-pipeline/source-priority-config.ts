@@ -29,21 +29,22 @@ export type VolumeField = 'coverImage' | 'title' | 'description' | 'releaseDate'
  * Metadata-level fields that support per-field priority.
  *
  * Mirrors the live `Metadata` model columns the enrichment pipeline writes to.
- * Excludes system fields (id, createdAt, updatedAt, lastFetch) and columns
- * scheduled for removal in Phase 1 (coverUrl, pageCount, qualityProfile,
- * averageResolution, language, languages, publisher — replaced by publishers).
+ * Excludes system fields (id, createdAt, updatedAt, lastFetch).
  *
- * Phase 1 will add: contentRating, publicationDemographic, publishers (replacing
- * `publisher`); will widen `rating` to JSON. Update this type then.
+ * Phase 1 additions: `contentRating`, `publicationDemographic`, `publishers`
+ * (replaces dropped `publisher`); `rating` widened to JSON (still listed as
+ * a single MetadataField — JSON-shape merge is the selector's concern).
+ * Phase 1 removals: `characters` (out of app scope) — dropped from the union.
  */
 export type MetadataField =
   // strings
   | 'summary' | 'cover' | 'coverExtraLarge' | 'coverLarge' | 'coverMedium' | 'coverSmall'
-  | 'bannerImage' | 'format' | 'countryOfOrigin' | 'publisher' | 'status'
+  | 'bannerImage' | 'format' | 'countryOfOrigin' | 'status'
+  | 'contentRating' | 'publicationDemographic'
   // numeric
   | 'chapters' | 'volumes' | 'averageScore' | 'popularity' | 'idMal' | 'rating'
   // lists
-  | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'characters' | 'synonyms' | 'urls'
+  | 'genres' | 'authors' | 'artists' | 'tags' | 'themes' | 'synonyms' | 'urls' | 'publishers'
   // dates / structured
   | 'startDate' | 'endDate' | 'externalLinks' | 'galleryImages'
   // identity
@@ -101,17 +102,19 @@ export const METADATA_FIELD_PRIORITY: Record<MetadataField, SourceName[]> = {
   rating:          ['anilist', 'mal', 'kitsu', 'mangaupdates'],
 
   // strings: AL first, with MD long-description override applied for `summary` (see enrichment-result-builder.ts)
-  summary:         ['anilist', 'mangadex', 'mal', 'mangaupdates', 'kitsu', 'comicvine', 'fandom', 'wikipedia'],
-  cover:           ['anilist', 'mangadex', 'kitsu', 'mal', 'mangaupdates', 'fandom', 'comicvine'],
-  coverExtraLarge: ['anilist', 'mangadex', 'kitsu'],
-  coverLarge:      ['anilist', 'mangadex', 'kitsu'],
-  coverMedium:     ['anilist', 'mangadex', 'kitsu'],
-  coverSmall:      ['anilist', 'kitsu'],
-  bannerImage:     ['anilist'],
-  format:          ['anilist', 'mangadex', 'mal', 'kitsu'],
-  countryOfOrigin: ['anilist'],
-  publisher:       ['mangaupdates', 'anilist', 'mangadex', 'kitsu'],
-  status:          ['anilist', 'mangadex', 'mal', 'mangaupdates', 'kitsu'],
+  summary:                ['anilist', 'mangadex', 'mal', 'mangaupdates', 'kitsu', 'comicvine', 'fandom', 'wikipedia'],
+  cover:                  ['anilist', 'mangadex', 'kitsu', 'mal', 'mangaupdates', 'fandom', 'comicvine'],
+  coverExtraLarge:        ['anilist', 'mangadex', 'kitsu'],
+  coverLarge:             ['anilist', 'mangadex', 'kitsu'],
+  coverMedium:            ['anilist', 'mangadex', 'kitsu'],
+  coverSmall:             ['anilist', 'kitsu'],
+  bannerImage:            ['anilist'],
+  format:                 ['anilist', 'mangadex', 'mal', 'kitsu'],
+  countryOfOrigin:        ['anilist'],
+  status:                 ['anilist', 'mangadex', 'mal', 'mangaupdates', 'kitsu'],
+  // Phase 1: MangaDex is the only structured source for these.
+  contentRating:          ['mangadex'],
+  publicationDemographic: ['mangadex', 'mal'],
 
   // lists
   genres:          ['anilist', 'mal', 'kitsu', 'mangaupdates', 'mangadex', 'fandom', 'comicvine'],
@@ -119,9 +122,11 @@ export const METADATA_FIELD_PRIORITY: Record<MetadataField, SourceName[]> = {
   artists:         ['anilist', 'mangaupdates', 'mal', 'kitsu', 'mangadex'],
   tags:            ['anilist', 'mangaupdates', 'mangadex', 'mal'],
   themes:          ['mangadex', 'anilist', 'mal'],
-  characters:      ['anilist', 'fandom', 'comicvine'],
   synonyms:        ['anilist', 'mangadex', 'mangaupdates', 'mal', 'kitsu'],
   urls:            ['anilist', 'mangadex', 'mal', 'mangaupdates', 'kitsu', 'fandom', 'wikipedia', 'comicvine'],
+  // Phase 1: publishers[] replaces the dropped `publisher` string. MU's
+  // multi-publisher shape is the canonical source.
+  publishers:      ['mangaupdates', 'anilist', 'mangadex', 'kitsu'],
 
   // dates / structured
   startDate:       ['anilist', 'mal', 'mangadex', 'mangaupdates', 'kitsu'],
