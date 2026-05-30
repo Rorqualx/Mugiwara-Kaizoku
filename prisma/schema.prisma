@@ -2859,3 +2859,41 @@ model MetadataSelectionAttempt {
   @@index([mangaId, createdAt])
   @@index([selectorVersion, createdAt])
 }
+
+/// Phase 5 Sprint #1: AniList recommendation graph. Per-manga "similar
+/// manga" edges sourced from AL's
+/// `Media.recommendations.edges[].node.mediaRecommendation`. Distinct from
+/// `MangaRelation` — recommendations are taste-similarity edges (users
+/// who read X also like Y), not structural sequel/prequel/spinoff edges.
+///
+/// `targetMedium` is preserved because AL recommendations span media
+/// types — adaptations of a manga to anime show up here too, and the UI
+/// surface (related-works carousel, Phase 4 v2-B) needs to know whether
+/// a click should land on a manga detail page or an external link.
+model MangaRecommendation {
+  id             Int       @id @default(autoincrement())
+  fromMangaId    Int
+  /// AL numeric id of the recommended target.
+  externalToId   String
+  /// 'anilist' for now; future providers (MAL, Bakaupdates) reuse this
+  /// table — `(fromMangaId, externalSource, externalToId)` is the natural key.
+  externalSource String    @default("anilist")
+  /// Resolved local mangaId when the target is bound in our library;
+  /// null when the target manga doesn't exist locally.
+  toMangaId      Int?
+  /// Title at recommendation time. English preferred → romaji → native.
+  targetTitle    String    @db.VarChar(500)
+  /// MANGA / MANHWA / MANHUA / NOVEL / ANIME / OTHER. AL exposes media `type`
+  /// at this node; the resolver normalizes it.
+  targetMedium   String?
+  targetFormat   String?
+  targetCoverUrl String?
+  /// AL exposes a `rating` count (upvotes). Higher = more agreement.
+  rating         Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([fromMangaId, externalSource, externalToId])
+  @@index([fromMangaId])
+  @@index([toMangaId])
+}
