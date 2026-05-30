@@ -114,6 +114,7 @@ function createMockMetadata(overrides: Partial<Metadata> = {}): Metadata {
     countryOfOrigin: null,
     externalLinks: null,
     galleryImages: [],
+    fieldAlternatives: null,
     ...overrides
   };
 }

@@ -180,6 +180,7 @@ export function createMockMetadata(overrides?: Partial<Metadata>): Metadata {
     source: null,
     sourceId: null,
     galleryImages: [],
+    fieldAlternatives: null,
     ...overrides
   };
 }

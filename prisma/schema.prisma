@@ -295,6 +295,13 @@ model Metadata {
   // Phase 1: content rating + publication demographic from MangaDex.
   contentRating          String?
   publicationDemographic String?
+  // Phase 1.5: per-field dissenting candidates from the cross-source consensus
+  // selector. Shape: { [field]: [{ provider, value, confidence }, ...] }.
+  // Winner lives in the canonical column; this column carries the candidates
+  // that lost. Read by the UI provenance badge (Phase 4) and by the selector
+  // loop scorecard. Null when the row predates Phase 1.5 or no field had >1
+  // candidate.
+  fieldAlternatives      Json?
   Manga                  Manga?
 
   @@index([createdAt])
@@ -2774,4 +2781,33 @@ model HostDownloadAttempt {
 
   @@index([host, createdAt])
   @@index([outcome, createdAt])
+}
+
+/// Phase 1.5: Per-manga per-selector-pass attempt log. One row per
+/// runEnrichmentPipeline that touched the Metadata row through the
+/// cross-source consensus selector. Records what the selector picked,
+/// what dissented, and the per-field confidence — drives the selector-loop
+/// scorecard and the sticky-binding hook (Phase 3) for cross-version drift.
+model MetadataSelectionAttempt {
+  id              BigInt    @id @default(autoincrement())
+  mangaId         Int
+  /// Selector version — bumped when authority weights or selector rules
+  /// change. Lets historical rows be compared against current behaviour
+  /// without re-running enrichment.
+  selectorVersion String    @default("1.0.0")
+  /// Field-level picks: { [field]: { winner, winnerConfidence, dissenterCount } }.
+  /// The full alternatives live in Metadata.fieldAlternatives — this is the
+  /// lightweight per-attempt summary.
+  selections      Json      @default("{}")
+  /// Fields the guard refused (numeric drift > tolerance against anchor).
+  /// Array of field names.
+  refusedFields   Json      @default("[]")
+  /// Shadow-mode only: { [field]: { newValue, oldValue, newProvider, oldProvider } }
+  /// for picks that would have changed vs the legacy Object.assign chain.
+  /// Null after Phase 1.5 cutover deletes the legacy path.
+  shadowDeltas    Json?
+  createdAt       DateTime  @default(now())
+
+  @@index([mangaId, createdAt])
+  @@index([selectorVersion, createdAt])
 }

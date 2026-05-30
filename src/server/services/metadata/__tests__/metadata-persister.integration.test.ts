@@ -130,7 +130,8 @@ describe('MetadataPersistenceService Integration Tests', () => {
         contentRating: null,
         publicationDemographic: null,
         status: 'ONGOING',
-        galleryImages: []
+        galleryImages: [],
+        fieldAlternatives: null
       };
 
       (prisma.manga.findUnique as jest.Mock).mockResolvedValue(mockManga);
@@ -199,7 +200,8 @@ describe('MetadataPersistenceService Integration Tests', () => {
         contentRating: null,
         publicationDemographic: null,
         status: 'ONGOING',
-        galleryImages: []
+        galleryImages: [],
+        fieldAlternatives: null
       };
 
       const mockManga: Manga = {

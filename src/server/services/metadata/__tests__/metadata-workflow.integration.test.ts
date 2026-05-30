@@ -196,7 +196,8 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       contentRating: null,
       publicationDemographic: null,
       status: (mergeResult.metadata['status'] ?? 'UNKNOWN') as MangaPublicationStatus,
-      galleryImages: []
+      galleryImages: [],
+      fieldAlternatives: null
     };
 
     (prisma.manga.findUnique as jest.Mock).mockResolvedValue(mockManga);
@@ -393,7 +394,8 @@ describe('End-to-End Metadata Workflow Integration Test', () => {
       contentRating: null,
       publicationDemographic: null,
       status: 'ONGOING',
-      galleryImages: []
+      galleryImages: [],
+      fieldAlternatives: null
     };
 
     const mockManga: Manga = {
