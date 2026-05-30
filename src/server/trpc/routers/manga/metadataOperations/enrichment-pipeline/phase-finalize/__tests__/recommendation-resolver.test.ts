@@ -1,3 +1,5 @@
+import { prisma } from '@/server/db';
+
 import { backfillRecommendationsForNewManga, resolveAniListRecommendations } from '../recommendation-resolver';
 
 jest.mock('@/server/db', () => ({
@@ -12,8 +14,6 @@ jest.mock('@/server/db', () => ({
     $queryRaw: jest.fn(),
   },
 }));
-
-import { prisma } from '@/server/db';
 
 const mockUpsert = prisma.mangaRecommendation.upsert as jest.MockedFunction<typeof prisma.mangaRecommendation.upsert>;
 const mockUpdateMany = prisma.mangaRecommendation.updateMany as jest.MockedFunction<typeof prisma.mangaRecommendation.updateMany>;
