@@ -517,4 +517,22 @@ export const metadataCoreRouter = router({
         }
       }
     ),
+
+  /**
+   * Phase 4 #1: Latest N MetadataSelectionAttempt rows for the manga.
+   *
+   * Feeds the provenance badge hook. Read-only. Returns the rows newest-first
+   * with the per-pass selections summary + shadow deltas where the selector
+   * disagreed with the Object.assign chain.
+   */
+  getSelectionHistory: publicProcedure
+    .input(z.object({ mangaId: z.number().int().positive(), limit: z.number().int().min(1).max(50).optional() }))
+    .query(async ({ input }) => {
+      const limit = input.limit ?? 10;
+      return prisma.metadataSelectionAttempt.findMany({
+        where: { mangaId: input.mangaId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      });
+    }),
 });
