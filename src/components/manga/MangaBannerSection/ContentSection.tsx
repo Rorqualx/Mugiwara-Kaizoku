@@ -15,6 +15,8 @@ import { Box, Text, Group, Badge } from '@mantine/core';
 
 import { stripHtmlTags } from '@/components/manga/mangaDetailUtils';
 
+import { ClassificationChipRow } from './ClassificationChipRow';
+
 import type { MangaMetadata, MangaWithRelations } from './types';
 
 // Temporary: parseHtmlContent is just stripHtmlTags for now
@@ -64,6 +66,7 @@ export function ContentSection({
   const themes = extractedMetadata?.['themes'];
   const hasThemes = themes && Array.isArray(themes) && themes.length > 0;
 
+
   return (
     <>
       {/* Main Description */}
@@ -81,6 +84,9 @@ export function ContentSection({
           )}
         </Box>
       )}
+
+      {/* Phase 4 v2-A: contentRating / demographic / publishers chip row */}
+      <ClassificationChipRow manga={manga} />
 
       {/* Expandable Details Section */}
       {isDetailsExpanded && (
@@ -141,3 +147,4 @@ export function ContentSection({
     </>
   );
 }
+
