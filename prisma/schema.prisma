@@ -255,51 +255,100 @@ model MangaRelation {
   @@index([externalSource, externalToId])
 }
 
+/// Canonical metadata row per Manga. Populated by the enrichment pipeline
+/// from up to 8 providers (AL, MD, MU, MAL, Kitsu, Fandom, Wikipedia, CV).
+/// Phase 1.5's cross-source consensus selector chooses the winner per field;
+/// dissenters land in `fieldAlternatives`. See `docs/audits/metadata-source-
+/// data-audit.md` for the per-provider × per-field source matrix.
 model Metadata {
   id                     Int                    @id @default(autoincrement())
+  /// AL extraLarge cover URL (highest-res variant). Falls back to large→medium.
   coverExtraLarge        String?
+  /// AL large cover URL. Source: AL/MD/Kitsu.
   coverLarge             String?
+  /// AL medium cover URL. Source: AL/MD/Kitsu.
   coverMedium            String?
+  /// Description / synopsis. Source priority: AL → MD (long-desc override
+  /// at <80 chars) → MAL/MU/Kitsu/CV/Fandom/Wikipedia fallback.
   summary                String?
+  /// Genre tags (curated, top-level). Source: AL/MAL/Kitsu/MU/MD union.
   genres                 String[]               @default([])
+  /// Author / writer credits extracted from staff edges. Source: AL/MU/MAL/Kitsu/MD.
   authors                String[]               @default([])
+  /// Provider tag taxonomy (broader than genres). Source: AL/MU/MD/MAL.
   tags                   String[]               @default([])
+  /// AL-derived "Theme-*" tag-category extraction (Theme-Action, Theme-Drama, etc.).
   themes                 String[]               @default([])
+  /// Publication start date. Source: AL → MAL → MD → MU → Kitsu (earliest non-null).
   startDate              DateTime?
+  /// Publication end date. Source: AL → MAL → MD → MU → Kitsu (latest non-null).
   endDate                DateTime?
+  /// Alternative titles (romaji, native, synonyms). Source: AL/MD/MU/MAL/Kitsu union.
   synonyms               String[]               @default([])
+  /// External URLs (AL `externalLinks`, MD attributes, etc.). Free-form mixed.
   urls                   String[]               @default([])
   createdAt              DateTime               @default(now())
   updatedAt              DateTime?
+  /// Best-quality cover. Selected from coverExtraLarge → coverLarge → coverMedium
+  /// → fallback. Default `/cover-not-found.jpg` ensures the column is never null.
   cover                  String                 @default("/cover-not-found.jpg")
+  /// Last successful provider fetch timestamp. Drives the enrichment-skip cache.
   lastFetch              DateTime?
+  /// Primary binding source name (`anilist` / `mangadex` / `mal`) — the
+  /// provider whose entity the pipeline considers canonical.
   source                 String?                @db.VarChar(100)
+  /// Provider-side ID for the bound entity (AniList numeric id as string,
+  /// MD UUID, etc.). Pairs with `source` for the unique provenance tuple.
   sourceId               String?                @db.VarChar(100)
+  /// Total chapter count. Anchor sources: AL/MAL. MD aggregate fills gaps.
+  /// Drift-guarded by selectNumeric (>20% delta from AL/MAL refused).
   chapters               Int?
+  /// Total volume count. Same anchoring as chapters.
   volumes                Int?
+  /// Illustrator / artist credits (separate from `authors`). Source: AL/MU/MAL/Kitsu/MD.
   artists                String[]               @default([])
+  /// AL canonical numeric score (0..100). The `rating` JSON column aggregates
+  /// the same signal across multiple sources — keep both for UI compatibility.
   averageScore           Float?
+  /// AL banner image URL (wide hero asset). Falls back to Kitsu cover when absent.
   bannerImage            String?
+  /// ISO 3166-1 alpha-2 country code. Source: AL only.
   countryOfOrigin        String?
+  /// AL `externalLinks` array carried as JSONB: `[{site, url, language?}]`.
   externalLinks          Json?
+  /// Publication format enum (MANGA / MANHWA / MANHUA / ONE_SHOT / DOUJINSHI / NOVEL).
+  /// Source: AL → MD → MAL → Kitsu (selectCategorical majority).
   format                 String?
+  /// MyAnimeList ID — duplicates `Manga.providerMetadata.mal.providerId` but
+  /// kept as a fast scalar for UI "is this on MAL?" checks.
   idMal                  Int?
+  /// AL popularity rank (lower = more popular).
   popularity             Int?
-  // Phase 1: publishers[] replaces single publisher; multi-publisher (JP licensor + EN licensor) is the actual data shape from MU.
+  /// Multi-publisher array (JP licensor + EN licensor). Phase 1 replaces the
+  /// dropped single `publisher` column. Source: MU primary (multi-publisher
+  /// native), AL/MD/Kitsu fillers.
   publishers             String[]               @default([])
-  // Phase 1: rating widened to JSON {value, scoredBy?, rank?, source?} aggregating AL/MAL/MU/Kitsu signals.
+  /// Aggregated rating signal — JSON `{value, scoredBy?, rank?, source?}`.
+  /// Phase 1 widened from Float. The selectStructured rating strategy merges
+  /// per-source contributions weighted by authority × log(scoredBy).
   rating                 Json?
+  /// Publication state. selectCategorical maps provider variants to
+  /// MangaPublicationStatus. The master-plan headline win: stale-AL
+  /// RELEASING can be outvoted by 3+ providers reporting COMPLETED.
   status                 MangaPublicationStatus @default(UNKNOWN)
+  /// Gallery / interior preview image URLs. Source: CV / Fandom / MD union.
   galleryImages          String[]               @default([])
-  // Phase 1: content rating + publication demographic from MangaDex.
+  /// MangaDex `attributes.contentRating` (safe / suggestive / erotica /
+  /// pornographic). MD is the only canonical source.
   contentRating          String?
+  /// MangaDex `attributes.publicationDemographic` (shounen / shoujo /
+  /// seinen / josei). Source: MD primary, MAL secondary.
   publicationDemographic String?
-  // Phase 1.5: per-field dissenting candidates from the cross-source consensus
-  // selector. Shape: { [field]: [{ provider, value, confidence }, ...] }.
-  // Winner lives in the canonical column; this column carries the candidates
-  // that lost. Read by the UI provenance badge (Phase 4) and by the selector
-  // loop scorecard. Null when the row predates Phase 1.5 or no field had >1
-  // candidate.
+  /// Phase 1.5: per-field dissenting candidates from the cross-source consensus
+  /// selector. Shape: `{ [field]: [{ provider, value, confidence }, ...] }`.
+  /// Winner lives in the canonical column; this carries the losers (≤3 per
+  /// field, ordered confidence desc). Read by the UI provenance badge (Phase 4)
+  /// and the selector-loop scorecard. Null until Phase 1.5 cutover lands.
   fieldAlternatives      Json?
   Manga                  Manga?
 
@@ -602,7 +651,7 @@ model NotificationPreference {
   channel   String
   enabled   Boolean               @default(true)
   createdAt DateTime              @default(now())
-  updatedAt DateTime               @updatedAt
+  updatedAt DateTime              @updatedAt
   User      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventType, channel])
@@ -2788,24 +2837,24 @@ model HostDownloadAttempt {
 /// what dissented, and the per-field confidence — drives the selector-loop
 /// scorecard and the sticky-binding hook (Phase 3) for cross-version drift.
 model MetadataSelectionAttempt {
-  id              BigInt    @id @default(autoincrement())
+  id              BigInt   @id @default(autoincrement())
   mangaId         Int
   /// Selector version — bumped when authority weights or selector rules
   /// change. Lets historical rows be compared against current behaviour
   /// without re-running enrichment.
-  selectorVersion String    @default("1.0.0")
+  selectorVersion String   @default("1.0.0")
   /// Field-level picks: { [field]: { winner, winnerConfidence, dissenterCount } }.
   /// The full alternatives live in Metadata.fieldAlternatives — this is the
   /// lightweight per-attempt summary.
-  selections      Json      @default("{}")
+  selections      Json     @default("{}")
   /// Fields the guard refused (numeric drift > tolerance against anchor).
   /// Array of field names.
-  refusedFields   Json      @default("[]")
+  refusedFields   Json     @default("[]")
   /// Shadow-mode only: { [field]: { newValue, oldValue, newProvider, oldProvider } }
   /// for picks that would have changed vs the legacy Object.assign chain.
   /// Null after Phase 1.5 cutover deletes the legacy path.
   shadowDeltas    Json?
-  createdAt       DateTime  @default(now())
+  createdAt       DateTime @default(now())
 
   @@index([mangaId, createdAt])
   @@index([selectorVersion, createdAt])
