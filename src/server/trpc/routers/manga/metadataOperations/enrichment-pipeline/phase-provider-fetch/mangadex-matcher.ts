@@ -149,3 +149,35 @@ export function pickBestMangaDexMatch(
   }
   return best;
 }
+
+/**
+ * Phase 3 #2: variant of `pickBestMangaDexMatch` that returns both the
+ * picked result and a normalized match score (0..1) so the pipeline can
+ * call `validateBindingFreshness` without re-computing.
+ *
+ * Score derivation: max dice-coefficient × length-ratio across the picked
+ * candidate's title set vs the query. Same shape as
+ * `pickBestTitleMatchWithScore` for AL.
+ */
+// eslint-disable-next-line max-params -- matches pickBestMangaDexMatch's positional shape exactly for call-site parity
+export function pickBestMangaDexMatchWithScore(
+  results: MangaDexManga[],
+  query: string,
+  client: KaizokuMangaDexClient,
+  anilistId?: number,
+  expectedChapters?: number | null,
+  expectedYear?: number | null,
+): { result: MangaDexManga; score: number } | null {
+  const pick = pickBestMangaDexMatch(results, query, client, anilistId, expectedChapters, expectedYear);
+  if (!pick) return null;
+  const normalized = normalizeTitle(query);
+  const titles = collectTitles(pick);
+  let score = 0;
+  for (const c of titles) {
+    const dice = diceCoefficient(normalized, normalizeTitle(c));
+    const lenRatio = Math.min(query.length, c.length) / Math.max(query.length, c.length);
+    const s = dice * lenRatio;
+    if (s > score) score = s;
+  }
+  return { result: pick, score };
+}

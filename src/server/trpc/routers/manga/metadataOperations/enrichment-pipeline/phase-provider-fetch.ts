@@ -49,7 +49,7 @@ import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } fro
 import { buildMALMetadataSupplements, fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal-fetch';
 import { fetchMangaDexAggregate } from './phase-provider-fetch/mangadex-aggregate';
 import { fetchMangaDexChapters } from './phase-provider-fetch/mangadex-chapter-list';
-import { pickBestMangaDexMatch } from './phase-provider-fetch/mangadex-matcher';
+import { pickBestMangaDexMatch, pickBestMangaDexMatchWithScore } from './phase-provider-fetch/mangadex-matcher';
 import { buildMangaUpdatesMetadataSupplements, fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
 import { diceCoefficient, normalizeTitle } from './utils';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
@@ -155,7 +155,7 @@ export async function phaseProviderFetch(
 
   const anilistData = anilistSettled.status === 'fulfilled' ? anilistSettled.value : null;
 
-  // Phase 3 #2 — sticky-binding freshness check. Skipped when the AL entity
+  // Phase 3 #2 — sticky-binding freshness check. Skipped when the entity
   // was pin-fetched (matchScore undefined → manual binding) or when there's
   // no prior binding to compare against. Warns only; auto-invalidation is
   // gated on calibration.
@@ -167,6 +167,19 @@ export async function phaseProviderFetch(
       currentScore: anilistData.matchScore,
       boundEntityId: boundAlId,
       manualPin: Boolean(mangaPin?.selectedSourceId),
+    });
+  }
+  const mdData = mangadexSettled.status === 'fulfilled' ? mangadexSettled.value : null;
+  if (mdData && typeof mdData.matchScore === 'number') {
+    validateBindingFreshness({
+      mangaId,
+      provider: 'mangadex',
+      currentScore: mdData.matchScore,
+      boundEntityId: mdData.mangaId,
+      // MD bindings don't use Manga.selectedSourceId (that's AL-only).
+      // Manual MD pins live in providerMetadata.mangadex.manualPin and aren't
+      // exposed at this layer — false here is acceptable for v1.
+      manualPin: false,
     });
   }
   let mangadexData = mangadexSettled.status === 'fulfilled' ? mangadexSettled.value : null;
@@ -643,6 +656,8 @@ interface MangaDexDirectResult {
   aggregate: UnifiedProviderResults['mangadexAggregate'];
   chapterList: ChapterDataItem[];
   malId: number | undefined;
+  /** Phase 3 #2: matcher score for the picked entity; used by validateBindingFreshness. */
+  matchScore?: number;
   /**
    * Manga-level description from MangaDex, localized when possible.
    * Used as a fallback when AniList returns an empty description
@@ -686,11 +701,12 @@ async function fetchMangaDexDirect(title: string): Promise<MangaDexDirectResult 
 
   const searchResult = await client.searchManga({ title });
   const dataArr = Array.isArray(searchResult.data) ? searchResult.data : [searchResult.data];
-  const bestManga = pickBestMangaDexMatch(dataArr, title, client);
-  if (!bestManga) {
+  const matched = pickBestMangaDexMatchWithScore(dataArr, title, client);
+  if (!matched) {
     log.info('MangaDex: no results found', { title });
     return null;
   }
+  const bestManga = matched.result;
 
   log.info('MangaDex: matched metadata', {
     id: bestManga.id,
@@ -714,6 +730,7 @@ async function fetchMangaDexDirect(title: string): Promise<MangaDexDirectResult 
     malId: parseMalLink(bestManga.attributes.links?.mal),
     description: pickMangaDexDescription(bestManga.attributes.description as Record<string, string> | null | undefined),
     externalIds: extractMangaDexLinks(bestManga.attributes.links),
+    matchScore: matched.score,
     // Phase 1: surface contentRating + publicationDemographic so the persister
     // can write the dedicated Metadata columns. Always present on attributes.
     contentRating: bestManga.attributes.contentRating,
