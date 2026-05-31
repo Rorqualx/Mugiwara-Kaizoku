@@ -106,9 +106,12 @@ export async function findAlternativeReleases(
     const matchCtx: MatchContext = { mangaId, targetChapter, targetInt, isValidTarget };
     // mangaId scopes Prowlarr's post-search blocklist check; without it, a
     // block on a same-titled release for a different manga would suppress
-    // an otherwise-valid alternative here.
+    // an otherwise-valid alternative here. acceptedTitles drives the
+    // relevance gate so the alternatives we surface aren't themselves
+    // wrong-target (Akira → "Akira Failing in Love").
+    const acceptedTitles = [manga.title, ...synonyms].filter((t) => t.length > 0);
     const searchResults = await Promise.all(
-      searchQueries.map(query => prowlarrSearch.searchManga(query, { mangaId }))
+      searchQueries.map(query => prowlarrSearch.searchManga(query, { mangaId, acceptedTitles }))
     );
 
     for (const searchResult of searchResults) {

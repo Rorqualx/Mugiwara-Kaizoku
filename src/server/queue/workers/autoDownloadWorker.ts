@@ -63,14 +63,17 @@ export async function processAutoDownload(mangaId: number): Promise<AsyncResult<
       message: `Auto-download processing started for manga ${mangaId}`,
       data: { mangaId }
     });
-    // Get manga with chapters and auto-download rule
+    // Get manga with chapters, auto-download rule, and metadata.
+    // Metadata.synonyms feeds the Prowlarr relevance gate downstream so
+    // wrong-target releases (Akira-style) don't survive scoring.
     const manga = await prisma.manga.findUnique({
       where: {
         id: mangaId
       },
       include: {
         Chapter: true,
-        autoDownloadRule: true
+        autoDownloadRule: true,
+        Metadata: { select: { synonyms: true } }
       }
     });
     if (!manga) {
@@ -125,9 +128,16 @@ export async function processAutoDownload(mangaId: number): Promise<AsyncResult<
 async function searchViaProwlarr(manga: Record<string, unknown>, chapters: ChapterEntity[], rule: Record<string, unknown>, mangaId: number): Promise<AsyncResult<void, Error>> {
   try {
     const mangaTitle = typeof manga["title"] === 'string' ? manga["title"] : '';
+    // Pull synonyms off the included Metadata relation; they feed the
+    // relevance gate so wrong-target releases get dropped before scoring.
+    const metadata = manga["Metadata"];
+    const synonyms = (typeof metadata === 'object' && metadata !== null && Array.isArray((metadata as { synonyms?: unknown }).synonyms))
+      ? ((metadata as { synonyms: unknown[] }).synonyms).filter((s): s is string => typeof s === 'string')
+      : [];
+    const acceptedTitles = [mangaTitle, ...synonyms].filter((t) => t.length > 0);
     // Scope the post-search blocklist check to this manga — without it,
     // a block on a same-titled release for a different series would leak in.
-    const searchResults = await prowlarrMangaSearch.searchManga(mangaTitle, { mangaId });
+    const searchResults = await prowlarrMangaSearch.searchManga(mangaTitle, { mangaId, acceptedTitles });
     if (isError(searchResults)) {
       return createErrorResult(searchResults.error instanceof Error ? searchResults.error : new Error(String(searchResults.error)));
     }

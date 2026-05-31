@@ -87,6 +87,15 @@ export interface SearchOptions {
    * can omit it and the pre-existing global-only behavior applies.
    */
   mangaId?: number;
+
+  /**
+   * Canonical titles (canonical + synonyms) used by the relevance gate
+   * to drop wrong-target results before they reach the blocklist enhance
+   * step. When omitted, the gate is skipped — pure-discovery and legacy
+   * callers see the previous behavior. See `relevance-gate.ts` for the
+   * algorithm (token-overlap floor with synonym awareness).
+   */
+  acceptedTitles?: string[];
 }
 
 /**

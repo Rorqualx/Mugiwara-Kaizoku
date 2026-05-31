@@ -9,6 +9,7 @@ import { prisma } from '@/server/db';
 import { enqueueDownloadTask } from '@/server/queue/download';
 import type { IDownloadWorkerData } from '@/server/queue/download';
 import { DownloadManager } from '@/server/services/download/downloadManager';
+import { loadAcceptedTitles } from '@/server/services/prowlarr/accepted-titles';
 import { ProwlarrMangaSearch } from '@/server/services/prowlarr/mangaSearch';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
@@ -232,9 +233,11 @@ export const downloadRouter = router({
     const { query, mangaId } = input;
     logger.info(`[Prowlarr Search] Starting search for: "${query}" (manga ${mangaId})`);
 
+    const acceptedTitles = await loadAcceptedTitles(mangaId);
     const prowlarrSearch = new ProwlarrMangaSearch();
     const results = await prowlarrSearch.searchManga(query, {
       mangaId,                // Scopes the post-search blocklist check (was global-blind).
+      acceptedTitles,         // Drives the relevance gate (canonical + synonyms).
       categories: [7000],     // Search entire Books category (includes Comics, Mags, EBooks)
       limit: 100,             // Max 100 results
       maxage: 365,            // Only results from last year

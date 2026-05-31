@@ -42,6 +42,7 @@ import {
   calculateRelevanceScore,
   enhanceResultWithMetadata
 } from './prowlarr-scoring';
+import { shouldRejectByForeignTokens } from './relevance-gate';
 
 import type { SearchOptions } from './prowlarr-types';
 import type { PrismaClient } from '@prisma/client';
@@ -297,10 +298,35 @@ export class ProwlarrMangaSearch {
       scoredResults.sort((a, b) => b.relevanceScore - a.relevanceScore);
 
       // Enhance with metadata
-      const results = scoredResults.map(result => enhanceResultWithMetadata(result));
+      const enhancedResults0 = scoredResults.map(result => enhanceResultWithMetadata(result));
 
       // Re-sort by enhanced score
-      results.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      enhancedResults0.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+      // Relevance gate — drops releases whose title shares the canonical
+      // leading token but adds enough unrelated tokens to be plainly a
+      // different work (the Akira incident: "Akira Failing in Love"
+      // matching a search for "Akira"). Only active when the caller
+      // provided `acceptedTitles`; pure-discovery flows are untouched.
+      const acceptedTitles = options?.acceptedTitles ?? [];
+      let droppedByRelevance = 0;
+      const results = acceptedTitles.length > 0
+        ? enhancedResults0.filter((r) => {
+          if (shouldRejectByForeignTokens(r.title, acceptedTitles)) {
+            droppedByRelevance += 1;
+            logger.debug(`Relevance gate dropped: ${r.title}`);
+            return false;
+          }
+          return true;
+        })
+        : enhancedResults0;
+
+      if (droppedByRelevance > 0) {
+        logger.info(
+          `Relevance gate filtered ${droppedByRelevance}/${enhancedResults0.length} ` +
+          `results for canonical titles [${acceptedTitles.join(', ')}]`,
+        );
+      }
 
       logger.info(`Prowlarr search returned ${results.length} results`);
 
