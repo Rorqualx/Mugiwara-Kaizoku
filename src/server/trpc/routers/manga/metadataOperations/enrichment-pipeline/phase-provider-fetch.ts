@@ -191,6 +191,45 @@ export async function phaseProviderFetch(
   let muData = muSettled.status === 'fulfilled' ? muSettled.value : null;
   let kitsuData = kitsuSettled.status === 'fulfilled' ? kitsuSettled.value : null;
 
+  // Phase 3 #2 (rollout) — sticky-binding freshness checks for the
+  // remaining title-matched providers. Each warns when the current matcher
+  // would no longer accept the existing binding. `manualPin: false` for
+  // these three — only AniList uses Manga.selectedSourceId; per-provider
+  // manual-pin support can be added later if the warn rate makes it useful.
+  //
+  // MAL is intentionally absent: it's pin-fetched by AL/MD `idMal`
+  // cross-reference, so the matcher never runs and there's nothing to be
+  // stale against. Fandom + Wikipedia are deferred — their discoverers
+  // return only URLs (the validator score is dropped) and cached URLs skip
+  // revalidation; a separate periodic revalidator fits that surface better.
+  if (comicvineData && typeof comicvineData.matchScore === 'number') {
+    validateBindingFreshness({
+      mangaId,
+      provider: 'comicvine',
+      currentScore: comicvineData.matchScore,
+      boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'comicvine'),
+      manualPin: false,
+    });
+  }
+  if (muData && typeof muData.matchScore === 'number') {
+    validateBindingFreshness({
+      mangaId,
+      provider: 'mangaupdates',
+      currentScore: muData.matchScore,
+      boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'mangaupdates'),
+      manualPin: false,
+    });
+  }
+  if (kitsuData && typeof kitsuData.matchScore === 'number') {
+    validateBindingFreshness({
+      mangaId,
+      provider: 'kitsu',
+      currentScore: kitsuData.matchScore,
+      boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'kitsu'),
+      manualPin: false,
+    });
+  }
+
   // Retry Wikipedia with Wikidata + provider chapter counts for placeholder fallback
   if (!wikipediaResult && anilistData && enabled.has('wikipedia')) {
     const mdxCh = mangadexData?.lastChapter ? parseInt(mangadexData.lastChapter, 10) : undefined;
@@ -551,6 +590,24 @@ export function extractBoundAniListId(providerMetadata: unknown): string | null 
 }
 
 /**
+ * Generic provider-binding id extractor — reads
+ * `providerMetadata.<provider>.providerId` and returns it as a string.
+ *
+ * Used by Phase 3 #2 freshness checks for comicvine, mangaupdates, kitsu.
+ * AniList uses the dedicated `extractBoundAniListId` because its path also
+ * has to respect the `selectedSourceId` manual pin.
+ */
+export function extractBoundProviderId(providerMetadata: unknown, provider: string): string | null {
+  if (providerMetadata === null || typeof providerMetadata !== 'object') return null;
+  const entry = (providerMetadata as Record<string, unknown>)[provider];
+  if (entry === null || typeof entry !== 'object') return null;
+  const pid = (entry as Record<string, unknown>)['providerId'];
+  if (typeof pid === 'string' && pid.length > 0) return pid;
+  if (typeof pid === 'number' && Number.isFinite(pid)) return String(pid);
+  return null;
+}
+
+/**
  * Try to fetch AniList by pinned ID, bypassing search + matcher.
  * Returns null if pinnedId is missing, invalid, or the API returns no data.
  */
@@ -818,6 +875,12 @@ interface ComicVineDirectResult {
   publisherName: string | undefined;
   issues: ComicVineIssue[];
   seriesVolume: ComicVineVolume;
+  /**
+   * Phase 3 #2 (rollout): matcher score the English-first selector computed
+   * for this volume. Undefined when the volume was pin-fetched by id
+   * (manual binding) — the freshness check skips those.
+   */
+  matchScore?: number;
 }
 
 /**
@@ -838,25 +901,27 @@ async function fetchComicVineDirect(title: string): Promise<ComicVineDirectResul
   }
 
   // Apply English-first filtering
-  const bestMatch = selectEnglishFirstVolume(volumes, title);
-  if (!bestMatch) return null;
+  const selected = selectEnglishFirstVolume(volumes, title);
+  if (!selected) return null;
+  const bestVolume = selected.volume;
 
   log.info('ComicVine: selected volume', {
-    id: bestMatch.id,
-    name: bestMatch.name,
-    publisher: bestMatch.publisher?.name,
-    issueCount: bestMatch.count_of_issues,
+    id: bestVolume.id,
+    name: bestVolume.name,
+    publisher: bestVolume.publisher?.name,
+    issueCount: bestVolume.count_of_issues,
   });
 
   // Fetch all issues (individual volumes with descriptions and covers)
-  const issues = await comicvineService.getAllVolumeIssues(bestMatch.id);
-  log.info('ComicVine: fetched issues', { volumeId: bestMatch.id, count: issues.length });
+  const issues = await comicvineService.getAllVolumeIssues(bestVolume.id);
+  log.info('ComicVine: fetched issues', { volumeId: bestVolume.id, count: issues.length });
 
   return {
-    volumeId: bestMatch.id,
-    publisherName: bestMatch.publisher?.name,
+    volumeId: bestVolume.id,
+    publisherName: bestVolume.publisher?.name,
     issues,
-    seriesVolume: bestMatch,
+    seriesVolume: bestVolume,
+    matchScore: selected.score,
   };
 }
 
@@ -1040,7 +1105,7 @@ async function runLanguageAwareComicVineMatch(
  * Kept for the rare case where AniList data is unavailable; will be removed
  * once the comicvine-accuracy loop confirms the new matcher's parity.
  */
-function selectEnglishFirstVolume(volumes: ComicVineVolume[], title: string): ComicVineVolume | null {
+function selectEnglishFirstVolume(volumes: ComicVineVolume[], title: string): { volume: ComicVineVolume; score: number } | null {
   const normalizedQuery = normalizeTitle(title);
 
   // Score each volume by title similarity and language
@@ -1070,7 +1135,7 @@ function selectEnglishFirstVolume(volumes: ComicVineVolume[], title: string): Co
       titleScore: topEnglish.titleScore.toFixed(2),
       totalScore: topEnglish.score.toFixed(2),
     });
-    return topEnglish.vol;
+    return { volume: topEnglish.vol, score: topEnglish.titleScore };
   }
 
   // Fallback to best overall match (must have minimum title similarity)
@@ -1081,7 +1146,7 @@ function selectEnglishFirstVolume(volumes: ComicVineVolume[], title: string): Co
       publisher: best.vol.publisher?.name,
       titleScore: best.titleScore.toFixed(2),
     });
-    return best.vol;
+    return { volume: best.vol, score: best.titleScore };
   }
 
   return null;

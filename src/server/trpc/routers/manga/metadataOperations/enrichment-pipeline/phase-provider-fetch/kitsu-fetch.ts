@@ -34,6 +34,12 @@ export interface KitsuDirectResult {
   favoritesCount: number;
   posterImageUrl: string | undefined;
   coverImageUrl: string | undefined;
+  /**
+   * Phase 3 #2 (rollout): matcher score the title-similarity selector
+   * computed for this result. Undefined when the entry was pin-fetched
+   * by ID — the freshness check skips those.
+   */
+  matchScore?: number;
 }
 
 export interface KitsuSearchHints {
@@ -109,7 +115,7 @@ function scoreCandidate(hit: KitsuManga, query: string, hints?: KitsuSearchHints
 
 function pickBestKitsuMatch(
   hits: KitsuManga[], query: string, hints?: KitsuSearchHints,
-): KitsuManga | null {
+): { hit: KitsuManga; score: number } | null {
   let best: KitsuManga | null = null;
   let bestScore = 0;
 
@@ -132,8 +138,9 @@ function pickBestKitsuMatch(
       score: bestScore.toFixed(2),
       favoritesCount: best.attributes.favoritesCount,
     });
+    return { hit: best, score: bestScore };
   }
-  return best;
+  return null;
 }
 
 function buildResult(hit: KitsuManga): KitsuDirectResult {
@@ -207,7 +214,7 @@ export async function fetchKitsuDirect(
   const best = pickBestKitsuMatch(allHits, title, hints);
   if (!best) return null;
 
-  const result = buildResult(best);
+  const result = { ...buildResult(best.hit), matchScore: best.score };
   log.info('Kitsu: matched', {
     kitsuId: result.kitsuId,
     slug: result.slug,

@@ -48,6 +48,12 @@ export interface MangaUpdatesDirectResult {
   recommendations: Array<{ name: string; seriesId: number; weight: number }>;
   alternativeTitles: string[];
   animeMapping: { start: string; end: string } | null;
+  /**
+   * Phase 3 #2 (rollout): matcher score the title-similarity selector
+   * computed for this result. Undefined when the entry was pin-fetched
+   * by series id — the freshness check skips those.
+   */
+  matchScore?: number;
 }
 
 /**
@@ -121,7 +127,7 @@ function computeHintAdjustment(hit: MUSearchHit, hints: MUSearchHints): number {
  * to disambiguate same-name series. Filters out doujinshi and
  * edition/spinoff mismatches.
  */
-export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSearchHints): MUSearchHit | null {
+export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSearchHints): { hit: MUSearchHit; score: number } | null {
   const normalized = normalizeTitle(query);
   const normalizedQueryLen = Math.max(normalized.length, 1);
   let best: MUSearchHit | null = null;
@@ -191,9 +197,10 @@ export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSe
       score: bestScore.toFixed(2),
       votes: best.record.rating_votes,
     });
+    return { hit: best, score: bestScore };
   }
 
-  return best;
+  return null;
 }
 
 /**
@@ -232,8 +239,10 @@ export async function fetchMangaUpdatesDirect(
   }
 
   // Pick best match with cross-validation hints
-  const bestHit = pickBestMUMatch(allHits, title, hints);
-  if (!bestHit) return null;
+  const bestMatch = pickBestMUMatch(allHits, title, hints);
+  if (!bestMatch) return null;
+  const bestHit = bestMatch.hit;
+  const matchScore = bestMatch.score;
 
   const seriesId = bestHit.record.series_id;
   const details = await mangaUpdatesService.getSeriesDetails(seriesId);
@@ -289,6 +298,7 @@ export async function fetchMangaUpdatesDirect(
     })),
     alternativeTitles: details.associated.map(a => a.title),
     animeMapping: hasAnime ? { start: details.anime.start, end: details.anime.end } : null,
+    matchScore,
   };
 }
 

@@ -46,7 +46,7 @@ describe('pickBestMUMatch — length-ratio penalty applied per-candidate', () =>
       makeHit({ series_id: 50044220689, title: 'Jigokuren - Death Life',       hit_title: 'Love in Hell: Death Life', votes: 69, year: '2015' }),
     ];
     const result = pickBestMUMatch(hits, 'Love in Hell');
-    expect(result?.record.series_id).toBe(58149401268);
+    expect(result?.hit.record.series_id).toBe(58149401268);
   });
 
   it('regression: short canonical "Naruto" beats long sequel/spinoff candidates', () => {
@@ -56,7 +56,7 @@ describe('pickBestMUMatch — length-ratio penalty applied per-candidate', () =>
       makeHit({ series_id: 3, title: 'Naruto: The Seventh Hokage and the Scarlet Spring', hit_title: 'Naruto Gaiden',             votes: 200 }),
     ];
     const result = pickBestMUMatch(hits, 'Naruto');
-    expect(result?.record.series_id).toBe(1);
+    expect(result?.hit.record.series_id).toBe(1);
   });
 
   it('regression: short query "DBS" picks canonical long title via exact hit_title match', () => {
@@ -65,7 +65,7 @@ describe('pickBestMUMatch — length-ratio penalty applied per-candidate', () =>
       makeHit({ series_id: 2, title: 'DBS Goku Side',     hit_title: 'DBS Goku Side', votes: 50 }),
     ];
     const result = pickBestMUMatch(hits, 'DBS');
-    expect(result?.record.series_id).toBe(1);
+    expect(result?.hit.record.series_id).toBe(1);
   });
 
   it('returns null when all candidates fall below the 0.3 floor', () => {
@@ -87,6 +87,6 @@ describe('pickBestMUMatch — length-ratio penalty applied per-candidate', () =>
     const result = pickBestMUMatch(hits, 'Neon Genesis Evangelion', {
       alternativeTitles: ['Shin Seiki Evangelion', '新世紀エヴァンゲリオン'],
     });
-    expect(result?.record.series_id).toBe(42358856015);
+    expect(result?.hit.record.series_id).toBe(42358856015);
   });
 });
