@@ -20,6 +20,7 @@ import { backfillMetadataChaptersFromChapterRows } from './phase-finalize/chapte
 import { fillChapterCoverFromVolume } from './phase-finalize/chapter-cover-fill';
 import { fillChapterPagesFromProviders } from './phase-finalize/chapter-pages-fill';
 import { fillGenericChapterTitlesFromProviders } from './phase-finalize/chapter-title-fill';
+import { ensureVolumeFileRows } from './phase-finalize/ensure-volume-file-rows';
 import { appendComicVineGalleryImages } from './phase-finalize/gallery-from-comicvine';
 import { unionVolumeChapterCoversIntoGallery } from './phase-finalize/gallery-union';
 import { persistAniListRelationsForManga } from './phase-finalize/manga-relation-resolver';
@@ -87,6 +88,13 @@ export async function phaseFinalize(
   // when the chapter has none of its own. Runs after volume-id-backfill so
   // the chapter->volume linkage is in place.
   await fillChapterCoverFromVolume(mangaId);
+  // Ensure every volume with chapter rows has exactly one volume-file row
+  // (NULL chapterNumber + aggregated stats). Both compendium archives
+  // (single file shared across chapters) and per-chapter file imports
+  // (Kaiju: Chapter 0001.cbz...0007.cbz separately) end up with a single
+  // "1-N" row in the chapter table so the UI can render the volume as a
+  // unit alongside the per-chapter rows.
+  await ensureVolumeFileRows(mangaId);
   // Catch special chapters (Ch <= 0, decimals) orphaned by non-Fandom paths
   // like the adaptive bridge (0.1-0.4 JJK prequel chapters). Idempotent with
   // the earlier call inside applyEnrichmentData.
