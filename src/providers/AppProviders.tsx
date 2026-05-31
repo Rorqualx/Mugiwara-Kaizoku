@@ -176,7 +176,7 @@ export function AppProviders({
           <ColorSchemeProvider>
             <ThemeProvider>
               <ModalsProvider>
-                <Notifications position="bottom-left" limit={8} />
+                <Notifications position="top-right" limit={8} />
                 <RealTimeProvider>
                   <StoreProvider>
                     <RootStoreProvider>
