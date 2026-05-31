@@ -76,16 +76,15 @@ export async function tryChapterDetailFetch(
   const pagesCount = Object.keys(maps.chapterPagesMap).length;
   const chapterNumbers = await collectChapterNumbers(adaptiveResult, maps, mangaId, dbChapterCount);
 
-  // Trigger detail fetch when covers+descriptions are BOTH below 50% OR when
-  // pages coverage is below 50%. Round 6 lowered this from 70% because titles
-  // with partial fills (e.g., covers at 60% but descs at 40%) were skipping
-  // the per-chapter scrape entirely, leaving 40-60% gaps unaddressed.
-  // Chapter-level page counts live only on Fandom infoboxes — MangaDex/AniList
-  // don't supply them — so a title with good covers+descs from MangaDex will
-  // still need the Fandom fetch to claim Chapter.pages.
+  // Trigger detail fetch when ANY one of covers / descriptions / pages is
+  // below 50%. Earlier this required covers AND descs BOTH to be below 50%,
+  // which let a title with 60% covers but 40% descriptions silently skip the
+  // per-chapter scrape — leaving descriptions stuck partial forever. The fill
+  // phases are idempotent (don't overwrite real data) so triggering when any
+  // single field type lags is safe and prevents permanently-partial states.
   const threshold = chapterNumbers.length * 0.5;
   const needsDetails = chapterNumbers.length > 0
-    && ((coverCount < threshold && descCount < threshold) || pagesCount < threshold);
+    && (coverCount < threshold || descCount < threshold || pagesCount < threshold);
   if (!needsDetails) return { fetched: false, discoveredTemplate: null, storedTemplateFailed: false };
 
   // Skip chapters that already have a non-generic title AND a cover image

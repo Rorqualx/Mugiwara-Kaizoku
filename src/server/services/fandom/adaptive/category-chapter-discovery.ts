@@ -290,9 +290,13 @@ const WIKITEXT_TITLE_PATTERNS = [
   /\|\s*etitle\s*=\s*([^\n|}]+)/i,
   /\|\s*title\s*=\s*([^\n|}]+)/i,
   /\|\s*name\s*=\s*([^\n|}]+)/i,
-  // Ranma ½ and others use bare `|english = X` for the English title (no _title suffix).
-  // Placed LAST so specific title fields win first.
+  // Ranma ½ uses bare `|english = X` (no _title suffix). Last so specific
+  // fields win.
   /\|\s*english\s*=\s*([^\n|}]+)/i,
+  // Japanese-title fallback (Kaiju No. 8: `|jname = 第1話` when `|title=` is
+  // empty). Better than leaving the row title-less; fill phase overwrites
+  // when other sources supply a real English title.
+  /\|\s*(?:jname|japanese|jp[_ ]?title)\s*=\s*([^\n|}]+)/i,
 ];
 
 /** Extract a chapter number from wikitext template parameters */
