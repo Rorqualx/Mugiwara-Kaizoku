@@ -16,7 +16,22 @@
  */
 import { ChapterStatus } from '@prisma/client';
 
+import { isVolumeEntry } from './utils';
+
 import type { Chapter } from '@prisma/client';
+
+/**
+ * Wider check that recognises BOTH volume-file row conventions:
+ *  - Legacy offset convention (`chapterNumber >= 100_000`), and
+ *  - NULL-chapterNumber convention used by `ensureVolumeFileRows` for rows
+ *    that link to a real Volume via `volumeId` (per
+ *    project_volume_file_row_model). UI table + click handlers should treat
+ *    both as volume-file rows.
+ */
+export function isVolumeFileRow(chapter: Chapter): boolean {
+  if (isVolumeEntry(chapter)) return true;
+  return chapter.chapterNumber === null && chapter.volumeId !== null;
+}
 
 export function isPhantomStub(chapter: Chapter): boolean {
   if (chapter.chapterNumber !== null) return false;

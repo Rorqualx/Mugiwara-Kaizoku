@@ -32,6 +32,7 @@ import { useNavigation } from '@/hooks/useNavigation';
 import classes from '../chaptersTable.module.css';
 
 import { ChapterRowActions } from './ChapterRowActions';
+import { isVolumeFileRow } from './phantom-stub';
 import {
     getChapterNumber,
     getChapterName,
@@ -189,7 +190,18 @@ export function useVolumeTableColumns({
             title: "Title",
             render: (record: Chapter) => {
                 const progress = progressMap.get(record.id);
-                const recordIsVolumeFile = isVolumeEntry(record);
+                const recordIsVolumeFile = isVolumeFileRow(record);
+                // Match the header label exactly: "Volume N (X-Y) - VolumeTitle"
+                // where the " - VolumeTitle" suffix is only added when a real
+                // title exists. See VolumeHeader.tsx for the source of truth.
+                const renderVolumeFileTitle = (): string => {
+                    const num = record.volume ?? (record.chapterNumber !== null && record.chapterNumber >= 100_000
+                        ? record.chapterNumber - 100_000
+                        : record.chapterNumber);
+                    const realTitle = volumeData?.volumeTitle ?? volumeData?.title ?? volumeData?.name ?? null;
+                    const base = `Volume ${num}${volumeChapterRange ? ` (${volumeChapterRange})` : ''}`;
+                    return realTitle ? `${base} - ${realTitle}` : `${base} - Volume ${num}`;
+                };
 
                 return (
                     <Group gap="xs" wrap="nowrap">
@@ -209,7 +221,7 @@ export function useVolumeTableColumns({
                             }}
                         >
                             {recordIsVolumeFile
-                                ? (volumeData?.volumeTitle ?? volumeData?.title ?? volumeData?.name ?? `Volume ${record.volume ?? record.chapterNumber}`)
+                                ? renderVolumeFileTitle()
                                 : getChapterName(record)}
                         </Text>
 
