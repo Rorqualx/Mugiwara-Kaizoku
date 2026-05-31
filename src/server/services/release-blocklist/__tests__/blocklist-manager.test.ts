@@ -49,8 +49,8 @@ describe('blockRelease', () => {
     expect(result.status).toBe('success');
     expect(mocked.releaseBlocklist.create).toHaveBeenCalledTimes(1);
     const args = mocked.releaseBlocklist.create.mock.calls[0]?.[0] as { data: Record<string, unknown> };
-    expect(args.data['title']).toBe(input.release?.releaseTitle);
-    expect(args.data['hash']).toBe(input.release?.releaseHash);
+    expect(args.data['title']).toBe(input.release.releaseTitle);
+    expect(args.data['hash']).toBe(input.release.releaseHash);
     expect(args.data['mangaId']).toBe(80);
     expect(args.data['source']).toBe('torrent');
     expect(args.data['reason']).toBe(ReleaseBlocklistReason.USER_PREFERENCE);

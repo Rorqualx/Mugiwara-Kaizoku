@@ -52,8 +52,11 @@ export async function blockRelease(
   userId: string
 ): Promise<AsyncResult<void, Error>> {
   try {
-    // Validate input
-    if (!input.release || !isValidReleaseIdentifier(input.release)) {
+    // Runtime defense: the type forces `release` to be present, but the
+    // jobs-page incident (commit d201679be) was rooted in a flat shape
+    // sneaking past the type system via Prisma JSON / external callers.
+    // `isValidReleaseIdentifier` already handles undefined input.
+    if (!isValidReleaseIdentifier(input.release)) {
       return createErrorResult(new Error('Invalid release identifier'));
     }
 
