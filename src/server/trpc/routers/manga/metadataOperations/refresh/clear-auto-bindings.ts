@@ -205,6 +205,38 @@ function partitionChaptersByUserData(chapters: ChapterWithCounts[]): {
  * chapterNumber=null phantoms that cluttered the volume browser. See audit
  * plan Fix C.
  */
+interface CarrierUpdate { id: number; recoveredChapterNumber: number | null }
+
+/**
+ * Dedupe by recovered number — when multiple carriers' filenames parse to
+ * the SAME chapter number (duplicate downloads, mirror archives, vN-cN
+ * archives where v and c collide), the per-row update loop in
+ * resetProviderSourcedChapters would hit unique(mangaId, chapterNumber)
+ * on the second carrier. Keep the first carrier per number (sorted by id
+ * ascending so the older row wins); the rest fall through to the null
+ * path as anchor rows the pipeline can later re-merge.
+ */
+function partitionCarrierUpdates(
+  carrierUpdates: CarrierUpdate[],
+): { recoverable: CarrierUpdate[]; nullable: number[] } {
+  const recoverableRaw = carrierUpdates.filter(u => u.recoveredChapterNumber !== null);
+  const nullableRaw = carrierUpdates.filter(u => u.recoveredChapterNumber === null).map(u => u.id);
+  const seenNumbers = new Set<number>();
+  const recoverable: CarrierUpdate[] = [];
+  const collisionFallback: number[] = [];
+  for (const u of [...recoverableRaw].sort((a, b) => a.id - b.id)) {
+    const n = u.recoveredChapterNumber;
+    if (n === null) continue;
+    if (seenNumbers.has(n)) {
+      collisionFallback.push(u.id);
+      continue;
+    }
+    seenNumbers.add(n);
+    recoverable.push(u);
+  }
+  return { recoverable, nullable: [...nullableRaw, ...collisionFallback] };
+}
+
 async function resetProviderSourcedChapters(
   prisma: PrismaClient,
   mangaId: number,
@@ -229,8 +261,7 @@ async function resetProviderSourcedChapters(
     id: c.id,
     recoveredChapterNumber: recoverChapterNumberFromFileName(c.fileName),
   }));
-  const recoverable = carrierUpdates.filter(u => u.recoveredChapterNumber !== null);
-  const nullable = carrierUpdates.filter(u => u.recoveredChapterNumber === null).map(u => u.id);
+  const { recoverable, nullable } = partitionCarrierUpdates(carrierUpdates);
 
   // IMPORTANT: title AND description are INTENTIONALLY preserved.
   //
@@ -266,13 +297,36 @@ async function resetProviderSourcedChapters(
     });
     resetUserChapters += upd.count;
   }
+  const collisionNullable: number[] = [];
   for (const r of recoverable) {
-    // eslint-disable-next-line no-await-in-loop -- per-row update because chapterNumber differs per carrier
-    await prisma.chapter.update({
-      where: { id: r.id },
-      data: { chapterNumber: r.recoveredChapterNumber, releaseDate: null },
+    try {
+      // eslint-disable-next-line no-await-in-loop -- per-row update because chapterNumber differs per carrier
+      await prisma.chapter.update({
+        where: { id: r.id },
+        data: { chapterNumber: r.recoveredChapterNumber, releaseDate: null },
+      });
+      resetUserChapters++;
+    } catch (err) {
+      // Unique(mangaId, chapterNumber) collision can happen across update
+      // orderings — carrier B's recovered number collides with carrier A's
+      // CURRENT number (A hasn't been updated yet, or A's recovery target
+      // matches B's recovery target after the per-batch dedupe). Fall the
+      // colliding carrier through to the null path so it survives as an
+      // anchor row the pipeline's later phases can re-merge.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('Unique constraint') && msg.includes('chapterNumber')) {
+        collisionNullable.push(r.id);
+        continue;
+      }
+      throw err;
+    }
+  }
+  if (collisionNullable.length > 0) {
+    const upd = await prisma.chapter.updateMany({
+      where: { id: { in: collisionNullable } },
+      data: { chapterNumber: null, releaseDate: null },
     });
-    resetUserChapters++;
+    resetUserChapters += upd.count;
   }
   return { deletedStubChapters, resetUserChapters };
 }

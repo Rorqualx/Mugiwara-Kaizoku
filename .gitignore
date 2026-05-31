@@ -604,3 +604,4 @@ scripts/surveys/*-results-*.json
 # Local-only experiment outputs (truth files, ledgers, kill-lists, reports).
 # Tools that read these are tracked; the dot-prefixed payloads are not.
 scripts/surveys/.*
+.reidentify-checkpoint.json
