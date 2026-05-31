@@ -16,6 +16,7 @@ import { Box, Text, Group, Badge } from '@mantine/core';
 import { stripHtmlTags } from '@/components/manga/mangaDetailUtils';
 
 import { ClassificationChipRow } from './ClassificationChipRow';
+import { TagChipRow } from './TagChipRow';
 
 import type { MangaMetadata, MangaWithRelations } from './types';
 
@@ -58,14 +59,6 @@ export function ContentSection({
   const genres = extractedMetadata?.genres;
   const hasGenres = genres && Array.isArray(genres) && genres.length > 0;
 
-  // Extract tags array from metadata
-  const tags = extractedMetadata?.tags;
-  const hasTags = tags && Array.isArray(tags) && tags.length > 0;
-
-  // Extract themes array from metadata
-  const themes = extractedMetadata?.['themes'];
-  const hasThemes = themes && Array.isArray(themes) && themes.length > 0;
-
 
   return (
     <>
@@ -88,61 +81,25 @@ export function ContentSection({
       {/* Phase 4 v2-A: contentRating / demographic / publishers chip row */}
       <ClassificationChipRow manga={manga} />
 
+      {/* Phase 4 v2-A: themes + tags chip row (always visible, with +X expander) */}
+      <TagChipRow manga={manga} />
+
       {/* Expandable Details Section */}
-      {isDetailsExpanded && (
-        <>
-          {/* Genres */}
-          {hasGenres && (
-            <Box mb="lg">
-              <Text size="sm" fw={600} c="gray.3" mb="xs">
-                Genres:
-              </Text>
-              <Group gap="xs">
-                {genres.map((genre: unknown, index: number) => (
-                  <a key={index} href={`/browse/${encodeURIComponent(String(genre))}`} style={{ textDecoration: 'none' }}>
-                    <Badge size="sm" variant="light" color="blue" style={{ cursor: 'pointer' }}>
-                      {String(genre)}
-                    </Badge>
-                  </a>
-                ))}
-              </Group>
-            </Box>
-          )}
-
-          {/* Tags */}
-          {hasTags && (
-            <Box mb="lg">
-              <Text size="sm" fw={600} c="gray.3" mb="xs">
-                Tags:
-              </Text>
-              <Group gap="xs">
-                {tags.map((tag: unknown, index: number) => (
-                  <a key={index} href={`/browse/tag/${encodeURIComponent(String(tag))}`} style={{ textDecoration: 'none' }}>
-                    <Badge size="sm" variant="light" color="violet" style={{ cursor: 'pointer' }}>
-                      {String(tag)}
-                    </Badge>
-                  </a>
-                ))}
-              </Group>
-            </Box>
-          )}
-
-          {/* Themes */}
-          {hasThemes && (
-            <Box mb="lg">
-              <Text size="sm" fw={600} c="gray.3" mb="xs">
-                Themes:
-              </Text>
-              <Group gap="xs">
-                {themes.map((theme: unknown, index: number) => (
-                  <Badge key={index} size="sm" variant="light" color="orange">
-                    {String(theme)}
-                  </Badge>
-                ))}
-              </Group>
-            </Box>
-          )}
-        </>
+      {isDetailsExpanded && hasGenres && (
+        <Box mb="lg">
+          <Text size="sm" fw={600} c="gray.3" mb="xs">
+            Genres:
+          </Text>
+          <Group gap="xs">
+            {genres.map((genre: unknown, index: number) => (
+              <a key={index} href={`/browse/${encodeURIComponent(String(genre))}`} style={{ textDecoration: 'none' }}>
+                <Badge size="sm" variant="light" color="blue" style={{ cursor: 'pointer' }}>
+                  {String(genre)}
+                </Badge>
+              </a>
+            ))}
+          </Group>
+        </Box>
       )}
     </>
   );
