@@ -199,8 +199,10 @@ export function useVolumeTableColumns({
                         ? record.chapterNumber - 100_000
                         : record.chapterNumber);
                     const realTitle = volumeData?.volumeTitle ?? volumeData?.title ?? volumeData?.name ?? null;
+                    // Match VolumeHeader.tsx:115 exactly — only append " - <title>"
+                    // when a REAL volume title exists; otherwise just "Volume N (X-Y)".
                     const base = `Volume ${num}${volumeChapterRange ? ` (${volumeChapterRange})` : ''}`;
-                    return realTitle ? `${base} - ${realTitle}` : `${base} - Volume ${num}`;
+                    return realTitle ? `${base} - ${realTitle}` : base;
                 };
 
                 return (
