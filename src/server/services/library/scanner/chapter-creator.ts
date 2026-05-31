@@ -177,6 +177,13 @@ export async function createChaptersFromFileList(
 
       if (parsed.chapter !== undefined) {
         chapterNumber = parsed.chapter;
+        // chapterNum (→ Chapter.chapterNumber column) is a SEPARATE variable
+        // from chapterNumber (→ Chapter.index column). Without this assignment
+        // the parsed number lands only on index and the column stays NULL,
+        // which produced the Kaiju vol 1 7-fold "1-7"+missing-slot duplication
+        // bug (rows had index + volume but NULL chapterNumber, so the UI
+        // rendered 7 "found but unmatched" rows + 7 "expected" missing slots).
+        chapterNum = parsed.chapter;
         chapterTitle = `Chapter ${chapterNumber}`;
       }
 
@@ -196,6 +203,7 @@ export async function createChaptersFromFileList(
 
       if (extractedChapter !== null) {
         chapterNumber = extractedChapter;
+        chapterNum = extractedChapter; // see note above — chapterNum is a separate column
         chapterTitle = `Chapter ${chapterNumber}`;
       }
 

@@ -212,6 +212,12 @@ export function processFileForLinking(
     size: fileInfo.size,
     downloadStatus: ChapterStatus.COMPLETED,
     volume: fileInfo.volumeNumber,
+    // chapterNumber is a SEPARATE column from `index` and is what the UI
+    // reads to render numbered chapter slots. Omitting it leaves the row
+    // with NULL chapterNumber, which produced the Kaiju vol 1 7-fold
+    // "1-7" + missing-slot duplication (UI rendered 7 "found but
+    // unmatched" rows plus 7 "expected but missing" slots).
+    ...(fileInfo.chapterNumber !== null ? { chapterNumber: fileInfo.chapterNumber } : {}),
     updatedAt: new Date()
   });
 }
