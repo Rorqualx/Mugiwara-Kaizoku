@@ -88,6 +88,18 @@ function normalizeProvenanceEntry(raw: unknown): string | null {
 }
 
 /**
+ * Phase 4 v2-E: extract the `manual: true` flag from a provenance entry.
+ * Returns true only when the entry is the rich-object shape AND has
+ * `manual: true`. Bare-string legacy entries are never manual.
+ */
+function isManualPin(raw: unknown): boolean {
+  if (typeof raw === 'object' && raw !== null && 'manual' in raw) {
+    return (raw as { manual: unknown }).manual === true;
+  }
+  return false;
+}
+
+/**
  * Type-safe metadata update data matching Prisma's Metadata model
  */
 interface MetadataUpdateData {
@@ -174,6 +186,7 @@ export class MetadataPersistenceService {
         // can't clobber an AL-anchored numeric field. Was previously
         // wholesale-replaced; now merged per-field.
         const existingProvenance = this.extractExistingProvenance(manga.providerMetadata);
+        const pinnedFields = this.extractManualPinnedFields(manga.providerMetadata);
 
         // Build type-safe metadata update data
         const metadataData = this.buildMetadataUpdateData(metadata, manga.Metadata);
@@ -183,6 +196,11 @@ export class MetadataPersistenceService {
         const refused = this.applyProvenanceGuards(
           metadataData, manga.Metadata, existingProvenance, metadataProvenance, mangaId,
         );
+
+        // Phase 4 v2-E: refuse any field whose existing provenance entry
+        // is marked `manual: true`. Sticky-pinned by the cover/banner picker.
+        const manualRefused = this.applyManualPinGuards(metadataData, pinnedFields, mangaId);
+        for (const f of manualRefused) refused.add(f);
 
         // Merge provenance per-field. Refused fields keep their prior source.
         const mergedProvenance: Record<string, string> = { ...existingProvenance };
@@ -200,9 +218,12 @@ export class MetadataPersistenceService {
         // `alternatives.value: unknown` which isn't JSON-assignable). Phase 1.5
         // will widen this when it writes confidence/alternatives, with a Prisma-
         // JSON-compatible value type.
-        const provenanceForDb: Record<string, { provider: string }> = {};
+        //
+        // Phase 4 v2-E: preserve the `manual: true` flag when re-stamping
+        // pinned fields so a re-enrichment doesn't wipe the pin.
+        const provenanceForDb: Record<string, { provider: string; manual?: true }> = {};
         for (const [k, v] of Object.entries(mergedProvenance)) {
-          provenanceForDb[k] = { provider: v };
+          provenanceForDb[k] = pinnedFields.has(k) ? { provider: v, manual: true } : { provider: v };
         }
 
         // Prepare provider metadata with merged provenance
@@ -310,6 +331,61 @@ export class MetadataPersistenceService {
       if (providerName !== null) result[k] = providerName;
     }
     return result;
+  }
+
+  /**
+   * Phase 4 v2-E: extract the set of field names that the operator has
+   * manually pinned via the cover/banner override picker. Re-enrichment
+   * writes to these fields are refused so the user's pick sticks.
+   */
+  private extractManualPinnedFields(providerMetadata: unknown): Set<string> {
+    const pinned = new Set<string>();
+    if (typeof providerMetadata !== 'object' || providerMetadata === null) return pinned;
+    const root = providerMetadata as Record<string, unknown>;
+    const prov = root['metadataProvenance'];
+    if (typeof prov !== 'object' || prov === null) return pinned;
+    for (const [k, v] of Object.entries(prov as Record<string, unknown>)) {
+      if (isManualPin(v)) pinned.add(k);
+    }
+    return pinned;
+  }
+
+  /**
+   * Phase 4 v2-E: refuse incoming writes to any field whose existing
+   * provenance entry is marked `manual: true`. Mirrors
+   * `applyProvenanceGuards` shape — mutates `metadataData` in place by
+   * deleting the refused fields and returns their names so the caller
+   * can preserve the prior provenance entry intact.
+   *
+   * The cover-write paths (single `cover` + the `coverLarge`/`coverMedium`/
+   * `coverExtraLarge` triplet) get coupled treatment: pinning `cover`
+   * also locks the resolution-bucketed columns since the existing UI
+   * writes the same URL to all of them.
+   */
+  private applyManualPinGuards(
+    metadataData: MetadataUpdateData,
+    pinnedFields: Set<string>,
+    mangaId: number,
+  ): Set<string> {
+    const refused = new Set<string>();
+    if (pinnedFields.size === 0) return refused;
+    const coverColumns: Array<keyof MetadataUpdateData> = [
+      'cover', 'coverLarge', 'coverMedium', 'coverExtraLarge',
+    ];
+    const isCoverPinned = pinnedFields.has('cover');
+    for (const field of Object.keys(metadataData) as Array<keyof MetadataUpdateData>) {
+      const locked = pinnedFields.has(field) || (isCoverPinned && coverColumns.includes(field));
+      if (!locked) continue;
+      refused.add(field);
+      // eslint-disable-next-line no-param-reassign -- documented: this guard mutates metadataData in place
+      delete metadataData[field];
+    }
+    if (refused.size > 0) {
+      this.logger.info(
+        `[v2-E] Refused ${refused.size} field overwrite(s) for manga ${mangaId} (manual pin): ${[...refused].join(',')}`,
+      );
+    }
+    return refused;
   }
 
   /**

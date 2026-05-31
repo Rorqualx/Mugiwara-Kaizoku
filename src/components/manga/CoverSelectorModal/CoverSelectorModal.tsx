@@ -29,6 +29,7 @@ import { proxyImageUrl } from '@/utils/image-proxy';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client';
 
+import { AlternativesTab } from './AlternativesTab';
 import { TabPanels } from './TabPanels';
 
 import type { CoverSelectorModalProps } from './types';
@@ -268,6 +269,11 @@ export function CoverSelectorModal({
                 {bannerOptions.length}
               </Badge>
             </Tabs.Tab>
+
+            {/* Phase 4 v2-E — cross-source alternatives + manual-pin */}
+            <Tabs.Tab value="alternatives">
+              Alternatives
+            </Tabs.Tab>
           </Tabs.List>
 
           <TabPanels
@@ -288,6 +294,16 @@ export function CoverSelectorModal({
             onUseCover={handleUseCover}
             onUseBanner={handleUseBanner}
           />
+
+          <Tabs.Panel value="alternatives" pt="md">
+            <AlternativesTab
+              mangaId={mangaId}
+              fieldAlternatives={metadata?.fieldAlternatives ?? null}
+              currentCover={currentCover}
+              currentBanner={currentBanner}
+              onPinned={onClose}
+            />
+          </Tabs.Panel>
         </Tabs>
 
         {/* Staged-changes preview strip */}

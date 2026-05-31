@@ -196,6 +196,70 @@ export const metadataCoreProcedures = router({
     }),
 
   /**
+   * Phase 4 v2-E: pin a single Metadata field to a user-chosen value and
+   * mark it `manual: true` in `providerMetadata.metadataProvenance` so the
+   * next re-enrichment refuses to overwrite it. Used by the cover/banner
+   * picker's "Alternatives" tab to lock an operator's selection.
+   */
+  pinFieldOverride: publicProcedure
+    .input(z.object({
+      mangaId: z.number(),
+      field: z.enum(['cover', 'bannerImage']),
+      value: z.string().min(1),
+    }))
+    .mutation(async ({ input, ctx }): Promise<{ mangaId: number; field: string; value: string }> => {
+      const { mangaId, field, value } = input;
+      logger.info(`[pinFieldOverride] mangaId=${mangaId} field=${field}`);
+
+      const manga = await ctx.prisma.manga.findUnique({
+        where: { id: mangaId },
+        include: { Metadata: true },
+      });
+      if (!manga || !manga.Metadata) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Manga ${mangaId} or its metadata not found` });
+      }
+
+      // Mirror the existing cover-write semantics: pinning `cover` also
+      // writes the resolution-bucketed columns so the in-app display picker
+      // (CoverSection.getCoverImageUrl) sees the same URL everywhere.
+      const metadataUpdate: Record<string, string> =
+        field === 'cover'
+          ? { cover: value, coverLarge: value, coverMedium: value, coverExtraLarge: value }
+          : { bannerImage: value };
+
+      const existingProviderMetadata =
+        typeof manga.providerMetadata === 'object' && manga.providerMetadata !== null
+          ? (manga.providerMetadata as Record<string, unknown>)
+          : {};
+      const existingProvenance =
+        typeof existingProviderMetadata['metadataProvenance'] === 'object' &&
+        existingProviderMetadata['metadataProvenance'] !== null
+          ? (existingProviderMetadata['metadataProvenance'] as Record<string, unknown>)
+          : {};
+
+      const updatedProvenance = {
+        ...existingProvenance,
+        [field]: { provider: 'manual', manual: true },
+      };
+      const updatedProviderMetadata = {
+        ...existingProviderMetadata,
+        metadataProvenance: updatedProvenance,
+      };
+
+      await ctx.prisma.manga.update({
+        where: { id: mangaId },
+        data: {
+          Metadata: { update: metadataUpdate },
+          providerMetadata: updatedProviderMetadata as Prisma.InputJsonValue,
+        },
+      });
+
+      await invalidateMangaCache(mangaId);
+      logger.info(`[pinFieldOverride] pinned ${field} on manga ${mangaId}`);
+      return { mangaId, field, value };
+    }),
+
+  /**
    * One-click enrichment via the modern enrichment pipeline.
    * Emits WebSocket progress events so the frontend can show real-time status.
    */
