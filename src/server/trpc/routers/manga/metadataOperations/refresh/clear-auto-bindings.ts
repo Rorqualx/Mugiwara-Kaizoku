@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger';
+import { MangaFileParser } from '@/utils/parsers/mangaFileParser';
 
 import type { Prisma } from '@prisma/client';
 
@@ -104,6 +105,10 @@ async function removeExternalLinksForProviders(
 export interface ChapterWithCounts {
   id: number;
   filePath: string | null;
+  /** Optional because public helpers (chapterHasUserData/IsCarrier/IsPointerOnly)
+   * don't read it. resetProviderSourcedChapters DOES use it (to recover
+   * chapterNumber from filename), so its DB select includes it. */
+  fileName?: string;
   packDownloadId: bigint | null;
   _count: {
     chapterFiles: number;
@@ -116,12 +121,31 @@ export interface ChapterWithCounts {
 }
 
 export const CHAPTER_USER_DATA_SELECT = {
-  id: true, filePath: true, packDownloadId: true,
+  id: true, filePath: true, fileName: true, packDownloadId: true,
   _count: { select: {
     chapterFiles: true, ReadingProgress: true, ReaderBookmark: true,
     ReadingHistory: true, WantedItem: true, NativeDownload: true,
   } },
 } as const;
+
+/**
+ * Try to recover a chapter number from a carrier row's filename so we don't
+ * leave it as a chapterNumber=null orphan after reset. Returns null when the
+ * filename has no recoverable number (e.g. a volume file with no chapter
+ * range, or a weird convention we don't understand) — in that case nulling
+ * is the right call.
+ *
+ * Without this, the next pipeline pass would: (a) keep the carrier (filePath
+ * set, chapterNumber null), AND (b) create a fresh slot row for the parsed
+ * chapter number, AND (c) bind the same file to the new row via
+ * matchFileToChapter — double-binding the file and producing the Kaiju vol 1
+ * 14-rows-for-7-files duplication.
+ */
+function recoverChapterNumberFromFileName(fileName: string): number | null {
+  if (!fileName || fileName.length === 0) return null;
+  const parsed = MangaFileParser.parse(fileName);
+  return parsed.chapter ?? null;
+}
 
 export function chapterHasUserData(c: ChapterWithCounts): boolean {
   if (c.filePath !== null || c.packDownloadId !== null) return true;
@@ -196,13 +220,33 @@ async function resetProviderSourcedChapters(
     const del = await prisma.chapter.deleteMany({ where: { id: { in: stubIds } } });
     deletedStubChapters = del.count;
   }
+  // Partition carriers into "recover from filename" vs "null out". Carriers
+  // whose filename parses to a chapter number get to keep their number so
+  // the next pipeline pass matches the file → existing row instead of
+  // creating a fresh duplicate slot.
+  const carrierRows = chapters.filter(c => carrierIds.includes(c.id));
+  const carrierUpdates = carrierRows.map(c => ({
+    id: c.id,
+    recoveredChapterNumber: recoverChapterNumberFromFileName(c.fileName),
+  }));
+  const recoverable = carrierUpdates.filter(u => u.recoveredChapterNumber !== null);
+  const nullable = carrierUpdates.filter(u => u.recoveredChapterNumber === null).map(u => u.id);
+
   let resetUserChapters = 0;
-  if (carrierIds.length > 0) {
+  if (nullable.length > 0) {
     const upd = await prisma.chapter.updateMany({
-      where: { id: { in: carrierIds } },
+      where: { id: { in: nullable } },
       data: { title: '', chapterNumber: null, releaseDate: null, description: null },
     });
-    resetUserChapters = upd.count;
+    resetUserChapters += upd.count;
+  }
+  for (const r of recoverable) {
+    // eslint-disable-next-line no-await-in-loop -- per-row update because chapterNumber differs per carrier
+    await prisma.chapter.update({
+      where: { id: r.id },
+      data: { title: '', chapterNumber: r.recoveredChapterNumber, releaseDate: null, description: null },
+    });
+    resetUserChapters++;
   }
   return { deletedStubChapters, resetUserChapters };
 }
