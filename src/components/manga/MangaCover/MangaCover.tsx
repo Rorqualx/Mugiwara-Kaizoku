@@ -24,7 +24,6 @@
 import * as React from 'react';
 
 import { Box } from '@mantine/core';
-import { useIntersection } from '@mantine/hooks';
 
 import { useAnimatedCovers } from '@/hooks/useAnimatedCovers';
 
@@ -160,16 +159,12 @@ export function MangaCover({
   const motionAllowed = useAnimatedCovers();
   const enabled = motionAllowed && animated;
 
-  const { ref, entry } = useIntersection<HTMLDivElement>({ threshold: 0.01 });
   const [errored, setErrored] = React.useState(false);
 
   const baseSrc = resolveBaseSrc(src, fallbackSrc);
   const resolvedSrc = errored ? fallbackSrc : baseSrc;
   const motion = getCoverMotion(seed ?? baseSrc);
-  // Play once enabled, pausing only when the observer has positively reported
-  // the cover off-screen. Defaulting to play (entry null → true) avoids motion
-  // being silently stuck paused if the observer hasn't fired yet.
-  const playing = enabled && !errored && (entry?.isIntersecting ?? true);
+  const playing = enabled && !errored;
 
   const handleError = (): void => {
     setErrored(true);
@@ -182,7 +177,6 @@ export function MangaCover({
 
   return (
     <Box
-      ref={ref}
       className={rootClassName}
       style={buildRootStyle(fill, radius, w, h, style)}
       onClick={onClick}
