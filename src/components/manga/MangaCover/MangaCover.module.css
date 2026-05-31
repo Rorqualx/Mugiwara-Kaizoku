@@ -5,7 +5,12 @@
  * cover: a slow Ken-Burns drift (gentle zoom + pan) that autoplays and loops
  * with no user interaction. We only animate `transform` so the work stays on
  * the compositor (no layout/paint thrash). Every keyframe stays overscanned
- * (min scale 1.06, pan <= 2.5%) so the image edges never reveal a gap.
+ * (min scale 1.05, pan <= 3%) so the image edges never reveal a gap.
+ *
+ * The `animation` SHORTHAND (not the `animation-name` longhand) is used on the
+ * variant classes on purpose: css-loader reliably rewrites locally-scoped
+ * @keyframes names referenced via the shorthand, whereas the longhand can be
+ * left unscoped under CSS Modules — which silently breaks the animation.
  *
  * NOTE: True depth-aware 2.5D parallax would require a per-cover depth map
  * (deferred). This is an honest single-image approximation.
@@ -25,54 +30,52 @@
   will-change: transform;
   backface-visibility: hidden;
   transform-origin: center center;
-  animation-duration: 18s;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  animation-direction: alternate;
-}
-
-/* Pauses motion (e.g. when the cover is scrolled off-screen) without unmounting. */
-.paused {
-  animation-play-state: paused;
-}
-
-.variant0 {
-  animation-name: mk-cover-kenburns-0;
-}
-
-.variant1 {
-  animation-name: mk-cover-kenburns-1;
-}
-
-.variant2 {
-  animation-name: mk-cover-kenburns-2;
 }
 
 @keyframes mk-cover-kenburns-0 {
   from {
-    transform: scale(1.06) translate3d(-2%, -1.4%, 0);
+    transform: scale(1.05) translate3d(-2.5%, -1.6%, 0);
   }
   to {
-    transform: scale(1.12) translate3d(2%, 1.6%, 0);
+    transform: scale(1.14) translate3d(2.5%, 2%, 0);
   }
 }
 
 @keyframes mk-cover-kenburns-1 {
   from {
-    transform: scale(1.11) translate3d(2.2%, -1.6%, 0);
+    transform: scale(1.13) translate3d(2.6%, -2%, 0);
   }
   to {
-    transform: scale(1.06) translate3d(-1.8%, 1.8%, 0);
+    transform: scale(1.06) translate3d(-2.2%, 2.4%, 0);
   }
 }
 
 @keyframes mk-cover-kenburns-2 {
   from {
-    transform: scale(1.07) translate3d(-1.5%, 2%, 0);
+    transform: scale(1.07) translate3d(-1.8%, 2.4%, 0);
   }
   to {
-    transform: scale(1.13) translate3d(1.6%, -1.6%, 0);
+    transform: scale(1.15) translate3d(2%, -2%, 0);
   }
+}
+
+.variant0 {
+  animation: mk-cover-kenburns-0 18s ease-in-out infinite alternate;
+}
+
+.variant1 {
+  animation: mk-cover-kenburns-1 22s ease-in-out infinite alternate;
+}
+
+.variant2 {
+  animation: mk-cover-kenburns-2 20s ease-in-out infinite alternate;
+}
+
+/* Pauses motion (e.g. when the cover is scrolled off-screen) without
+   unmounting. Declared AFTER the variant rules so it overrides the
+   play-state set by the `animation` shorthand. */
+.paused {
+  animation-play-state: paused;
 }
 
 .overlay {
@@ -91,7 +94,9 @@
 /* Accessibility backstop: even if a consumer forces `animated`, honor the OS
    reduced-motion setting at the CSS layer too. */
 @media (prefers-reduced-motion: reduce) {
-  .animated {
+  .variant0,
+  .variant1,
+  .variant2 {
     animation: none !important;
   }
 }

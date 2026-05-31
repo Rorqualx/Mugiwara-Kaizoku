@@ -166,7 +166,10 @@ export function MangaCover({
   const baseSrc = resolveBaseSrc(src, fallbackSrc);
   const resolvedSrc = errored ? fallbackSrc : baseSrc;
   const motion = getCoverMotion(seed ?? baseSrc);
-  const playing = enabled && (entry?.isIntersecting ?? false) && !errored;
+  // Play once enabled, pausing only when the observer has positively reported
+  // the cover off-screen. Defaulting to play (entry null → true) avoids motion
+  // being silently stuck paused if the observer hasn't fired yet.
+  const playing = enabled && !errored && (entry?.isIntersecting ?? true);
 
   const handleError = (): void => {
     setErrored(true);
