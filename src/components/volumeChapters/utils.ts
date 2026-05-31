@@ -415,6 +415,16 @@ export function getChapterName(chapter: Chapter): string {
         }
     }
 
+    // Generic fallback when no real title exists from any source — show
+    // "Chapter N" so the Title column isn't visually empty. Real titles
+    // from the title-fill phase will overwrite this once available.
+    if (chapter.chapterNumber !== null) {
+        const num = chapter.chapterNumber;
+        // Render integer chapters as "Chapter 13" and decimals as "Chapter 10.5"
+        const display = Number.isInteger(num) ? String(num) : String(num);
+        return `Chapter ${display}`;
+    }
+
     return '';
 }
 

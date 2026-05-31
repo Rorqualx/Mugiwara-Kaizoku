@@ -22,5 +22,14 @@ export function isPhantomStub(chapter: Chapter): boolean {
   if (chapter.chapterNumber !== null) return false;
   if (chapter.filePath !== null) return false;
   if (chapter.downloadStatus === ChapterStatus.COMPLETED) return false;
+  // Legitimate volume-file rows from ensureVolumeFileRows carry aggregated
+  // stats (pageCount or size from the volume's chapter rows) AND link to a
+  // Volume row via volumeId. A true phantom from a wrong provider binding
+  // has neither — that's the discriminant. Without this carve-out, every
+  // partially-downloaded volume's "1-N" row vanishes from the chapter
+  // table (Kaiju vol 2: 5/10 chapters present, pageCount=194 — was being
+  // filtered as phantom and never rendered).
+  const hasAggregatedStats = (chapter.pageCount ?? 0) > 0 || chapter.size > 0;
+  if (chapter.volumeId !== null && hasAggregatedStats) return false;
   return true;
 }
