@@ -36,9 +36,15 @@ export function ClassificationChipRow({ manga }: ClassificationChipRowProps): Re
           </Badge>
         )}
         {hasPublishers && (publishers as string[]).slice(0, 4).map((p, idx) => (
-          <Badge key={`pub-${idx}`} size="md" variant="light" color="gray">
-            {p}
-          </Badge>
+          <a
+            key={`pub-${idx}`}
+            href={`/browse/publisher/${encodeURIComponent(p)}`}
+            style={{ textDecoration: 'none' }}
+          >
+            <Badge size="md" variant="light" color="gray" style={{ cursor: 'pointer' }}>
+              {p}
+            </Badge>
+          </a>
         ))}
       </Group>
     </Box>
