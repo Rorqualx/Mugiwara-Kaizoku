@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 
 import { MangaGallery } from '@/components/manga/MangaGallery';
+import { ReadingOrderChain } from '@/components/manga/reading-order';
 import { RelatedWorksCarousel } from '@/components/manga/related-works';
 import { logger } from '@/utils/logger';
 
@@ -406,6 +407,11 @@ export function ExpandedDetailsSection({
       <PublicationDatesSection extractedMetadata={extractedMetadata} />
       <AniListStatsSection extractedMetadata={extractedMetadata} />
       <RelatedWorksCarousel mangaId={manga.id} />
+      <ReadingOrderChain
+        mangaId={manga.id}
+        currentTitle={manga.title}
+        currentCover={manga.Metadata?.coverMedium ?? manga.Metadata?.cover ?? null}
+      />
       <AlternativeTitlesSection manga={manga} />
       <ProviderLinksSection manga={manga} />
       <ExternalLinksSection manga={manga} />
