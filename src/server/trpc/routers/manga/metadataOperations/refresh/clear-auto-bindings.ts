@@ -232,11 +232,37 @@ async function resetProviderSourcedChapters(
   const recoverable = carrierUpdates.filter(u => u.recoveredChapterNumber !== null);
   const nullable = carrierUpdates.filter(u => u.recoveredChapterNumber === null).map(u => u.id);
 
+  // IMPORTANT: title AND description are INTENTIONALLY preserved.
+  //
+  // Earlier this function wiped them alongside chapterNumber/releaseDate, on
+  // the assumption that the post-reset enrichment would re-populate from
+  // current provider data. In practice the chapter-title-fill priority chain
+  // (MangaDex → Wikipedia → Fandom) covers chapters partially or not at all:
+  //   - MangaDex returns English titles only for chapters where the official
+  //     scanlation group set one (Kaiju ch 1-3 yes, 4-7 null)
+  //   - Wikipedia chapter lists use volume-level summaries, not per-chapter
+  //   - Fandom page titles are literal "Chapter 1" / "Chapter 2" which the
+  //     fill's GENERIC_CHAPTER_TITLE filter (correctly) rejects; the real
+  //     Fandom chapter content lives in the page body (==Summary==) +
+  //     infobox |jname= which the current extractor doesn't pull from
+  // Result: every reidentify silently DROPS data (Kaiju 79: 23 → 1 titles
+  // across two cycles). The fill phases already have correct overwrite
+  // logic — chapter-title-fill skips non-generic non-stale-mangadex titles
+  // — so preserving here is safe AND prevents data loss.
+  //
+  // Likewise description is preserved because Fandom per-chapter summaries
+  // are NOT currently re-extracted on every enrichment (only the volume-level
+  // descriptions from CV/Fandom are guaranteed). Wiping description would
+  // lose the per-chapter summary text without any replacement source.
+  //
+  // releaseDate is still nulled because it changes when the manga binding
+  // moves (different AL/MD → different scheduled chapter dates), and the
+  // pipeline's count-backfills always re-supply it from the current binding.
   let resetUserChapters = 0;
   if (nullable.length > 0) {
     const upd = await prisma.chapter.updateMany({
       where: { id: { in: nullable } },
-      data: { title: '', chapterNumber: null, releaseDate: null, description: null },
+      data: { chapterNumber: null, releaseDate: null },
     });
     resetUserChapters += upd.count;
   }
@@ -244,7 +270,7 @@ async function resetProviderSourcedChapters(
     // eslint-disable-next-line no-await-in-loop -- per-row update because chapterNumber differs per carrier
     await prisma.chapter.update({
       where: { id: r.id },
-      data: { title: '', chapterNumber: r.recoveredChapterNumber, releaseDate: null, description: null },
+      data: { chapterNumber: r.recoveredChapterNumber, releaseDate: null },
     });
     resetUserChapters++;
   }
