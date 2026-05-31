@@ -11,6 +11,8 @@
  * exactly one place.
  */
 
+import { useEffect, useState } from 'react';
+
 import { useReducedMotion } from '@mantine/hooks';
 
 import { useLibraryViewStore } from '@/store/index';
@@ -18,14 +20,23 @@ import { useLibraryViewStore } from '@/store/index';
 /**
  * Returns whether animated covers should currently play.
  *
- * @returns `true` when the user has animated covers enabled AND the OS is not
- *   requesting reduced motion; otherwise `false`.
+ * Always returns `false` on the server and the first client render, only
+ * enabling motion after mount. Both the preference (Zustand `persist`, hydrated
+ * from localStorage) and `prefers-reduced-motion` resolve client-side, so
+ * gating on a mounted flag keeps the server HTML and initial client render
+ * identical (static) and avoids a React hydration mismatch.
+ *
+ * @returns `true` once mounted AND the user has animated covers enabled AND the
+ *   OS is not requesting reduced motion; otherwise `false`.
  */
 export function useAnimatedCovers(): boolean {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const animatedCovers = useLibraryViewStore((s) => s.animatedCovers);
-  // Mantine's hook is SSR-safe (returns `false` until mounted), which keeps the
-  // server render static and avoids a hydration mismatch.
   const prefersReducedMotion = useReducedMotion();
 
-  return animatedCovers && !prefersReducedMotion;
+  return mounted && animatedCovers && !prefersReducedMotion;
 }
