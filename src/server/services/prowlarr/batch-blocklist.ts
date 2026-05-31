@@ -8,10 +8,12 @@
  */
 
 import { prisma } from '@/server/db';
+import { buildBlocklistScopeWhere } from '@/server/services/release-blocklist/scope-where';
+import type { BlocklistScope } from '@/server/services/release-blocklist/scope-where';
 import type { ProwlarrSearchResult } from '@/types/prowlarr';
 import { logger } from '@/utils/logger';
 
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 /**
  * Release identifier for blocklist matching
@@ -47,12 +49,20 @@ export class BatchBlocklistChecker {
   constructor(private prismaClient: PrismaClient = prisma) {}
 
   /**
-   * Check multiple releases against the blocklist in a single query
+   * Check multiple releases against the blocklist in a single query.
    *
    * @param releases - Array of releases to check
+   * @param scope    - Optional manga/source scope. When provided, only rows
+   *                   matching that scope (or wildcards `mangaId=null` /
+   *                   `source=null`) participate in the match. Omitting it
+   *                   preserves the legacy global-only behavior so existing
+   *                   callers don't change semantics.
    * @returns Map of release ID to blocklist match result
    */
-  async checkReleases(releases: ReleaseIdentifier[]): Promise<Map<string, BlocklistMatch>> {
+  async checkReleases(
+    releases: ReleaseIdentifier[],
+    scope?: BlocklistScope,
+  ): Promise<Map<string, BlocklistMatch>> {
     const results = new Map<string, BlocklistMatch>();
 
     if (releases.length === 0) {
@@ -63,17 +73,29 @@ export class BatchBlocklistChecker {
       // Extract all unique titles for matching
       const titles = releases.map(r => r.title);
 
+      // Compose the primary predicate (title or pattern) with the shared
+      // scope-WHERE fragment. Both branches go through `buildBlocklistScopeWhere`
+      // so this path can't drift from `checkRelease` again.
+      const scopeWhere = scope ? buildBlocklistScopeWhere(scope) : {};
+      const scopeAnd = (scopeWhere.AND as Prisma.ReleaseBlocklistWhereInput[] | undefined) ?? [];
+      const where: Prisma.ReleaseBlocklistWhereInput = {
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              // Match by exact title
+              { title: { in: titles } },
+              // Match entries with patterns (we'll check them against all releases)
+              { pattern: { not: null } },
+            ],
+          },
+          ...scopeAnd,
+        ],
+      };
+
       // Fetch all matching blocklist entries in one query
       const blocklistEntries = await this.prismaClient.releaseBlocklist.findMany({
-        where: {
-          isActive: true,
-          OR: [
-            // Match by exact title
-            { title: { in: titles } },
-            // Match entries with patterns (we'll check them against all releases)
-            { pattern: { not: null } },
-          ],
-        },
+        where,
         select: {
           id: true,
           title: true,
@@ -170,13 +192,18 @@ export class BatchBlocklistChecker {
   }
 
   /**
-   * Enhance search results with blocklist status
+   * Enhance search results with blocklist status.
    *
    * @param results - Array of search results to enhance
+   * @param scope   - Optional manga/source scope; same semantics as
+   *                  {@link checkReleases}. Pass `{ mangaId }` from the
+   *                  search caller (e.g. quick-download for manga X) so a
+   *                  block on a same-titled release in manga Y can't leak.
    * @returns Enhanced results with isBlocked and blockReason fields
    */
   async enhanceResults(
-    results: ProwlarrSearchResult[]
+    results: ProwlarrSearchResult[],
+    scope?: BlocklistScope,
   ): Promise<Array<ProwlarrSearchResult & { isBlocked: boolean; blockReason?: string | undefined }>> {
     if (results.length === 0) {
       return [];
@@ -190,7 +217,7 @@ export class BatchBlocklistChecker {
     }));
 
     // Batch check
-    const blocklistResults = await this.checkReleases(releases);
+    const blocklistResults = await this.checkReleases(releases, scope);
 
     // Enhance results
     return results.map(result => {

@@ -229,11 +229,12 @@ export const downloadRouter = router({
     query: z.string(),
     mangaId: z.number()
   })).query(async ({ input }): Promise<unknown[]> => {
-    const { query } = input;
-    logger.info(`[Prowlarr Search] Starting search for: "${query}"`);
+    const { query, mangaId } = input;
+    logger.info(`[Prowlarr Search] Starting search for: "${query}" (manga ${mangaId})`);
 
     const prowlarrSearch = new ProwlarrMangaSearch();
     const results = await prowlarrSearch.searchManga(query, {
+      mangaId,                // Scopes the post-search blocklist check (was global-blind).
       categories: [7000],     // Search entire Books category (includes Comics, Mags, EBooks)
       limit: 100,             // Max 100 results
       maxage: 365,            // Only results from last year

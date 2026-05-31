@@ -311,10 +311,15 @@ export class ProwlarrMangaSearch {
       const enhancedResults = await Promise.all(
         results.map(async (result) => {
           try {
+            // `mangaId` (when the caller provided one) scopes the lookup so
+            // a block on a same-titled release for a different manga can't
+            // leak in. Without it, the blocklist check matches globally and
+            // a coincidental title collision suppresses unrelated downloads.
             const releaseIdentifier = {
               releaseTitle: result.title,
               indexerId: result.guid,
-              source: result.indexerName
+              source: result.indexerName,
+              ...(options?.mangaId !== undefined ? { mangaId: options.mangaId } : {}),
             };
 
             const blocklistCheck = await blocklistService.checkRelease(releaseIdentifier);

@@ -15,6 +15,7 @@ import {
 } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
+import { buildBlocklistScopeWhere } from './scope-where';
 import {
   isValidReleaseIdentifier,
   ReleaseBlocklistReason,
@@ -31,19 +32,15 @@ import type { Prisma, PrismaClient } from '@prisma/client';
  * Builds the source/mangaId scoping fragment shared by every blocklist
  * lookup so a manga-scoped or source-scoped entry doesn't leak across
  * unrelated rows. NULL columns mean "any" — they always match.
+ *
+ * Delegates to the shared builder in `scope-where.ts` so the parallel
+ * batch path (`prowlarr/batch-blocklist.ts`) cannot drift again.
  */
 function buildScopeWhere(release: ReleaseIdentifier): Prisma.ReleaseBlocklistWhereInput {
-  const scope: Prisma.ReleaseBlocklistWhereInput = {};
-  if (release.source) {
-    scope.OR = [{ source: release.source }, { source: null }];
-  }
-  if (release.mangaId !== undefined) {
-    const mangaScope: Prisma.ReleaseBlocklistWhereInput = {
-      OR: [{ mangaId: release.mangaId }, { mangaId: null }],
-    };
-    scope.AND = scope.AND ? [...(scope.AND as Prisma.ReleaseBlocklistWhereInput[]), mangaScope] : [mangaScope];
-  }
-  return scope;
+  return buildBlocklistScopeWhere({
+    source: release.source,
+    mangaId: release.mangaId,
+  });
 }
 
 /**
@@ -69,7 +66,6 @@ async function checkByHash(
       isActive: true,
       AND: [
         { OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }] },
-        ...(scope.OR ? [{ OR: scope.OR }] : []),
         ...((scope.AND as Prisma.ReleaseBlocklistWhereInput[] | undefined) ?? []),
       ],
     },
@@ -117,7 +113,6 @@ async function checkByTitle(
       isActive: true,
       AND: [
         { OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }] },
-        ...(scope.OR ? [{ OR: scope.OR }] : []),
         ...((scope.AND as Prisma.ReleaseBlocklistWhereInput[] | undefined) ?? []),
       ],
     },
@@ -169,7 +164,6 @@ async function checkByPattern(
       isActive: true,
       AND: [
         { OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }] },
-        ...(scope.OR ? [{ OR: scope.OR }] : []),
         ...((scope.AND as Prisma.ReleaseBlocklistWhereInput[] | undefined) ?? []),
       ],
     },
@@ -239,7 +233,6 @@ async function checkByReleaseGroup(
       isActive: true,
       AND: [
         { OR: [{ expiryDate: null }, { expiryDate: { gt: new Date() } }] },
-        ...(scope.OR ? [{ OR: scope.OR }] : []),
         ...((scope.AND as Prisma.ReleaseBlocklistWhereInput[] | undefined) ?? []),
       ],
     },

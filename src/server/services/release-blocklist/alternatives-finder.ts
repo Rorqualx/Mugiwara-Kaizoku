@@ -104,8 +104,11 @@ export async function findAlternativeReleases(
     const prowlarrSearch = new ProwlarrMangaSearch(prisma);
 
     const matchCtx: MatchContext = { mangaId, targetChapter, targetInt, isValidTarget };
+    // mangaId scopes Prowlarr's post-search blocklist check; without it, a
+    // block on a same-titled release for a different manga would suppress
+    // an otherwise-valid alternative here.
     const searchResults = await Promise.all(
-      searchQueries.map(query => prowlarrSearch.searchManga(query))
+      searchQueries.map(query => prowlarrSearch.searchManga(query, { mangaId }))
     );
 
     for (const searchResult of searchResults) {

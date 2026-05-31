@@ -77,6 +77,16 @@ export interface SearchOptions {
 
   /** Maximum file size in bytes */
   maxsize?: number;
+
+  /**
+   * Numeric Manga id this search is targeting. Threaded into the
+   * post-search blocklist check so a block scoped to manga A cannot
+   * suppress a same-titled release for manga B. Also folded into the
+   * in-process search cache key, partitioning cache entries per manga.
+   * Optional — callers in pure-discovery flows (no target manga known)
+   * can omit it and the pre-existing global-only behavior applies.
+   */
+  mangaId?: number;
 }
 
 /**

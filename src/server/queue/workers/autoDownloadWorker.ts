@@ -110,7 +110,7 @@ export async function processAutoDownload(mangaId: number): Promise<AsyncResult<
     // NOTE: Mangal support was deprecated and removed
     // Use Prowlarr for all downloads
     logger.info(`[AutoDownload] Searching via Prowlarr for ${manga["title"]}`);
-    const searchResult = await searchViaProwlarr(manga, missingChapters, rule);
+    const searchResult = await searchViaProwlarr(manga, missingChapters, rule, mangaId);
     if (isError(searchResult)) {
       return searchResult;
     }
@@ -122,10 +122,12 @@ export async function processAutoDownload(mangaId: number): Promise<AsyncResult<
   }
 }
 
-async function searchViaProwlarr(manga: Record<string, unknown>, chapters: ChapterEntity[], rule: Record<string, unknown>): Promise<AsyncResult<void, Error>> {
+async function searchViaProwlarr(manga: Record<string, unknown>, chapters: ChapterEntity[], rule: Record<string, unknown>, mangaId: number): Promise<AsyncResult<void, Error>> {
   try {
     const mangaTitle = typeof manga["title"] === 'string' ? manga["title"] : '';
-    const searchResults = await prowlarrMangaSearch.searchManga(mangaTitle);
+    // Scope the post-search blocklist check to this manga — without it,
+    // a block on a same-titled release for a different series would leak in.
+    const searchResults = await prowlarrMangaSearch.searchManga(mangaTitle, { mangaId });
     if (isError(searchResults)) {
       return createErrorResult(searchResults.error instanceof Error ? searchResults.error : new Error(String(searchResults.error)));
     }
