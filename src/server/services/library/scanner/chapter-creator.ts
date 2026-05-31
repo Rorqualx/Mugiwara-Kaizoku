@@ -439,7 +439,7 @@ export async function linkFilesToExistingChapters(
     }
 
     // Fall back to auto-matching (filename-based)
-    if (!tryLinkVolumeToCompletedChapters(fileInfo, maps, completedByVolume, updates)) {
+    if (!tryLinkVolumeToCompletedChapters(fileInfo, maps, completedByVolume, updates, { creates, mangaId })) {
       processFileForLinking(fileInfo, mangaId, maps, updates, creates);
     }
   }

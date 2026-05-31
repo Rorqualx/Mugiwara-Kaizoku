@@ -184,11 +184,37 @@ export function processFileForLinking(
   updates: ChapterUpdate[],
   creates: ChapterCreate[]
 ): void {
-  // Handle volume files - link to ALL chapters in that volume
+  // Handle volume files - link to ALL chapters in that volume + create one
+  // "volume-file" row (NULL chapterNumber) representing the whole-volume
+  // archive itself, so the UI can render a single "1-N" compendium entry
+  // alongside the per-chapter rows. Without this row the UI shows only the
+  // numbered chapters and there's no unified compendium pointer (see
+  // project_volume_file_row_model). When only one chapter is in the volume
+  // there's no compendium to point at — skip the volume-file row in that case
+  // since it would be indistinguishable from a regular chapter row.
   if (fileInfo.isVolumeFile) {
     const volumeChapters = linkVolumeFileToChapters(fileInfo, maps.byVolume);
     for (const ch of volumeChapters) {
       updates.push({ id: ch.id, fileName: fileInfo.fileName, filePath: fileInfo.file, size: fileInfo.size });
+    }
+    if (volumeChapters.length > 1) {
+      creates.push({
+        mangaId,
+        fileName: fileInfo.fileName,
+        filePath: fileInfo.file,
+        fileFormat: normalizeFileFormat(fileInfo.fileName),
+        // Place volume-file rows in a synthetic high-index range so they
+        // don't collide with per-chapter rows. The dedup pass in
+        // chapter-creator will bump if the chosen index is still taken.
+        index: 100000 + ((fileInfo.volumeNumber ?? 0) * 100),
+        title: '',
+        size: fileInfo.size,
+        downloadStatus: ChapterStatus.COMPLETED,
+        volume: fileInfo.volumeNumber,
+        // chapterNumber intentionally omitted — NULL is what marks this
+        // as the volume-file row vs the per-chapter rows.
+        updatedAt: new Date(),
+      });
     }
     if (volumeChapters.length > 0) return;
   }
@@ -230,7 +256,11 @@ export function tryLinkVolumeToCompletedChapters(
   fileInfo: ParsedFileInfo,
   maps: { byVolume: Map<number, ChapterInfo[]> },
   completedByVolume: Map<number, Array<{ id: number }>>,
-  updates: ChapterUpdate[]
+  updates: ChapterUpdate[],
+  // Optional `creates` + `mangaId` so re-imports can also add a volume-file
+  // row when one isn't already present. Bundled into one options arg to
+  // stay under the max-params lint cap.
+  volumeFileOptions?: { creates: ChapterCreate[]; mangaId: number },
 ): boolean {
   if (!fileInfo.isVolumeFile || fileInfo.volumeNumber === null) return false;
 
@@ -242,6 +272,20 @@ export function tryLinkVolumeToCompletedChapters(
 
   for (const ch of completedChapters) {
     updates.push({ id: ch.id, fileName: fileInfo.fileName, filePath: fileInfo.file, size: fileInfo.size });
+  }
+  if (volumeFileOptions && completedChapters.length > 1) {
+    volumeFileOptions.creates.push({
+      mangaId: volumeFileOptions.mangaId,
+      fileName: fileInfo.fileName,
+      filePath: fileInfo.file,
+      fileFormat: normalizeFileFormat(fileInfo.fileName),
+      index: 100000 + (fileInfo.volumeNumber * 100),
+      title: '',
+      size: fileInfo.size,
+      downloadStatus: ChapterStatus.COMPLETED,
+      volume: fileInfo.volumeNumber,
+      updatedAt: new Date(),
+    });
   }
   completedByVolume.delete(fileInfo.volumeNumber);
   return true;
