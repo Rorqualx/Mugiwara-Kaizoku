@@ -5,7 +5,9 @@
  */
 import React from 'react';
 
-import { Badge, Group, Image, Paper, SimpleGrid, Skeleton, Stack, Text } from '@mantine/core';
+import { Badge, Group, Paper, SimpleGrid, Skeleton, Stack, Text } from '@mantine/core';
+
+import { MangaCover } from '@/components/manga/MangaCover';
 
 import type { AniListSearchResult } from './anilist-helpers';
 
@@ -32,7 +34,7 @@ function AniListResultCard({ result, onSelect }: AniListResultCardProps): React.
       onMouseLeave={(e) => { Object.assign(e.currentTarget.style, { transform: '', boxShadow: '' }); }}
       onClick={() => onSelect(result)}
     >
-      <Image src={cover} alt={title} h={200} fallbackSrc="https://placehold.co/200x280?text=No+Cover" />
+      <MangaCover src={cover ?? ''} alt={title} h={200} seed={result.id} fallbackSrc="https://placehold.co/200x280?text=No+Cover" />
       <Stack gap={4} p="xs">
         <Text size="sm" fw={600} lineClamp={2} lh={1.3}>{title}</Text>
         {result.genres.length > 0 && (

@@ -1,10 +1,11 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import React, { useMemo, useState } from 'react';
 
-import { Card, Group, Text, Badge, Stack, Image, Progress, Button, Collapse, Divider, ActionIcon, Checkbox, ScrollArea } from '@mantine/core';
+import { Card, Group, Text, Badge, Stack, Progress, Button, Collapse, Divider, ActionIcon, Checkbox, ScrollArea } from '@mantine/core';
 import { MangaPublicationStatus, ChapterStatus } from '@prisma/client';
 import { IconChevronDown, IconChevronUp, IconDownload, IconCheck, IconBook, IconRefresh, IconTrash } from '@tabler/icons-react';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useLibraryViewStore } from '@/store/index';
 import { toStringId } from '@/utils/id-converters';
@@ -331,7 +332,7 @@ function MangaDetailCard({
           )}
 
           {/* Cover image */}
-          {showCovers && <Image src={coverUrl} alt={manga["title"]} width={120} height={180} radius="sm" style={{
+          {showCovers && <MangaCover src={coverUrl} alt={manga["title"]} w={120} h={180} radius="sm" seed={manga["id"]} style={{
           cursor: 'pointer'
         }} onClick={() => { void onNavigate(); }} />}
           

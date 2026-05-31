@@ -7,10 +7,11 @@
 
 import React from 'react';
 
-import { Badge, Box, Center, Group, Image, Paper, ScrollArea, Stack, Text, Title } from '@mantine/core';
+import { Badge, Box, Center, Group, Paper, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { IconCalendarOff } from '@tabler/icons-react';
 import Link from 'next/link';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import { trpc } from '@/utils/trpc-client';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -85,7 +86,7 @@ function MangaCard({ manga }: { manga: MonitoredManga }): React.ReactElement {
       <Paper radius="md" bg="dark.6" style={{ overflow: 'hidden', cursor: 'pointer' }}>
         <Box style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
           <Box style={{ position: 'relative', flexShrink: 0 }}>
-            <Image src={manga.cover} alt={manga.title} w={80} h={110} fit="cover" />
+            <MangaCover src={manga.cover} alt={manga.title} w={80} h={110} seed={manga.id} />
             <Badge size="xs" variant="filled" color={statusColor}
               style={{ position: 'absolute', top: 4, left: 4 }}>
               {manga.status}

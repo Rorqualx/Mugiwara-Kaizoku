@@ -18,6 +18,7 @@ export function useLibraryActionBarState(): LibraryActionBarState {
   const showCovers = useLibraryViewStore((state) => state.showCovers);
   const showProgress = useLibraryViewStore((state) => state.showProgress);
   const coverSize = useLibraryViewStore((state) => state.coverSize);
+  const animatedCovers = useLibraryViewStore((state) => state.animatedCovers);
 
   // Advanced options from store
   const autoDownloadNewChapters = useLibraryViewStore((state) => state.autoDownloadNewChapters);
@@ -32,6 +33,7 @@ export function useLibraryActionBarState(): LibraryActionBarState {
   const toggleFilter = useLibraryViewStore((state) => state.toggleFilter);
   const toggleShowCovers = useLibraryViewStore((state) => state.toggleShowCovers);
   const toggleShowProgress = useLibraryViewStore((state) => state.toggleShowProgress);
+  const toggleAnimatedCovers = useLibraryViewStore((state) => state.toggleAnimatedCovers);
   const setCoverSize = useLibraryViewStore((state) => state.setCoverSize);
   const setAutoDownloadNewChapters = useLibraryViewStore((state) => state.setAutoDownloadNewChapters);
   const setSendUpdateNotifications = useLibraryViewStore((state) => state.setSendUpdateNotifications);
@@ -47,6 +49,7 @@ export function useLibraryActionBarState(): LibraryActionBarState {
     showCovers,
     showProgress,
     coverSize,
+    animatedCovers,
 
     // Advanced options
     autoDownloadNewChapters,
@@ -61,6 +64,7 @@ export function useLibraryActionBarState(): LibraryActionBarState {
     toggleFilter,
     toggleShowCovers,
     toggleShowProgress,
+    toggleAnimatedCovers,
     setCoverSize,
     setAutoDownloadNewChapters,
     setSendUpdateNotifications,

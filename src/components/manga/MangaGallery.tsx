@@ -18,6 +18,8 @@ import {
 } from '@mantine/core';
 import { IconX, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 
+import { MangaCover } from '@/components/manga/MangaCover';
+
 export interface MangaGalleryProps {
   /** Array of image URLs to display */
   images: string[];
@@ -78,11 +80,11 @@ export function MangaGallery({ images, title: _title }: MangaGalleryProps): Reac
             }}
             onClick={() => setSelectedImageIndex(index)}
           >
-            <Image
+            <MangaCover
               src={imageUrl}
               alt={`Gallery image ${index + 1}`}
-              height={200}
-              fit="cover"
+              h={200}
+              seed={imageUrl}
               fallbackSrc="/cover-not-found.jpg"
             />
           </Paper>

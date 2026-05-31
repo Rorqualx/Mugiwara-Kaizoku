@@ -25,8 +25,9 @@
 
 import * as React from 'react';
 
-import { Box, Group, Image, LoadingOverlay, Title } from '@mantine/core';
+import { Box, Group, LoadingOverlay, Title } from '@mantine/core';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import { isLoading } from '@/utils/async-result';
 
 
@@ -98,15 +99,11 @@ export function MangaDetailBanner({
               width: '280px',
               maxWidth: '100%'
             }}>
-            <Image
+            <MangaCover
               src={coverUrl}
               alt={manga.title}
-              style={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '400px',
-                objectFit: 'cover'
-              }}
+              seed={coverUrl}
+              style={{ maxHeight: '400px' }}
             />
           </Box>
 

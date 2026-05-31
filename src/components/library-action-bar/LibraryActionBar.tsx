@@ -140,9 +140,11 @@ export function LibraryActionBar({
             viewType={state.viewType}
             showCovers={state.showCovers}
             showProgress={state.showProgress}
+            animatedCovers={state.animatedCovers}
             onViewChange={handleViewChange}
             onToggleCovers={state.toggleShowCovers}
             onToggleProgress={state.toggleShowProgress}
+            onToggleAnimatedCovers={state.toggleAnimatedCovers}
           />
 
           <SortMenu

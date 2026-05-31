@@ -12,6 +12,7 @@ import {
   IconLayoutList,
   IconPhoto,
   IconChartBar,
+  IconPlayerPlay,
 } from '@tabler/icons-react';
 
 import type { ViewType } from '@/store/index';
@@ -28,9 +29,11 @@ export function ViewMenu({
   viewType,
   showCovers,
   showProgress,
+  animatedCovers,
   onViewChange,
   onToggleCovers,
   onToggleProgress,
+  onToggleAnimatedCovers,
 }: ViewMenuProps): React.JSX.Element {
   const handleViewChange = (view: ViewType): void => {
     onViewChange(view);
@@ -85,6 +88,13 @@ export function ViewMenu({
           {...(showProgress && { color: 'blue' })}
         >
           Show Progress
+        </Menu.Item>
+        <Menu.Item
+          leftSection={<IconPlayerPlay size={14} />}
+          onClick={onToggleAnimatedCovers}
+          {...(animatedCovers && { color: 'blue' })}
+        >
+          Animated Covers
         </Menu.Item>
       </Menu.Dropdown>
     </Menu>

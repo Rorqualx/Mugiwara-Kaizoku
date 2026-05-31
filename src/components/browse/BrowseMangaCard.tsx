@@ -7,10 +7,11 @@
 
 import React from 'react';
 
-import { Badge, Group, Image, Paper, Stack, Text } from '@mantine/core';
+import { Badge, Group, Paper, Stack, Text } from '@mantine/core';
 import { IconStar } from '@tabler/icons-react';
 import Link from 'next/link';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import { getCoverUrl } from '@/utils/cover-url';
 
 export interface BrowseManga {
@@ -66,7 +67,7 @@ export function BrowseMangaCard({ manga, secondaryField = 'author' }: BrowseMang
     <Link href={`/manga/${manga.id}`} style={{ textDecoration: 'none' }}>
       <Paper shadow="sm" radius="md" style={{ overflow: 'hidden', cursor: 'pointer' }}>
         <div style={{ position: 'relative' }}>
-          <Image src={cover} alt={manga.title} h={270} fit="cover" />
+          <MangaCover src={cover} alt={manga.title} h={270} seed={manga.id} />
           {score !== null && score !== undefined && score > 0 && (
             <Badge size="sm" variant="filled" color="dark"
               style={{ position: 'absolute', top: 6, right: 6, opacity: 0.9 }}

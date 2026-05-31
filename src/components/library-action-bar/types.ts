@@ -38,6 +38,7 @@ export interface LibraryActionBarState {
   showCovers: boolean;
   showProgress: boolean;
   coverSize: CoverSize;
+  animatedCovers: boolean;
 
   // Advanced options from store
   autoDownloadNewChapters: boolean;
@@ -52,6 +53,7 @@ export interface LibraryActionBarState {
   toggleFilter: (filter: FilterOption) => void;
   toggleShowCovers: () => void;
   toggleShowProgress: () => void;
+  toggleAnimatedCovers: () => void;
   setCoverSize: (size: CoverSize) => void;
   setAutoDownloadNewChapters: (value: boolean) => void;
   setSendUpdateNotifications: (value: boolean) => void;
@@ -83,9 +85,11 @@ export interface ViewMenuProps extends MenuComponentProps {
   viewType: ViewType;
   showCovers: boolean;
   showProgress: boolean;
+  animatedCovers: boolean;
   onViewChange: (view: ViewType) => void;
   onToggleCovers: () => void;
   onToggleProgress: () => void;
+  onToggleAnimatedCovers: () => void;
 }
 
 /**

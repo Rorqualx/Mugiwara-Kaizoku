@@ -10,8 +10,9 @@
 
 import * as React from 'react';
 
-import { Card, Image, Stack } from '@mantine/core';
+import { Card, Stack } from '@mantine/core';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import type { SearchResult } from '@/types/search.types';
 import type { AsyncResult } from '@/utils/async-result';
 import {
@@ -31,8 +32,7 @@ import {
   LoadingCard,
   ErrorCard,
   getExternalLinkSafe,
-  getCoverUrl,
-  handleImageError
+  getCoverUrl
 } from './search-result-card';
 
 /**
@@ -132,11 +132,11 @@ export function SearchResultCard({
       }}
     >
       <Card.Section>
-        <Image
+        <MangaCover
           src={coverUrl}
           h={200}
           alt={result.title}
-          onError={handleImageError}
+          seed={result.title}
         />
       </Card.Section>
 

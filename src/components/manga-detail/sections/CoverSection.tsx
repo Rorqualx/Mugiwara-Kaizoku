@@ -8,7 +8,9 @@
 
 import React from 'react';
 
-import { Box, Image } from '@mantine/core';
+import { Box } from '@mantine/core';
+
+import { MangaCover } from '@/components/manga/MangaCover';
 
 import type { MangaWithMetadataAndChapters } from '../types';
 
@@ -35,10 +37,11 @@ export function CoverSection({ manga }: CoverSectionProps): React.ReactElement {
         }
       }}
     >
-      <Image
+      <MangaCover
         src={manga.metadata.cover ?? '/cover-not-found.jpg'}
         alt={manga.title}
         radius="md"
+        seed={manga.title}
         style={{
           boxShadow: 'var(--mantine-shadow-xl)'
         }}

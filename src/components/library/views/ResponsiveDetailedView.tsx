@@ -11,10 +11,11 @@
 
 import React, { useMemo, useState } from 'react';
 
-import { Stack, Card, Group, Text, Badge, ActionIcon, Progress, ScrollArea, Checkbox, Button, Collapse, Image, Box, Menu } from '@mantine/core';
+import { Stack, Card, Group, Text, Badge, ActionIcon, Progress, ScrollArea, Checkbox, Button, Collapse, Box, Menu } from '@mantine/core';
 import { MangaPublicationStatus } from '@prisma/client';
 import { IconRefresh, IconEye, IconDots, IconChevronDown, IconChevronUp, IconUser, IconTags } from '@tabler/icons-react';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import { useBreakpoint } from '@/hooks/mobile';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useLibraryViewStore } from '@/store/index';
@@ -83,12 +84,13 @@ function CoverImage({ manga, showCovers, coverDimensions, onNavigate }: CoverIma
 
   return (
     <Box>
-      <Image
+      <MangaCover
         src={coverUrl}
         alt={manga.title}
-        width={coverDimensions.width}
-        height={coverDimensions.height}
+        w={coverDimensions.width}
+        h={coverDimensions.height}
         radius="sm"
+        seed={manga.id}
         fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23f0f0f0'/%3E%3C/svg%3E"
         onClick={() => { void onNavigate(manga.id); }}
         style={{ cursor: 'pointer' }}

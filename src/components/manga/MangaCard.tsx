@@ -50,9 +50,12 @@ import type { MangaWithRelations} from '@/types/search.types';
 import { getCoverUrl } from '@/utils/cover-url';
 import { extractAllFields, calculateCompleteness } from '@/utils/metadata-field-mapping';
 
+
 import { useRefreshModal } from '../refreshMetadata';
 import { useRemoveModal } from '../removeManga';
 import { useUpdateModal } from '../updateManga';
+
+import { MangaCover } from './MangaCover';
 
 /**
  * Props for the MangaCard component
@@ -150,13 +153,18 @@ export function MangaCard({ manga, onRemove, onUpdate, onRefresh, onClick }: Man
           flexDirection: 'column',
           justifyContent: 'flex-start',
           alignItems: 'flex-start',
-          backgroundSize: 'cover',
           backgroundColor: '#f0f0f0',
-          backgroundPosition: 'center',
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.2)), url(${coverUrl})`,
+          overflow: 'hidden',
         }}
       >
-        <Group justify="space-between" w="100%" mb="xs">
+        <MangaCover
+          fill
+          withOverlay
+          src={coverUrl}
+          alt={manga["title"]}
+          seed={manga["id"]}
+        />
+        <Group justify="space-between" w="100%" mb="xs" pos="relative" style={{ zIndex: 1 }}>
           <Group gap="xs">
             <Badge 
               size="xs" 

@@ -171,6 +171,7 @@ export type LibraryViewStateData = {
   showCovers: boolean;
   showProgress: boolean;
   coverSize: CoverSize;
+  animatedCovers: boolean;
   
   // Advanced options
   autoDownloadNewChapters: boolean;
@@ -223,8 +224,10 @@ export type LibraryViewActions = {
   setShowCovers: (show: boolean) => void;
   setShowProgress: (show: boolean) => void;
   setCoverSize: (size: CoverSize) => void;
+  setAnimatedCovers: (enabled: boolean) => void;
   toggleShowCovers: () => void;
   toggleShowProgress: () => void;
+  toggleAnimatedCovers: () => void;
   
   // Advanced options
   setAutoDownloadNewChapters: (enabled: boolean) => void;
@@ -272,6 +275,7 @@ const initialState: LibraryViewStateData = {
   showCovers: true,
   showProgress: true,
   coverSize: 'medium',
+  animatedCovers: true,
   autoDownloadNewChapters: false,
   sendUpdateNotifications: false,
   autoMarkAsRead: false,
@@ -508,7 +512,17 @@ export const useLibraryViewStore = createAppSlice<
     set((state) => {
       state.coverSize = size;
     }),
-  
+
+  setAnimatedCovers: (enabled: boolean) =>
+    set((state) => {
+      state.animatedCovers = enabled;
+    }),
+
+  toggleAnimatedCovers: () =>
+    set((state) => {
+      state.animatedCovers = !state.animatedCovers;
+    }),
+
   // Advanced options
   setAutoDownloadNewChapters: (enabled: boolean) =>
     set((state) => {

@@ -8,7 +8,7 @@
  * - Mobile-friendly interactions
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { Badge, Box, Text, ActionIcon, Group } from '@mantine/core';
 import { IconEdit, IconRefresh, IconTrash } from '@tabler/icons-react';
@@ -18,6 +18,7 @@ import { useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations} from '@/types/search.types';
 import { getCoverUrl } from '@/utils/cover-url';
 
+import { MangaCover } from '../manga/MangaCover';
 import { useUpdateModal } from '../updateManga';
 
 import { MangaProgressBar } from './MangaProgressBar';
@@ -64,7 +65,6 @@ export function ResponsiveMangaCard({
   showMobileActions = true,
 }: ResponsiveMangaCardProps): React.ReactElement {
   const { isMobile, isTablet } = useBreakpoint();
-  const [imageError, setImageError] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const showProgress = useLibraryViewStore((s) => s.showProgress);
 
@@ -103,20 +103,8 @@ export function ResponsiveMangaCard({
     };
   }, [manga]);
 
-  // Single-path cover probe: the card renders coverUrl as a CSS background; a
-  // one-shot Image() probe detects load failure so we can swap to the dark
-  // gradient fallback. Previously we also mounted a hidden <img> for the same
-  // purpose, doubling network traffic per card.
-  useEffect(() => {
-    if (!coverUrl) return;
-    setImageError(false);
-    const probe = new window.Image();
-    let cancelled = false;
-    const handleError = (): void => { if (!cancelled) setImageError(true); };
-    probe.addEventListener('error', handleError);
-    probe.src = coverUrl;
-    return () => { cancelled = true; probe.removeEventListener('error', handleError); };
-  }, [coverUrl]);
+  // Cover load-failure handling now lives inside <MangaCover>, which swaps to
+  // its fallback image on error — no separate Image() probe needed.
 
   const updateModalReturn = useUpdateModal({
     manga,
@@ -174,16 +162,19 @@ export function ResponsiveMangaCard({
           flexDirection: 'column',
           justifyContent: 'flex-start',
           alignItems: 'flex-start',
-          backgroundSize: 'cover',
           backgroundColor: '#f0f0f0',
-          backgroundPosition: 'center',
-          backgroundImage: imageError ?
-          'linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.2))' :
-          `linear-gradient(rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.2)), url(${coverUrl})`,
           overflow: 'hidden'
         }}>
 
-        <Group justify="space-between" w="100%" mb="xs">
+        <MangaCover
+          fill
+          withOverlay
+          src={coverUrl}
+          alt={manga["title"]}
+          seed={manga["id"]}
+        />
+
+        <Group justify="space-between" w="100%" mb="xs" pos="relative" style={{ zIndex: 1 }}>
           <Badge
             size={isMobile ? 'xs' : 'sm'}
             variant="filled"

@@ -24,8 +24,7 @@ import {
   Tooltip,
   ActionIcon,
   Collapse,
-  Button,
-  Image
+  Button
 } from '@mantine/core';
 import {
   IconSearch,
@@ -35,6 +34,7 @@ import {
   IconPhoto
 } from '@tabler/icons-react';
 
+import { MangaCover } from '@/components/manga/MangaCover';
 import { getProviderUrl } from '@/components/manga/mangaDetailUtils';
 import { getCoverUrl } from '@/utils/cover-url';
 
@@ -317,10 +317,11 @@ export function CoverSection({
         }}
         onClick={() => setIsCoverSelectorOpen(true)}
       >
-        <Image
+        <MangaCover
+          fill
           src={getCoverImageUrl(manga)}
           alt={manga['title']}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          seed={manga['title']}
         />
 
         <Box
