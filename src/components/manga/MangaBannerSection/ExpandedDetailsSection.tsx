@@ -22,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 
 import { MangaGallery } from '@/components/manga/MangaGallery';
+import { RelatedWorksCarousel } from '@/components/manga/related-works';
 import { logger } from '@/utils/logger';
 
 import type { ExternalLink, MangaMetadata, MangaWithRelations } from './types';
@@ -404,6 +405,7 @@ export function ExpandedDetailsSection({
       <SeriesPathSection manga={manga} />
       <PublicationDatesSection extractedMetadata={extractedMetadata} />
       <AniListStatsSection extractedMetadata={extractedMetadata} />
+      <RelatedWorksCarousel mangaId={manga.id} />
       <AlternativeTitlesSection manga={manga} />
       <ProviderLinksSection manga={manga} />
       <ExternalLinksSection manga={manga} />

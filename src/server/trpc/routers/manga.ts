@@ -8,6 +8,7 @@ import { importRouter } from './manga/importOperations';
 import { metadataRouter } from './manga/metadataOperations';
 import { monitoringRouter } from './manga/monitoringOperations';
 import { providerRouter } from './manga/providerOperations';
+import { relationsRouter } from './manga/relationsOperations';
 import { searchRouter } from './manga/searchOperations';
 import { suwayomiMangaRouter } from './manga/suwayomi';
 
@@ -34,5 +35,6 @@ export const mangaRouter = router({
   ...bookmarkRouter._def.procedures,
   ...chapterRouter._def.procedures,
   ...importRouter._def.procedures,
+  ...relationsRouter._def.procedures,
   ...suwayomiMangaRouter._def.procedures,
 });

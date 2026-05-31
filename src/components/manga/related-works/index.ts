@@ -1,0 +1,1 @@
+export { RelatedWorksCarousel } from './RelatedWorksCarousel';
