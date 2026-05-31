@@ -46,6 +46,7 @@ import { filterProwlarrCandidatesToScope } from '@/server/services/library/relea
 import { mangadexConfigService } from '@/server/services/mangadex/configService';
 import { isPreferredLanguage } from '@/server/services/mangadex/language-match';
 import { scoreAndSortResults, selectBestResult } from '@/server/services/quickDownload/scoringAlgorithm';
+import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import type { ProwlarrSearchResult } from '@/types/prowlarr';
 import type { QuickDownloadCriteria } from '@/types/quickDownload.types';
 import { DEFAULT_QUICK_DOWNLOAD_CRITERIA } from '@/types/quickDownload.types';
@@ -850,6 +851,21 @@ export async function runUnifiedReleaseSearch(
     mangaId,
     options.scope ? { scope: options.scope } : undefined,
   );
+
+  // Bridge the silent gap between indexer-search returning and the dispatch
+  // loop completing. The toast otherwise freezes on the last per-source
+  // count for several seconds on bulk runs (e.g. 153 chapters), which looks
+  // identical to a hung request. mangaTitle is intentionally omitted —
+  // `runUnifiedReleaseSearch` doesn't have it handy and the hook routes by
+  // mangaId; the field is display-only.
+  void realtimeEmitter.emitSearchProgress({
+    mangaId,
+    phase: 'dispatching',
+    message: `Dispatching ${missing.length} chapter${missing.length === 1 ? '' : 's'} across enabled clients…`,
+    totalCount: missing.length,
+    resultCount: candidates.length,
+  });
+
   const prowlarrCands = candidates.filter(c => c.source === 'prowlarr');
   const prowlarrCoverage = estimateProwlarrCoverage(prowlarrCands);
   const [inFlight, failedSourcesByChapterId, mediaType, preferredLanguage, downloadMode] = await Promise.all([

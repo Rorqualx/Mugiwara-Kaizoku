@@ -189,8 +189,13 @@ export type SearchSource = 'mangadex' | 'suwayomi' | 'prowlarr' | 'getcomics';
 
 export interface SearchProgressPayload {
   mangaId: number;
-  mangaTitle: string;
-  phase: 'searching' | 'source-result' | 'complete' | 'error';
+  /** Display-only; not used for routing. Optional so deep callers
+   *  (e.g. `runUnifiedReleaseSearch`) can emit without an extra DB hit. */
+  mangaTitle?: string | undefined;
+  /** `dispatching` covers the post-indexer-search window — scoring,
+   *  in-flight checks, native enqueue, Prowlarr manual iteration — which
+   *  used to freeze the toast for many seconds on bulk runs. */
+  phase: 'searching' | 'source-result' | 'dispatching' | 'complete' | 'error';
   message: string;
   /** Set on phase='searching' to declare the enabled+mediaType-gated source list. */
   sources?: SearchSource[] | undefined;
