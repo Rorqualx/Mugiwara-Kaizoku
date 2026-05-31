@@ -15,6 +15,7 @@ import { PIPELINE_EVENTS } from '@/types/domain/pipeline-events';
 import { createSuccessResult, createErrorResult, isSuccess, isError } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
+import { extractBtihFromMagnet } from '@/utils/magnet';
 
 import { ClientDownloadService } from '../clientDownload';
 
@@ -24,23 +25,6 @@ import { isMangaWithTitle, extractDownloadUrl } from './utils';
 
 import type { DownloadPayload, PackDownloadParams } from './types';
 import type { Prisma, jobs, PrismaClient } from '@prisma/client';
-
-/**
- * Pull the BitTorrent infohash (BTIH) out of a magnet URI for blocklist
- * hashing. Hex (SHA-1, 40 chars) and base32 (32 chars) are both accepted;
- * the v1 prefix `urn:btih:` is the only one we look for — v2 (`urn:btmh:`)
- * isn't supported by any indexer we currently dispatch to. Lowercases for
- * consistent storage so a hex/base32 case mismatch can't bypass a block.
- *
- * Exported for unit testing.
- */
-const MAGNET_BTIH_PATTERN = /xt=urn:btih:([a-f0-9]{40}|[a-z2-7]{32})/i;
-
-export function extractBtihFromMagnet(url: string): string | undefined {
-    if (!url.startsWith('magnet:')) return undefined;
-    const match = MAGNET_BTIH_PATTERN.exec(url);
-    return match?.[1]?.toLowerCase();
-}
 
 /**
  * Build blocklist error message with alternatives

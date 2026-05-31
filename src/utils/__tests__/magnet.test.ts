@@ -1,14 +1,14 @@
 /**
- * Regression tests for the prowlarr-handler BTIH extractor.
+ * Regression tests for the shared magnet helpers.
  *
- * The dispatcher feeds the extracted hash into ReleaseIdentifier.releaseHash
- * so blocks-by-hash actually gate a retrigger (otherwise the blocklist
- * checker can only match by title/pattern/group).
+ * Both the dispatcher (`prowlarr-handler`) and the UI's Cancel & Blocklist
+ * (`pages/jobs/active.tsx`) normalize hashes through these helpers, so a
+ * regression here silently breaks hash-based blocking on either side.
  */
 
 import { describe, it, expect } from '@jest/globals';
 
-import { extractBtihFromMagnet } from '../prowlarr-handler';
+import { extractBtihFromMagnet, normalizeReleaseHashForStorage } from '../magnet';
 
 describe('extractBtihFromMagnet', () => {
   it('pulls a 40-char hex BTIH out of a single-tracker magnet', () => {
@@ -56,5 +56,26 @@ describe('extractBtihFromMagnet', () => {
   it('returns undefined when the magnet has no xt=urn:btih clause', () => {
     // Spec-malformed magnet (no xt) — defensive: don't throw, just no-op.
     expect(extractBtihFromMagnet('magnet:?dn=something&tr=udp%3A%2F%2Ftracker')).toBeUndefined();
+  });
+});
+
+describe('normalizeReleaseHashForStorage', () => {
+  it('returns the BTIH when input is a magnet URI (write-side ↔ lookup-side parity)', () => {
+    const magnet = 'magnet:?xt=urn:btih:92f673a0a573cfd2fd117b22574e7d2147da71bd&dn=foo';
+    expect(normalizeReleaseHashForStorage(magnet)).toBe('92f673a0a573cfd2fd117b22574e7d2147da71bd');
+  });
+
+  it('returns undefined for null / undefined / empty inputs', () => {
+    expect(normalizeReleaseHashForStorage(null)).toBeUndefined();
+    expect(normalizeReleaseHashForStorage(undefined)).toBeUndefined();
+    expect(normalizeReleaseHashForStorage('')).toBeUndefined();
+  });
+
+  it('returns undefined for non-magnet URLs (Usenet/DDL release sources)', () => {
+    // Auto-block used to base64-truncate these into the hash column — a
+    // signature that never matched the dispatcher's BTIH lookup. We now
+    // store no hash at all and rely on title/group/pattern matching.
+    expect(normalizeReleaseHashForStorage('https://example.com/release.nzb')).toBeUndefined();
+    expect(normalizeReleaseHashForStorage('http://prowlarr.local/download?id=42')).toBeUndefined();
   });
 });

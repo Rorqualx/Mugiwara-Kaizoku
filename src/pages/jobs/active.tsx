@@ -35,6 +35,7 @@ import { useJobQueries, useJobMutations, type JobMutationsReturn } from '@/hooks
 import { useTrackedDownloads } from '@/hooks/useTrackedDownloads';
 import { useRealTime } from '@/providers/RealTimeProvider';
 import { mapChaptersForImport, getSavePath } from '@/utils/jobs/completed-utils';
+import { extractBtihFromMagnet } from '@/utils/magnet';
 import { trpc } from '@/utils/trpc-client/index';
 
 type JobTab = 'all' | 'active' | 'completed' | 'failed';
@@ -63,17 +64,23 @@ function extractReleaseHints(data: JobRowData): { guid?: string; indexerId?: str
 }
 
 /** Block the release first, then cancel — independent of each other so a
- *  block-failure (e.g. duplicate) still cancels the job. */
+ *  block-failure (e.g. duplicate) still cancels the job.
+ *
+ *  Normalize the `releaseHash` field to the magnet BTIH up-front so the
+ *  dispatcher's lookup (which extracts BTIH from the post-redirect
+ *  downloadUrl) actually matches on retrigger. Before Fix 1.1 this was
+ *  the full magnet URL string and silently never matched. */
 async function runCancelAndBlock(
   data: JobRowData,
   blockRelease: JobMutationsReturn['blockRelease'],
   cancelTask: JobMutationsReturn['cancelTask'],
 ): Promise<void> {
   const hints = extractReleaseHints(data);
+  const releaseHash = hints.guid !== undefined ? extractBtihFromMagnet(hints.guid) : undefined;
   await blockRelease.mutateAsync({
     release: {
       releaseTitle: data.fileName,
-      ...(hints.guid !== undefined ? { releaseHash: hints.guid } : {}),
+      ...(releaseHash !== undefined ? { releaseHash } : {}),
       ...(hints.indexerId !== undefined ? { indexerId: hints.indexerId } : {}),
       ...(data.mangaId !== undefined ? { mangaId: data.mangaId } : {}),
       ...(hints.source !== undefined ? { source: hints.source } : {}),

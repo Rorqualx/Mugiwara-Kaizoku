@@ -14,6 +14,7 @@ import type { AsyncResult } from '@/utils/async-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
+import { normalizeReleaseHashForStorage } from '@/utils/magnet';
 
 
 import {
@@ -70,10 +71,17 @@ export async function blockRelease(
     // Create blocklist entry. `source` scopes the entry so a manga-source
     // block doesn't cross-pollute releases from another source (e.g. a
     // Prowlarr-blocked title doesn't suppress a GetComics release).
+    //
+    // The hash column stores the canonical BTIH (matches what the
+    // dispatcher's checkByHash extracts from the resolved downloadUrl).
+    // `normalizeReleaseHashForStorage` defensively strips a magnet URL
+    // wrapper if a caller passes one — pre-Fix 1.1 the UI did exactly
+    // that, leaving hash-based gating silently dead.
+    const normalizedHash = normalizeReleaseHashForStorage(input.release.releaseHash);
     await prisma.releaseBlocklist.create({
       data: {
         title: input.release.releaseTitle,
-        hash: input.release.releaseHash ?? null,
+        hash: normalizedHash ?? null,
         mangaId: mangaId,
         source: input.source ?? input.release.source ?? null,
         reason: input.reason,
@@ -144,10 +152,11 @@ export async function autoBlockFailedRelease(
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiryDays);
 
-    // Generate a hash from the release URL for matching
-    const releaseHash = releaseUrl
-      ? Buffer.from(releaseUrl).toString('base64').substring(0, 64)
-      : null;
+    // Extract the BTIH so the stored hash matches what the dispatcher's
+    // checkByHash extracts from a future retrigger. Non-magnet release
+    // URLs (Usenet/DDL) get null — title/group/pattern still gates those,
+    // and the prior base64-of-URL signature never matched anyway.
+    const releaseHash = normalizeReleaseHashForStorage(releaseUrl) ?? null;
 
     // Check if already blocklisted to avoid duplicates
     const existing = await prisma.releaseBlocklist.findFirst({
