@@ -42,19 +42,21 @@ export interface BlocklistCheckResult {
   alternatives?: ReleaseIdentifier[];
 }
 
+/**
+ * Input shape consumed by `blocklist-manager.blockRelease`.
+ *
+ * The release identifier is REQUIRED and must be nested under `release` —
+ * the manager only reads `input.release.*`. A flat top-level shape (legacy
+ * leftover) silently failed validation with "Invalid release identifier"
+ * and dropped the jobs-page "Cancel & Blocklist" action on the floor.
+ */
 export interface AddReleaseBlocklistInput {
-  releaseTitle: string;
+  release: ReleaseIdentifier;
   reason: ReleaseBlocklistReason;
-  indexerId?: string;
-  source?: string;
-  mangaId?: number;
-  chapterIds?: number[];
-  autoBlocked?: boolean;
-  details?: string;
-  release?: ReleaseIdentifier;
   reasonDetails?: string;
   blockPattern?: string;
   releaseGroup?: string;
+  source?: string;
   metrics?: ReleaseQualityMetrics;
 }
 

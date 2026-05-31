@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { getReleaseBlocklistService } from '@/server/services/releaseBlocklistService';
+import type { AddReleaseBlocklistInput } from '@/server/services/releaseBlocklistService';
 import { isSuccess, isError } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 
@@ -73,18 +74,22 @@ export const releaseBlocklistRouter = router({
   block: protectedProcedure.input(addBlocklistSchema).mutation(async ({ input, ctx }) => {
     const service = getReleaseBlocklistService(prisma);
     const userId = ctx.user.id;
-    // Transform input to match AddReleaseBlocklistInput with exactOptionalPropertyTypes
-    const blocklistInput = {
-      releaseTitle: input.release.releaseTitle,
+    // blocklist-manager validates `input.release`, so the identifier must be
+    // nested — a flat shape silently fails with "Invalid release identifier"
+    // and the cancel-and-blocklist jobs action drops the block on the floor.
+    const blocklistInput: AddReleaseBlocklistInput = {
+      release: {
+        releaseTitle: input.release.releaseTitle,
+        ...(input.release.releaseHash !== undefined ? { releaseHash: input.release.releaseHash } : {}),
+        ...(input.release.indexerId !== undefined ? { indexerId: input.release.indexerId } : {}),
+        ...(input.release.mangaId !== undefined ? { mangaId: input.release.mangaId } : {}),
+        ...(input.release.chapterNumber !== undefined ? { chapterNumber: Number(input.release.chapterNumber) } : {}),
+        ...(input.release.source !== undefined ? { source: input.release.source } : {}),
+      },
       reason: input.reason,
-      ...(input.release.releaseHash !== undefined ? { releaseHash: input.release.releaseHash } : {}),
-      ...(input.release.indexerId !== undefined ? { indexerId: input.release.indexerId } : {}),
-      ...(input.release.mangaId !== undefined ? { mangaId: input.release.mangaId } : {}),
-      ...(input.release.chapterNumber !== undefined ? { chapterNumber: Number(input.release.chapterNumber) } : {}),
-      ...(input.release.source !== undefined ? { source: input.release.source } : {}),
       ...(input.reasonDetails !== undefined ? { reasonDetails: input.reasonDetails } : {}),
       ...(input.blockPattern !== undefined ? { blockPattern: input.blockPattern } : {}),
-      ...(input.releaseGroup !== undefined ? { releaseGroup: input.releaseGroup } : {})
+      ...(input.releaseGroup !== undefined ? { releaseGroup: input.releaseGroup } : {}),
     };
     const result = await service.blockRelease(blocklistInput, userId);
     if (isError(result)) {
