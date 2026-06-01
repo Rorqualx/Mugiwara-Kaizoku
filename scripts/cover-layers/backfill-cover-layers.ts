@@ -16,6 +16,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+import { prisma } from '@/server/db';
 import { layerizeCover } from '@/server/services/coverLayers/coverLayerizer';
 import { logger } from '@/utils/logger';
 
@@ -42,6 +43,16 @@ async function discoverCoverIds(): Promise<number[]> {
   return [...ids].sort((a, b) => a - b);
 }
 
+/** Manga ids from the DB — the real grid manga (covers resolved/downloaded by the layerizer). */
+async function discoverDbIds(libraryId?: number): Promise<number[]> {
+  const rows = await prisma.manga.findMany({
+    where: libraryId !== undefined ? { libraryId } : {},
+    select: { id: true },
+    orderBy: { id: 'asc' },
+  });
+  return rows.map((r) => r.id);
+}
+
 async function runPool(ids: number[], force: boolean, concurrency: number): Promise<void> {
   const counts: Record<string, number> = { layered: 0, flat: 0, skipped: 0, failed: 0 };
   let cursor = 0;
@@ -66,7 +77,17 @@ async function main(): Promise<void> {
   const concurrency = arg('concurrency') !== undefined ? Number(arg('concurrency')) : 2;
   const force = hasFlag('force');
 
-  let ids = idsArg !== undefined ? idsArg.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n)) : await discoverCoverIds();
+  const libraryArg = arg('library');
+  let ids: number[];
+  if (idsArg !== undefined) {
+    ids = idsArg.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+  } else if (libraryArg !== undefined) {
+    ids = await discoverDbIds(Number(libraryArg));
+  } else if (hasFlag('db')) {
+    ids = await discoverDbIds();
+  } else {
+    ids = await discoverCoverIds();
+  }
   if (limit !== undefined) {
     ids = ids.slice(0, limit);
   }

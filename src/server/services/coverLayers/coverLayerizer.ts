@@ -50,12 +50,16 @@ function scriptPath(): string {
   return path.join(dir, 'layerize.py');
 }
 
-/** Locates the cached cover file for a manga, if any. */
-async function findCoverFile(mangaId: number): Promise<string | null> {
-  const coverDir = path.join(cacheBaseDir(), 'covers');
+/** Cache for covers the layerizer downloaded itself (kept apart from the local-cover cache). */
+function coverSrcDir(): string {
+  return path.join(cacheBaseDir(), 'cover-layers-src');
+}
+
+/** Finds a `manga-<id>.<ext>` file in `dir`, trying each supported extension. */
+async function findInDir(dir: string, mangaId: number): Promise<string | null> {
   const checks = await Promise.all(
     COVER_EXTENSIONS.map(async (ext): Promise<string | null> => {
-      const candidate = path.join(coverDir, `manga-${mangaId}${ext}`);
+      const candidate = path.join(dir, `manga-${mangaId}${ext}`);
       try {
         await fs.access(candidate);
         return candidate;
@@ -65,6 +69,68 @@ async function findCoverFile(mangaId: number): Promise<string | null> {
     }),
   );
   return checks.find((c) => c !== null) ?? null;
+}
+
+/** The manga's best provider cover URL (highest-res first), or null if none/local. */
+async function metadataCoverUrl(mangaId: number): Promise<string | null> {
+  const row = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { Metadata: { select: { coverExtraLarge: true, coverLarge: true, cover: true, coverMedium: true } } },
+  });
+  const md = row?.Metadata;
+  if (md === null || md === undefined) {
+    return null;
+  }
+  const raw = md.coverExtraLarge ?? md.coverLarge ?? md.cover ?? md.coverMedium ?? null;
+  if (raw === null || !/^https?:\/\//i.test(raw)) {
+    return null;
+  }
+  return raw;
+}
+
+function coverExt(url: string, contentType: string | null): string {
+  if (contentType?.includes('png') === true) return '.png';
+  if (contentType?.includes('webp') === true) return '.webp';
+  if (contentType?.includes('gif') === true) return '.gif';
+  if (contentType?.includes('jpeg') === true) return '.jpg';
+  const m = /\.(jpe?g|png|webp|gif)(?:\?|$)/i.exec(url);
+  return m?.[1] !== undefined ? `.${m[1].toLowerCase().replace('jpeg', 'jpg')}` : '.jpg';
+}
+
+/** Downloads a remote cover into the source cache; returns its path or null. */
+async function downloadCover(mangaId: number, url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'Mugiwara-Kaizoku/1.0 (+cover-layerizer)' } });
+    if (!res.ok) {
+      logger.warn('Cover download failed', { mangaId, status: res.status });
+      return null;
+    }
+    const dir = coverSrcDir();
+    await fs.mkdir(dir, { recursive: true });
+    const dest = path.join(dir, `manga-${mangaId}${coverExt(url, res.headers.get('content-type'))}`);
+    await fs.writeFile(dest, Buffer.from(await res.arrayBuffer()));
+    return dest;
+  } catch (err: unknown) {
+    logger.warn('Cover download threw', { mangaId, error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
+
+/**
+ * Resolves the cover image to layerize: a previously-downloaded source, the
+ * local-cover extraction cache, or a fresh download of the provider cover URL.
+ */
+async function findCoverFile(mangaId: number): Promise<string | null> {
+  const cached = await findInDir(coverSrcDir(), mangaId);
+  if (cached !== null) {
+    return cached;
+  }
+  const local = await findInDir(path.join(cacheBaseDir(), 'covers'), mangaId);
+  if (local !== null) {
+    return local;
+  }
+  const url = await metadataCoverUrl(mangaId);
+  return url !== null ? downloadCover(mangaId, url) : null;
 }
 
 async function modelsPresent(): Promise<boolean> {
