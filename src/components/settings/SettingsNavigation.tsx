@@ -27,6 +27,7 @@ import { IconPlugConnected } from '@tabler/icons-react';
 import { IconArrowsExchange } from '@tabler/icons-react';
 import { IconShieldCheck } from '@tabler/icons-react';
 import { IconBooks } from '@tabler/icons-react';
+import { IconPhoto } from '@tabler/icons-react';
 import { useRouter } from "next/router";
 
 import { logger } from '@/utils/logger';
@@ -70,6 +71,8 @@ export function SettingsNavigation(): React.ReactElement {
             return 'flaresolverr';
         if (normalizedPath.includes('/settings/library'))
             return 'library';
+        if (normalizedPath.includes('/settings/living-covers'))
+            return 'living-covers';
         return 'events';
     };
     const activeTab = getActiveTab();
@@ -109,6 +112,7 @@ logger.error('[SettingsNavigation] Client navigation failed:', errorMessage);
         { value: 'file-conversion', label: 'File Conversion', icon: IconArrowsExchange, path: '/settings/file-conversion' },
         { value: 'flaresolverr', label: 'FlareSolverr', icon: IconShieldCheck, path: '/settings/flaresolverr' },
         { value: 'library', label: 'Import Manga', icon: IconBooks, path: '/settings/library' },
+        { value: 'living-covers', label: 'Living Covers', icon: IconPhoto, path: '/settings/living-covers' },
     ];
     return (<Tabs value={activeTab} mb="xl">
       <Tabs.List>

@@ -61,6 +61,7 @@ import { chapterRouter } from './routers/chapter';
 import { comicvineRouter } from './routers/comicvine';
 import { configRouter } from './routers/config';
 import { conversionRouter } from './routers/conversion';
+import { coverLayersRouter } from './routers/coverLayers';
 import { downloadRouter } from './routers/download';
 import { downloadClientsRouter } from './routers/downloadClients';
 import { downloadsRouter } from './routers/downloads';
@@ -175,6 +176,7 @@ export const appRouter = router({
   
   // Management features
   config: configRouter,
+  coverLayers: coverLayersRouter,
   backup: backupRouter,
   notifications: notificationRouter,
   wanted: wantedRouter,

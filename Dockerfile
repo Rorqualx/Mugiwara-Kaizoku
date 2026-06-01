@@ -173,6 +173,20 @@ COPY --from=build --chown=app:app /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build --chown=app:app /app/node_modules ./node_modules
 COPY --from=build --chown=app:app /app/packages ./packages
 COPY --from=build --chown=app:app /app/src ./src
+# Cover-layerizer sidecar (Python ONNX scripts) for the Living Covers feature
+COPY --from=build --chown=app:app /app/ml ./ml
+
+# Python + ONNX runtime for the cover-layerizer sidecar (ml/cover-layers). A
+# dedicated venv keeps deps off the system python; libgomp1 is required by
+# onnxruntime. Models are NOT baked — they download at runtime (when an admin
+# enables Living Covers) to the persistent /config volume.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends python3 python3-venv libgomp1 && \
+    python3 -m venv /opt/cover-layers-venv && \
+    /opt/cover-layers-venv/bin/pip install --no-cache-dir \
+        "onnxruntime>=1.16.0" "numpy>=1.24.0" "Pillow>=10.0.0" && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Entrypoint runs as root so it can chown volume mounts and start postgres
 # as the postgres user; the app process is launched via `gosu app` inside.
@@ -183,7 +197,10 @@ ENV NODE_ENV=production \
     KAIZOKU_LOG_PATH=/config/logs \
     HOME=/config \
     PGDATA=/config/postgres \
-    MANGA_FILES_DIR=/library
+    MANGA_FILES_DIR=/library \
+    COVER_LAYER_PYTHON=/opt/cover-layers-venv/bin/python \
+    COVER_LAYER_SCRIPT_DIR=/app/ml/cover-layers \
+    COVER_LAYER_MODELS_DIR=/config/data/cover-layer-models
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD nc -z localhost ${KAIZOKU_PORT:-3000} || exit 1

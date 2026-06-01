@@ -17,10 +17,16 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { prisma } from '@/server/db';
+import { configService } from '@/server/services/config/configService';
 import { logger } from '@/utils/logger';
 
 /** Bump to re-layerize. v2: tuned drift. v3: text + depth bands. v4: near-item sprites. */
 export const COVER_LAYER_PIPELINE_VERSION = 4;
+
+/** Config key for the global Living Covers master switch (default off). */
+export const LIVING_COVERS_ENABLED_KEY = 'covers.living.enabled';
+
+const MODEL_DOWNLOAD_TIMEOUT_MS = 600_000;
 
 const COVER_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'] as const;
 const SIDECAR_TIMEOUT_MS = 180_000;
@@ -45,9 +51,12 @@ function modelsDir(): string {
   return process.env['COVER_LAYER_MODELS_DIR'] ?? path.join(cacheBaseDir(), 'cover-layer-models');
 }
 
+function scriptDir(): string {
+  return process.env['COVER_LAYER_SCRIPT_DIR'] ?? path.join(process.cwd(), 'ml/cover-layers');
+}
+
 function scriptPath(): string {
-  const dir = process.env['COVER_LAYER_SCRIPT_DIR'] ?? path.join(process.cwd(), 'ml/cover-layers');
-  return path.join(dir, 'layerize.py');
+  return path.join(scriptDir(), 'layerize.py');
 }
 
 /** Cache for covers the layerizer downloaded itself (kept apart from the local-cover cache). */
@@ -132,7 +141,8 @@ async function findCoverFile(mangaId: number): Promise<string | null> {
   return url !== null ? downloadCover(mangaId, url) : null;
 }
 
-async function modelsPresent(): Promise<boolean> {
+/** True when the required ONNX models are present in the models dir. */
+export async function modelsPresent(): Promise<boolean> {
   const dir = modelsDir();
   const checks = await Promise.all(
     REQUIRED_MODELS.map(async (m) => {
@@ -145,6 +155,59 @@ async function modelsPresent(): Promise<boolean> {
     }),
   );
   return checks.every(Boolean);
+}
+
+/** Reads the global Living Covers master switch (string or boolean config row). */
+export async function isLivingCoversEnabled(): Promise<boolean> {
+  const value = await configService.get<unknown>(LIVING_COVERS_ENABLED_KEY, false);
+  return value === true || value === 'true';
+}
+
+/** Builds the command to run the model downloader sidecar (uv in dev, python in image). */
+function modelDownloadCommand(): { cmd: string; args: string[] } {
+  const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
+  const script = path.join(scriptDir(), 'download_models.py');
+  const scriptArgs = ['--models-dir', modelsDir()];
+  if (runner === 'uv') {
+    return { cmd: 'uv', args: ['run', '--python', '3.11', 'python', script, ...scriptArgs] };
+  }
+  return { cmd: runner, args: [script, ...scriptArgs] };
+}
+
+let modelDownloadInFlight = false;
+
+/** Whether a model download is currently running. */
+export function isDownloadingModels(): boolean {
+  return modelDownloadInFlight;
+}
+
+/**
+ * Downloads the ONNX models into the models dir (idempotent — skips present
+ * files). No-ops while a download is already in flight.
+ */
+export function downloadCoverModels(): Promise<{ ok: boolean; error?: string }> {
+  if (modelDownloadInFlight) {
+    return Promise.resolve({ ok: false, error: 'already downloading' });
+  }
+  modelDownloadInFlight = true;
+  const { cmd, args } = modelDownloadCommand();
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { cwd: process.cwd() });
+    let stderr = '';
+    const finish = (result: { ok: boolean; error?: string }): void => {
+      clearTimeout(timer);
+      modelDownloadInFlight = false;
+      resolve(result);
+    };
+    const timer = setTimeout(() => child.kill('SIGKILL'), MODEL_DOWNLOAD_TIMEOUT_MS);
+    child.stderr.on('data', (d: Buffer) => {
+      stderr += d.toString();
+    });
+    child.on('error', (err) => finish({ ok: false, error: err.message }));
+    child.on('close', (code) =>
+      finish(code === 0 ? { ok: true } : { ok: false, error: stderr.slice(-500) || `downloader exited ${code}` }),
+    );
+  });
 }
 
 /** Builds the command + args to run the sidecar (uv by default for dev). */
@@ -293,13 +356,19 @@ async function upsert(mangaId: number, sourceHash: string, data: UpsertData): Pr
 
 /**
  * Fire-and-forget trigger: layerize a cover in the background without blocking
- * the caller (used right after a cover is set/imported). Errors are swallowed
- * (already logged) so they never break the import flow.
+ * the caller (used right after a cover is set/imported). No-ops when the global
+ * Living Covers setting is off. Errors are swallowed (already logged) so they
+ * never break the import flow.
  *
  * @param mangaId - The manga to layerize.
  */
 export function triggerLayerize(mangaId: number): void {
-  void layerizeCover(mangaId).catch((err: unknown) => {
+  void (async (): Promise<void> => {
+    if (!(await isLivingCoversEnabled())) {
+      return;
+    }
+    await layerizeCover(mangaId);
+  })().catch((err: unknown) => {
     logger.warn('triggerLayerize failed', { mangaId, error: err instanceof Error ? err.message : String(err) });
   });
 }

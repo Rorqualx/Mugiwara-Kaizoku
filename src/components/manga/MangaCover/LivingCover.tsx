@@ -22,6 +22,7 @@ import { Box } from '@mantine/core';
 import { useIntersection } from '@mantine/hooks';
 
 import { useAnimatedCovers } from '@/hooks/useAnimatedCovers';
+import { useLivingCoversEnabled } from '@/hooks/useLivingCoversEnabled';
 import type { CoverLayer, CoverLayerManifest } from '@/types/domain/cover-layers-types';
 
 import { getSeedPhaseMs } from './coverSeed';
@@ -136,7 +137,8 @@ function LayerImg({ layer, src, alt, loading, imgRef, onError }: LayerImgProps):
 export function LivingCover(props: LivingCoverProps): React.ReactElement {
   const { manifest, layerBaseUrl, ...coverProps } = props;
   const motionAllowed = useAnimatedCovers();
-  const enabled = motionAllowed && coverProps.animated !== false;
+  const livingEnabled = useLivingCoversEnabled();
+  const enabled = motionAllowed && livingEnabled && coverProps.animated !== false;
 
   const [failed, setFailed] = React.useState(false);
   const layerRefs = React.useRef<Record<string, HTMLImageElement | null>>({});

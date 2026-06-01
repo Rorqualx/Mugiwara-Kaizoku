@@ -1,23 +1,22 @@
 /**
- * Backfill living-cover layers for the library.
+ * Backfill living-cover layers for the library (CLI wrapper).
  *
- * Finds every cached cover (data/cache/covers/manga-<id>.<ext>) and runs the
- * layerizer for each. Idempotent + resumable: covers already `ready` with a
- * matching source-hash + pipeline version are skipped, so re-running only
- * processes new/changed covers (no separate checkpoint file needed).
+ * Thin wrapper over the shared `processLibraryCovers` runner. Idempotent +
+ * resumable: covers already `ready` with a matching source-hash + pipeline
+ * version are skipped (use `--force` to regenerate).
  *
  * Usage:
- *   bun run scripts/cover-layers/backfill-cover-layers.ts            # whole library
- *   bun run scripts/cover-layers/backfill-cover-layers.ts --ids 470,469
- *   bun run scripts/cover-layers/backfill-cover-layers.ts --limit 50 --force
- *   bun run scripts/cover-layers/backfill-cover-layers.ts --concurrency 3
+ *   bun run scripts/cover-layers/backfill-cover-layers.ts --library 1        # one library
+ *   bun run scripts/cover-layers/backfill-cover-layers.ts --db               # every manga
+ *   bun run scripts/cover-layers/backfill-cover-layers.ts --ids 4948,4946
+ *   bun run scripts/cover-layers/backfill-cover-layers.ts --library 1 --force --concurrency 3
+ *   bun run scripts/cover-layers/backfill-cover-layers.ts                     # cached cover files
  */
 
 import fs from 'fs/promises';
 import path from 'path';
 
-import { prisma } from '@/server/db';
-import { layerizeCover } from '@/server/services/coverLayers/coverLayerizer';
+import { processLibraryCovers } from '@/server/services/coverLayers/processLibrary';
 import { logger } from '@/utils/logger';
 
 function arg(name: string): string | undefined {
@@ -30,6 +29,7 @@ function cacheBaseDir(): string {
   return process.env['MANGA_FILES_DIR'] ?? path.join(process.cwd(), 'data/cache');
 }
 
+/** Cover ids discovered from cached `manga-<id>.<ext>` files (legacy file-based mode). */
 async function discoverCoverIds(): Promise<number[]> {
   const dir = path.join(cacheBaseDir(), 'covers');
   const entries = await fs.readdir(dir).catch(() => [] as string[]);
@@ -43,56 +43,31 @@ async function discoverCoverIds(): Promise<number[]> {
   return [...ids].sort((a, b) => a - b);
 }
 
-/** Manga ids from the DB — the real grid manga (covers resolved/downloaded by the layerizer). */
-async function discoverDbIds(libraryId?: number): Promise<number[]> {
-  const rows = await prisma.manga.findMany({
-    where: libraryId !== undefined ? { libraryId } : {},
-    select: { id: true },
-    orderBy: { id: 'asc' },
-  });
-  return rows.map((r) => r.id);
-}
-
-async function runPool(ids: number[], force: boolean, concurrency: number): Promise<void> {
-  const counts: Record<string, number> = { layered: 0, flat: 0, skipped: 0, failed: 0 };
-  let cursor = 0;
-  async function worker(): Promise<void> {
-    while (cursor < ids.length) {
-      const id = ids[cursor++];
-      if (id === undefined) {
-        return;
-      }
-      const result = await layerizeCover(id, force);
-      counts[result.status] = (counts[result.status] ?? 0) + 1;
-      logger.info(`[backfill] manga ${id}: ${result.status}${result.reason ? ` (${result.reason})` : ''}${result.error ? ` — ${result.error}` : ''}`);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.max(1, concurrency) }, () => worker()));
-  logger.info(`[backfill] done — layered=${counts['layered']} flat=${counts['flat']} skipped=${counts['skipped']} failed=${counts['failed']}`);
-}
-
 async function main(): Promise<void> {
   const idsArg = arg('ids');
+  const libraryArg = arg('library');
   const limit = arg('limit') !== undefined ? Number(arg('limit')) : undefined;
   const concurrency = arg('concurrency') !== undefined ? Number(arg('concurrency')) : 2;
   const force = hasFlag('force');
 
-  const libraryArg = arg('library');
-  let ids: number[];
+  let ids: number[] | undefined;
+  let libraryId: number | undefined;
   if (idsArg !== undefined) {
     ids = idsArg.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
   } else if (libraryArg !== undefined) {
-    ids = await discoverDbIds(Number(libraryArg));
-  } else if (hasFlag('db')) {
-    ids = await discoverDbIds();
-  } else {
+    libraryId = Number(libraryArg);
+  } else if (!hasFlag('db')) {
     ids = await discoverCoverIds();
   }
-  if (limit !== undefined) {
+  if (ids !== undefined && limit !== undefined) {
     ids = ids.slice(0, limit);
   }
-  logger.info(`[backfill] processing ${ids.length} cover(s) (concurrency=${concurrency}, force=${force})`);
-  await runPool(ids, force, concurrency);
+
+  logger.info(`[backfill] starting (concurrency=${concurrency}, force=${force})`);
+  const result = await processLibraryCovers({ ids, libraryId, force, concurrency });
+  logger.info(
+    `[backfill] done — layered=${result.layered} flat=${result.flat} skipped=${result.skipped} failed=${result.failed} (of ${result.total})`,
+  );
 }
 
 main()
