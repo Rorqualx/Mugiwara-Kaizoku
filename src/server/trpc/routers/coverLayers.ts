@@ -17,6 +17,7 @@ import {
   LIVING_COVERS_SMART_EFFECTS_KEY,
   coverSegmenter,
   downloadCoverModels,
+  groundedSamAvailable,
   isDownloadingModels,
   isLivingCoversEnabled,
   modelDownloadProgress,
@@ -77,6 +78,15 @@ export const coverLayersRouter = router({
     };
   }),
 
+  /**
+   * Whether the GPU `grounded-sam` tier can actually run here (torch +
+   * GroundingDINO weights). Spawns a probe subprocess (cached), so it is a
+   * dedicated query — kept off the hot `status` path used by the render gate.
+   */
+  groundedSamAvailable: protectedProcedure.query(async (): Promise<{ available: boolean }> => ({
+    available: await groundedSamAvailable(),
+  })),
+
   /** Flip the global Living Covers master switch. */
   setEnabled: adminProcedure
     .input(z.object({ enabled: z.boolean() }))
@@ -88,7 +98,7 @@ export const coverLayersRouter = router({
 
   /** Choose the segmenter / quality tier (re-process to apply). */
   setSegmenter: adminProcedure
-    .input(z.object({ segmenter: z.enum(['standard', 'sam']) }))
+    .input(z.object({ segmenter: z.enum(['standard', 'sam', 'grounded-sam']) }))
     .mutation(async ({ input }): Promise<{ segmenter: CoverSegmenter }> => {
       await configService.set(LIVING_COVERS_SEGMENTER_KEY, input.segmenter);
       logger.info('[cover-layers] segmenter set', { segmenter: input.segmenter });

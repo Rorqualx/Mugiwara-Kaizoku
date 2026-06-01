@@ -69,11 +69,36 @@ def fetch(models_dir: pathlib.Path, name: str, url: str, *, required: bool, idx:
         print(f"  !! skipped {name}: {err}", flush=True)
 
 
+def fetch_grounded_sam(models_dir: pathlib.Path) -> int:
+    """Fetch the GroundingDINO checkpoint snapshot for the `grounded-sam` tier (Option C).
+
+    Torch-only and GPU-bound — kept out of the default (ONNX) run so CPU installs
+    never pull torch weights. Run this on the GPU host (needs `huggingface_hub`,
+    which ships with `transformers`). Idempotent: re-uses the local snapshot.
+    """
+    from grounded_segment import GROUNDING_DIR, GROUNDING_REPO  # local, no torch needed
+
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        print("grounded-sam tier needs `huggingface_hub` (install transformers on the GPU host)", flush=True)
+        return 1
+    dest = models_dir / GROUNDING_DIR
+    print(f"downloading GroundingDINO snapshot {GROUNDING_REPO} -> {dest} ...", flush=True)
+    snapshot_download(repo_id=GROUNDING_REPO, local_dir=str(dest))
+    print(f"  -> {dest}", flush=True)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir", required=True, type=pathlib.Path)
+    ap.add_argument("--tier", choices=["onnx", "grounded-sam"], default="onnx",
+                    help="onnx = the default CPU models; grounded-sam = GroundingDINO weights (GPU host only)")
     args = ap.parse_args()
     args.models_dir.mkdir(parents=True, exist_ok=True)
+    if args.tier == "grounded-sam":
+        return fetch_grounded_sam(args.models_dir)
     items = [(name, url, True) for name, url in MODELS.items()] + [
         (name, url, False) for name, url in OPTIONAL_MODELS.items()
     ]

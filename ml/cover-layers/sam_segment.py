@@ -41,11 +41,53 @@ def load_sam(models_dir: str, providers: list[str]) -> tuple[ort.InferenceSessio
     )
 
 
+def encode_image(enc: ort.InferenceSession, rgb: Image.Image) -> np.ndarray:
+    """Run the (Tiny-ViT) image encoder once; returns the reusable image embedding."""
+    return enc.run(["image_embeddings"], {"input_image": np.asarray(rgb, dtype=np.float32)})[0]
+
+
+def decode_box(dec: ort.InferenceSession, emb: np.ndarray, box: tuple[float, float, float, float],
+               size: tuple[int, int]) -> np.ndarray:
+    """Decode one full-res mask from a box prompt.
+
+    SAM encodes a box as two prompt points — top-left (label 2) and bottom-right
+    (label 3) — in the resize-longest-1024 frame. Used by the grounded-sam path
+    (boxes come from GroundingDINO). Returns a full-res bool mask `(h, w)`.
+    """
+    w0, h0 = size
+    scale = float(SAM_INPUT) / max(w0, h0)
+    x0, y0, x1, y1 = box
+    masks, ious, _ = dec.run(
+        ["masks", "iou_predictions", "low_res_masks"],
+        {
+            "image_embeddings": emb,
+            "point_coords": np.array([[[x0 * scale, y0 * scale], [x1 * scale, y1 * scale]]], np.float32),
+            "point_labels": np.array([[2, 3]], np.float32),
+            "mask_input": np.zeros((1, 1, 256, 256), np.float32),
+            "has_mask_input": np.array([0], np.float32),
+            "orig_im_size": np.array([h0, w0], dtype=np.float32),
+        },
+    )
+    bi = int(np.argmax(ious[0]))
+    return masks[0, bi] > 0  # `masks` is upscaled to orig_im_size (h0, w0)
+
+
+def feather(mask_bool: np.ndarray, size: tuple[int, int], short_side: int) -> tuple[Image.Image, np.ndarray]:
+    """Turn a full-res bool mask into a (feathered alpha `L`, hard `uint8`) layer pair."""
+    w0, h0 = size
+    up = Image.fromarray((mask_bool.astype(np.uint8) * 255), "L")
+    if up.size != (w0, h0):
+        up = up.resize((w0, h0), Image.BILINEAR)
+    soft = up.filter(ImageFilter.GaussianBlur(max(1.0, short_side * 0.01)))
+    hard = (np.asarray(up, np.uint8) > 127).astype(np.uint8) * 255
+    return soft, hard
+
+
 def _candidates(enc: ort.InferenceSession, dec: ort.InferenceSession, rgb: Image.Image,
                 exclude_small: np.ndarray) -> list[np.ndarray]:
     """Run the grid through SAM; return low-res (LOWRES²) bool masks passing the filters."""
     w0, h0 = rgb.size
-    emb = enc.run(["image_embeddings"], {"input_image": np.asarray(rgb, dtype=np.float32)})[0]
+    emb = encode_image(enc, rgb)
     scale = float(SAM_INPUT) / max(w0, h0)
     orig = np.array([h0, w0], dtype=np.float32)
     blank = np.zeros((1, 1, 256, 256), np.float32)

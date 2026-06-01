@@ -36,6 +36,9 @@ import numpy as np
 import onnxruntime as ort
 from PIL import Image, ImageFilter
 
+from cover_manifest import manifest
+from effects import apply_effect_profile
+
 # --- Tunables -------------------------------------------------------------
 
 SEG_SIZE = 1024            # IS-Net input (letterboxed, aspect preserved)
@@ -288,70 +291,6 @@ def drift(amp: tuple[float, float], scale: float, dur: int = BG_DURATION_MS) -> 
     }
 
 
-def manifest(cover_id: str, src_hash: str, size: tuple[int, int], coverage: float,
-             mode: str, layers: list[dict], segmenter: str, reason: str | None = None,
-             smart_effects: bool = False, effect: str = "none", tags: list[str] | None = None) -> dict:
-    m = {
-        "schemaVersion": 2,
-        "coverId": cover_id,
-        "sourceHash": src_hash,
-        "w": size[0], "h": size[1],
-        "fgCoverage": round(coverage, 4),
-        "mode": mode,
-        "segmenter": segmenter,
-        "smartEffects": smart_effects,
-        "effect": effect,
-        "tags": tags if tags is not None else [],
-        "layers": layers,
-    }
-    if reason is not None:
-        m["reason"] = reason
-    return m
-
-
-# --- Smart effects (Option B) — tag-driven motion presets -----------------
-
-EFFECT_AMP_CAP = 9.0  # keep amplitude within the component's overscan margin
-
-# (name, trigger tags, {amp scale, duration scale, vertical bias 0..1}). First
-# match by tag-overlap count wins; order is the tie-break priority.
-EFFECT_PRESETS: list[tuple[str, set[str], dict]] = [
-    ("weather", {"rain", "raining", "snow", "snowing", "falling_petals", "cherry_blossoms", "confetti", "ash", "bubbles"},
-     {"amp": 1.2, "dur": 0.85, "vbias": 0.7}),
-    ("rising", {"fire", "flames", "smoke", "embers", "sparks", "steam", "explosion", "burning"},
-     {"amp": 1.15, "dur": 1.2, "vbias": 0.6}),
-    ("action", {"weapon", "sword", "katana", "knife", "dagger", "gun", "fighting", "battle", "blood",
-                "motion_blur", "speed_lines", "bo_staff", "spear", "polearm", "axe", "holding_weapon"},
-     {"amp": 1.4, "dur": 0.72, "vbias": 0.0}),
-    ("calm", {"cloud", "clouds", "sky", "scenery", "ocean", "water", "landscape", "night", "starry_sky",
-              "sunset", "mountain", "field", "forest", "beach"},
-     {"amp": 0.7, "dur": 1.3, "vbias": 0.0}),
-]
-
-
-def apply_effect_profile(layers: list[dict], tags: set[str]) -> str:
-    """Pick a mood profile from `tags` and retune each drifting layer's motion in place."""
-    best_name, best_profile, best_score = "none", None, 0
-    for name, triggers, profile in EFFECT_PRESETS:
-        score = len(triggers & tags)
-        if score > best_score:
-            best_name, best_profile, best_score = name, profile, score
-    if best_profile is None:
-        return "none"
-    for layer in layers:
-        motion = layer.get("motion")
-        if not motion:
-            continue
-        ax, ay = motion["ampPct"]
-        vbias = best_profile["vbias"]
-        motion["ampPct"] = [
-            round(min(EFFECT_AMP_CAP, ax * best_profile["amp"] * (1.0 - 0.5 * vbias)), 2),
-            round(min(EFFECT_AMP_CAP, ay * best_profile["amp"] * (1.0 + 0.7 * vbias)), 2),
-        ]
-        motion["durationMs"] = int(motion["durationMs"] * best_profile["dur"])
-    return best_name
-
-
 # --- Background / object layer builders -----------------------------------
 
 def standard_bg_layers(out: pathlib.Path, models: pathlib.Path, providers: list[str], rgb: Image.Image,
@@ -438,16 +377,25 @@ def sam_bg_layers(out: pathlib.Path, models: pathlib.Path, providers: list[str],
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Layerize a manga cover for living-cover animation.")
-    ap.add_argument("--cover", required=True, type=pathlib.Path)
-    ap.add_argument("--id", required=True, help="manga/cover id (manifest coverId)")
-    ap.add_argument("--out", required=True, type=pathlib.Path)
+    ap.add_argument("--cover", type=pathlib.Path)
+    ap.add_argument("--id", help="manga/cover id (manifest coverId)")
+    ap.add_argument("--out", type=pathlib.Path)
     ap.add_argument("--models-dir", required=True, type=pathlib.Path)
     ap.add_argument("--device", choices=list(PROVIDERS), default="cpu")
-    ap.add_argument("--segmenter", choices=["standard", "sam"], default="standard",
-                    help="standard = depth bands + item heuristics; sam = MobileSAM object masks")
+    ap.add_argument("--segmenter", choices=["standard", "sam", "grounded-sam"], default="standard",
+                    help="standard = depth bands; sam = MobileSAM masks; grounded-sam = labeled objects (GPU)")
     ap.add_argument("--smart-effects", action="store_true",
                     help="tag the cover (WD14) and tune drift motion to the mood")
+    ap.add_argument("--probe", action="store_true",
+                    help="print grounded-sam capability JSON {torch,cuda,dino} and exit")
     args = ap.parse_args()
+
+    if args.probe:
+        from grounded_segment import probe  # lazy: importable with no torch
+        print(json.dumps(probe(str(args.models_dir))), flush=True)
+        return 0
+    if args.cover is None or args.id is None or args.out is None:
+        ap.error("--cover, --id and --out are required (unless --probe)")
 
     args.out.mkdir(parents=True, exist_ok=True)
     providers = PROVIDERS[args.device]
@@ -498,8 +446,14 @@ def main() -> int:
     lama = ort.InferenceSession(str(models / "lama_fp32.onnx"), providers=providers)
     plate = lama_fill(lama, rgb, Image.fromarray(hole_arr, mode="L"))
 
-    # 5. Background + object layers — SAM object masks or the depth-band heuristic.
-    if args.segmenter == "sam":
+    # 5. Background + object layers — grounded-sam (GPU, labeled), SAM masks, or
+    # the depth-band heuristic. grounded-sam degrades to sam off a torch+GPU box.
+    fallback: str | None = None
+    if args.segmenter == "grounded-sam":
+        from grounded_segment import grounded_sam_bg_layers  # lazy: only this path needs torch
+        layers, fallback = grounded_sam_bg_layers(
+            args.out, models, providers, rgb, plate, lama, hole_arr, size, short_side, args.device)
+    elif args.segmenter == "sam":
         layers = sam_bg_layers(args.out, models, providers, rgb, plate, lama, hole_arr, size, short_side)
     else:
         layers = standard_bg_layers(args.out, models, providers, rgb, plate, lama, hole_arr, size, short_side)
@@ -527,10 +481,12 @@ def main() -> int:
             effect = apply_effect_profile(layers, found)
 
     write_manifest(manifest(args.id, src_hash, size, coverage, "layered", layers, args.segmenter,
-                            smart_effects=args.smart_effects, effect=effect, tags=tags))
+                            smart_effects=args.smart_effects, effect=effect, tags=tags,
+                            segmenter_fallback=fallback))
     objects = sum(1 for layer in layers if layer["role"] == "object")
     print(f"LAYERED {args.id}: coverage={coverage:.0%} char={use_character} text={use_text} "
-          f"segmenter={args.segmenter} objects={objects} effect={effect}", flush=True)
+          f"segmenter={args.segmenter}{f'->{fallback}' if fallback else ''} objects={objects} "
+          f"effect={effect}", flush=True)
     return 0
 
 

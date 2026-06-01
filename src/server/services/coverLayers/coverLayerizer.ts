@@ -29,10 +29,16 @@ export const LIVING_COVERS_ENABLED_KEY = 'covers.living.enabled';
 /** Config key for the segmenter / quality tier (default `standard`). */
 export const LIVING_COVERS_SEGMENTER_KEY = 'covers.living.segmenter';
 
-/** Segmenter tiers. `standard` = depth bands; `sam` = MobileSAM object masks (Option A). */
-export type CoverSegmenter = 'standard' | 'sam';
+/**
+ * Segmenter tiers. `standard` = depth bands; `sam` = MobileSAM object masks
+ * (Option A); `grounded-sam` = open-vocabulary labeled objects (Option C, GPU —
+ * needs torch + the GroundingDINO weights, degrades to `sam` off a GPU box).
+ */
+export type CoverSegmenter = 'standard' | 'sam' | 'grounded-sam';
 
 const MODEL_DOWNLOAD_TIMEOUT_MS = 600_000;
+const PROBE_TIMEOUT_MS = 30_000;
+const GROUNDED_PROBE_TTL_MS = 60_000;
 
 const COVER_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'] as const;
 const SIDECAR_TIMEOUT_MS = 180_000;
@@ -172,7 +178,84 @@ export async function isLivingCoversEnabled(): Promise<boolean> {
 /** Reads the configured segmenter tier (default `standard`). */
 export async function coverSegmenter(): Promise<CoverSegmenter> {
   const value = await configService.get<unknown>(LIVING_COVERS_SEGMENTER_KEY, 'standard');
-  return value === 'sam' ? 'sam' : 'standard';
+  if (value === 'sam') {
+    return 'sam';
+  }
+  if (value === 'grounded-sam') {
+    return 'grounded-sam';
+  }
+  return 'standard';
+}
+
+interface GroundedProbe {
+  torch: boolean;
+  cuda: boolean;
+  dino: boolean;
+}
+
+let groundedProbeCache: { value: boolean; at: number } | null = null;
+
+/** Builds the command to run the sidecar's `--probe` capability check. */
+function probeCommand(): { cmd: string; args: string[] } {
+  const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
+  const scriptArgs = ['--probe', '--models-dir', modelsDir()];
+  if (runner === 'uv') {
+    return {
+      cmd: 'uv',
+      args: ['run', '--python', '3.11', '--with', 'onnxruntime', '--with', 'numpy', '--with', 'pillow', 'python', scriptPath(), ...scriptArgs],
+    };
+  }
+  return { cmd: runner, args: [scriptPath(), ...scriptArgs] };
+}
+
+/** Parses the sidecar `--probe` JSON; true only when torch + the DINO weights are present. */
+function parseProbeOutput(stdout: string): boolean {
+  try {
+    const match = /\{[^{}]*\}/.exec(stdout);
+    if (match === null) {
+      return false;
+    }
+    const probe = JSON.parse(match[0]) as Partial<GroundedProbe>;
+    return probe.torch === true && probe.dino === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Spawns the sidecar `--probe` and resolves whether grounded-sam can actually run. */
+function runProbe(): Promise<boolean> {
+  const { cmd, args } = probeCommand();
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { cwd: process.cwd() });
+    let stdout = '';
+    const timer = setTimeout(() => child.kill('SIGKILL'), PROBE_TIMEOUT_MS);
+    child.stdout.on('data', (d: Buffer) => {
+      stdout += d.toString();
+    });
+    child.on('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+    child.on('close', () => {
+      clearTimeout(timer);
+      resolve(parseProbeOutput(stdout));
+    });
+  });
+}
+
+/**
+ * Whether the `grounded-sam` tier can run here (torch + GroundingDINO weights
+ * present). Cached briefly — the answer only changes when the host is
+ * reconfigured. Returns false fast on the standard CPU container.
+ */
+export async function groundedSamAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (groundedProbeCache !== null && now - groundedProbeCache.at < GROUNDED_PROBE_TTL_MS) {
+    return groundedProbeCache.value;
+  }
+  const value = await runProbe();
+  groundedProbeCache = { value, at: now };
+  return value;
 }
 
 /** Config key for the "smart effects" (tag-driven motion) toggle (default off). */
@@ -343,7 +426,13 @@ function isFresh(existing: ExistingLayerSet | null, sourceHash: string, segmente
   if (existing.sourceHash !== sourceHash || existing.version !== COVER_LAYER_PIPELINE_VERSION) {
     return false;
   }
-  const prev = existing.manifestJson as { segmenter?: unknown; smartEffects?: unknown } | null;
+  const prev = existing.manifestJson as { segmenter?: unknown; smartEffects?: unknown; segmenterFallback?: unknown } | null;
+  // A degraded run (e.g. grounded-sam off a GPU-less box) is never fresh, so it
+  // re-runs and produces the real output once the host gains torch + weights.
+  const fallback = prev?.segmenterFallback;
+  if (fallback !== undefined && fallback !== null) {
+    return false;
+  }
   return (prev?.segmenter ?? 'standard') === segmenter && (prev?.smartEffects === true) === smartEffects;
 }
 

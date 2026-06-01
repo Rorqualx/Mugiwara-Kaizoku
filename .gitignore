@@ -605,3 +605,7 @@ scripts/surveys/*-results-*.json
 # Tools that read these are tracked; the dot-prefixed payloads are not.
 scripts/surveys/.*
 .reidentify-checkpoint.json
+
+# Python bytecode (cover-layer sidecar)
+__pycache__/
+*.pyc

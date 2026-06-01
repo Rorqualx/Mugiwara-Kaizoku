@@ -20,6 +20,11 @@ const PROCESS_REASONS: Record<string, string> = {
   'models-missing': 'Download the models first.',
 };
 
+/** Narrow a SegmentedControl string value to the segmenter union (no cast). */
+function toSegmenter(value: string): 'standard' | 'sam' | 'grounded-sam' {
+  return value === 'sam' || value === 'grounded-sam' ? value : 'standard';
+}
+
 function LivingCoversSettings(): React.ReactElement {
   const [force, setForce] = React.useState(false);
   const { data: status, refetch } = trpc.coverLayers.status.useQuery(undefined, {
@@ -28,6 +33,10 @@ function LivingCoversSettings(): React.ReactElement {
       return d?.progress.running === true || d?.download.active === true ? 1500 : false;
     },
     refetchOnWindowFocus: false,
+  });
+  const { data: grounded } = trpc.coverLayers.groundedSamAvailable.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
   });
 
   const setEnabled = trpc.coverLayers.setEnabled.useMutation({ onSuccess: () => void refetch() });
@@ -108,16 +117,19 @@ function LivingCoversSettings(): React.ReactElement {
                 <Title order={5}>Separation quality</Title>
                 <Text size="sm" c="dimmed" maw={520}>
                   How background layers are separated. <b>Standard</b> uses fast depth bands; <b>SAM</b> uses MobileSAM
-                  object masks for cleaner, object-aware layers (slower). Changing this needs a re-process.
+                  object masks for cleaner, object-aware layers (slower); <b>Grounded-SAM</b> labels each object
+                  (cloud, fire, sword…) and gives it motion to match — but needs a torch + CUDA host, so it is
+                  unavailable on the standard container. Changing this needs a re-process.
                 </Text>
               </div>
               <SegmentedControl
                 value={status.segmenter}
-                onChange={(v) => setSegmenter.mutate({ segmenter: v === 'sam' ? 'sam' : 'standard' })}
+                onChange={(v) => setSegmenter.mutate({ segmenter: toSegmenter(v) })}
                 disabled={setSegmenter.isPending || running}
                 data={[
                   { label: 'Standard (fast)', value: 'standard' },
                   { label: 'SAM — better separation', value: 'sam' },
+                  { label: 'Grounded-SAM — labeled objects (GPU)', value: 'grounded-sam', disabled: grounded?.available !== true },
                 ]}
               />
               <Switch
