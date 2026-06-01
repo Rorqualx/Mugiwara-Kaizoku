@@ -17,3 +17,16 @@ export function useLivingCoversEnabled(): boolean {
   });
   return data?.enabled ?? false;
 }
+
+/**
+ * @returns The global cover-motion speed multiplier (default 1). Applied at
+ * render time as the drift animations' playbackRate, so changes take effect
+ * without re-processing. Shares the same cached `status` query as the gate.
+ */
+export function useCoverMotionSpeed(): number {
+  const { data } = trpc.coverLayers.status.useQuery(undefined, {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  return data?.motionSpeed ?? 1;
+}

@@ -22,7 +22,7 @@ import { Box } from '@mantine/core';
 import { useIntersection } from '@mantine/hooks';
 
 import { useAnimatedCovers } from '@/hooks/useAnimatedCovers';
-import { useLivingCoversEnabled } from '@/hooks/useLivingCoversEnabled';
+import { useCoverMotionSpeed, useLivingCoversEnabled } from '@/hooks/useLivingCoversEnabled';
 import type { CoverLayer, CoverLayerManifest } from '@/types/domain/cover-layers-types';
 
 import { getSeedPhaseMs } from './coverSeed';
@@ -138,6 +138,7 @@ export function LivingCover(props: LivingCoverProps): React.ReactElement {
   const { manifest, layerBaseUrl, ...coverProps } = props;
   const motionAllowed = useAnimatedCovers();
   const livingEnabled = useLivingCoversEnabled();
+  const motionSpeed = useCoverMotionSpeed();
   const enabled = motionAllowed && livingEnabled && coverProps.animated !== false;
 
   const [failed, setFailed] = React.useState(false);
@@ -163,13 +164,17 @@ export function LivingCover(props: LivingCoverProps): React.ReactElement {
         direction: layer.motion.alternate ? 'alternate' : 'normal',
         easing: layer.motion.easing,
       });
+      // Global speed multiplier (Settings → Motion speed), applied live.
+      if (motionSpeed > 0) {
+        anim.playbackRate = motionSpeed;
+      }
       anim.currentTime = getSeedPhaseMs(seed, layer.motion.durationMs);
       return [anim];
     });
     return () => {
       anims.forEach((a) => a.cancel());
     };
-  }, [usable, visible, manifest, coverProps.seed]);
+  }, [usable, visible, manifest, coverProps.seed, motionSpeed]);
 
   if (!usable) {
     return <MangaCover {...coverProps} />;

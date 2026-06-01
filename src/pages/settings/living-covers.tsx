@@ -27,6 +27,12 @@ function toSegmenter(value: string): 'standard' | 'sam' | 'grounded-sam' {
   return value === 'sam' || value === 'grounded-sam' ? value : 'standard';
 }
 
+/** Parse the motion-speed SegmentedControl value to its multiplier (default 1). */
+function toMotionSpeed(value: string): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 1;
+}
+
 function LivingCoversSettings(): React.ReactElement {
   const [force, setForce] = React.useState(false);
   const { data: status, refetch } = trpc.coverLayers.status.useQuery(undefined, {
@@ -54,6 +60,7 @@ function LivingCoversSettings(): React.ReactElement {
       void refetch();
     },
   });
+  const setMotionSpeed = trpc.coverLayers.setMotionSpeed.useMutation({ onSuccess: () => void refetch() });
   const downloadModels = trpc.coverLayers.downloadModels.useMutation({
     onSuccess: (res) => {
       showNotification(
@@ -142,6 +149,20 @@ function LivingCoversSettings(): React.ReactElement {
                 checked={status.smartEffects}
                 onChange={(e) => setSmartEffects.mutate({ enabled: e.currentTarget.checked })}
                 disabled={setSmartEffects.isPending || running}
+              />
+              <div>
+                <Text size="sm" fw={500} mt="xs">Motion speed</Text>
+                <Text size="xs" c="dimmed" maw={520}>How fast covers drift on screen. Applies instantly — no re-process needed.</Text>
+              </div>
+              <SegmentedControl
+                value={String(status.motionSpeed)}
+                onChange={(v) => setMotionSpeed.mutate({ speed: toMotionSpeed(v) })}
+                disabled={setMotionSpeed.isPending}
+                data={[
+                  { label: 'Calm', value: '0.6' },
+                  { label: 'Normal', value: '1' },
+                  { label: 'Lively', value: '1.5' },
+                ]}
               />
             </Stack>
           </Card>

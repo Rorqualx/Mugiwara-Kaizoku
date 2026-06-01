@@ -291,6 +291,22 @@ export async function smartEffectsEnabled(): Promise<boolean> {
   return value === true || value === 'true';
 }
 
+/** Config key for the global cover-motion speed multiplier (render-time, default 1.0). */
+export const LIVING_COVERS_MOTION_SPEED_KEY = 'covers.living.motionSpeed';
+
+const MOTION_SPEED_MIN = 0.3;
+const MOTION_SPEED_MAX = 2.0;
+
+/** Reads the global motion-speed multiplier (clamped 0.3–2.0; applied at render time). */
+export async function coverMotionSpeed(): Promise<number> {
+  const value = await configService.get<unknown>(LIVING_COVERS_MOTION_SPEED_KEY, 1);
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) {
+    return 1;
+  }
+  return Math.min(MOTION_SPEED_MAX, Math.max(MOTION_SPEED_MIN, n));
+}
+
 /** Builds the command to run the model downloader sidecar (uv in dev, python in image). */
 function modelDownloadCommand(): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';

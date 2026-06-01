@@ -15,11 +15,13 @@ import {
   LIVING_COVERS_ENABLED_KEY,
   LIVING_COVERS_SEGMENTER_KEY,
   LIVING_COVERS_SMART_EFFECTS_KEY,
+  coverMotionSpeed,
   coverSegmenter,
   downloadCoverModels,
   groundedSamAvailable,
   isDownloadingModels,
   isLivingCoversEnabled,
+  LIVING_COVERS_MOTION_SPEED_KEY,
   modelDownloadProgress,
   modelsPresent,
   smartEffectsEnabled,
@@ -34,6 +36,7 @@ interface CoverLayersStatus {
   enabled: boolean;
   segmenter: CoverSegmenter;
   smartEffects: boolean;
+  motionSpeed: number;
   modelsPresent: boolean;
   downloadingModels: boolean;
   download: ModelDownloadProgress;
@@ -49,10 +52,11 @@ interface CoverLayersStatus {
 export const coverLayersRouter = router({
   /** Feature state + library coverage counts (consumed by settings + render gate). */
   status: protectedProcedure.query(async (): Promise<CoverLayersStatus> => {
-    const [enabled, segmenter, smart, models, total, ready, pending, failed, layered, flat] = await Promise.all([
+    const [enabled, segmenter, smart, speed, models, total, ready, pending, failed, layered, flat] = await Promise.all([
       isLivingCoversEnabled(),
       coverSegmenter(),
       smartEffectsEnabled(),
+      coverMotionSpeed(),
       modelsPresent(),
       prisma.manga.count(),
       prisma.coverLayerSet.count({ where: { status: 'ready' } }),
@@ -65,6 +69,7 @@ export const coverLayersRouter = router({
       enabled,
       segmenter,
       smartEffects: smart,
+      motionSpeed: speed,
       modelsPresent: models,
       downloadingModels: isDownloadingModels(),
       download: modelDownloadProgress(),
@@ -112,6 +117,15 @@ export const coverLayersRouter = router({
       await configService.set(LIVING_COVERS_SMART_EFFECTS_KEY, input.enabled);
       logger.info('[cover-layers] smartEffects set', { enabled: input.enabled });
       return { smartEffects: input.enabled };
+    }),
+
+  /** Set the global cover-motion speed multiplier (render-time — applies without re-processing). */
+  setMotionSpeed: adminProcedure
+    .input(z.object({ speed: z.number().min(0.3).max(2) }))
+    .mutation(async ({ input }): Promise<{ motionSpeed: number }> => {
+      await configService.set(LIVING_COVERS_MOTION_SPEED_KEY, input.speed);
+      logger.info('[cover-layers] motionSpeed set', { speed: input.speed });
+      return { motionSpeed: input.speed };
     }),
 
   /** Kick off the ONNX model download (idempotent; self-guards against re-entry). */
