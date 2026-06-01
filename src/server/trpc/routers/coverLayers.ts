@@ -11,7 +11,10 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { configService } from '@/server/services/config/configService';
 import {
+  type CoverSegmenter,
   LIVING_COVERS_ENABLED_KEY,
+  LIVING_COVERS_SEGMENTER_KEY,
+  coverSegmenter,
   downloadCoverModels,
   isDownloadingModels,
   isLivingCoversEnabled,
@@ -26,6 +29,7 @@ import { logger } from '@/utils/logger';
 
 interface CoverLayersStatus {
   enabled: boolean;
+  segmenter: CoverSegmenter;
   modelsPresent: boolean;
   downloadingModels: boolean;
   download: ModelDownloadProgress;
@@ -41,8 +45,9 @@ interface CoverLayersStatus {
 export const coverLayersRouter = router({
   /** Feature state + library coverage counts (consumed by settings + render gate). */
   status: protectedProcedure.query(async (): Promise<CoverLayersStatus> => {
-    const [enabled, models, total, ready, pending, failed, layered, flat] = await Promise.all([
+    const [enabled, segmenter, models, total, ready, pending, failed, layered, flat] = await Promise.all([
       isLivingCoversEnabled(),
+      coverSegmenter(),
       modelsPresent(),
       prisma.manga.count(),
       prisma.coverLayerSet.count({ where: { status: 'ready' } }),
@@ -53,6 +58,7 @@ export const coverLayersRouter = router({
     ]);
     return {
       enabled,
+      segmenter,
       modelsPresent: models,
       downloadingModels: isDownloadingModels(),
       download: modelDownloadProgress(),
@@ -73,6 +79,15 @@ export const coverLayersRouter = router({
       await configService.set(LIVING_COVERS_ENABLED_KEY, input.enabled);
       logger.info('[cover-layers] enabled set', { enabled: input.enabled });
       return { enabled: input.enabled };
+    }),
+
+  /** Choose the segmenter / quality tier (re-process to apply). */
+  setSegmenter: adminProcedure
+    .input(z.object({ segmenter: z.enum(['standard', 'sam']) }))
+    .mutation(async ({ input }): Promise<{ segmenter: CoverSegmenter }> => {
+      await configService.set(LIVING_COVERS_SEGMENTER_KEY, input.segmenter);
+      logger.info('[cover-layers] segmenter set', { segmenter: input.segmenter });
+      return { segmenter: input.segmenter };
     }),
 
   /** Kick off the ONNX model download (idempotent; self-guards against re-entry). */

@@ -26,6 +26,12 @@ export const COVER_LAYER_PIPELINE_VERSION = 4;
 /** Config key for the global Living Covers master switch (default off). */
 export const LIVING_COVERS_ENABLED_KEY = 'covers.living.enabled';
 
+/** Config key for the segmenter / quality tier (default `standard`). */
+export const LIVING_COVERS_SEGMENTER_KEY = 'covers.living.segmenter';
+
+/** Segmenter tiers. `standard` = depth bands; `sam` = MobileSAM object masks (Option A). */
+export type CoverSegmenter = 'standard' | 'sam';
+
 const MODEL_DOWNLOAD_TIMEOUT_MS = 600_000;
 
 const COVER_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'] as const;
@@ -163,6 +169,12 @@ export async function isLivingCoversEnabled(): Promise<boolean> {
   return value === true || value === 'true';
 }
 
+/** Reads the configured segmenter tier (default `standard`). */
+export async function coverSegmenter(): Promise<CoverSegmenter> {
+  const value = await configService.get<unknown>(LIVING_COVERS_SEGMENTER_KEY, 'standard');
+  return value === 'sam' ? 'sam' : 'standard';
+}
+
 /** Builds the command to run the model downloader sidecar (uv in dev, python in image). */
 function modelDownloadCommand(): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
@@ -251,10 +263,10 @@ export function downloadCoverModels(): Promise<{ ok: boolean; error?: string }> 
 }
 
 /** Builds the command + args to run the sidecar (uv by default for dev). */
-function sidecarCommand(coverPath: string, mangaId: number, outDir: string): { cmd: string; args: string[] } {
+function sidecarCommand(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
   const device = process.env['COVER_LAYER_DEVICE'] ?? 'cpu';
-  const scriptArgs = ['--cover', coverPath, '--id', String(mangaId), '--out', outDir, '--models-dir', modelsDir(), '--device', device];
+  const scriptArgs = ['--cover', coverPath, '--id', String(mangaId), '--out', outDir, '--models-dir', modelsDir(), '--device', device, '--segmenter', segmenter];
   if (runner === 'uv') {
     return {
       cmd: 'uv',
@@ -265,8 +277,8 @@ function sidecarCommand(coverPath: string, mangaId: number, outDir: string): { c
   return { cmd: runner, args: [scriptPath(), ...scriptArgs] };
 }
 
-function runSidecar(coverPath: string, mangaId: number, outDir: string): Promise<{ code: number; stderr: string }> {
-  const { cmd, args } = sidecarCommand(coverPath, mangaId, outDir);
+function runSidecar(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter): Promise<{ code: number; stderr: string }> {
+  const { cmd, args } = sidecarCommand(coverPath, mangaId, outDir, segmenter);
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd: process.cwd() });
     let stderr = '';
@@ -323,12 +335,15 @@ export async function layerizeCover(mangaId: number, force = false): Promise<Lay
     }
 
     const sourceHash = `sha256:${createHash('sha256').update(await fs.readFile(coverPath)).digest('hex')}`;
+    const segmenter = await coverSegmenter();
     const existing = await prisma.coverLayerSet.findUnique({ where: { mangaId } });
+    const existingSegmenter = (existing?.manifestJson as { segmenter?: unknown } | null)?.segmenter ?? 'standard';
     if (
       !force &&
       existing?.status === 'ready' &&
       existing.sourceHash === sourceHash &&
-      existing.version === COVER_LAYER_PIPELINE_VERSION
+      existing.version === COVER_LAYER_PIPELINE_VERSION &&
+      existingSegmenter === segmenter
     ) {
       return { mangaId, status: 'skipped', reason: 'fresh' };
     }
@@ -344,7 +359,7 @@ export async function layerizeCover(mangaId: number, force = false): Promise<Lay
 
     const outDir = path.join(cacheBaseDir(), 'cover-layers', String(mangaId));
     await fs.mkdir(outDir, { recursive: true });
-    const { code, stderr } = await runSidecar(coverPath, mangaId, outDir);
+    const { code, stderr } = await runSidecar(coverPath, mangaId, outDir, segmenter);
 
     if (code !== 0) {
       const error = stderr.slice(-500) || `sidecar exited ${code}`;

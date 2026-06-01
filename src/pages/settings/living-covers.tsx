@@ -8,7 +8,7 @@
 
 import React from 'react';
 
-import { Badge, Button, Card, Checkbox, Container, Group, Loader, Progress, Stack, Switch, Text, Title } from '@mantine/core';
+import { Badge, Button, Card, Checkbox, Container, Group, Loader, Progress, SegmentedControl, Stack, Switch, Text, Title } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck, IconDownload, IconPhoto } from '@tabler/icons-react';
 
@@ -31,6 +31,12 @@ function LivingCoversSettings(): React.ReactElement {
   });
 
   const setEnabled = trpc.coverLayers.setEnabled.useMutation({ onSuccess: () => void refetch() });
+  const setSegmenter = trpc.coverLayers.setSegmenter.useMutation({
+    onSuccess: () => {
+      showNotification({ title: 'Segmenter changed', message: 'Re-process the library to apply it.', color: 'blue' });
+      void refetch();
+    },
+  });
   const downloadModels = trpc.coverLayers.downloadModels.useMutation({
     onSuccess: (res) => {
       showNotification(
@@ -88,6 +94,27 @@ function LivingCoversSettings(): React.ReactElement {
                 disabled={setEnabled.isPending}
               />
             </Group>
+          </Card>
+
+          <Card withBorder padding="lg" radius="md">
+            <Stack gap="sm">
+              <div>
+                <Title order={5}>Separation quality</Title>
+                <Text size="sm" c="dimmed" maw={520}>
+                  How background layers are separated. <b>Standard</b> uses fast depth bands; <b>SAM</b> uses MobileSAM
+                  object masks for cleaner, object-aware layers (slower). Changing this needs a re-process.
+                </Text>
+              </div>
+              <SegmentedControl
+                value={status.segmenter}
+                onChange={(v) => setSegmenter.mutate({ segmenter: v === 'sam' ? 'sam' : 'standard' })}
+                disabled={setSegmenter.isPending || running}
+                data={[
+                  { label: 'Standard (fast)', value: 'standard' },
+                  { label: 'SAM — better separation', value: 'sam' },
+                ]}
+              />
+            </Stack>
           </Card>
 
           <Card withBorder padding="lg" radius="md">

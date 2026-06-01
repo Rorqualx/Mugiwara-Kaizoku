@@ -24,6 +24,9 @@ OPTIONAL_MODELS = {
     "text_det.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
     # MiDaS v2.1 small monocular depth (inverse depth) for depth banding. MIT.
     "depth.onnx": "https://github.com/isl-org/MiDaS/releases/download/v2_1/model-small.onnx",
+    # MobileSAM (Tiny-ViT) — object segmentation for the `sam` segmenter. Apache-2.0.
+    "sam_encoder.onnx": "https://huggingface.co/Acly/MobileSAM/resolve/main/mobile_sam_image_encoder.onnx",
+    "sam_decoder.onnx": "https://huggingface.co/Acly/MobileSAM/resolve/main/sam_mask_decoder_multi.onnx",
 }
 
 

@@ -26,6 +26,10 @@ const ALLOWED_FILES: Record<string, string> = {
   'item-0.webp': 'image/webp',
   'item-1.webp': 'image/webp',
   'item-2.webp': 'image/webp',
+  'object-0.webp': 'image/webp',
+  'object-1.webp': 'image/webp',
+  'object-2.webp': 'image/webp',
+  'object-3.webp': 'image/webp',
 };
 
 function getLayersDir(): string {

@@ -289,7 +289,7 @@ def drift(amp: tuple[float, float], scale: float, dur: int = BG_DURATION_MS) -> 
 
 
 def manifest(cover_id: str, src_hash: str, size: tuple[int, int], coverage: float,
-             mode: str, layers: list[dict], reason: str | None = None) -> dict:
+             mode: str, layers: list[dict], segmenter: str, reason: str | None = None) -> dict:
     m = {
         "schemaVersion": 2,
         "coverId": cover_id,
@@ -297,11 +297,94 @@ def manifest(cover_id: str, src_hash: str, size: tuple[int, int], coverage: floa
         "w": size[0], "h": size[1],
         "fgCoverage": round(coverage, 4),
         "mode": mode,
+        "segmenter": segmenter,
         "layers": layers,
     }
     if reason is not None:
         m["reason"] = reason
     return m
+
+
+# --- Background / object layer builders -----------------------------------
+
+def standard_bg_layers(out: pathlib.Path, models: pathlib.Path, providers: list[str], rgb: Image.Image,
+                       plate: Image.Image, lama: ort.InferenceSession, hole_arr: np.ndarray,
+                       size: tuple[int, int], short_side: int) -> list[dict]:
+    """Depth-band + connected-component item heuristics (the original pipeline)."""
+    layers: list[dict] = []
+    near_alpha = None
+    items: list[tuple[Image.Image, np.ndarray]] = []
+    depth_sess = load_session(models / "depth.onnx", providers)
+    if depth_sess is not None:
+        depth01 = infer_depth(depth_sess, rgb, size)
+        near_alpha = near_band_alpha(depth01, short_side)
+        if near_alpha is not None:
+            items = find_items(depth01, Image.fromarray(hole_arr, mode="L"), size, short_side)
+
+    plate_bands = plate
+    if items:
+        union = np.zeros((size[1], size[0]), dtype=np.uint8)
+        for _, hard in items:
+            union = np.maximum(union, hard)
+        plate_bands = lama_fill(lama, plate, Image.fromarray(union, mode="L"))
+
+    if near_alpha is not None:
+        plate_bands.save(out / "background-far.webp", "WEBP", quality=88, method=6)
+        with_alpha(plate_bands, near_alpha).save(out / "background-near.webp", "WEBP", quality=88, method=6)
+        layers.append({"id": "bg-far", "role": "background", "file": "background-far.webp", "z": 0,
+                       "motion": drift(BG_AMP_FAR, BG_SCALE_FAR)})
+        layers.append({"id": "bg-near", "role": "background", "file": "background-near.webp", "z": 5,
+                       "motion": drift(BG_AMP_NEAR, BG_SCALE_NEAR)})
+    else:
+        plate.save(out / "background.webp", "WEBP", quality=88, method=6)
+        layers.append({"id": "bg", "role": "background", "file": "background.webp", "z": 0,
+                       "motion": drift(BG_AMP_SINGLE, BG_SCALE_SINGLE)})
+
+    for i, (soft, _) in enumerate(items):
+        fname = f"item-{i}.webp"
+        with_alpha(plate, soft).save(out / fname, "WEBP", quality=90, method=6)
+        layers.append({"id": f"item-{i}", "role": "object", "file": fname, "z": 6 + i,
+                       "motion": drift(ITEM_AMP, ITEM_SCALE, ITEM_DUR_BASE + i * ITEM_DUR_STEP)})
+    return layers
+
+
+def sam_bg_layers(out: pathlib.Path, models: pathlib.Path, providers: list[str], rgb: Image.Image,
+                  plate: Image.Image, lama: ort.InferenceSession, hole_arr: np.ndarray,
+                  size: tuple[int, int], short_side: int) -> list[dict]:
+    """MobileSAM object masks → depth-ordered drifting layers (falls back to a single plate)."""
+    from sam_segment import load_sam, sam_object_masks  # lazy: only the sam path needs it
+
+    layers: list[dict] = []
+    sessions = load_sam(str(models), providers)
+    objs = sam_object_masks(sessions, rgb, Image.fromarray(hole_arr, mode="L"), short_side) if sessions is not None else []
+
+    # Order nearest-first using mean inverse-depth per mask (depth as ordering, not banding).
+    depth_sess = load_session(models / "depth.onnx", providers)
+    if depth_sess is not None and objs:
+        depth01 = infer_depth(depth_sess, rgb, size)
+        objs.sort(key=lambda o: -(float(depth01[o[1] > 127].mean()) if (o[1] > 127).any() else 0.0))
+
+    if not objs:
+        plate.save(out / "background.webp", "WEBP", quality=88, method=6)
+        layers.append({"id": "bg", "role": "background", "file": "background.webp", "z": 0,
+                       "motion": drift(BG_AMP_SINGLE, BG_SCALE_SINGLE)})
+        return layers
+
+    union = np.zeros((size[1], size[0]), dtype=np.uint8)
+    for _, hard in objs:
+        union = np.maximum(union, hard)
+    deep = lama_fill(lama, plate, Image.fromarray(union, mode="L"))
+    deep.save(out / "background-far.webp", "WEBP", quality=88, method=6)
+    layers.append({"id": "bg-far", "role": "background", "file": "background-far.webp", "z": 0,
+                   "motion": drift(BG_AMP_FAR, BG_SCALE_FAR)})
+    for i, (soft, _) in enumerate(objs):
+        factor = max(0.4, 1.0 - i * 0.18)  # nearer object → larger drift
+        amp = (round(ITEM_AMP[0] * factor, 2), round(ITEM_AMP[1] * factor, 2))
+        fname = f"object-{i}.webp"
+        with_alpha(plate, soft).save(out / fname, "WEBP", quality=90, method=6)
+        layers.append({"id": f"object-{i}", "role": "object", "file": fname, "z": 6 + i,
+                       "motion": drift(amp, round(ITEM_SCALE * factor, 3), ITEM_DUR_BASE + i * ITEM_DUR_STEP)})
+    return layers
 
 
 # --- Main -----------------------------------------------------------------
@@ -313,6 +396,8 @@ def main() -> int:
     ap.add_argument("--out", required=True, type=pathlib.Path)
     ap.add_argument("--models-dir", required=True, type=pathlib.Path)
     ap.add_argument("--device", choices=list(PROVIDERS), default="cpu")
+    ap.add_argument("--segmenter", choices=["standard", "sam"], default="standard",
+                    help="standard = depth bands + item heuristics; sam = MobileSAM object masks")
     args = ap.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -350,7 +435,7 @@ def main() -> int:
     if not use_character and text_frac < TEXT_UNLOCK_FRAC:
         use_text = False
         reason = "no-subject" if coverage < GATE_LOW else "full-bleed"
-        write_manifest(manifest(args.id, src_hash, size, coverage, "flat", [], reason))
+        write_manifest(manifest(args.id, src_hash, size, coverage, "flat", [], args.segmenter, reason))
         print(f"FLAT {args.id}: coverage={coverage:.0%} ({reason})", flush=True)
         return 0
 
@@ -363,44 +448,11 @@ def main() -> int:
     lama = ort.InferenceSession(str(models / "lama_fp32.onnx"), providers=providers)
     plate = lama_fill(lama, rgb, Image.fromarray(hole_arr, mode="L"))
 
-    # 5. Depth banding + discrete near-item sprites (optional depth model).
-    layers: list[dict] = []
-    near_alpha = None
-    items: list[tuple[Image.Image, np.ndarray]] = []
-    depth_sess = load_session(models / "depth.onnx", providers)
-    if depth_sess is not None:
-        depth01 = infer_depth(depth_sess, rgb, size)
-        near_alpha = near_band_alpha(depth01, short_side)
-        if near_alpha is not None:
-            items = find_items(depth01, Image.fromarray(hole_arr, mode="L"), size, short_side)
-
-    # Lift items off the plate: inpaint them out so the bands behind them are
-    # clean, then float each as its own faster-drifting sprite (no ghosting).
-    plate_bands = plate
-    if items:
-        item_union = np.zeros((size[1], size[0]), dtype=np.uint8)
-        for _, hard in items:
-            item_union = np.maximum(item_union, hard)
-        plate_bands = lama_fill(lama, plate, Image.fromarray(item_union, mode="L"))
-
-    if near_alpha is not None:
-        plate_bands.save(args.out / "background-far.webp", "WEBP", quality=88, method=6)
-        with_alpha(plate_bands, near_alpha).save(args.out / "background-near.webp", "WEBP", quality=88, method=6)
-        layers.append({"id": "bg-far", "role": "background", "file": "background-far.webp", "z": 0,
-                       "motion": drift(BG_AMP_FAR, BG_SCALE_FAR)})
-        layers.append({"id": "bg-near", "role": "background", "file": "background-near.webp", "z": 5,
-                       "motion": drift(BG_AMP_NEAR, BG_SCALE_NEAR)})
+    # 5. Background + object layers — SAM object masks or the depth-band heuristic.
+    if args.segmenter == "sam":
+        layers = sam_bg_layers(args.out, models, providers, rgb, plate, lama, hole_arr, size, short_side)
     else:
-        plate.save(args.out / "background.webp", "WEBP", quality=88, method=6)
-        layers.append({"id": "bg", "role": "background", "file": "background.webp", "z": 0,
-                       "motion": drift(BG_AMP_SINGLE, BG_SCALE_SINGLE)})
-
-    # Near-item sprites (cropped from the item-bearing plate), z just under char.
-    for i, (soft, _) in enumerate(items):
-        fname = f"item-{i}.webp"
-        with_alpha(plate, soft).save(args.out / fname, "WEBP", quality=90, method=6)
-        layers.append({"id": f"item-{i}", "role": "object", "file": fname, "z": 6 + i,
-                       "motion": drift(ITEM_AMP, ITEM_SCALE, ITEM_DUR_BASE + i * ITEM_DUR_STEP)})
+        layers = standard_bg_layers(args.out, models, providers, rgb, plate, lama, hole_arr, size, short_side)
 
     # 6. Character layer (locked in frame).
     if use_character:
@@ -412,10 +464,10 @@ def main() -> int:
         with_alpha(rgb, text_soft).save(args.out / "text.webp", "WEBP", quality=90, method=6)
         layers.append({"id": "text", "role": "text", "file": "text.webp", "z": 20, "motion": None})
 
-    write_manifest(manifest(args.id, src_hash, size, coverage, "layered", layers))
-    bands = "banded" if near_alpha is not None else "single"
+    write_manifest(manifest(args.id, src_hash, size, coverage, "layered", layers, args.segmenter))
+    objects = sum(1 for layer in layers if layer["role"] == "object")
     print(f"LAYERED {args.id}: coverage={coverage:.0%} char={use_character} text={use_text} "
-          f"bg={bands} items={len(items)}", flush=True)
+          f"segmenter={args.segmenter} objects={objects}", flush=True)
     return 0
 
 
