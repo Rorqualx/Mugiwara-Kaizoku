@@ -7,11 +7,13 @@
  */
 
 import React from 'react';
+import type { ReactElement } from 'react';
 
 import { Badge, Button, Card, Checkbox, Container, Group, Loader, Progress, SegmentedControl, Stack, Switch, Text, Title } from '@mantine/core';
 import { showNotification } from '@mantine/notifications';
 import { IconAlertCircle, IconCheck, IconDownload, IconPhoto } from '@tabler/icons-react';
 
+import { ResponsiveMainLayout } from '@/components/layouts/ResponsiveMainLayout';
 import SettingsLayout from '@/components/layouts/SettingsLayout';
 import { trpc } from '@/utils/trpc-client/index';
 
@@ -233,5 +235,9 @@ function LivingCoversSettings(): React.ReactElement {
     </SettingsLayout>
   );
 }
+
+LivingCoversSettings.getLayout = function getLayout(page: ReactElement): React.ReactElement {
+  return <ResponsiveMainLayout>{page}</ResponsiveMainLayout>;
+};
 
 export default LivingCoversSettings;

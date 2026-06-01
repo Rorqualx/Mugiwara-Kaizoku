@@ -18,6 +18,7 @@ import {
   IconFolderPlus,
   IconHome,
   IconPalette,
+  IconPhoto,
   IconPlugConnected,
   IconRefresh,
   IconSearch,
@@ -320,6 +321,8 @@ export function KaizokuNavbar(): React.JSX.Element {
                     <ActiveNavItem icon={<IconShieldCheck size={16}/>} label="FlareSolverr" href="/settings/flaresolverr" nested/>
 
                     <ActiveNavItem icon={<IconBooks size={16}/>} label="Import Manga" href="/settings/library" nested/>
+
+                    <ActiveNavItem icon={<IconPhoto size={16}/>} label="Living Covers" href="/settings/living-covers" nested/>
 
                   </Stack>
                 </Collapse>
