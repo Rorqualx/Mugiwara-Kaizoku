@@ -14,11 +14,12 @@ import { Badge, Box, Text, ActionIcon, Group } from '@mantine/core';
 import { IconEdit, IconRefresh, IconTrash } from '@tabler/icons-react';
 
 import { useBreakpoint } from '@/hooks/mobile';
+import { useCoverLayerManifest } from '@/hooks/useCoverLayerManifest';
 import { useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations} from '@/types/search.types';
 import { getCoverUrl } from '@/utils/cover-url';
 
-import { MangaCover } from '../manga/MangaCover';
+import { LivingCover } from '../manga/MangaCover';
 import { useUpdateModal } from '../updateManga';
 
 import { MangaProgressBar } from './MangaProgressBar';
@@ -69,6 +70,9 @@ export function ResponsiveMangaCard({
   const showProgress = useLibraryViewStore((s) => s.showProgress);
 
   const coverUrl = useMemo(() => getResponsiveCoverUrl(manga.Metadata, manga.id), [manga.Metadata, manga.id]);
+
+  const mangaIdNum = typeof manga.id === 'number' ? manga.id : Number(manga.id);
+  const coverManifest = useCoverLayerManifest(Number.isFinite(mangaIdNum) ? mangaIdNum : undefined);
 
   const { downloadedChapters, totalChapters, downloadedVolumes, totalVolumes } = useMemo(() => {
     const chapters = (manga as {
@@ -166,12 +170,14 @@ export function ResponsiveMangaCard({
           overflow: 'hidden'
         }}>
 
-        <MangaCover
+        <LivingCover
           fill
           withOverlay
           src={coverUrl}
           alt={manga["title"]}
           seed={manga["id"]}
+          manifest={coverManifest}
+          layerBaseUrl={`/api/cover-layers/${mangaIdNum}`}
         />
 
         <Group justify="space-between" w="100%" mb="xs" pos="relative" style={{ zIndex: 1 }}>
