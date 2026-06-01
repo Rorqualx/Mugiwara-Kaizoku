@@ -27,13 +27,15 @@ echo "  note: first run downloads ~2-3 GB of torch wheels — give it a few minu
 
 if [ "${RUNNER}" = "uv" ]; then
   # uv installs --with deps into a cached env; the layerizer reuses the exact
-  # same dep set, so its probe/run hit the warm cache.
+  # same dep set, so its probe/run hit the warm cache. Pins: transformers<4.46
+  # keeps GroundingDINO usable with the torch the macOS wheel provides; numpy<2
+  # matches torch's build ABI.
   uv run --python 3.11 \
-    --with onnxruntime --with numpy --with pillow \
-    --with torch --with transformers --with huggingface_hub \
+    --with onnxruntime --with 'numpy<2' --with pillow \
+    --with torch --with 'transformers<4.46' --with huggingface_hub \
     python "${SCRIPT_DIR}/download_models.py" --tier grounded-sam --models-dir "${MODELS_DIR}"
 else
-  "${RUNNER}" -m pip install --upgrade torch transformers huggingface_hub
+  "${RUNNER}" -m pip install --upgrade torch 'transformers<4.46' huggingface_hub 'numpy<2'
   "${RUNNER}" "${SCRIPT_DIR}/download_models.py" --tier grounded-sam --models-dir "${MODELS_DIR}"
 fi
 

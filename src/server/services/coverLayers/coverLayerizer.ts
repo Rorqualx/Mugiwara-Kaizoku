@@ -379,7 +379,11 @@ export function downloadCoverModels(): Promise<{ ok: boolean; error?: string }> 
 
 /** Base uv deps (ONNX pipeline). Grounded-sam adds torch for GroundingDINO. */
 const BASE_UV_DEPS = ['onnxruntime', 'numpy', 'pillow'] as const;
-const GROUNDED_UV_DEPS = [...BASE_UV_DEPS, 'torch', 'transformers', 'huggingface_hub'] as const;
+// Grounded-sam pins (validated on M4): transformers bumped its torch floor to 2.4
+// in 4.46, but the last x86_64-macOS torch wheel is 2.2.2 — so cap transformers so
+// GroundingDINO stays enabled; numpy<2 matches torch's build ABI. Passed to spawn()
+// directly (not a shell), so the `<` is a literal version specifier, not a redirect.
+const GROUNDED_UV_DEPS = ['onnxruntime', 'numpy<2', 'pillow', 'torch', 'transformers<4.46', 'huggingface_hub'] as const;
 
 /** `--with <dep>` args for the uv runner; the grounded set self-provisions torch (cached). */
 function uvWithArgs(grounded: boolean): string[] {

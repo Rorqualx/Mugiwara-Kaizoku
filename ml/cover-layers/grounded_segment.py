@@ -30,8 +30,8 @@ from tag_cover import load_tagger, tag_cover
 GROUNDING_DIR = "grounding-dino-tiny"
 GROUNDING_REPO = "IDEA-Research/grounding-dino-tiny"
 
-BOX_THRESHOLD = 0.30      # GroundingDINO box-confidence floor
-TEXT_THRESHOLD = 0.25     # phrase-match floor
+BOX_THRESHOLD = 0.20      # GroundingDINO box-confidence floor (manga art scores lower than photos)
+TEXT_THRESHOLD = 0.15     # phrase-match floor
 NMS_IOU = 0.5             # dedup overlapping boxes (keep higher score)
 EXCLUDE_OVERLAP = 0.55    # drop a box mostly inside the character/text hole
 AREA_MIN = 0.004          # box area as a fraction of the image...
@@ -130,23 +130,29 @@ def _prompt(tags: set[str]) -> tuple[str, list[str]]:
     return (". ".join(phrases) + "." if phrases else ""), phrases
 
 
-def _detect(grounding, rgb: Image.Image, prompt: str) -> list[tuple[tuple[float, float, float, float], float, str]]:
-    """Run GroundingDINO; return [(box xyxy in px, score, label)]."""
+def _detect(grounding, rgb: Image.Image, phrases: list[str]) -> list[tuple[tuple[float, float, float, float], float, str]]:
+    """Run GroundingDINO once per phrase so each box carries a clean label.
+
+    post_process returns the whole prompt string as the per-box label (it doesn't
+    split phrases reliably), so we prompt one phrase at a time and tag the boxes
+    with that phrase — which is what drives `LABEL_MOTION`.
+    """
     import torch  # noqa: PLC0415
 
     proc, model, dev = grounding
     w0, h0 = rgb.size
-    inputs = proc(images=rgb, text=prompt, return_tensors="pt").to(dev)
-    with torch.no_grad():
-        outputs = model(**inputs)
-    res = proc.post_process_grounded_object_detection(
-        outputs, inputs["input_ids"], box_threshold=BOX_THRESHOLD,
-        text_threshold=TEXT_THRESHOLD, target_sizes=[(h0, w0)],
-    )[0]
     out: list[tuple[tuple[float, float, float, float], float, str]] = []
-    for box, score, label in zip(res["boxes"].tolist(), res["scores"].tolist(), res["labels"]):
-        x0, y0, x1, y1 = box
-        out.append(((float(x0), float(y0), float(x1), float(y1)), float(score), str(label).strip()))
+    for phrase in phrases:
+        inputs = proc(images=rgb, text=f"{phrase}.", return_tensors="pt").to(dev)
+        with torch.no_grad():
+            outputs = model(**inputs)
+        res = proc.post_process_grounded_object_detection(
+            outputs, inputs["input_ids"], box_threshold=BOX_THRESHOLD,
+            text_threshold=TEXT_THRESHOLD, target_sizes=[(h0, w0)],
+        )[0]
+        for box, score in zip(res["boxes"].tolist(), res["scores"].tolist()):
+            x0, y0, x1, y1 = box
+            out.append(((float(x0), float(y0), float(x1), float(y1)), float(score), phrase))
     return out
 
 
@@ -196,13 +202,13 @@ def grounded_object_masks(grounding, sam_sessions, tagger, rgb: Image.Image, exc
     if grounding is None or sam_sessions is None:
         return []
     tags = tag_cover(tagger, rgb) if tagger is not None else set()
-    prompt, _ = _prompt(tags)
-    if prompt == "":
+    _, phrases = _prompt(tags)
+    if not phrases:
         return []
 
     size = rgb.size
     hole = (np.asarray(exclude.convert("L"), np.uint8) > 127)
-    boxes = _filter_boxes(_detect(grounding, rgb, prompt), size, hole)
+    boxes = _filter_boxes(_detect(grounding, rgb, phrases), size, hole)
     if not boxes:
         return []
 
@@ -237,6 +243,9 @@ LABEL_MOTION: list[tuple[str, set[str], tuple[float, float], float, int]] = [
     ("sway", {"cape", "coat", "flag", "banner", "ribbon", "scarf", "wing", "wings",
               "feathers", "leaf", "leaves", "flower", "flowers", "balloon", "lantern"},
      (5.5, 2.0), 0.06, 12000),
+    ("wield", {"sword", "katana", "knife", "dagger", "gun", "spear", "polearm", "axe",
+               "scythe", "bow", "shield", "staff", "bo_staff", "weapon"},
+     (3.5, 2.4), 0.05, 13000),
 ]
 
 
