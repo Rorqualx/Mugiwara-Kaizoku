@@ -120,8 +120,9 @@ function LivingCoversSettings(): React.ReactElement {
                 <Text size="sm" c="dimmed" maw={520}>
                   How background layers are separated. <b>Standard</b> uses fast depth bands; <b>SAM</b> uses MobileSAM
                   object masks for cleaner, object-aware layers (slower); <b>Grounded-SAM</b> labels each object
-                  (cloud, fire, sword…) and gives it motion to match — it needs PyTorch (the standard container ships
-                  without it), uses a GPU when present (Metal on Apple Silicon, CUDA elsewhere) and falls back to CPU.
+                  (cloud, fire, sword…) and gives it motion to match — it needs PyTorch, uses a GPU when present
+                  (Metal on Apple Silicon, CUDA elsewhere) and falls back to CPU. Run
+                  <code>ml/cover-layers/provision-grounded-sam.sh</code> once to install it; this option unlocks after.
                   Changing this needs a re-process.
                 </Text>
               </div>

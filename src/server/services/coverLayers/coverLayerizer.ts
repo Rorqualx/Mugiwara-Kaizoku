@@ -202,12 +202,29 @@ function probeCommand(): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
   const scriptArgs = ['--probe', '--models-dir', modelsDir()];
   if (runner === 'uv') {
+    // Same dep set as the grounded run, so once provisioned the cache is warm
+    // and the probe imports torch instantly (well under PROBE_TIMEOUT_MS).
     return {
       cmd: 'uv',
-      args: ['run', '--python', '3.11', '--with', 'onnxruntime', '--with', 'numpy', '--with', 'pillow', 'python', scriptPath(), ...scriptArgs],
+      args: ['run', '--python', '3.11', ...uvWithArgs(true), 'python', scriptPath(), ...scriptArgs],
     };
   }
   return { cmd: runner, args: [scriptPath(), ...scriptArgs] };
+}
+
+/**
+ * True once grounded-sam has been provisioned — i.e. the GroundingDINO weights
+ * are present. `provision-grounded-sam.sh` fetches them (and warms the torch uv
+ * cache), so their presence is our cheap "don't spawn a doomed 2 GB install"
+ * gate on the uv/dev path.
+ */
+async function groundedProvisioned(): Promise<boolean> {
+  try {
+    await fs.access(path.join(modelsDir(), 'grounding-dino-tiny', 'config.json'));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Parses the sidecar `--probe` JSON; true only when torch + the DINO weights are present. */
@@ -255,7 +272,11 @@ export async function groundedSamAvailable(): Promise<boolean> {
   if (groundedProbeCache !== null && now - groundedProbeCache.at < GROUNDED_PROBE_TTL_MS) {
     return groundedProbeCache.value;
   }
-  const value = await runProbe();
+  // On the uv/dev path, don't run the (install-triggering) probe until the
+  // weights exist — otherwise an un-provisioned box spawns a doomed 2 GB pull
+  // every cache window. An explicit COVER_LAYER_PYTHON is assumed pre-provisioned.
+  const needsProvisionGate = process.env['COVER_LAYER_PYTHON'] === undefined;
+  const value = needsProvisionGate && !(await groundedProvisioned()) ? false : await runProbe();
   groundedProbeCache = { value, at: now };
   return value;
 }
@@ -356,6 +377,15 @@ export function downloadCoverModels(): Promise<{ ok: boolean; error?: string }> 
   });
 }
 
+/** Base uv deps (ONNX pipeline). Grounded-sam adds torch for GroundingDINO. */
+const BASE_UV_DEPS = ['onnxruntime', 'numpy', 'pillow'] as const;
+const GROUNDED_UV_DEPS = [...BASE_UV_DEPS, 'torch', 'transformers', 'huggingface_hub'] as const;
+
+/** `--with <dep>` args for the uv runner; the grounded set self-provisions torch (cached). */
+function uvWithArgs(grounded: boolean): string[] {
+  return (grounded ? GROUNDED_UV_DEPS : BASE_UV_DEPS).flatMap((d) => ['--with', d]);
+}
+
 /** Builds the command + args to run the sidecar (uv by default for dev). */
 function sidecarCommand(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter, smartEffects: boolean): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
@@ -367,7 +397,7 @@ function sidecarCommand(coverPath: string, mangaId: number, outDir: string, segm
   if (runner === 'uv') {
     return {
       cmd: 'uv',
-      args: ['run', '--python', '3.11', '--with', 'onnxruntime', '--with', 'numpy', '--with', 'pillow', 'python', scriptPath(), ...scriptArgs],
+      args: ['run', '--python', '3.11', ...uvWithArgs(segmenter === 'grounded-sam'), 'python', scriptPath(), ...scriptArgs],
     };
   }
   // Otherwise treat COVER_LAYER_PYTHON as a python interpreter with deps installed.
