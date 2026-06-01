@@ -39,10 +39,14 @@ HOLE_DILATE_FRAC = 0.012   # grow the hole by ~1.2% of the short side (hide frin
 GATE_LOW = 0.10            # below this fg coverage -> nothing found -> flat
 GATE_HIGH = 0.92           # above this -> full-bleed, no background to move -> flat
 
-# Background drift, as a % of cover dimension. Kept small so the (slightly
-# distorted) inpainted plate and any baked title text drift only subtly.
-BG_AMP_PCT = (1.6, 1.0)
-BG_DURATION_MS = 16000
+# Background drift, as a % of cover dimension. Tuned for clearly-visible-but-
+# graceful motion: enough travel + a gentle zoom "breath" that the parallax
+# reads on a still screen, but small enough that the (slightly distorted)
+# inpainted plate and any baked title text never look warped. The component
+# overscans the layer by 2*maxAmp so these edges never reveal a gap.
+BG_AMP_PCT = (3.2, 2.2)
+BG_SCALE_AMP = 0.04
+BG_DURATION_MS = 14000
 
 PROVIDERS = {
     "cpu": ["CPUExecutionProvider"],
@@ -138,7 +142,7 @@ def layered_manifest(cover_id: str, src_hash: str, size: tuple[int, int], covera
                 "motion": {
                     "type": "drift",
                     "ampPct": list(BG_AMP_PCT),
-                    "scaleAmp": 0.0,
+                    "scaleAmp": BG_SCALE_AMP,
                     "durationMs": BG_DURATION_MS,
                     "easing": "ease-in-out",
                     "alternate": True,
