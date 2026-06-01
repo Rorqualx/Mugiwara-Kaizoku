@@ -15,7 +15,9 @@ import {
   downloadCoverModels,
   isDownloadingModels,
   isLivingCoversEnabled,
+  modelDownloadProgress,
   modelsPresent,
+  type ModelDownloadProgress,
 } from '@/server/services/coverLayers/coverLayerizer';
 import { isProcessing, processLibraryCovers, processProgress, type ProcessProgress } from '@/server/services/coverLayers/processLibrary';
 import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
@@ -26,6 +28,7 @@ interface CoverLayersStatus {
   enabled: boolean;
   modelsPresent: boolean;
   downloadingModels: boolean;
+  download: ModelDownloadProgress;
   total: number;
   ready: number;
   layered: number;
@@ -52,6 +55,7 @@ export const coverLayersRouter = router({
       enabled,
       modelsPresent: models,
       downloadingModels: isDownloadingModels(),
+      download: modelDownloadProgress(),
       total,
       ready,
       layered,

@@ -174,32 +174,72 @@ function modelDownloadCommand(): { cmd: string; args: string[] } {
   return { cmd: runner, args: [script, ...scriptArgs] };
 }
 
+/** Live snapshot of an in-progress model download. */
+export interface ModelDownloadProgress {
+  active: boolean;
+  fileIndex: number;
+  fileCount: number;
+  fileName: string;
+  overallPct: number;
+}
+
 let modelDownloadInFlight = false;
+let downloadProgress: ModelDownloadProgress = { active: false, fileIndex: 0, fileCount: 0, fileName: '', overallPct: 0 };
 
 /** Whether a model download is currently running. */
 export function isDownloadingModels(): boolean {
   return modelDownloadInFlight;
 }
 
+/** Snapshot of the current (or last) model-download progress. */
+export function modelDownloadProgress(): ModelDownloadProgress {
+  return { ...downloadProgress };
+}
+
+/** Parses a `PROGRESS|idx|count|name|pct` line into an overall-percentage snapshot. */
+function applyProgressLine(line: string): void {
+  const m = /^PROGRESS\|(\d+)\|(\d+)\|([^|]*)\|(\d+)$/.exec(line.trim());
+  if (m === null) {
+    return;
+  }
+  const idx = Number(m[1]);
+  const count = Number(m[2]);
+  const pct = Number(m[4]);
+  const overallPct = count > 0 ? Math.round(((idx - 1 + pct / 100) / count) * 100) : 0;
+  downloadProgress = { active: true, fileIndex: idx, fileCount: count, fileName: m[3] ?? '', overallPct };
+}
+
 /**
  * Downloads the ONNX models into the models dir (idempotent — skips present
- * files). No-ops while a download is already in flight.
+ * files). No-ops while a download is already in flight. Streams per-file
+ * progress into {@link modelDownloadProgress}.
  */
 export function downloadCoverModels(): Promise<{ ok: boolean; error?: string }> {
   if (modelDownloadInFlight) {
     return Promise.resolve({ ok: false, error: 'already downloading' });
   }
   modelDownloadInFlight = true;
+  downloadProgress = { active: true, fileIndex: 0, fileCount: 0, fileName: '', overallPct: 0 };
   const { cmd, args } = modelDownloadCommand();
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd: process.cwd() });
     let stderr = '';
+    let stdoutBuf = '';
     const finish = (result: { ok: boolean; error?: string }): void => {
       clearTimeout(timer);
       modelDownloadInFlight = false;
+      downloadProgress = { ...downloadProgress, active: false, overallPct: result.ok ? 100 : downloadProgress.overallPct };
       resolve(result);
     };
     const timer = setTimeout(() => child.kill('SIGKILL'), MODEL_DOWNLOAD_TIMEOUT_MS);
+    child.stdout.on('data', (d: Buffer) => {
+      stdoutBuf += d.toString();
+      const lines = stdoutBuf.split('\n');
+      stdoutBuf = lines.pop() ?? '';
+      for (const line of lines) {
+        applyProgressLine(line);
+      }
+    });
     child.stderr.on('data', (d: Buffer) => {
       stderr += d.toString();
     });

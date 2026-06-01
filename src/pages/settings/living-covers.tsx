@@ -23,7 +23,10 @@ const PROCESS_REASONS: Record<string, string> = {
 function LivingCoversSettings(): React.ReactElement {
   const [force, setForce] = React.useState(false);
   const { data: status, refetch } = trpc.coverLayers.status.useQuery(undefined, {
-    refetchInterval: (query) => (query.state.data?.progress.running === true ? 2000 : false),
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      return d?.progress.running === true || d?.download.active === true ? 1500 : false;
+    },
     refetchOnWindowFocus: false,
   });
 
@@ -60,6 +63,7 @@ function LivingCoversSettings(): React.ReactElement {
   }
 
   const { progress } = status;
+  const dl = status.download;
   const running = progress.running;
   const modelsReady = status.modelsPresent;
   const pct = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
@@ -87,28 +91,43 @@ function LivingCoversSettings(): React.ReactElement {
           </Card>
 
           <Card withBorder padding="lg" radius="md">
-            <Group justify="space-between" align="center">
-              <div>
-                <Group gap="xs">
-                  <Title order={5}>ONNX models</Title>
-                  <Badge color={modelsReady ? 'green' : 'gray'} variant="light">
-                    {modelsReady ? 'Installed' : 'Not installed'}
-                  </Badge>
-                </Group>
-                <Text size="sm" c="dimmed" maw={520}>
-                  ~456 MB (segmentation, inpainting, depth, text detection). Downloaded once to the persistent config volume.
-                </Text>
-              </div>
-              <Button
-                leftSection={<IconDownload size={16} />}
-                variant="light"
-                onClick={() => downloadModels.mutate()}
-                loading={status.downloadingModels || downloadModels.isPending}
-                disabled={modelsReady}
-              >
-                {modelsReady ? 'Installed' : 'Download models'}
-              </Button>
-            </Group>
+            <Stack gap="md">
+              <Group justify="space-between" align="center">
+                <div>
+                  <Group gap="xs">
+                    <Title order={5}>ONNX models</Title>
+                    <Badge color={modelsReady ? 'green' : 'gray'} variant="light">
+                      {modelsReady ? 'Installed' : 'Not installed'}
+                    </Badge>
+                  </Group>
+                  <Text size="sm" c="dimmed" maw={520}>
+                    ~456 MB (segmentation, inpainting, depth, text detection). Downloaded once to the persistent config volume.
+                  </Text>
+                </div>
+                <Button
+                  leftSection={<IconDownload size={16} />}
+                  variant="light"
+                  onClick={() => downloadModels.mutate()}
+                  loading={dl.active || downloadModels.isPending}
+                  disabled={modelsReady && !dl.active}
+                >
+                  {modelsReady ? 'Installed' : 'Download models'}
+                </Button>
+              </Group>
+
+              {dl.active && (
+                <Stack gap={4}>
+                  <Group justify="space-between">
+                    <Text size="sm">
+                      Downloading {dl.fileName === '' ? 'models' : dl.fileName}
+                      {dl.fileCount > 0 ? ` (${dl.fileIndex}/${dl.fileCount})` : ''}
+                    </Text>
+                    <Text size="sm" fw={600}>{dl.overallPct}%</Text>
+                  </Group>
+                  <Progress value={dl.overallPct} animated />
+                </Stack>
+              )}
+            </Stack>
           </Card>
 
           <Card withBorder padding="lg" radius="md">

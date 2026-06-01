@@ -27,20 +27,39 @@ OPTIONAL_MODELS = {
 }
 
 
-def fetch(models_dir: pathlib.Path, name: str, url: str, *, required: bool) -> None:
+def _emit(idx: int, count: int, name: str, pct: int) -> None:
+    """Machine-readable progress line consumed by the cover-layerizer service."""
+    print(f"PROGRESS|{idx}|{count}|{name}|{pct}", flush=True)
+
+
+def fetch(models_dir: pathlib.Path, name: str, url: str, *, required: bool, idx: int, count: int) -> None:
     dest = models_dir / name
     if dest.exists() and dest.stat().st_size > 1_000_000:
         print(f"have {name} ({dest.stat().st_size // 1_000_000} MB)", flush=True)
+        _emit(idx, count, name, 100)
         return
     tag = "" if required else " (optional)"
     print(f"downloading {name}{tag} ...", flush=True)
+    last = -1
+
+    def hook(block_num: int, block_size: int, total_size: int) -> None:
+        nonlocal last
+        if total_size <= 0:
+            return
+        pct = min(100, int(block_num * block_size * 100 / total_size))
+        if pct != last:
+            last = pct
+            _emit(idx, count, name, pct)
+
     try:
-        urllib.request.urlretrieve(url, dest)
+        urllib.request.urlretrieve(url, dest, reporthook=hook)
+        _emit(idx, count, name, 100)
         print(f"  -> {dest} ({dest.stat().st_size // 1_000_000} MB)", flush=True)
     except Exception as err:  # noqa: BLE001 - optional models must not abort the run
         if required:
             raise
         dest.unlink(missing_ok=True)
+        _emit(idx, count, name, 100)
         print(f"  !! skipped {name}: {err}", flush=True)
 
 
@@ -49,10 +68,12 @@ def main() -> int:
     ap.add_argument("--models-dir", required=True, type=pathlib.Path)
     args = ap.parse_args()
     args.models_dir.mkdir(parents=True, exist_ok=True)
-    for name, url in MODELS.items():
-        fetch(args.models_dir, name, url, required=True)
-    for name, url in OPTIONAL_MODELS.items():
-        fetch(args.models_dir, name, url, required=False)
+    items = [(name, url, True) for name, url in MODELS.items()] + [
+        (name, url, False) for name, url in OPTIONAL_MODELS.items()
+    ]
+    count = len(items)
+    for idx, (name, url, required) in enumerate(items, start=1):
+        fetch(args.models_dir, name, url, required=required, idx=idx, count=count)
     return 0
 
 
