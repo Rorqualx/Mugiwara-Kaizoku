@@ -120,8 +120,9 @@ function LivingCoversSettings(): React.ReactElement {
                 <Text size="sm" c="dimmed" maw={520}>
                   How background layers are separated. <b>Standard</b> uses fast depth bands; <b>SAM</b> uses MobileSAM
                   object masks for cleaner, object-aware layers (slower); <b>Grounded-SAM</b> labels each object
-                  (cloud, fire, sword…) and gives it motion to match — but needs a torch + CUDA host, so it is
-                  unavailable on the standard container. Changing this needs a re-process.
+                  (cloud, fire, sword…) and gives it motion to match — it needs PyTorch (the standard container ships
+                  without it), uses a GPU when present (Metal on Apple Silicon, CUDA elsewhere) and falls back to CPU.
+                  Changing this needs a re-process.
                 </Text>
               </div>
               <SegmentedControl
@@ -131,7 +132,7 @@ function LivingCoversSettings(): React.ReactElement {
                 data={[
                   { label: 'Standard (fast)', value: 'standard' },
                   { label: 'SAM — better separation', value: 'sam' },
-                  { label: 'Grounded-SAM — labeled objects (GPU)', value: 'grounded-sam', disabled: grounded?.available !== true },
+                  { label: 'Grounded-SAM — labeled objects (PyTorch)', value: 'grounded-sam', disabled: grounded?.available !== true },
                 ]}
               />
               <Switch

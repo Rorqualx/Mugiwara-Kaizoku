@@ -17,6 +17,7 @@ GroundingDINO weights live under `<models-dir>/grounding-dino-tiny/` (fetched by
 
 from __future__ import annotations
 
+import os
 import pathlib
 
 import numpy as np
@@ -56,26 +57,52 @@ def _grounding_path(models_dir: str) -> pathlib.Path:
     return pathlib.Path(models_dir) / GROUNDING_DIR
 
 
+def _mps_ok(torch) -> bool:  # noqa: ANN001 - torch is lazy-typed
+    """True if a usable Apple-Silicon Metal (MPS) backend is present."""
+    backend = getattr(torch.backends, "mps", None)
+    return backend is not None and bool(backend.is_available())
+
+
 def probe(models_dir: str = "") -> dict:
     """Capability snapshot — importable and runnable with no torch installed.
 
-    @returns `{torch, cuda, dino}` (booleans). `dino` is whether the local
-        GroundingDINO snapshot is present (only meaningful when models_dir given).
+    @returns `{torch, cuda, mps, dino}` (booleans). The tier only needs `torch`
+        + `dino`; `cuda`/`mps` just report which accelerator (if any) will be
+        used. `dino` is whether the local GroundingDINO snapshot is present.
     """
-    has_torch = has_cuda = False
+    has_torch = has_cuda = has_mps = False
     try:
         import torch  # noqa: PLC0415 - intentionally lazy
 
         has_torch = True
         has_cuda = bool(torch.cuda.is_available())
+        has_mps = _mps_ok(torch)
     except Exception:  # noqa: BLE001 - any import/runtime failure means "unavailable"
-        has_torch = has_cuda = False
+        has_torch = has_cuda = has_mps = False
     dino = models_dir != "" and (_grounding_path(models_dir) / "config.json").exists()
-    return {"torch": has_torch, "cuda": has_cuda, "dino": dino}
+    return {"torch": has_torch, "cuda": has_cuda, "mps": has_mps, "dino": dino}
+
+
+def _torch_device(requested: str, torch) -> str:  # noqa: ANN001 - torch is lazy-typed
+    """Best torch device: honor an explicit cuda/mps request, else auto-pick (cuda > mps > cpu).
+
+    The ONNX `--device` (cpu/cuda/coreml) and the torch device are separate
+    concerns, so we auto-detect here — on an M-series Mac the ONNX stage stays on
+    CPU/CoreML while GroundingDINO still runs on Metal.
+    """
+    if requested == "cuda" and torch.cuda.is_available():
+        return "cuda"
+    if requested == "mps" and _mps_ok(torch):
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    if _mps_ok(torch):
+        return "mps"
+    return "cpu"
 
 
 def load_grounding(models_dir: str, device: str):  # noqa: ANN201 - torch types are lazy
-    """Load the GroundingDINO processor + model onto `device`, or None if unavailable."""
+    """Load the GroundingDINO processor + model onto the best device, or None if unavailable."""
     local = _grounding_path(models_dir)
     if not (local / "config.json").exists():
         return None
@@ -83,9 +110,14 @@ def load_grounding(models_dir: str, device: str):  # noqa: ANN201 - torch types 
         import torch  # noqa: PLC0415
         from transformers import AutoProcessor, GroundingDinoForObjectDetection  # noqa: PLC0415
 
-        dev = device if (device == "cuda" and torch.cuda.is_available()) else "cpu"
+        dev = _torch_device(device, torch)
+        if dev == "mps":
+            # Let unsupported ops (e.g. deformable attention) fall back to CPU
+            # instead of hard-erroring on Metal.
+            os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
         proc = AutoProcessor.from_pretrained(str(local))
         model = GroundingDinoForObjectDetection.from_pretrained(str(local)).to(dev).eval()
+        print(f"grounded: GroundingDINO on {dev}", flush=True)
         return proc, model, dev
     except Exception as err:  # noqa: BLE001 - missing torch/transformers -> caller falls back
         print(f"grounded: load_grounding failed: {err}", flush=True)

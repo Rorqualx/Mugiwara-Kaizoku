@@ -31,8 +31,10 @@ export const LIVING_COVERS_SEGMENTER_KEY = 'covers.living.segmenter';
 
 /**
  * Segmenter tiers. `standard` = depth bands; `sam` = MobileSAM object masks
- * (Option A); `grounded-sam` = open-vocabulary labeled objects (Option C, GPU —
- * needs torch + the GroundingDINO weights, degrades to `sam` off a GPU box).
+ * (Option A); `grounded-sam` = open-vocabulary labeled objects (Option C). C
+ * needs PyTorch + the GroundingDINO weights; it uses a GPU when present (Metal
+ * on Apple Silicon, CUDA elsewhere) and falls back to CPU (slower). When torch
+ * or the weights are absent it degrades to `sam`.
  */
 export type CoverSegmenter = 'standard' | 'sam' | 'grounded-sam';
 
