@@ -58,6 +58,14 @@ NEAR_MIN_FRAC = 0.04       # skip banding if the near band is tiny...
 NEAR_MAX_FRAC = 0.85       # ...or basically the whole frame (no depth structure)
 BAND_FEATHER_FRAC = 0.012  # feather the near-band edge (% short side) to blend
 
+# Discrete near-item sprites (closest blobs lifted off the plate to drift alone).
+ITEM_PERCENTILE = 78       # depth >= this percentile -> candidate (closest) pixels
+ITEM_MIN_AREA_FRAC = 0.004 # ignore specks...
+ITEM_MAX_AREA_FRAC = 0.10  # ...and blobs so big they're just scenery (leave in band)
+ITEM_MAX_COUNT = 3
+ITEM_LABEL_SIDE = 320      # connected-components run on a mask downscaled to this
+ITEM_FEATHER_FRAC = 0.008  # feather a sprite's edge (% short side)
+
 # Drift motion, as a % of cover dimension (component overscans by 2*maxAmp).
 BG_AMP_SINGLE = (3.2, 2.2)   # single un-banded plate
 BG_SCALE_SINGLE = 0.04
@@ -65,6 +73,10 @@ BG_AMP_FAR = (2.2, 1.5)      # far band drifts gently...
 BG_SCALE_FAR = 0.03
 BG_AMP_NEAR = (5.0, 3.4)     # ...near band drifts more (parallax)
 BG_SCALE_NEAR = 0.06
+ITEM_AMP = (7.0, 4.6)        # ...and a lifted near-item drifts most of all
+ITEM_SCALE = 0.08
+ITEM_DUR_BASE = 13000        # items get slightly different durations so they desync
+ITEM_DUR_STEP = 1500
 BG_DURATION_MS = 14000
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -173,6 +185,59 @@ def near_band_alpha(depth01: np.ndarray, short_side: int) -> Image.Image | None:
     return mask.filter(ImageFilter.GaussianBlur(max(1.0, short_side * BAND_FEATHER_FRAC)))
 
 
+def _label_components(mask: np.ndarray) -> tuple[np.ndarray, int]:
+    """4-connectivity connected-component labels for a small bool mask (no scipy/cv2)."""
+    h, w = mask.shape
+    labels = np.zeros((h, w), dtype=np.int32)
+    cur = 0
+    for sy, sx in zip(*np.nonzero(mask)):
+        if labels[sy, sx]:
+            continue
+        cur += 1
+        stack = [(int(sy), int(sx))]
+        labels[sy, sx] = cur
+        while stack:
+            y, x = stack.pop()
+            for ny, nx in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not labels[ny, nx]:
+                    labels[ny, nx] = cur
+                    stack.append((ny, nx))
+    return labels, cur
+
+
+def find_items(depth01: np.ndarray, exclude: Image.Image, size: tuple[int, int],
+               short_side: int) -> list[tuple[Image.Image, np.ndarray]]:
+    """Closest discrete background blobs as (soft alpha, hard mask) sprite pairs.
+
+    Runs connected components on a downscaled near-depth mask, keeps a few blobs
+    in a sane area band that don't overlap the character/text hole, and returns
+    full-res masks. Empty when nothing qualifies -> caller keeps plain bands.
+    """
+    w0, h0 = size
+    scale = min(1.0, ITEM_LABEL_SIDE / max(w0, h0))
+    dw, dh = max(1, round(w0 * scale)), max(1, round(h0 * scale))
+    small = np.asarray(Image.fromarray((depth01 * 255).astype(np.uint8), "L").resize((dw, dh), Image.BILINEAR),
+                       dtype=np.float32) / 255.0
+    ex = np.asarray(exclude.resize((dw, dh), Image.NEAREST), dtype=np.uint8) > 127
+    cand = (small >= float(np.percentile(small, ITEM_PERCENTILE))) & (~ex)
+    labels, n = _label_components(cand)
+    total = float(dw * dh)
+    blobs = []
+    for lab in range(1, n + 1):
+        comp = labels == lab
+        area = float(comp.sum()) / total
+        if ITEM_MIN_AREA_FRAC <= area <= ITEM_MAX_AREA_FRAC:
+            blobs.append((area, comp))
+    blobs.sort(key=lambda b: -b[0])
+    out: list[tuple[Image.Image, np.ndarray]] = []
+    for _, comp in blobs[:ITEM_MAX_COUNT]:
+        up = Image.fromarray((comp * 255).astype(np.uint8), "L").resize((w0, h0), Image.BILINEAR)
+        soft = up.filter(ImageFilter.GaussianBlur(max(1.0, short_side * ITEM_FEATHER_FRAC)))
+        hard = (np.asarray(up, dtype=np.uint8) > 127).astype(np.uint8) * 255
+        out.append((soft, hard))
+    return out
+
+
 # --- Inpainting -----------------------------------------------------------
 
 def lama_fill(sess: ort.InferenceSession, rgb: Image.Image, hole: Image.Image) -> Image.Image:
@@ -212,12 +277,12 @@ def with_alpha(rgb: Image.Image, alpha: Image.Image) -> Image.Image:
 
 # --- Manifest -------------------------------------------------------------
 
-def drift(amp: tuple[float, float], scale: float) -> dict:
+def drift(amp: tuple[float, float], scale: float, dur: int = BG_DURATION_MS) -> dict:
     return {
         "type": "drift",
         "ampPct": list(amp),
         "scaleAmp": scale,
-        "durationMs": BG_DURATION_MS,
+        "durationMs": dur,
         "easing": "ease-in-out",
         "alternate": True,
     }
@@ -298,13 +363,29 @@ def main() -> int:
     lama = ort.InferenceSession(str(models / "lama_fp32.onnx"), providers=providers)
     plate = lama_fill(lama, rgb, Image.fromarray(hole_arr, mode="L"))
 
-    # 5. Depth banding (optional model) -> background layer(s).
+    # 5. Depth banding + discrete near-item sprites (optional depth model).
     layers: list[dict] = []
+    near_alpha = None
+    items: list[tuple[Image.Image, np.ndarray]] = []
     depth_sess = load_session(models / "depth.onnx", providers)
-    near_alpha = near_band_alpha(infer_depth(depth_sess, rgb, size), short_side) if depth_sess is not None else None
+    if depth_sess is not None:
+        depth01 = infer_depth(depth_sess, rgb, size)
+        near_alpha = near_band_alpha(depth01, short_side)
+        if near_alpha is not None:
+            items = find_items(depth01, Image.fromarray(hole_arr, mode="L"), size, short_side)
+
+    # Lift items off the plate: inpaint them out so the bands behind them are
+    # clean, then float each as its own faster-drifting sprite (no ghosting).
+    plate_bands = plate
+    if items:
+        item_union = np.zeros((size[1], size[0]), dtype=np.uint8)
+        for _, hard in items:
+            item_union = np.maximum(item_union, hard)
+        plate_bands = lama_fill(lama, plate, Image.fromarray(item_union, mode="L"))
+
     if near_alpha is not None:
-        plate.save(args.out / "background-far.webp", "WEBP", quality=88, method=6)
-        with_alpha(plate, near_alpha).save(args.out / "background-near.webp", "WEBP", quality=88, method=6)
+        plate_bands.save(args.out / "background-far.webp", "WEBP", quality=88, method=6)
+        with_alpha(plate_bands, near_alpha).save(args.out / "background-near.webp", "WEBP", quality=88, method=6)
         layers.append({"id": "bg-far", "role": "background", "file": "background-far.webp", "z": 0,
                        "motion": drift(BG_AMP_FAR, BG_SCALE_FAR)})
         layers.append({"id": "bg-near", "role": "background", "file": "background-near.webp", "z": 5,
@@ -313,6 +394,13 @@ def main() -> int:
         plate.save(args.out / "background.webp", "WEBP", quality=88, method=6)
         layers.append({"id": "bg", "role": "background", "file": "background.webp", "z": 0,
                        "motion": drift(BG_AMP_SINGLE, BG_SCALE_SINGLE)})
+
+    # Near-item sprites (cropped from the item-bearing plate), z just under char.
+    for i, (soft, _) in enumerate(items):
+        fname = f"item-{i}.webp"
+        with_alpha(plate, soft).save(args.out / fname, "WEBP", quality=90, method=6)
+        layers.append({"id": f"item-{i}", "role": "object", "file": fname, "z": 6 + i,
+                       "motion": drift(ITEM_AMP, ITEM_SCALE, ITEM_DUR_BASE + i * ITEM_DUR_STEP)})
 
     # 6. Character layer (locked in frame).
     if use_character:
@@ -326,7 +414,8 @@ def main() -> int:
 
     write_manifest(manifest(args.id, src_hash, size, coverage, "layered", layers))
     bands = "banded" if near_alpha is not None else "single"
-    print(f"LAYERED {args.id}: coverage={coverage:.0%} char={use_character} text={use_text} bg={bands}", flush=True)
+    print(f"LAYERED {args.id}: coverage={coverage:.0%} char={use_character} text={use_text} "
+          f"bg={bands} items={len(items)}", flush=True)
     return 0
 
 

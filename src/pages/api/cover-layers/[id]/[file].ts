@@ -23,6 +23,9 @@ const ALLOWED_FILES: Record<string, string> = {
   'background-far.webp': 'image/webp',
   'background-near.webp': 'image/webp',
   'text.webp': 'image/webp',
+  'item-0.webp': 'image/webp',
+  'item-1.webp': 'image/webp',
+  'item-2.webp': 'image/webp',
 };
 
 function getLayersDir(): string {
