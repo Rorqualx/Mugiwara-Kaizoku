@@ -289,7 +289,8 @@ def drift(amp: tuple[float, float], scale: float, dur: int = BG_DURATION_MS) -> 
 
 
 def manifest(cover_id: str, src_hash: str, size: tuple[int, int], coverage: float,
-             mode: str, layers: list[dict], segmenter: str, reason: str | None = None) -> dict:
+             mode: str, layers: list[dict], segmenter: str, reason: str | None = None,
+             smart_effects: bool = False, effect: str = "none", tags: list[str] | None = None) -> dict:
     m = {
         "schemaVersion": 2,
         "coverId": cover_id,
@@ -298,11 +299,57 @@ def manifest(cover_id: str, src_hash: str, size: tuple[int, int], coverage: floa
         "fgCoverage": round(coverage, 4),
         "mode": mode,
         "segmenter": segmenter,
+        "smartEffects": smart_effects,
+        "effect": effect,
+        "tags": tags if tags is not None else [],
         "layers": layers,
     }
     if reason is not None:
         m["reason"] = reason
     return m
+
+
+# --- Smart effects (Option B) — tag-driven motion presets -----------------
+
+EFFECT_AMP_CAP = 9.0  # keep amplitude within the component's overscan margin
+
+# (name, trigger tags, {amp scale, duration scale, vertical bias 0..1}). First
+# match by tag-overlap count wins; order is the tie-break priority.
+EFFECT_PRESETS: list[tuple[str, set[str], dict]] = [
+    ("weather", {"rain", "raining", "snow", "snowing", "falling_petals", "cherry_blossoms", "confetti", "ash", "bubbles"},
+     {"amp": 1.2, "dur": 0.85, "vbias": 0.7}),
+    ("rising", {"fire", "flames", "smoke", "embers", "sparks", "steam", "explosion", "burning"},
+     {"amp": 1.15, "dur": 1.2, "vbias": 0.6}),
+    ("action", {"weapon", "sword", "katana", "knife", "dagger", "gun", "fighting", "battle", "blood",
+                "motion_blur", "speed_lines", "bo_staff", "spear", "polearm", "axe", "holding_weapon"},
+     {"amp": 1.4, "dur": 0.72, "vbias": 0.0}),
+    ("calm", {"cloud", "clouds", "sky", "scenery", "ocean", "water", "landscape", "night", "starry_sky",
+              "sunset", "mountain", "field", "forest", "beach"},
+     {"amp": 0.7, "dur": 1.3, "vbias": 0.0}),
+]
+
+
+def apply_effect_profile(layers: list[dict], tags: set[str]) -> str:
+    """Pick a mood profile from `tags` and retune each drifting layer's motion in place."""
+    best_name, best_profile, best_score = "none", None, 0
+    for name, triggers, profile in EFFECT_PRESETS:
+        score = len(triggers & tags)
+        if score > best_score:
+            best_name, best_profile, best_score = name, profile, score
+    if best_profile is None:
+        return "none"
+    for layer in layers:
+        motion = layer.get("motion")
+        if not motion:
+            continue
+        ax, ay = motion["ampPct"]
+        vbias = best_profile["vbias"]
+        motion["ampPct"] = [
+            round(min(EFFECT_AMP_CAP, ax * best_profile["amp"] * (1.0 - 0.5 * vbias)), 2),
+            round(min(EFFECT_AMP_CAP, ay * best_profile["amp"] * (1.0 + 0.7 * vbias)), 2),
+        ]
+        motion["durationMs"] = int(motion["durationMs"] * best_profile["dur"])
+    return best_name
 
 
 # --- Background / object layer builders -----------------------------------
@@ -398,6 +445,8 @@ def main() -> int:
     ap.add_argument("--device", choices=list(PROVIDERS), default="cpu")
     ap.add_argument("--segmenter", choices=["standard", "sam"], default="standard",
                     help="standard = depth bands + item heuristics; sam = MobileSAM object masks")
+    ap.add_argument("--smart-effects", action="store_true",
+                    help="tag the cover (WD14) and tune drift motion to the mood")
     args = ap.parse_args()
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -435,7 +484,8 @@ def main() -> int:
     if not use_character and text_frac < TEXT_UNLOCK_FRAC:
         use_text = False
         reason = "no-subject" if coverage < GATE_LOW else "full-bleed"
-        write_manifest(manifest(args.id, src_hash, size, coverage, "flat", [], args.segmenter, reason))
+        write_manifest(manifest(args.id, src_hash, size, coverage, "flat", [], args.segmenter, reason,
+                                smart_effects=args.smart_effects))
         print(f"FLAT {args.id}: coverage={coverage:.0%} ({reason})", flush=True)
         return 0
 
@@ -464,10 +514,23 @@ def main() -> int:
         with_alpha(rgb, text_soft).save(args.out / "text.webp", "WEBP", quality=90, method=6)
         layers.append({"id": "text", "role": "text", "file": "text.webp", "z": 20, "motion": None})
 
-    write_manifest(manifest(args.id, src_hash, size, coverage, "layered", layers, args.segmenter))
+    # 8. Smart effects (optional) — tag the cover and retune drift to the mood.
+    tags: list[str] = []
+    effect = "none"
+    if args.smart_effects:
+        from tag_cover import load_tagger, tag_cover  # lazy: only this path needs it
+
+        loaded = load_tagger(str(models), providers)
+        if loaded is not None:
+            found = tag_cover(loaded, rgb)
+            tags = sorted(found)[:12]
+            effect = apply_effect_profile(layers, found)
+
+    write_manifest(manifest(args.id, src_hash, size, coverage, "layered", layers, args.segmenter,
+                            smart_effects=args.smart_effects, effect=effect, tags=tags))
     objects = sum(1 for layer in layers if layer["role"] == "object")
     print(f"LAYERED {args.id}: coverage={coverage:.0%} char={use_character} text={use_text} "
-          f"segmenter={args.segmenter} objects={objects}", flush=True)
+          f"segmenter={args.segmenter} objects={objects} effect={effect}", flush=True)
     return 0
 
 

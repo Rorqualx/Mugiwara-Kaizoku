@@ -37,6 +37,12 @@ function LivingCoversSettings(): React.ReactElement {
       void refetch();
     },
   });
+  const setSmartEffects = trpc.coverLayers.setSmartEffects.useMutation({
+    onSuccess: () => {
+      showNotification({ title: 'Smart effects updated', message: 'Re-process the library to apply it.', color: 'blue' });
+      void refetch();
+    },
+  });
   const downloadModels = trpc.coverLayers.downloadModels.useMutation({
     onSuccess: (res) => {
       showNotification(
@@ -113,6 +119,13 @@ function LivingCoversSettings(): React.ReactElement {
                   { label: 'Standard (fast)', value: 'standard' },
                   { label: 'SAM — better separation', value: 'sam' },
                 ]}
+              />
+              <Switch
+                mt="xs"
+                label="Smart effects (experimental) — tag the cover and tune drift to the mood (action covers livelier, calm covers gentler)"
+                checked={status.smartEffects}
+                onChange={(e) => setSmartEffects.mutate({ enabled: e.currentTarget.checked })}
+                disabled={setSmartEffects.isPending || running}
               />
             </Stack>
           </Card>

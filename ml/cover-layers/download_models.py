@@ -27,6 +27,9 @@ OPTIONAL_MODELS = {
     # MobileSAM (Tiny-ViT) — object segmentation for the `sam` segmenter. Apache-2.0.
     "sam_encoder.onnx": "https://huggingface.co/Acly/MobileSAM/resolve/main/mobile_sam_image_encoder.onnx",
     "sam_decoder.onnx": "https://huggingface.co/Acly/MobileSAM/resolve/main/sam_mask_decoder_multi.onnx",
+    # WD14 anime tagger — drives the `smartEffects` mood presets. Apache-2.0.
+    "tagger.onnx": "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/model.onnx",
+    "tagger_tags.csv": "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main/selected_tags.csv",
 }
 
 

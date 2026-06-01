@@ -14,12 +14,14 @@ import {
   type CoverSegmenter,
   LIVING_COVERS_ENABLED_KEY,
   LIVING_COVERS_SEGMENTER_KEY,
+  LIVING_COVERS_SMART_EFFECTS_KEY,
   coverSegmenter,
   downloadCoverModels,
   isDownloadingModels,
   isLivingCoversEnabled,
   modelDownloadProgress,
   modelsPresent,
+  smartEffectsEnabled,
   type ModelDownloadProgress,
 } from '@/server/services/coverLayers/coverLayerizer';
 import { isProcessing, processLibraryCovers, processProgress, type ProcessProgress } from '@/server/services/coverLayers/processLibrary';
@@ -30,6 +32,7 @@ import { logger } from '@/utils/logger';
 interface CoverLayersStatus {
   enabled: boolean;
   segmenter: CoverSegmenter;
+  smartEffects: boolean;
   modelsPresent: boolean;
   downloadingModels: boolean;
   download: ModelDownloadProgress;
@@ -45,9 +48,10 @@ interface CoverLayersStatus {
 export const coverLayersRouter = router({
   /** Feature state + library coverage counts (consumed by settings + render gate). */
   status: protectedProcedure.query(async (): Promise<CoverLayersStatus> => {
-    const [enabled, segmenter, models, total, ready, pending, failed, layered, flat] = await Promise.all([
+    const [enabled, segmenter, smart, models, total, ready, pending, failed, layered, flat] = await Promise.all([
       isLivingCoversEnabled(),
       coverSegmenter(),
+      smartEffectsEnabled(),
       modelsPresent(),
       prisma.manga.count(),
       prisma.coverLayerSet.count({ where: { status: 'ready' } }),
@@ -59,6 +63,7 @@ export const coverLayersRouter = router({
     return {
       enabled,
       segmenter,
+      smartEffects: smart,
       modelsPresent: models,
       downloadingModels: isDownloadingModels(),
       download: modelDownloadProgress(),
@@ -88,6 +93,15 @@ export const coverLayersRouter = router({
       await configService.set(LIVING_COVERS_SEGMENTER_KEY, input.segmenter);
       logger.info('[cover-layers] segmenter set', { segmenter: input.segmenter });
       return { segmenter: input.segmenter };
+    }),
+
+  /** Toggle tag-driven mood motion (re-process to apply). */
+  setSmartEffects: adminProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(async ({ input }): Promise<{ smartEffects: boolean }> => {
+      await configService.set(LIVING_COVERS_SMART_EFFECTS_KEY, input.enabled);
+      logger.info('[cover-layers] smartEffects set', { enabled: input.enabled });
+      return { smartEffects: input.enabled };
     }),
 
   /** Kick off the ONNX model download (idempotent; self-guards against re-entry). */

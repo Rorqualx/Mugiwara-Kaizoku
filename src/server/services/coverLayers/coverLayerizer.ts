@@ -175,6 +175,15 @@ export async function coverSegmenter(): Promise<CoverSegmenter> {
   return value === 'sam' ? 'sam' : 'standard';
 }
 
+/** Config key for the "smart effects" (tag-driven motion) toggle (default off). */
+export const LIVING_COVERS_SMART_EFFECTS_KEY = 'covers.living.smartEffects';
+
+/** Reads the smart-effects (WD14 mood-motion) toggle. */
+export async function smartEffectsEnabled(): Promise<boolean> {
+  const value = await configService.get<unknown>(LIVING_COVERS_SMART_EFFECTS_KEY, false);
+  return value === true || value === 'true';
+}
+
 /** Builds the command to run the model downloader sidecar (uv in dev, python in image). */
 function modelDownloadCommand(): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
@@ -263,10 +272,13 @@ export function downloadCoverModels(): Promise<{ ok: boolean; error?: string }> 
 }
 
 /** Builds the command + args to run the sidecar (uv by default for dev). */
-function sidecarCommand(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter): { cmd: string; args: string[] } {
+function sidecarCommand(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter, smartEffects: boolean): { cmd: string; args: string[] } {
   const runner = process.env['COVER_LAYER_PYTHON'] ?? 'uv';
   const device = process.env['COVER_LAYER_DEVICE'] ?? 'cpu';
   const scriptArgs = ['--cover', coverPath, '--id', String(mangaId), '--out', outDir, '--models-dir', modelsDir(), '--device', device, '--segmenter', segmenter];
+  if (smartEffects) {
+    scriptArgs.push('--smart-effects');
+  }
   if (runner === 'uv') {
     return {
       cmd: 'uv',
@@ -277,8 +289,8 @@ function sidecarCommand(coverPath: string, mangaId: number, outDir: string, segm
   return { cmd: runner, args: [scriptPath(), ...scriptArgs] };
 }
 
-function runSidecar(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter): Promise<{ code: number; stderr: string }> {
-  const { cmd, args } = sidecarCommand(coverPath, mangaId, outDir, segmenter);
+function runSidecar(coverPath: string, mangaId: number, outDir: string, segmenter: CoverSegmenter, smartEffects: boolean): Promise<{ code: number; stderr: string }> {
+  const { cmd, args } = sidecarCommand(coverPath, mangaId, outDir, segmenter, smartEffects);
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { cwd: process.cwd() });
     let stderr = '';
@@ -316,6 +328,25 @@ async function readManifest(outDir: string): Promise<{ mode: string; fgCoverage:
   }
 }
 
+interface ExistingLayerSet {
+  status: string;
+  sourceHash: string;
+  version: number;
+  manifestJson: unknown;
+}
+
+/** Whether a stored set is current for the given cover hash + recipe (segmenter + smart effects). */
+function isFresh(existing: ExistingLayerSet | null, sourceHash: string, segmenter: CoverSegmenter, smartEffects: boolean): boolean {
+  if (existing?.status !== 'ready') {
+    return false;
+  }
+  if (existing.sourceHash !== sourceHash || existing.version !== COVER_LAYER_PIPELINE_VERSION) {
+    return false;
+  }
+  const prev = existing.manifestJson as { segmenter?: unknown; smartEffects?: unknown } | null;
+  return (prev?.segmenter ?? 'standard') === segmenter && (prev?.smartEffects === true) === smartEffects;
+}
+
 /**
  * Layerizes a single manga cover (idempotent; skips fresh + in-flight covers).
  *
@@ -336,15 +367,9 @@ export async function layerizeCover(mangaId: number, force = false): Promise<Lay
 
     const sourceHash = `sha256:${createHash('sha256').update(await fs.readFile(coverPath)).digest('hex')}`;
     const segmenter = await coverSegmenter();
+    const smartEffects = await smartEffectsEnabled();
     const existing = await prisma.coverLayerSet.findUnique({ where: { mangaId } });
-    const existingSegmenter = (existing?.manifestJson as { segmenter?: unknown } | null)?.segmenter ?? 'standard';
-    if (
-      !force &&
-      existing?.status === 'ready' &&
-      existing.sourceHash === sourceHash &&
-      existing.version === COVER_LAYER_PIPELINE_VERSION &&
-      existingSegmenter === segmenter
-    ) {
+    if (!force && isFresh(existing, sourceHash, segmenter, smartEffects)) {
       return { mangaId, status: 'skipped', reason: 'fresh' };
     }
 
@@ -359,7 +384,7 @@ export async function layerizeCover(mangaId: number, force = false): Promise<Lay
 
     const outDir = path.join(cacheBaseDir(), 'cover-layers', String(mangaId));
     await fs.mkdir(outDir, { recursive: true });
-    const { code, stderr } = await runSidecar(coverPath, mangaId, outDir, segmenter);
+    const { code, stderr } = await runSidecar(coverPath, mangaId, outDir, segmenter, smartEffects);
 
     if (code !== 0) {
       const error = stderr.slice(-500) || `sidecar exited ${code}`;
