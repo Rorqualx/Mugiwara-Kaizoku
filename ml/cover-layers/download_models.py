@@ -9,12 +9,39 @@ import argparse
 import pathlib
 import urllib.request
 
+# Required — the cutout + inpaint backbone.
 MODELS = {
     # Anime-tuned IS-Net foreground segmentation (SkyTNT anime-seg). Apache-2.0.
     "isnetis.onnx": "https://huggingface.co/skytnt/anime-seg/resolve/main/isnetis.onnx",
     # LaMa inpainting, ONNX export (fixed 512x512). Apache-2.0.
     "lama_fp32.onnx": "https://huggingface.co/Carve/LaMa-ONNX/resolve/main/lama_fp32.onnx",
 }
+
+# Optional — enable the text layer and depth-band parallax stages. A missing
+# optional model just skips its stage; the pipeline still produces a cover.
+OPTIONAL_MODELS = {
+    # PP-OCRv4 DBNet text detector (RapidOCR mirror) — script-agnostic (JP/EN). Apache-2.0.
+    "text_det.onnx": "https://huggingface.co/SWHL/RapidOCR/resolve/main/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx",
+    # MiDaS v2.1 small monocular depth (inverse depth) for depth banding. MIT.
+    "depth.onnx": "https://github.com/isl-org/MiDaS/releases/download/v2_1/model-small.onnx",
+}
+
+
+def fetch(models_dir: pathlib.Path, name: str, url: str, *, required: bool) -> None:
+    dest = models_dir / name
+    if dest.exists() and dest.stat().st_size > 1_000_000:
+        print(f"have {name} ({dest.stat().st_size // 1_000_000} MB)", flush=True)
+        return
+    tag = "" if required else " (optional)"
+    print(f"downloading {name}{tag} ...", flush=True)
+    try:
+        urllib.request.urlretrieve(url, dest)
+        print(f"  -> {dest} ({dest.stat().st_size // 1_000_000} MB)", flush=True)
+    except Exception as err:  # noqa: BLE001 - optional models must not abort the run
+        if required:
+            raise
+        dest.unlink(missing_ok=True)
+        print(f"  !! skipped {name}: {err}", flush=True)
 
 
 def main() -> int:
@@ -23,13 +50,9 @@ def main() -> int:
     args = ap.parse_args()
     args.models_dir.mkdir(parents=True, exist_ok=True)
     for name, url in MODELS.items():
-        dest = args.models_dir / name
-        if dest.exists() and dest.stat().st_size > 1_000_000:
-            print(f"have {name} ({dest.stat().st_size // 1_000_000} MB)", flush=True)
-            continue
-        print(f"downloading {name} ...", flush=True)
-        urllib.request.urlretrieve(url, dest)
-        print(f"  -> {dest} ({dest.stat().st_size // 1_000_000} MB)", flush=True)
+        fetch(args.models_dir, name, url, required=True)
+    for name, url in OPTIONAL_MODELS.items():
+        fetch(args.models_dir, name, url, required=False)
     return 0
 
 

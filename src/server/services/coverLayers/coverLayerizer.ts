@@ -19,8 +19,8 @@ import path from 'path';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-/** Bump to force every cover to re-layerize on the next pass. v2: tuned drift. */
-export const COVER_LAYER_PIPELINE_VERSION = 2;
+/** Bump to force every cover to re-layerize. v2: tuned drift. v3: text + depth bands. */
+export const COVER_LAYER_PIPELINE_VERSION = 3;
 
 const COVER_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'] as const;
 const SIDECAR_TIMEOUT_MS = 180_000;

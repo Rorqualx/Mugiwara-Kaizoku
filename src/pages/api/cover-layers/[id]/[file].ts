@@ -20,6 +20,9 @@ const ALLOWED_FILES: Record<string, string> = {
   'manifest.json': 'application/json',
   'character.webp': 'image/webp',
   'background.webp': 'image/webp',
+  'background-far.webp': 'image/webp',
+  'background-near.webp': 'image/webp',
+  'text.webp': 'image/webp',
 };
 
 function getLayersDir(): string {
