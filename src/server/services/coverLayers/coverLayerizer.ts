@@ -81,11 +81,10 @@ async function metadataCoverUrl(mangaId: number): Promise<string | null> {
   if (md === null || md === undefined) {
     return null;
   }
-  const raw = md.coverExtraLarge ?? md.coverLarge ?? md.cover ?? md.coverMedium ?? null;
-  if (raw === null || !/^https?:\/\//i.test(raw)) {
-    return null;
-  }
-  return raw;
+  // `cover` is non-nullable (defaults to the placeholder), so it terminates the
+  // chain; only accept it when it's an actual remote URL.
+  const raw = md.coverExtraLarge ?? md.coverLarge ?? md.cover;
+  return /^https?:\/\//i.test(raw) ? raw : null;
 }
 
 function coverExt(url: string, contentType: string | null): string {
