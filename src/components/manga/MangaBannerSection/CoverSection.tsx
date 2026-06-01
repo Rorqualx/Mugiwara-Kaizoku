@@ -34,8 +34,9 @@ import {
   IconPhoto
 } from '@tabler/icons-react';
 
-import { MangaCover } from '@/components/manga/MangaCover';
+import { LivingCover } from '@/components/manga/MangaCover';
 import { getProviderUrl } from '@/components/manga/mangaDetailUtils';
+import { useCoverLayerManifest } from '@/hooks/useCoverLayerManifest';
 import { getCoverUrl } from '@/utils/cover-url';
 
 import type { MangaWithRelations } from './types';
@@ -301,6 +302,7 @@ export function CoverSection({
   mangaId,
   isProviderBound
 }: CoverSectionProps): React.ReactElement {
+  const manifest = useCoverLayerManifest(manga.id);
   return (
     <>
       {/* Cover Image */}
@@ -317,11 +319,13 @@ export function CoverSection({
         }}
         onClick={() => setIsCoverSelectorOpen(true)}
       >
-        <MangaCover
+        <LivingCover
           fill
           src={getCoverImageUrl(manga)}
           alt={manga['title']}
-          seed={manga['title']}
+          seed={manga.id}
+          manifest={manifest}
+          layerBaseUrl={`/api/cover-layers/${manga.id}`}
         />
 
         <Box

@@ -2897,3 +2897,31 @@ model MangaRecommendation {
   @@index([fromMangaId])
   @@index([toMangaId])
 }
+
+/// Living-covers layerization state for a manga cover. The on-disk
+/// manifest.json (under data/cache/cover-layers/<mangaId>/) is the artifact the
+/// app serves; this row tracks generation status + the source-cover hash so the
+/// pipeline can skip fresh covers and re-run when a cover changes.
+model CoverLayerSet {
+  id           BigInt    @id @default(autoincrement())
+  mangaId      Int       @unique
+  /// sha256 of the source cover bytes — invalidation key.
+  sourceHash   String
+  /// 'pending' | 'ready' | 'failed'.
+  status       String    @default("pending")
+  /// Pipeline version; bump to force re-layerize of all covers.
+  version      Int       @default(1)
+  /// 'layered' | 'flat' — set when status='ready'.
+  mode         String?
+  /// Foreground coverage fraction (0–1) measured during segmentation.
+  fgCoverage   Float?
+  /// The full layer manifest the sidecar emitted (mirrors the on-disk file).
+  manifestJson Json?
+  /// Last error message when status='failed'.
+  error        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([sourceHash])
+}

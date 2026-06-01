@@ -10,7 +10,8 @@ import React from 'react';
 
 import { Box } from '@mantine/core';
 
-import { MangaCover } from '@/components/manga/MangaCover';
+import { LivingCover } from '@/components/manga/MangaCover';
+import { useCoverLayerManifest } from '@/hooks/useCoverLayerManifest';
 
 import type { MangaWithMetadataAndChapters } from '../types';
 
@@ -25,6 +26,8 @@ export interface CoverSectionProps {
  * @returns Cover section component
  */
 export function CoverSection({ manga }: CoverSectionProps): React.ReactElement {
+  const manifest = useCoverLayerManifest(manga.id);
+
   return (
     <Box
       pos="relative"
@@ -37,11 +40,13 @@ export function CoverSection({ manga }: CoverSectionProps): React.ReactElement {
         }
       }}
     >
-      <MangaCover
+      <LivingCover
         src={manga.metadata.cover ?? '/cover-not-found.jpg'}
         alt={manga.title}
         radius="md"
-        seed={manga.title}
+        seed={manga.id}
+        manifest={manifest}
+        layerBaseUrl={`/api/cover-layers/${manga.id}`}
         style={{
           boxShadow: 'var(--mantine-shadow-xl)'
         }}

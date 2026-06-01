@@ -10,6 +10,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { prisma } from '@/server/db';
+import { triggerLayerize } from '@/server/services/coverLayers/coverLayerizer';
 import { findMangaFiles } from '@/utils/file-utils';
 import { logger } from '@/utils/logger';
 
@@ -127,6 +128,10 @@ export async function extractAndSetLocalCover(
     }
 
     log.info('Extracted and set local cover', { mangaId, coverUrl, archivePath: path.basename(archivePath) });
+
+    // Generate living-cover layers in the background (non-blocking).
+    triggerLayerize(mangaId);
+
     return coverUrl;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

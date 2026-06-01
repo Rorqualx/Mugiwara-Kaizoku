@@ -1,0 +1,8 @@
+# Cover layerizer sidecar — ONNX-only, no torch/numba.
+# Mac dev (CPU/CoreML):
+onnxruntime>=1.16.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Prod GPU: replace onnxruntime with onnxruntime-gpu and run with --device cuda.
+# onnxruntime-gpu>=1.16.0

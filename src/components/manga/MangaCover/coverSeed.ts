@@ -96,3 +96,19 @@ export function getCoverAnimation(seed: number | string | undefined): CoverAnima
     offsetMs: n % safe.durationMs,
   };
 }
+
+/**
+ * Derives a stable per-cover phase offset (ms) for a layered "living cover", so
+ * a grid of drifting backgrounds doesn't move in lockstep. WAA has no negative
+ * delay, so we seed the start time instead.
+ *
+ * @param seed - Stable identifier (prefer manga id; falls back to cover URL).
+ * @param durationMs - The layer's iteration duration.
+ * @returns A start offset in `[0, durationMs)`.
+ */
+export function getSeedPhaseMs(seed: number | string | undefined, durationMs: number): number {
+  if (durationMs <= 0) {
+    return 0;
+  }
+  return toSeedInt(seed) % durationMs;
+}
