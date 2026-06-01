@@ -270,9 +270,8 @@ def grounded_sam_bg_layers(out, models, providers, rgb: Image.Image, plate: Imag
     # Lazy: layerize is fully loaded by the time this runs (it imports us lazily),
     # so pulling its shared drift/helpers/constants here avoids a circular import.
     from layerize import (  # noqa: PLC0415
-        BG_AMP_FAR, BG_AMP_SINGLE, BG_SCALE_FAR, BG_SCALE_SINGLE,
-        ITEM_AMP, ITEM_DUR_BASE, ITEM_DUR_STEP, ITEM_SCALE,
-        drift, lama_fill, sam_bg_layers, with_alpha,
+        BG_AMP_FAR, BG_SCALE_FAR, ITEM_AMP, ITEM_DUR_BASE, ITEM_DUR_STEP, ITEM_SCALE,
+        drift, lama_fill, sam_bg_layers, standard_bg_layers, with_alpha,
     )
 
     cap = probe(str(models))
@@ -285,12 +284,13 @@ def grounded_sam_bg_layers(out, models, providers, rgb: Image.Image, plate: Imag
     objs = grounded_object_masks(grounding, sam_sessions, tagger, rgb,
                                  Image.fromarray(hole_arr, mode="L"), short_side)
 
-    layers: list[dict] = []
     if not objs:
-        plate.save(out / "background.webp", "WEBP", quality=88, method=6)
-        layers.append({"id": "bg", "role": "background", "file": "background.webp", "z": 0,
-                       "motion": drift(BG_AMP_SINGLE, BG_SCALE_SINGLE)})
-        return layers, None
+        # No groundable objects (e.g. a character portrait) — fall back to the
+        # depth-band layering so the cover still gets parallax instead of a flat
+        # single plate. Grounded-sam is then never less animated than Standard.
+        return standard_bg_layers(out, models, providers, rgb, plate, lama, hole_arr, size, short_side), None
+
+    layers: list[dict] = []
 
     union = np.zeros((size[1], size[0]), dtype=np.uint8)
     for _, hard, _ in objs:

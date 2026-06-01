@@ -20,8 +20,9 @@ import { prisma } from '@/server/db';
 import { configService } from '@/server/services/config/configService';
 import { logger } from '@/utils/logger';
 
-/** Bump to re-layerize. v2: tuned drift. v3: text + depth bands. v4: near-item sprites. */
-export const COVER_LAYER_PIPELINE_VERSION = 4;
+/** Bump to re-layerize. v2: tuned drift. v3: text + depth bands. v4: near-item sprites.
+ *  v5: grounded-sam falls back to depth bands (not a flat plate) when no objects. */
+export const COVER_LAYER_PIPELINE_VERSION = 5;
 
 /** Config key for the global Living Covers master switch (default off). */
 export const LIVING_COVERS_ENABLED_KEY = 'covers.living.enabled';
