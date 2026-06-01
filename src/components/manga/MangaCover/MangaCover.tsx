@@ -5,15 +5,19 @@
  *
  * Replaces the ~13 bespoke `<Image>` / CSS `background-image` cover renders
  * that previously each reimplemented their own static cover. It draws the
- * cover and, when enabled, gives it subtle autoplaying "living" motion
- * (Ken-Burns drift) generated from the existing static image — no animated
- * asset, no extra network cost.
+ * cover and, when enabled, gives it autoplaying "living" motion (a slow drift
+ * + gentle zoom) generated from the existing static image — no animated asset,
+ * no extra network cost.
  *
- * Motion gating (all must hold for motion to play):
- *  - `useAnimatedCovers()` — user preference AND OS `prefers-reduced-motion`.
- *  - the per-surface `animated` prop (defaults to `true`).
- *  - the cover is on-screen (`useIntersection`) — off-screen covers pause so a
- *    long grid never animates hundreds of hidden elements.
+ * The motion is driven imperatively with the Web Animations API
+ * (`Element.animate`) rather than CSS keyframes. That is deliberate: CSS-module
+ * keyframe scoping and CSS `animation-play-state` proved unreliable in this
+ * app's virtualized grid, leaving covers frozen on a scaled frame. WAA runs
+ * independently of all that, autoplays on call, and the driving effect re-runs
+ * on remount (so list virtualization can't strand it).
+ *
+ * Motion gating (all must hold): `useAnimatedCovers()` (user toggle AND OS
+ * `prefers-reduced-motion`, mounted-gated) and the per-surface `animated` prop.
  *
  * Two layouts:
  *  - default: a sized foreground cover (drop-in for Mantine `<Image>`).
@@ -27,7 +31,7 @@ import { Box } from '@mantine/core';
 
 import { useAnimatedCovers } from '@/hooks/useAnimatedCovers';
 
-import { getCoverMotion } from './coverSeed';
+import { getCoverAnimation } from './coverSeed';
 import classes from './MangaCover.module.css';
 
 const FALLBACK_SRC = '/cover-not-found.jpg';
@@ -50,20 +54,11 @@ function resolveBaseSrc(src: string | null | undefined, fallbackSrc: string): st
   return src !== null && src !== undefined && src.length > 0 ? src : fallbackSrc;
 }
 
-/** Builds the animation class list for the image (empty when motion is off). */
-function buildImgClassName(enabled: boolean, playing: boolean, variant: number): string {
-  if (!enabled) return '';
-  return [classes['animated'], classes[`variant${variant}`], playing ? null : classes['paused']]
-    .filter(Boolean)
-    .join(' ');
-}
-
 /** Builds the image style: absolute in `fill` mode, aspect-driven otherwise. */
 function buildImgStyle(
   fill: boolean,
   hasExplicitHeight: boolean,
-  enabled: boolean,
-  delaySeconds: number,
+  animate: boolean,
 ): React.CSSProperties {
   const layout: React.CSSProperties = fill
     ? { position: 'absolute', inset: 0, width: '100%', height: '100%' }
@@ -72,8 +67,8 @@ function buildImgStyle(
     display: 'block',
     objectFit: 'cover',
     objectPosition: 'center',
+    ...(animate ? { willChange: 'transform', backfaceVisibility: 'hidden' } : {}),
     ...layout,
-    ...(enabled ? { animationDelay: `${delaySeconds}s` } : {}),
   };
 }
 
@@ -159,12 +154,33 @@ export function MangaCover({
   const motionAllowed = useAnimatedCovers();
   const enabled = motionAllowed && animated;
 
+  const imgRef = React.useRef<HTMLImageElement>(null);
   const [errored, setErrored] = React.useState(false);
 
   const baseSrc = resolveBaseSrc(src, fallbackSrc);
   const resolvedSrc = errored ? fallbackSrc : baseSrc;
-  const motion = getCoverMotion(seed ?? baseSrc);
-  const playing = enabled && !errored;
+
+  // Drive the "living" motion imperatively. Re-runs (and re-animates) whenever
+  // the element remounts or the seed/source/enabled state changes; cancelling
+  // on cleanup restores the static transform so toggling off looks identical
+  // to the pre-feature cover.
+  React.useEffect(() => {
+    const el = imgRef.current;
+    if (!enabled || el === null || typeof el.animate !== 'function') {
+      return undefined;
+    }
+    const { keyframes, durationMs, offsetMs } = getCoverAnimation(seed ?? baseSrc);
+    const anim = el.animate(keyframes, {
+      duration: durationMs,
+      iterations: Infinity,
+      direction: 'alternate',
+      easing: 'ease-in-out',
+    });
+    anim.currentTime = offsetMs;
+    return () => {
+      anim.cancel();
+    };
+  }, [enabled, baseSrc, seed]);
 
   const handleError = (): void => {
     setErrored(true);
@@ -182,8 +198,8 @@ export function MangaCover({
       onClick={onClick}
     >
       <img
-        className={buildImgClassName(enabled, playing, motion.variant)}
-        style={buildImgStyle(fill, h !== undefined, enabled, motion.delaySeconds)}
+        ref={imgRef}
+        style={buildImgStyle(fill, h !== undefined, enabled)}
         src={resolvedSrc}
         alt={alt}
         loading={loading}

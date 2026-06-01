@@ -1,17 +1,17 @@
 /**
- * Deterministic per-cover motion variation.
+ * Deterministic per-cover "living motion" definitions for the Web Animations
+ * API. A grid of covers all drifting in lockstep reads as mechanical, so each
+ * cover's drift path, duration, and phase are derived from a stable seed (the
+ * manga id, or the cover URL as a fallback) — never `Math.random`, so the
+ * motion is stable across re-renders and SSR/CSR.
  *
- * A grid of covers all running the identical Ken-Burns loop in lockstep reads
- * as mechanical. To break that up we vary each cover's motion path and phase
- * from a stable seed (the manga id, or the cover URL as a fallback) — never
- * `Math.random`, so the motion is stable across re-renders and SSR/CSR.
+ * The motion is run imperatively via `Element.animate()` (see MangaCover.tsx),
+ * not CSS keyframes: that sidesteps CSS-Modules keyframe-scoping quirks and any
+ * CSS `animation-play-state` interference, and autoplays reliably.
+ *
+ * Keyframes stay overscanned (scale ≥ ~1.13 while panning ≤ 5%) so the panning
+ * image never reveals a gap at the container edge.
  */
-
-/** Number of distinct Ken-Burns keyframe variants defined in the CSS module. */
-export const COVER_VARIANT_COUNT = 3;
-
-/** Base loop duration (seconds) the negative animation-delay is taken modulo of. */
-export const COVER_LOOP_SECONDS = 18;
 
 /** Cheap, stable 32-bit string hash (FNV-1a style) for non-numeric seeds. */
 function hashString(value: string): number {
@@ -34,23 +34,65 @@ function toSeedInt(seed: number | string | undefined): number {
   return 0;
 }
 
-export interface CoverMotion {
-  /** Which keyframe variant (0..COVER_VARIANT_COUNT-1) this cover uses. */
-  variant: number;
-  /** Negative animation-delay (seconds) so the loop starts mid-cycle. */
-  delaySeconds: number;
+interface CoverVariant {
+  /** Two-frame drift (transform endpoints); played `alternate` so it eases back. */
+  keyframes: Keyframe[];
+  /** Full one-way drift duration in ms. */
+  durationMs: number;
 }
 
 /**
- * Derives a stable motion variant + phase offset for a cover.
+ * Distinct drift paths. Each combines a clear pan with a modest zoom so the
+ * motion is obviously alive (not a static zoom). `translate` percentages are
+ * relative to the image's own box, matching CSS semantics.
+ */
+const VARIANTS: CoverVariant[] = [
+  {
+    keyframes: [
+      { transform: 'scale(1.14) translate(-5%, -4%)' },
+      { transform: 'scale(1.18) translate(5%, 4%)' },
+    ],
+    durationMs: 11000,
+  },
+  {
+    keyframes: [
+      { transform: 'scale(1.17) translate(5%, -4%)' },
+      { transform: 'scale(1.13) translate(-5%, 5%)' },
+    ],
+    durationMs: 13000,
+  },
+  {
+    keyframes: [
+      { transform: 'scale(1.15) translate(-4%, 5%)' },
+      { transform: 'scale(1.19) translate(4%, -5%)' },
+    ],
+    durationMs: 12000,
+  },
+];
+
+export interface CoverAnimation {
+  /** Transform keyframes for `Element.animate()`. */
+  keyframes: Keyframe[];
+  /** Iteration duration (ms). */
+  durationMs: number;
+  /** Start offset (ms) so covers don't move in lockstep (WAA has no negative delay). */
+  offsetMs: number;
+}
+
+/**
+ * Derives a stable drift animation (path + duration + phase offset) for a cover.
  *
  * @param seed - Stable identifier (prefer manga id; falls back to cover URL).
- * @returns The keyframe variant index and a negative start delay in seconds.
+ * @returns Keyframes, duration, and a per-cover start offset for `Element.animate`.
  */
-export function getCoverMotion(seed: number | string | undefined): CoverMotion {
+export function getCoverAnimation(seed: number | string | undefined): CoverAnimation {
   const n = toSeedInt(seed);
+  const variant = VARIANTS[n % VARIANTS.length] ?? VARIANTS[0];
+  // VARIANTS is a non-empty literal, so this is always defined.
+  const safe = variant as CoverVariant;
   return {
-    variant: n % COVER_VARIANT_COUNT,
-    delaySeconds: -(n % COVER_LOOP_SECONDS),
+    keyframes: safe.keyframes,
+    durationMs: safe.durationMs,
+    offsetMs: n % safe.durationMs,
   };
 }
