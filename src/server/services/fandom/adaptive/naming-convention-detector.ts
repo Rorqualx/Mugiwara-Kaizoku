@@ -12,6 +12,7 @@
 
 import { load } from 'cheerio';
 
+import { parseChapterToken, parsePrequelMinor } from '@/server/parsers/chapter-number-extractor';
 import {
   type NamingConvention,
   NAMING_CONVENTIONS,
@@ -186,7 +187,7 @@ export function extractChapterNumber(
     const match = source.match(regex);
     if (match?.[1]) {
       // Convert "0-1" to 0.1, "0-2" to 0.2, etc.
-      return parseFloat(`0.${match[1]}`);
+      return parsePrequelMinor(match[1]);
     }
   }
 
@@ -200,7 +201,7 @@ export function extractChapterNumber(
     for (const pattern of conv.patterns) {
       const match = text.match(pattern);
       if (match?.[1]) {
-        return parseFloat(match[1]);
+        return parseChapterToken(match[1]);
       }
     }
 
@@ -208,7 +209,7 @@ export function extractChapterNumber(
     for (const pattern of conv.urlPatterns) {
       const match = href.match(pattern);
       if (match?.[1]) {
-        return parseFloat(match[1]);
+        return parseChapterToken(match[1]);
       }
     }
 
@@ -216,7 +217,7 @@ export function extractChapterNumber(
     for (const pattern of conv.patterns) {
       const match = title.match(pattern);
       if (match?.[1]) {
-        return parseFloat(match[1]);
+        return parseChapterToken(match[1]);
       }
     }
   }
@@ -224,7 +225,7 @@ export function extractChapterNumber(
   // Fallback: try bare number
   const bareNumber = text.match(/^(\d+(?:\.\d+)?)$/);
   if (bareNumber?.[1]) {
-    return parseFloat(bareNumber[1]);
+    return parseChapterToken(bareNumber[1]);
   }
 
   return null;

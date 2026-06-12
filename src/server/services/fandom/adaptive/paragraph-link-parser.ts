@@ -14,6 +14,7 @@
 
 import { load, type CheerioAPI, type Cheerio } from 'cheerio';
 
+import { extractChapterNumberFromText } from '@/server/parsers/chapter-number-extractor';
 import type { ChapterData, VolumeData } from '@/server/services/metadata/utils/fandom-table-parser/fandom-types';
 import { logger } from '@/utils/logger';
 
@@ -32,38 +33,11 @@ export interface ParagraphLinkParseResult {
 
 /**
  * Extracts chapter number from chapter title/link text.
- * Also supports Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1
+ * Delegates to the shared extractor (prequel "Chapter 0-N"/"000-N" →
+ * "NN. Title" dot format → "Chapter N" → leading number).
  */
 function extractChapterNumber(text: string): number | null {
-  // Special handling for Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1, 0.2, etc.
-  const zeroChapterPatterns = [
-    /chapter\s*0+-(\d+)/i,        // Chapter 0-1 → 0.1
-    /^0+-(\d+)(?:\.|$|\s)/,       // 000-1, 000-1. → 0.1
-    /\b0+-(\d+)\b/,               // 000-1 anywhere → 0.1
-  ];
-  for (const pattern of zeroChapterPatterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      return parseFloat(`0.${match[1]}`);
-    }
-  }
-
-  // Try "NN. Title" format (Erased style). The number itself may be a
-  // decimal ("1.5. Title"), so match digits-dot-digits before the
-  // separator dot rather than a bare integer.
-  const dotMatch = text.match(/^(\d+(?:\.\d+)?)\.\s/);
-  if (dotMatch?.[1]) return parseFloat(dotMatch[1]);
-
-  // Try "Chapter N" format — parseFloat so decimal chapters ("Chapter
-  // 1.5") survive instead of truncating to 1.
-  const chapterMatch = text.match(/Chapter\s+(\d+(?:\.\d+)?)/i);
-  if (chapterMatch?.[1]) return parseFloat(chapterMatch[1]);
-
-  // Try leading number
-  const leadingMatch = text.match(/^(\d+(?:\.\d+)?)/);
-  if (leadingMatch?.[1]) return parseFloat(leadingMatch[1]);
-
-  return null;
+  return extractChapterNumberFromText(text);
 }
 
 /**

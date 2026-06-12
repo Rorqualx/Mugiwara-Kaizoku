@@ -65,28 +65,28 @@ export const CHAPTER_PATTERNS = [
   /Chapter\s+([IVXLCDM]+)[:\s]+([^\n]+?)(?=Chapter\s+[0-9IVXLCDM]+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Chapter with Arabic numbers (e.g., "Chapter 1: The Beginning")
-  /Chapter\s+(\d+)[:\s]+([^\n]+?)(?=Chapter\s+\d+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
+  /Chapter\s+(\d+(?:\.\d+)?)[:\s]+([^\n]+?)(?=Chapter\s+\d+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Spell chapters (Dorohedoro uses "Spell 1: Caiman", "Spell 2: Hungry Bug", etc.)
-  /Spell\s+(\d+)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
+  /Spell\s+(\d+(?:\.\d+)?)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Episode with Roman numerals
   /Episode\s+([IVXLCDM]+)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Episode with Arabic numbers
-  /Episode\s+(\d+)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
+  /Episode\s+(\d+(?:\.\d+)?)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Story chapters (common in older manga)
-  /Story\s+(\d+)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
+  /Story\s+(\d+(?:\.\d+)?)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Part chapters
-  /Part\s+(\d+)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
+  /Part\s+(\d+(?:\.\d+)?)[:\s]+([^\n]+?)(?=Chapter\s+|Episode\s+|Story\s+|Part\s+|Spell\s+|Epilogue|Final Chapter|$)/gi,
 
   // Final Chapter (special ending chapter)
   /Final Chapter[:\s]+([^\n]+?)(?=Epilogue|Chapter Titles|$)/gi,
 
   // Epilogue chapters (numbered)
-  /Epilogue\s+(\d+)[:\s]+([^\n]+?)(?=Epilogue|Chapter Titles|$)/gi,
+  /Epilogue\s+(\d+(?:\.\d+)?)[:\s]+([^\n]+?)(?=Epilogue|Chapter Titles|$)/gi,
 ] as const;
 
 /**

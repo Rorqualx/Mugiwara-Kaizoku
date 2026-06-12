@@ -7,6 +7,7 @@
  * and gap-based truncation.
  */
 
+import { parseChapterToken } from '@/server/parsers/chapter-number-extractor';
 import type { WikipediaMangaData, WikipediaChapter } from '@/server/services/wikipedia/wikipedia/types';
 import { logger } from '@/utils/logger';
 
@@ -93,8 +94,7 @@ function enrichFromVolumeTable(
 function extractWikipediaChapterNumber(ch: WikipediaChapter): number | null {
   if (typeof ch.number === 'number') return ch.number;
   if (typeof ch.number === 'string') {
-    const num = parseFloat(ch.number);
-    return isNaN(num) ? null : num;
+    return parseChapterToken(ch.number);
   }
   return null;
 }

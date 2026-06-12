@@ -2,6 +2,7 @@
  * Data conversion: Wikipedia data to gap-fill maps
  */
 
+import { parseChapterToken } from '@/server/parsers/chapter-number-extractor';
 import type { WikipediaMangaData, WikipediaChapter } from '@/server/services/wikipedia/wikipedia/types';
 
 import { createEmptyEnrichmentMaps } from '../types';
@@ -71,6 +72,6 @@ export function populateVolumeGaps(
 
 /** Parse a chapter number from string|number, or null if invalid */
 export function parseChapterNumber(num: string | number): number | null {
-  const parsed = typeof num === 'number' ? num : parseFloat(num);
-  return isNaN(parsed) ? null : parsed;
+  if (typeof num === 'number') return Number.isFinite(num) ? num : null;
+  return parseChapterToken(num);
 }

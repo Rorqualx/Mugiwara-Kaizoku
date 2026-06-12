@@ -152,9 +152,11 @@ function parseListItemText(text: string): ComicVineChapter | null {
  * volumes don't trip the bare-number parser.
  */
 function parseLabeledChapter(text: string): ComicVineChapter | null {
-  const match = text.match(/^(?:Number|Tale|No\.?|Episode|Story|Section|Page)\s+(\d+)\s*[.:\s]\s*(.+)/i);
+  // Decimal-capable capture: without it, "Tale 1.5: Title" captured "1" and
+  // the separator class ate the "." — emitting chapter 1 titled "5: Title".
+  const match = text.match(/^(?:Number|Tale|No\.?|Episode|Story|Section|Page)\s+(\d+(?:\.\d+)?)\s*[.:\s]\s*(.+)/i);
   if (!match?.[1] || !match[2]) return null;
-  const num = String(parseInt(match[1], 10));
+  const num = String(parseFloat(match[1]));
   const cleanedTitle = cleanChapterTitle(match[2]);
   logger.info(`[ComicVine Scraper] Found chapter from list: ${num}: ${cleanedTitle}`);
   return { number: num, title: cleanedTitle };
@@ -255,7 +257,7 @@ function parseSpecialChapter(text: string): ComicVineChapter | null {
  * Parse numbered chapter patterns
  */
 function parseNumberedChapter(text: string): ComicVineChapter | null {
-  const match = text.match(/^(\d+)[:\s]+(.+)/);
+  const match = text.match(/^(\d+(?:\.\d+)?)[:\s]+(.+)/);
   if (match?.[1] && match[2]) {
     const [, num, title] = match;
     const trimmedTitle = title.trim();

@@ -11,6 +11,7 @@
  * @module category-chapter-discovery
  */
 
+import { parseChapterToken, parsePrequelMinor } from '@/server/parsers/chapter-number-extractor';
 import { logger } from '@/utils/logger';
 
 /** Chapter data extracted from category enumeration */
@@ -85,7 +86,7 @@ export async function discoverChaptersViaCategory(
         const pageMap = new Map<number, string>();
         /* eslint-disable max-depth -- depth 5 is the page-number lookup table build inside the fallback-to-category branch; extracting helper would obscure the local data flow */
         for (const page of bestPages) {
-          const num = extractChapterNumberFromAnyTitle(page.title);
+          const num = extractChapterNumber(page.title);
           if (num !== null) pageMap.set(num, page.title);
         }
         /* eslint-enable max-depth */
@@ -154,7 +155,7 @@ export async function discoverChaptersViaCategory(
   // (keyed by the chapter's stored pageTitle = "Chapter 1") then miss entirely.
   const pageMap = new Map<number, string>();
   for (const page of bestPages) {
-    const num = extractChapterNumberFromAnyTitle(page.title);
+    const num = extractChapterNumber(page.title);
     if (num !== null && !pageMap.has(num)) pageMap.set(num, page.title);
   }
   // Also map numbers from allpages/wikitext chapters to their page titles
@@ -201,11 +202,6 @@ function deduplicateAndSort(chapters: CategoryChapter[]): CategoryChapter[] {
   return sorted;
 }
 
-/** Re-exported wrapper so other helpers can use the same extraction logic */
-function extractChapterNumberFromAnyTitle(title: string): number | null {
-  return extractChapterNumber(title);
-}
-
 /** Enrich chapters discovered via allpages prefix scan with wikitext titles.
  *  Used when page titles like "Chapter 1" have no subtitle but the page's
  *  infobox contains `| title = X`. */
@@ -228,20 +224,20 @@ export function extractChapterNumber(title: string): number | null {
   // The first alternation branch catches prequel "Chapter 0-1" → 0.1, which the
   // plain-number branch would otherwise collapse to chapter 0.
   const match = title.match(/^(?:Re:\s*)?(?:Manga[_ ])?Chapter[_ ](?:0+-(\d+)|(\d+(?:\.\d+)?))/i);
-  if (match?.[1]) return parseFloat(`0.${match[1]}`);
-  if (match?.[2]) return parseFloat(match[2]);
+  if (match?.[1]) return parsePrequelMinor(match[1]);
+  if (match?.[2]) return parseChapterToken(match[2]);
 
   // Rurouni Kenshin style: "Act 1", "Act 255"
   const actMatch = title.match(/^Act[_ ](\d+(?:\.\d+)?)/i);
-  if (actMatch?.[1]) return parseFloat(actMatch[1]);
+  if (actMatch?.[1]) return parseChapterToken(actMatch[1]);
 
   const fileMatch = title.match(/^File[_ ](\d+(?:\.\d+)?)/i);
-  if (fileMatch?.[1]) return parseFloat(fileMatch[1]);
+  if (fileMatch?.[1]) return parseChapterToken(fileMatch[1]);
 
   // Series-name prefix pattern: "Pandora Hearts 19", "Pandora Hearts 18.5: Evidence"
   // Only matches when the prefix is in our known series list to avoid false positives
   const seriesMatch = title.match(/^Pandora[_ ]Hearts[_ ](\d+(?:\.\d+)?)/i);
-  if (seriesMatch?.[1]) return parseFloat(seriesMatch[1]);
+  if (seriesMatch?.[1]) return parseChapterToken(seriesMatch[1]);
 
   return null;
 }

@@ -52,6 +52,11 @@ export function parseChaptersFromText(bodyText: string): ComicVineChapter[] {
         if (/^[IVXLCDM]+$/i.test(num)) {
           romanNumeral = num.toUpperCase();
           chapterNumber = String(romanToArabic(romanNumeral));
+        } else if (/^(?:Chapter\s+)?0+-/i.test(fullMatch)) {
+          // Volume 0 prequel patterns capture only the minor digit —
+          // "Chapter 0-1" must become 0.1, not chapter 1 (which would
+          // collide with the real chapter 1). Mirrors list-parser.
+          chapterNumber = `0.${num}`;
         } else {
           chapterNumber = num;
         }

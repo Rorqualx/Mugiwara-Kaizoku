@@ -8,6 +8,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+import { parseChapterToken, parseVolumeToken } from '@/server/parsers/chapter-number-extractor';
 import { logger } from '@/utils/logger';
 
 import { peekArchiveContents, classifyArchiveContents } from './archive-peek';
@@ -44,6 +45,7 @@ function stripMetadata(name: string): string {
  * 3. Dash-separated number: "Title - 042" → treated as chapter
  * 4. Bare trailing number ("Akira 01") → treated as volume
  */
+// eslint-disable-next-line complexity -- ordered filename-heuristic cascade (vol/ch/range/dash/paren/bare); each branch is documented against its iter and protected by the 36-pattern corpus — splitting would obscure precedence
 export function parseChapterFileName(
   name: string, ext: string, construct?: Construct,
 ): { volumeNumber: number | null; chapterNumber: number | null } {
@@ -120,11 +122,12 @@ export function parseChapterFileName(
     ? bareIntPart.length >= 1
     : bareIntPart.length >= 3;
 
-  // Dash-separated and ch-prefixed numbers are chapters. parseFloat
-  // preserves the decimal (parseInt would truncate "42.5" to 42).
-  const chapterNumber = chMatch?.[1] ? parseFloat(chMatch[1])
-    : dashNumMatch?.[1] ? parseFloat(dashNumMatch[1])
-    : (bareIsChapter && bareNumMatch?.[1]) ? parseFloat(bareNumMatch[1])
+  // Dash-separated and ch-prefixed numbers are chapters. parseChapterToken
+  // preserves the decimal (parseInt would truncate "42.5" to 42) and
+  // rejects implausible tokens centrally.
+  const chapterNumber = chMatch?.[1] ? parseChapterToken(chMatch[1])
+    : dashNumMatch?.[1] ? parseChapterToken(dashNumMatch[1])
+    : (bareIsChapter && bareNumMatch?.[1]) ? parseChapterToken(bareNumMatch[1])
     : null;
 
   // Volumes remain integers — half-volumes don't exist as a release
@@ -134,9 +137,9 @@ export function parseChapterFileName(
   // (the chapter range is already specific). Without this rule,
   // "Series v02 Chapter 042.cbz" would populate both fields, confusing
   // the downstream linker into creating a synthetic volume-2 placeholder.
-  const volumeNumber = (volMatch?.[1] && !chMatch) ? parseInt(volMatch[1], 10)
-    : parenNumMatch?.[1] ? parseInt(parenNumMatch[1], 10)
-    : (!bareIsChapter && bareNumMatch?.[1]) ? parseInt(bareNumMatch[1], 10)
+  const volumeNumber = (volMatch?.[1] && !chMatch) ? parseVolumeToken(volMatch[1])
+    : parenNumMatch?.[1] ? parseVolumeToken(parenNumMatch[1])
+    : (!bareIsChapter && bareNumMatch?.[1]) ? parseVolumeToken(bareNumMatch[1])
     : null;
 
   return { volumeNumber, chapterNumber };

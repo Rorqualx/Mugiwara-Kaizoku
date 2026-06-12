@@ -7,6 +7,7 @@
  * Uses shared patterns from @/server/services/comicvine/constants.ts
  * for consistency with the scraping service.
  */
+import { parseChapterToken } from '@/server/parsers/chapter-number-extractor';
 import {
   CHAPTER_SECTION_HEADERS,
   DESCRIPTION_CHAPTER_PATTERNS,
@@ -112,9 +113,9 @@ function cleanTitle(title: string): string {
  */
 function tryParseNumberedChapter(line: string, match: RegExpMatchArray): ParsedChapter | null {
   if (match.length === 3 && match[1] && match[2]) {
-    const chapterNum = parseFloat(match[1]);
+    const chapterNum = parseChapterToken(match[1]);
     const title = match[2].trim();
-    if (!isNaN(chapterNum) && title) {
+    if (chapterNum !== null && title) {
       return {
         chapterNumber: chapterNum,
         title: cleanTitle(title),

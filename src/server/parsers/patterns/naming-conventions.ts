@@ -42,8 +42,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /ステージ\s*(\d+)/,
     ],
     urlPatterns: [
-      /Stage[_\s]?(\d+)/i,
-      /stage(\d+)/i,
+      /Stage[_\s]?(\d+(?:\.\d+)?)/i,
+      /stage(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Stages/i,
@@ -57,7 +57,7 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /ミッション\s*(\d+)/,
     ],
     urlPatterns: [
-      /Mission[_\s]?(\d+)/i,
+      /Mission[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Missions/i,
@@ -75,8 +75,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /(\d+)话/,
     ],
     urlPatterns: [
-      /Episode[_\s]?(\d+)/i,
-      /Ep[_\s]?(\d+)/i,
+      /Episode[_\s]?(\d+(?:\.\d+)?)/i,
+      /Ep[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Episodes/i,
@@ -91,8 +91,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /事件\s*(\d+)/,
     ],
     urlPatterns: [
-      /Case[_\s]?(\d+)/i,
-      /File[_\s]?(\d+)/i,
+      /Case[_\s]?(\d+(?:\.\d+)?)/i,
+      /File[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Cases/i,
@@ -109,8 +109,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /ラウンド\s*(\d+)/,
     ],
     urlPatterns: [
-      /Round[_\s]?(\d+)/i,
-      /Match[_\s]?(\d+)/i,
+      /Round[_\s]?(\d+(?:\.\d+)?)/i,
+      /Match[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Rounds/i,
@@ -125,7 +125,7 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /夜\s*(\d+)/,
     ],
     urlPatterns: [
-      /Night[_\s]?(\d+)/i,
+      /Night[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Nights/i,
@@ -140,8 +140,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /幕\s*(\d+)/,
     ],
     urlPatterns: [
-      /Act[_\s]?(\d+)/i,
-      /Scene[_\s]?(\d+)/i,
+      /Act[_\s]?(\d+(?:\.\d+)?)/i,
+      /Scene[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Acts/i,
@@ -156,7 +156,7 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /トラック\s*(\d+)/,
     ],
     urlPatterns: [
-      /Track[_\s]?(\d+)/i,
+      /Track[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Tracks/i,
@@ -170,7 +170,7 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /レッスン\s*(\d+)/,
     ],
     urlPatterns: [
-      /Lesson[_\s]?(\d+)/i,
+      /Lesson[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Lessons/i,
@@ -185,8 +185,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /Entry\s*(\d+(?:\.\d+)?)/i,
     ],
     urlPatterns: [
-      /Log[_\s]?(\d+)/i,
-      /Record[_\s]?(\d+)/i,
+      /Log[_\s]?(\d+(?:\.\d+)?)/i,
+      /Record[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Logs/i,
@@ -201,7 +201,7 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /Story\s*(\d+(?:\.\d+)?)/i,
     ],
     urlPatterns: [
-      /Tale[_\s]?(\d+)/i,
+      /Tale[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Tales/i,
@@ -215,8 +215,8 @@ export const NAMING_CONVENTIONS: NamingConvention[] = [
       /(?<!\w\s)Spell\s*(\d+(?:\.\d+)?)/i,
     ],
     urlPatterns: [
-      /(?<!Bonus_)Curse[_\s]?(\d+)/i,
-      /(?<!Bonus_)Spell[_\s]?(\d+)/i,
+      /(?<!Bonus_)Curse[_\s]?(\d+(?:\.\d+)?)/i,
+      /(?<!Bonus_)Spell[_\s]?(\d+(?:\.\d+)?)/i,
     ],
     categoryPatterns: [
       /Category:Curses/i,
@@ -257,8 +257,8 @@ export const CHAPTER_CONVENTION: NamingConvention = {
     /#(\d+(?:\.\d+)?)/,
   ],
   urlPatterns: [
-    /Chapter[_\s]?(\d+)/i,
-    /Ch[_\s]?(\d+)/i,
+    /Chapter[_\s]?(\d+(?:\.\d+)?)/i,
+    /Ch[_\s]?(\d+(?:\.\d+)?)/i,
   ],
   categoryPatterns: [
     /Category:Chapters/i,

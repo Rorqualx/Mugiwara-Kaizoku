@@ -28,7 +28,7 @@ function parseJapaneseTitle(matchText: string): string | null {
  */
 function extractNumberedChapters(text: string): WikipediaChapter[] {
     const chapters: WikipediaChapter[] = [];
-    const pattern = /(\d{2,3})\.\s*"([^"]+)"(?:\s*\(([^)]+)\))?/g;
+    const pattern = /(\d{2,3}(?:\.\d+)?)\.\s*"([^"]+)"(?:\s*\(([^)]+)\))?/g;
 
     let match;
     while ((match = pattern.exec(text)) !== null) {
@@ -151,7 +151,7 @@ function extractAlternativeSpecialChapters(
  */
 function extractSimpleChapters(text: string): WikipediaChapter[] {
     const chapters: WikipediaChapter[] = [];
-    const pattern = /Chapter\s+(\d+):\s*([^\n]+)/g;
+    const pattern = /Chapter\s+(\d+(?:\.\d+)?):\s*([^\n]+)/g;
 
     let match;
     while ((match = pattern.exec(text)) !== null) {
@@ -207,7 +207,7 @@ export function extractChaptersFromCell(
 
     // Try different chapter patterns
     // Pattern 1: 01. "Title" (pages)
-    const pattern1 = /(\d+)\.\s*"([^"]+)"(?:\s*\(([^)]+)\))?/g;
+    const pattern1 = /(\d+(?:\.\d+)?)\.\s*"([^"]+)"(?:\s*\(([^)]+)\))?/g;
     let match;
     while ((match = pattern1.exec(cellText)) !== null) {
         if (match[1] && match[2]) {
@@ -227,7 +227,7 @@ export function extractChaptersFromCell(
 
     // Pattern 2: Chapter 1: Title
     if (chapters.length === 0) {
-        const pattern2 = /Chapter\s+(\d+):\s*([^\n]+)/g;
+        const pattern2 = /Chapter\s+(\d+(?:\.\d+)?):\s*([^\n]+)/g;
         while ((match = pattern2.exec(cellText)) !== null) {
             if (match[1] && match[2]) {
                 chapters.push({
@@ -240,7 +240,7 @@ export function extractChaptersFromCell(
 
     // Pattern 3: Simple numbered list
     if (chapters.length === 0) {
-        const pattern3 = /(\d+)\.\s+([^\n]+)/g;
+        const pattern3 = /(\d+(?:\.\d+)?)\.\s+([^\n]+)/g;
         while ((match = pattern3.exec(cellText)) !== null) {
             if (match[1] && match[2]) {
                 chapters.push({
