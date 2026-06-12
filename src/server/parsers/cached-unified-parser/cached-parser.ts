@@ -2,7 +2,6 @@
  * Cached Unified Parser - Core Implementation
  *
  * Main CachedUnifiedParser class with PostgreSQL caching support.
- * ML enhancement methods are in ml-enhancement.ts.
  *
  * Extracted from: CachedUnifiedParser.ts
  */
@@ -10,21 +9,13 @@
 import { logger } from '@/utils/logger';
 
 import { PostgresCacheProvider } from '../cache/PostgresCacheProvider';
-import { PatternRecognitionEngine } from '../pattern-recognition/core/PatternRecognitionEngine';
 import { UnifiedMetadataParser } from '../UnifiedMetadataParser';
 
-import {
-  initializeMLEngine as initMLEngine,
-  shouldUseML as checkShouldUseML,
-  enhanceWithML as performMLEnhancement,
-  getMLMetrics as getMLMetricsImpl,
-  trainWithFeedback as performTrainWithFeedback
-} from './ml-enhancement';
 import { isRecord, chunk, groupByNamespace } from './utils';
 
 import type { NormalizedMangaData } from '../core/DataNormalizer';
 import type { ParseOptions, ParsedContent } from '../UnifiedMetadataParser';
-import type { CachedParseOptions, CacheMetrics, MLMetrics } from './types';
+import type { CachedParseOptions, CacheMetrics } from './types';
 
 
 // ============================================================================
@@ -38,13 +29,6 @@ export class CachedUnifiedParser extends UnifiedMetadataParser {
   private parseTimeHistory: number[] = [];
   private cacheTimeHistory: number[] = [];
   private cleanupTimer: NodeJS.Timeout | null = null;
-  private mlEngine?: PatternRecognitionEngine;
-  private mlMetrics: MLMetrics = {
-    predictions: 0,
-    correctPredictions: 0,
-    avgConfidence: 0,
-    avgInferenceTime: 0
-  };
 
   constructor(cache?: PostgresCacheProvider) {
     super();
@@ -57,9 +41,6 @@ export class CachedUnifiedParser extends UnifiedMetadataParser {
       avgCacheTime: 0,
       totalSize: 0
     };
-
-    // Initialize ML engine if enabled
-    void this.initializeMLEngine();
 
     // Initialize cache cleanup schedule
     this.scheduleCleanup();
@@ -159,12 +140,7 @@ export class CachedUnifiedParser extends UnifiedMetadataParser {
     this.recordCacheMiss();
     const parseStartTime = Date.now();
 
-    let result = await super.parseUnified(htmlOrUrl, options);
-
-    // Apply ML enhancement if enabled
-    if (this.shouldUseML(options)) {
-      result = await this.enhanceWithML(result, htmlOrUrl, options) as typeof result;
-    }
+    const result = await super.parseUnified(htmlOrUrl, options);
 
     const parseTime = Date.now() - parseStartTime;
     this.recordParseTime(parseTime);
@@ -388,31 +364,6 @@ export class CachedUnifiedParser extends UnifiedMetadataParser {
   }
 
   /**
-   * Train with feedback for ML improvement
-   */
-  async trainWithFeedback(
-    urlOrHtml: string,
-    correctResult: unknown,
-    feedback?: string
-  ): Promise<void> {
-    await performTrainWithFeedback({
-      urlOrHtml,
-      correctResult,
-      feedback,
-      mlEngine: this.mlEngine,
-      cache: this.cache,
-      generateCacheKey: (input: string, opts: CachedParseOptions) => this.generateCacheKey(input, opts)
-    });
-  }
-
-  /**
-   * Get ML metrics
-   */
-  public getMLMetrics(): { patterns: number; accuracy: number; confidence: number } | null {
-    return getMLMetricsImpl(this.mlMetrics);
-  }
-
-  /**
    * Warm cache with common manga titles
    */
   async warmCache(
@@ -460,47 +411,12 @@ export class CachedUnifiedParser extends UnifiedMetadataParser {
       this.cleanupTimer = null;
     }
 
-    // Cleanup ML engine
-    if (this.mlEngine) {
-      // PatternRecognitionEngine doesn't have cleanup method
-      // Just clear the reference by deleting the property
-      delete (this as unknown as { mlEngine?: PatternRecognitionEngine }).mlEngine;
-    }
-
     // Cache provider doesn't need explicit disconnect
   }
 
   // ============================================================================
   // Private Methods
   // ============================================================================
-
-  /**
-   * Initialize ML pattern recognition engine
-   */
-  private async initializeMLEngine(): Promise<void> {
-    const engine = await initMLEngine(this.mlEngine);
-    if (engine) {
-      this.mlEngine = engine;
-    }
-  }
-
-  /**
-   * Check if ML should be used for parsing
-   */
-  private shouldUseML(options: CachedParseOptions): boolean {
-    return checkShouldUseML(options, this.mlEngine);
-  }
-
-  /**
-   * Enhance parsed result with ML predictions
-   */
-  private async enhanceWithML(
-    result: unknown,
-    htmlOrUrl: string,
-    options: CachedParseOptions
-  ): Promise<unknown> {
-    return performMLEnhancement(result, htmlOrUrl, options, this.mlEngine, this.mlMetrics);
-  }
 
   /**
    * Update metrics

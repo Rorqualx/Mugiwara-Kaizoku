@@ -2,42 +2,23 @@
  * Cached Unified Parser - Main Aggregator
  *
  * This module aggregates all cached parser functionality into a single
- * unified export. Provides PostgreSQL caching for the UnifiedMetadataParser
- * with ML pattern recognition enhancement.
+ * unified export. Provides PostgreSQL caching for the UnifiedMetadataParser.
  *
  * Architecture:
- * - types.ts - Type definitions (CachedParseOptions, CacheMetrics, MLMetrics)
+ * - types.ts - Type definitions (CachedParseOptions, CacheMetrics)
  * - utils.ts - Shared utilities (isRecord, chunk, groupByNamespace)
  * - cached-parser.ts - Main CachedUnifiedParser class
- * - ml-enhancement.ts - ML integration functions
  * - cache-management.ts - ParserCacheManager class
- *
- * Original: CachedUnifiedParser.ts (961 lines)
- * Refactored: 6 modules (total ~1300 lines, all under 500 lines each)
  */
 
 // Re-export types
-export type { CachedParseOptions, CacheMetrics, MLMetrics } from './types';
+export type { CachedParseOptions, CacheMetrics } from './types';
 
 // Re-export utilities
 export { isRecord, chunk, groupByNamespace } from './utils';
 
 // Re-export main parser class
 export { CachedUnifiedParser } from './cached-parser';
-
-// Re-export ML enhancement functions
-export {
-  initializeMLEngine,
-  shouldUseML,
-  enhanceWithML,
-  mergeMLPredictions,
-  updateMLMetrics,
-  getMLMetrics,
-  trainWithFeedback
-} from './ml-enhancement';
-
-// Re-export ML types
-export type { TrainWithFeedbackOptions } from './ml-enhancement';
 
 // Re-export cache management
 export { ParserCacheManager } from './cache-management';

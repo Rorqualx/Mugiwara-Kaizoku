@@ -38,7 +38,6 @@ export interface UnifiedParserConfig extends Partial<ApiClientConfig> {
   language?: string;
   enableBatchOperations?: boolean;
   performanceMonitoring?: boolean;
-  enableMLPatterns?: boolean;
 }
 
 export interface ParserMetrics {
@@ -79,7 +78,6 @@ export class UnifiedParserAdapter extends MetadataProvider<Error> {
       language: 'en',
       enableBatchOperations: true,
       performanceMonitoring: false,
-      enableMLPatterns: false,
       ...config
     };
     this.parser = new CachedUnifiedParser();

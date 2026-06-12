@@ -20,10 +20,6 @@ interface FlagEntry {
 }
 
 const FEATURE_FLAG_KEYS: FlagEntry[] = [
-  // ML Features
-  { key: 'featureFlags.mlPatternRecognition', envVar: 'ENABLE_ML_PATTERN_RECOGNITION', enabledWhen: 'true' },
-  { key: 'featureFlags.mlActiveLearning', envVar: 'ENABLE_ML_ACTIVE_LEARNING', enabledWhen: 'true' },
-
   // Performance
   { key: 'featureFlags.enableCaching', envVar: 'DISABLE_CACHING', enabledWhen: 'false' },
 

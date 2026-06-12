@@ -2,7 +2,7 @@
  * Comprehensive Integration Tests for CachedUnifiedParser
  *
  * Tests the unified parser with provider strategies,
- * caching mechanisms, ML integration, adapter fallbacks,
+ * caching mechanisms, adapter fallbacks,
  * error handling, and performance benchmarks.
  */
 
@@ -12,45 +12,14 @@
 /*                                    MOCKS                                   */
 /* -------------------------------------------------------------------------- */
 
-// Mock MLBackend enum values - must be defined before mocks that use them
-const RULE_BASED = 'RULE_BASED';
-const _TENSORFLOWJS = 'TENSORFLOWJS';
-
 // Create mock functions that can be controlled in tests
 const mockIsEnabled = jest.fn().mockReturnValue(false);
-const mockGetMLConfig = jest.fn().mockReturnValue({
-  backend: 'RULE_BASED',
-  minConfidence: 0.7,
-  maxInferenceTime: 50,
-  enableMetrics: false,
-  enableActiveLearning: false,
-  cacheResults: false,
-  fallbackToRules: false,
-  modelUpdateFrequency: 0,
-  activeLearningThreshold: 0,
-  ensembleSize: 0,
-});
-
-const mockRecordPrediction = jest.fn().mockResolvedValue(undefined);
-const mockRecordFeedback = jest.fn().mockResolvedValue(undefined);
 
 // Jest mocks - hoisted to top of file
 jest.mock('../../config/feature-flags', () => ({
-  MLBackend: {
-    RULE_BASED: 'RULE_BASED',
-    TENSORFLOWJS: 'TENSORFLOWJS',
-  },
   isFeatureEnabled: jest.fn().mockReturnValue(false),
   getFeatureFlagManager: jest.fn().mockReturnValue({
     isEnabled: mockIsEnabled,
-    getMLConfig: mockGetMLConfig,
-  }),
-}));
-
-jest.mock('../../services/ml/MLMetricsService', () => ({
-  getMLMetricsService: jest.fn().mockReturnValue({
-    recordPrediction: mockRecordPrediction,
-    recordFeedback: mockRecordFeedback,
   }),
 }));
 
@@ -84,21 +53,6 @@ describe('CachedUnifiedParser Integration Tests', () => {
   beforeEach(() => {
     // Reset mocks before each test
     mockIsEnabled.mockReturnValue(false);
-    mockGetMLConfig.mockReturnValue({
-      backend: RULE_BASED,
-      minConfidence: 0.7,
-      maxInferenceTime: 50,
-      enableMetrics: false,
-      enableActiveLearning: false,
-      cacheResults: false,
-      fallbackToRules: false,
-      modelUpdateFrequency: 0,
-      activeLearningThreshold: 0,
-      ensembleSize: 0,
-    });
-
-    mockRecordPrediction.mockResolvedValue(undefined);
-    mockRecordFeedback.mockResolvedValue(undefined);
 
     parser = new CachedUnifiedParser();
     parser.clearCache();
@@ -156,47 +110,6 @@ describe('CachedUnifiedParser Integration Tests', () => {
 
       const afterTTL = await parser.parse(testUrl, { html: testHtml });
       expect(afterTTL).toBeDefined();
-    });
-  });
-
-  /* ------------------------------ ML Integration ---------------------------- */
-
-  describe('ML Integration', () => {
-    beforeEach(() => {
-      // Use the top-level mock functions directly (Bun-compatible)
-      mockIsEnabled.mockImplementation((...args: unknown[]) => {
-        const maybeKey = args[0];
-        if (typeof maybeKey !== 'string') return false;
-        return maybeKey === 'mlPatternRecognition' || maybeKey === 'metricsCollection';
-      });
-    });
-
-    it('enhances results with ML when enabled', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Parser methods may be undefined at runtime
-      const before = parser.getMetrics?.() as { misses?: number } | undefined;
-
-      await parser.parse('https://test.com/manga', { html: '<h1>Test</h1>', forceRefresh: true });
-
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Parser methods may be undefined at runtime
-      const after = parser.getMetrics?.() as { misses?: number } | undefined;
-
-      if (before && typeof before.misses === 'number' && after && typeof after.misses === 'number') {
-        expect(after.misses).toBeGreaterThanOrEqual(before.misses);
-      } else {
-        expect(after).toBeDefined();
-      }
-    });
-
-    it('records ML metrics when enabled', async () => {
-      await parser.parse('https://test.com/manga', { html: '<h1>Test</h1>', forceRefresh: true });
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Parser methods may be undefined at runtime
-      const mm = parser.getMLMetrics?.();
-      expect(mm === null || typeof mm === 'object').toBe(true);
-    });
-
-    it('handles ML parsing gracefully', async () => {
-      const result = await parser.parse('https://test.com/manga', { html: '<h1>Test</h1>', forceRefresh: true });
-      expect(result).toBeDefined();
     });
   });
 
@@ -388,99 +301,6 @@ describe('CachedUnifiedParser Performance Benchmarks', () => {
     const t2 = performance.now() - warmStart;
 
     expect(t2).toBeLessThan(t1 + 1000);
-  });
-});
-
-/* ---------------------------- ML Features Tests --------------------------- */
-
-describe('CachedUnifiedParser ML Features', () => {
-  let parser: CachedUnifiedParser;
-
-  beforeEach(() => {
-    // Temporarily enable ML features for these tests
-    // Use the top-level mock functions directly (Bun-compatible)
-    mockIsEnabled.mockImplementation((feature: unknown) => {
-      if (typeof feature === 'string' && feature.startsWith('ml')) {
-        return true;
-      }
-      return false;
-    });
-    mockGetMLConfig.mockReturnValue({
-      backend: 'TENSORFLOWJS',
-      minConfidence: 0.7,
-      maxInferenceTime: 50,
-      enableMetrics: true,
-      enableActiveLearning: true,
-      cacheResults: true,
-      fallbackToRules: true,
-      modelUpdateFrequency: 86400000,
-      activeLearningThreshold: 0.8,
-      ensembleSize: 3,
-    });
-
-    parser = new CachedUnifiedParser();
-    parser.clearCache();
-  });
-
-  afterEach(() => {
-    // Restore default mock behavior (Bun-compatible)
-    mockIsEnabled.mockImplementation((_feature: unknown) => false);
-    mockGetMLConfig.mockReturnValue({
-      backend: RULE_BASED,
-      minConfidence: 0.7,
-      maxInferenceTime: 50,
-      enableMetrics: false,
-      enableActiveLearning: false,
-      cacheResults: false,
-      fallbackToRules: false,
-      modelUpdateFrequency: 0,
-      activeLearningThreshold: 0,
-      ensembleSize: 0,
-    });
-  });
-
-  it('should use ML pattern recognition when enabled', async () => {
-    const html = `
-      <html>
-        <body>
-          <div class="portable-infobox">
-            <h2 class="pi-title">Test Manga</h2>
-            <div class="pi-item pi-data pi-item-spacing pi-border-color">
-              <h3 class="pi-data-label pi-secondary-font">Author</h3>
-              <div class="pi-data-value pi-font">Test Author</div>
-            </div>
-          </div>
-          <table class="wikitable">
-            <tr><td>Volume 1</td><td>Chapters 1-10</td></tr>
-          </table>
-        </body>
-      </html>
-    `;
-
-    const result = await parser.parse('https://test.com/ml-enabled', {
-      html,
-      forceRefresh: true,
-    });
-
-    expect(result).toBeDefined();
-    // Should extract basic metadata even with ML
-    if (result && typeof result === 'object') {
-      const typedResult = result as Record<string, unknown>;
-      expect(typedResult['title'] || typedResult['name']).toBeDefined();
-    }
-  });
-
-  it('should handle ML backend gracefully when unavailable', async () => {
-    // Test with malformed HTML that might cause ML issues
-    const malformedHTML = '<html><body>Invalid content without structure</body></html>';
-
-    const result = await parser.parse('https://test.com/ml-fallback', {
-      html: malformedHTML,
-      forceRefresh: true,
-    });
-
-    // Should still return basic structure even if ML fails
-    expect(result).toBeDefined();
   });
 });
 

@@ -15,7 +15,6 @@ import { CachedUnifiedParser } from '../CachedUnifiedParser';
 
 import type { CachedParseOptions } from '../CachedUnifiedParser';
 import type { NormalizedMangaData } from '../core/DataNormalizer';
-import type { PatternRecognitionEngine } from '../pattern-recognition/core/PatternRecognitionEngine';
 import type { ParseOptions, ParsedContent, UIFormattedContent } from '../UnifiedMetadataParser';
 
 // ============================================================================
@@ -24,7 +23,6 @@ import type { ParseOptions, ParsedContent, UIFormattedContent } from '../Unified
 
 export interface UnifiedParserConfig {
   enableCache?: boolean;
-  enableML?: boolean;
   cacheTTL?: number;
   cacheNamespace?: string;
   performanceMonitoring?: boolean;
@@ -39,14 +37,12 @@ class UnifiedParserManager {
   private static instance: UnifiedParserManager | undefined;
   private parser: CachedUnifiedParser;
   private cache: PostgresCacheProvider;
-  private mlEngine?: PatternRecognitionEngine;
   private monitoringTimer: NodeJS.Timeout | null = null;
   private config: UnifiedParserConfig;
   
   private constructor(config: UnifiedParserConfig = {}) {
     this.config = {
       enableCache: true,
-      enableML: false,
       cacheTTL: 86400, // 24 hours
       cacheNamespace: 'unified-parser',
       performanceMonitoring: false,
@@ -60,11 +56,6 @@ class UnifiedParserManager {
     // Initialize parser with cache
     this.parser = new CachedUnifiedParser(this.config.enableCache ? this.cache : undefined);
 
-    // Initialize ML engine if enabled
-    if (this.config.enableML) {
-      void this.initializeMLEngine();
-    }
-
     // Start performance monitoring if enabled
     if (this.config.performanceMonitoring) {
       this.startMonitoring();
@@ -72,7 +63,6 @@ class UnifiedParserManager {
     
     logger.info('Unified Parser initialized', {
       cache: this.config.enableCache,
-      ml: this.config.enableML,
       providers: this.config.providers
     });
   }
@@ -83,24 +73,6 @@ class UnifiedParserManager {
   public static getInstance(config?: UnifiedParserConfig): UnifiedParserManager {
     UnifiedParserManager.instance ??= new UnifiedParserManager(config);
     return UnifiedParserManager.instance;
-  }
-  
-  /**
-   * Initialize ML engine for pattern recognition
-   */
-  private async initializeMLEngine(): Promise<void> {
-    try {
-      const { PatternRecognitionEngine } = await import('../pattern-recognition/core/PatternRecognitionEngine');
-      this.mlEngine = new PatternRecognitionEngine({
-        enableCaching: true,
-        enableLearning: true
-      });
-      await this.mlEngine.initialize();
-      logger.info('ML Pattern Recognition Engine initialized');
-    } catch (error: unknown) {const errorMessage = error instanceof Error ? error.message : String(error);
-logger.error('Failed to initialize ML engine:', errorMessage);
-      this.config.enableML = false;
-    }
   }
   
   /**
@@ -115,7 +87,7 @@ logger.error('Failed to initialize ML engine:', errorMessage);
   }
   
   /**
-   * Main parsing method with ML enhancement
+   * Main parsing method
    */
   public async parse(
     htmlOrUrl: string,
@@ -124,20 +96,6 @@ logger.error('Failed to initialize ML engine:', errorMessage);
     const startTime = Date.now();
 
     try {
-      // Apply ML predictions if enabled
-      if (this.mlEngine && this.config.enableML) {
-        const _predictions = await this.mlEngine.predict({
-          html: htmlOrUrl,
-          url: options["source"] || 'unknown',
-          options: {}
-        });
-
-        // Enhance options with ML predictions
-        // Note: Current implementation returns empty array
-        // This is a placeholder for future ML integration
-      }
-
-      // Parse with enhanced options
       const result = await this.parser.parseUnified(htmlOrUrl, options);
 
       // Track performance
@@ -145,8 +103,7 @@ logger.error('Failed to initialize ML engine:', errorMessage);
       if (this.config.performanceMonitoring) {
         logger.debug(`Parse completed in ${parseTime}ms`, {
           source: options["source"],
-          cached: options.useCache,
-          ml: this.config.enableML
+          cached: options.useCache
         });
       }
 
@@ -212,36 +169,10 @@ logger.error('Parse failed:', errorMessage);
   }
   
   /**
-   * Train ML model with feedback
-   */
-  public async trainWithFeedback(
-    content: ParsedContent,
-    feedback: unknown
-  ): Promise<void> {
-    if (this.mlEngine && this.config.enableML) {
-      // Learn method expects (html, features, feedback)
-      // Create minimal PatternFeatures structure
-      const emptyFeatures = {
-        structural: { tagCounts: {}, maxDepth: 0, averageDepth: 0, elementCount: 0 },
-        semantic: { keywordDensity: {}, topicDistribution: {}, sentimentScore: 0, readabilityScore: 0 },
-        statistical: { wordCount: 0, avgWordLength: 0, sentenceCount: 0, avgSentenceLength: 0, paragraphCount: 0 },
-        visual: { isVisible: false, isAboveFold: false },
-        contextual: { nearbyText: [] }
-      };
-      await this.mlEngine.learn('', emptyFeatures, feedback);
-    }
-  }
-  
-  /**
    * Update configuration
    */
   public updateConfig(config: Partial<UnifiedParserConfig>): void {
     this.config = { ...this.config, ...config };
-
-    // Re-initialize components if needed
-    if (config.enableML !== undefined && config.enableML && !this.mlEngine) {
-      void this.initializeMLEngine();
-    }
   }
 }
 
@@ -305,13 +236,6 @@ export function getMetrics(): ReturnType<CachedUnifiedParser['getMetrics']> {
 // Export configuration functions
 export function updateConfig(config: Partial<UnifiedParserConfig>): void {
   return getUnifiedParser().updateConfig(config);
-}
-
-export async function trainWithFeedback(
-  content: ParsedContent,
-  feedback: unknown
-): Promise<void> {
-  return getUnifiedParser().trainWithFeedback(content, feedback);
 }
 
 // Export types

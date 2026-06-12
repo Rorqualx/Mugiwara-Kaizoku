@@ -8,22 +8,11 @@
  */
 
 // Re-export everything from the decomposed modules
-export type { CachedParseOptions, CacheMetrics, MLMetrics } from './cached-unified-parser/types';
-export type { TrainWithFeedbackOptions } from './cached-unified-parser/ml-enhancement';
+export type { CachedParseOptions, CacheMetrics } from './cached-unified-parser/types';
 
 export { isRecord, chunk, groupByNamespace } from './cached-unified-parser/utils';
 
 export { CachedUnifiedParser } from './cached-unified-parser/cached-parser';
-
-export {
-  initializeMLEngine,
-  shouldUseML,
-  enhanceWithML,
-  mergeMLPredictions,
-  updateMLMetrics,
-  getMLMetrics,
-  trainWithFeedback
-} from './cached-unified-parser/ml-enhancement';
 
 export { ParserCacheManager } from './cached-unified-parser/cache-management';
 

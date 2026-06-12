@@ -8,7 +8,7 @@
 import type { ParseOptions } from '../UnifiedMetadataParser';
 
 /**
- * Extended parse options with caching and ML support
+ * Extended parse options with caching support
  */
 export interface CachedParseOptions extends ParseOptions {
   html?: string;
@@ -20,10 +20,6 @@ export interface CachedParseOptions extends ParseOptions {
   extractTables?: boolean;
   extractImages?: boolean;
   extractMetadata?: boolean;
-  // ML options
-  useML?: boolean;
-  mlConfidenceThreshold?: number;
-  collectMLMetrics?: boolean;
   // Provider options
   provider?: string;
 }
@@ -40,12 +36,3 @@ export interface CacheMetrics {
   totalSize: number;
 }
 
-/**
- * Metrics for ML pattern recognition performance
- */
-export interface MLMetrics {
-  predictions: number;
-  correctPredictions: number;
-  avgConfidence: number;
-  avgInferenceTime: number;
-}

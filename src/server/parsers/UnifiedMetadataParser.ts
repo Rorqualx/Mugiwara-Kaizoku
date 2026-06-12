@@ -9,14 +9,11 @@
 
 import * as cheerio from 'cheerio';
 
-import { isFeatureEnabled } from '@/server/config/feature-flags';
-import { logger } from '@/utils/logger';
 
 import { FandomAdapter } from './adapters/FandomAdapter';
 import { WikipediaAdapter } from './adapters/WikipediaAdapter';
 import { ContentExtractor } from './core/ContentExtractor';
 import { DataNormalizer, type NormalizedMangaData } from './core/DataNormalizer';
-import { PatternRecognitionEngine } from './pattern-recognition/core/PatternRecognitionEngine';
 import { extractDescription } from './unified-metadata-parser/description-extractors';
 import { ExtractionUtilities } from './unified-metadata-parser/extraction-utilities';
 import {
@@ -26,23 +23,12 @@ import {
   extractAllImages
 } from './unified-metadata-parser/image-extractors';
 import { extractMetadataFromInfobox } from './unified-metadata-parser/infobox-extractors';
-import {
-  extractVolumesFromMLData,
-  extractChaptersFromMLData,
-  extractMetadataFromMLInfobox,
-  extractCoverFromMLData,
-  extractTablesFromMLData
-} from './unified-metadata-parser/ml-data-extractors';
 import { PatternLibrary } from './unified-metadata-parser/pattern-library';
 import {
   parseTables,
   parseGalleries
 } from './unified-metadata-parser/table-parsers';
-import {
-  isRecord
-} from './unified-metadata-parser/types';
 
-import type { RecognitionRequest, UserFeedback, PatternPrediction } from './pattern-recognition/types';
 import type {
   ParseOptions,
   ParsedContent,
@@ -80,59 +66,11 @@ export class UnifiedMetadataParser {
   private dataNormalizer: DataNormalizer;
   private fandomAdapter: FandomAdapter;
   private wikipediaAdapter: WikipediaAdapter;
-  private patternEngine: PatternRecognitionEngine | null = null;
-  private useMLPatterns = isFeatureEnabled('mlPatternRecognition');
-  private initializationPromise: Promise<void> | null = null;
-
-  constructor(options: { enableMLPatterns?: boolean } = {}) {
+  constructor() {
     this.contentExtractor = new ContentExtractor();
     this.dataNormalizer = new DataNormalizer();
     this.fandomAdapter = new FandomAdapter();
     this.wikipediaAdapter = new WikipediaAdapter();
-
-    // Initialize Pattern Recognition Engine if enabled via feature flag or option
-    if (this.useMLPatterns || options.enableMLPatterns) {
-      this.useMLPatterns = true;
-      this.patternEngine = new PatternRecognitionEngine({
-        enableLearning: true,
-        enableEvolution: true,
-        enableCaching: true
-      });
-
-      // Initialize engine asynchronously and track the promise
-      this.initializationPromise = this.patternEngine.initialize().catch((error: unknown) => {
-        logger.error('Failed to initialize pattern engine', error);
-      });
-    }
-  }
-
-  /**
-   * Wait for initialization to complete (useful for tests and cleanup)
-   */
-  async awaitInitialization(): Promise<void> {
-    if (this.initializationPromise) {
-      await this.initializationPromise;
-    }
-  }
-
-  /**
-   * Shutdown the parser and cleanup resources
-   */
-  async shutdown(): Promise<void> {
-    // Wait for any pending initialization first
-    await this.awaitInitialization();
-
-    // Shutdown pattern engine if it exists
-    if (this.patternEngine) {
-      try {
-        await this.patternEngine.shutdown();
-      } catch (error: unknown) {
-        logger.error('Failed to shutdown pattern engine', error);
-      }
-      this.patternEngine = null;
-    }
-
-    this.initializationPromise = null;
   }
 
   /**
@@ -189,13 +127,6 @@ export class UnifiedMetadataParser {
       tables: [],
     };
 
-    // Note: ML pattern recognition is async - use parseHTMLAsync for ML support
-    // This synchronous method skips ML patterns for backward compatibility
-    // Use ML patterns if enabled (fire and forget for caching purposes)
-    if (this.useMLPatterns && this.patternEngine) {
-      void this.parseWithMLPatternsAsync(html, options);
-    }
-
     // Detect source if not specified
     const source = options.source ?? this.detectSource($);
 
@@ -224,100 +155,6 @@ export class UnifiedMetadataParser {
     }
 
     return result;
-  }
-
-  /**
-   * Parse HTML using ML Pattern Recognition
-   */
-  private async parseWithMLPatternsAsync(html: string, _options: ParseOptions): Promise<ParsedContent | null> {
-    if (!this.patternEngine) return null;
-
-    try {
-      // Create recognition request
-      const request: RecognitionRequest = {
-        html,
-        options: {
-          useCache: true,
-          learnFromResult: true,
-          confidenceThreshold: 0.7
-        }
-      };
-
-      // Use Promise.race for timeout instead of busy-wait
-      const recognitionResult = await Promise.race([
-        this.patternEngine.recognize(request),
-        new Promise<null>((resolve) => {
-          setTimeout(() => {
-            resolve(null);
-          }, 1000);
-        })
-      ]);
-
-      if (!recognitionResult) {
-        return null;
-      }
-
-      // Convert ML results to ParsedContent format
-      return this.convertMLResultsToContent(recognitionResult);
-    } catch (error: unknown) {
-      // Log error without using console.error directly in production
-      void error; // Acknowledge the error variable
-      return null;
-    }
-  }
-
-  /**
-   * Convert ML recognition results to ParsedContent
-   */
-  private convertMLResultsToContent(recognitionResult: PatternPrediction): ParsedContent {
-    const data = isRecord(recognitionResult.extractedData) ? recognitionResult.extractedData : {};
-    const coverImage = extractCoverFromMLData(data);
-
-    return {
-      volumes: extractVolumesFromMLData(data),
-      chapters: extractChaptersFromMLData(data),
-      metadata: extractMetadataFromMLInfobox(data, (status) => this.normalizeStatus(status)),
-      images: [],
-      tables: extractTablesFromMLData(data),
-      ...(coverImage && { coverImage })
-    };
-  }
-
-  /**
-   * Normalize status string to enum
-   */
-  private normalizeStatus(status: string | undefined): ExtractedMetadata['status'] | undefined {
-    if (!status) return undefined;
-    const lower = status.toLowerCase();
-    if (lower.includes('complete')) return 'COMPLETED';
-    if (lower.includes('hiatus')) return 'HIATUS';
-    if (lower.includes('cancel')) return 'CANCELLED';
-    return 'ONGOING';
-  }
-
-  /**
-   * Provide feedback for ML pattern learning
-   */
-  async provideFeedback(matchId: string, feedback: UserFeedback): Promise<void> {
-    if (this.patternEngine) {
-      await this.patternEngine.provideFeedback(matchId, feedback);
-    }
-  }
-
-  /**
-   * Get ML engine metrics
-   */
-  getMLMetrics(): { patterns: number; accuracy: number; confidence: number } | null {
-    if (this.patternEngine) {
-      const metrics = this.patternEngine.getMetrics();
-      // Map SystemMetrics to the expected format
-      return {
-        patterns: metrics.patterns.total,
-        accuracy: metrics.learning.accuracy,
-        confidence: metrics.models.accuracy
-      };
-    }
-    return null;
   }
 
   /**
