@@ -36,7 +36,7 @@ Before writing ANY code:
 1. ✅ **Code Search**: Use `ast-grep` (NEVER grep/rg for code) → [Guide](docs/development/ast-grep-guide.md)
 2. ✅ **Type Safety**: No `any` types (use `unknown` + type guards)
 3. ✅ **Error Handling**: AsyncResult pattern + `withEnhancedErrorHandling`
-4. ✅ **Imports**: From domain types (`@/types/domain/manga-types`)
+4. ✅ **Imports**: Entity types from `@prisma/client`; derived/view types from `@/types/manga`
 5. ✅ **Mantine v7**: Use `fw`, `gap`, `justify` (not `weight`, `spacing`, `position`)
 6. ✅ **tRPC v11**: Use `isPending` for mutations (not `isLoading`)
 7. ✅ **Nullish Coalescing**: Use `??` (not `||`) → [ESLint Guide](docs/eslint/eslint-rules-reference.md)
@@ -135,12 +135,12 @@ if (isValidData(data)) {
 }
 ```
 
-**Import from specific domain types:**
+**Import entity types from Prisma, derived types from their domain module:**
 
 ```typescript
 // ✅ CORRECT
-import { Manga, MangaStatus } from '@/types/domain/manga-types';
-import { Chapter } from '@/types/domain/chapter-types';
+import type { Manga, Chapter, MangaPublicationStatus } from '@prisma/client';
+import type { MangaWithMetadata } from '@/types/manga';
 
 // ❌ WRONG
 import { Manga } from '@/types';

@@ -119,9 +119,9 @@ src/types/
 
 ```typescript
 // ✅ CORRECT - Import from specific files
-import { Manga, MangaStatus } from '@/types/domain/manga-types';
+import type { Manga, MangaPublicationStatus } from '@prisma/client';
+import type { MangaWithMetadata } from '@/types/manga';
 import { AniListAdapter } from '@/types/adapters/anilist';
-import { ApiError } from '@/types/api/error-types';
 
 // ❌ AVOID - Don't use barrel imports from index.ts
 import { Manga } from '@/types'; // Too generic
