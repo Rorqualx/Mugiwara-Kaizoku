@@ -4,7 +4,7 @@
 
 import * as cheerio from 'cheerio';
 
-import { MetadataExtractor } from '@/server/parsers/extractors/MetadataExtractor';
+import { MetadataExtractor } from '@/server/parsers/extractors/metadata-extractor';
 
 import { 
   FANDOM_HTML_SAMPLE, 

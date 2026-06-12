@@ -298,11 +298,9 @@ export class KomgaClient {
 }
 
 /**
- * Legacy function: Scans all configured Komga libraries
- *
- * @deprecated Use KomgaClient.scanLibrary instead
+ * Scans all configured Komga libraries (no-op when the integration is disabled or unconfigured)
  */
-export const scanLibrary = async (): Promise<void> => {
+export const scanAllLibraries = async (): Promise<void> => {
   const config = await getKomgaConfig();
 
   if (config && config.enabled && config.host && (
@@ -322,11 +320,9 @@ export const scanLibrary = async (): Promise<void> => {
 };
 
 /**
- * Legacy function: Refreshes metadata for a specific manga
- *
- * @deprecated Use KomgaClient.refreshSeriesMetadata instead
+ * Refreshes Komga metadata for the series matching a manga title (no-op when disabled or no match)
  */
-export const refreshMetadata = async (mangaName: string): Promise<void> => {
+export const refreshMetadataByTitle = async (mangaName: string): Promise<void> => {
   const config = await getKomgaConfig();
 
   if (config && config.enabled && config.host && (

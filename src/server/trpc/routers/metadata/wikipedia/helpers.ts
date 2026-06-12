@@ -6,8 +6,8 @@
  *
  * This module is shared across:
  * - metadata-wikipedia.ts (Wikipedia/Fandom search)
- * - metadata-fandom-enhanced.ts (Enhanced metadata fetching)
- * - metadata-fandom-fetch.ts (Volume/chapter data)
+ * - fandom-enhanced/ (Enhanced metadata fetching)
+ * - fandom-fetch/ (Volume/chapter data)
  *
  * All functions follow strict type safety patterns with no `any` types.
  */

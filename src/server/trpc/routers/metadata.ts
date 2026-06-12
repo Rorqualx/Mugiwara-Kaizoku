@@ -9,10 +9,10 @@
  * - metadata/metadata-utils.ts - Shared utilities, types, schemas
  * - metadata/metadata-core.ts - Core operations (preferences, conflicts, cache, refresh)
  * - metadata/metadata-fandom-*.ts - Fandom integration (4 modules)
- *   - metadata-fandom-enhanced.ts - Enhanced Fandom metadata with validation
+ *   - fandom-enhanced/ - Enhanced Fandom metadata with validation
  *   - metadata-fandom-url-parser.ts - Fandom URL parsing & volume extraction
  *   - metadata-fandom-chapter.ts - Fandom chapter metadata fetching
- *   - metadata-fandom-fetch.ts - Basic Fandom metadata fetching
+ *   - fandom-fetch/ - Basic Fandom metadata fetching
  * - metadata/metadata-url-parser.ts - Multi-provider URL auto-detection
  * - metadata/metadata-anilist.ts - AniList GraphQL integration
  * - metadata/metadata-comicvine*.ts - ComicVine integration (2 modules)
@@ -20,7 +20,7 @@
  * - metadata/metadata-chapters.ts - Chapter & volume processing
  * - metadata/metadata-static-analysis.ts - Static page analysis for parser hints
  *
- * Total: 31 procedures across 12 routers
+ * Total: 30 procedures across 13 routers
  *
  * Original file: 3432 lines → Refactored: ~100 lines (97% reduction)
  */
@@ -29,13 +29,13 @@ import { router } from '../trpc';
 
 // Import all sub-routers
 import { metadataFandomChapterRouter } from './metadata/fandom-chapter';
+import { metadataFandomEnhancedRouter } from './metadata/fandom-enhanced';
+import { metadataFandomFetchRouter } from './metadata/fandom-fetch';
 import { metadataAnilistRouter } from './metadata/metadata-anilist';
 import { metadataChaptersRouter } from './metadata/metadata-chapters';
 import { metadataComicvineRouter } from './metadata/metadata-comicvine';
 import { metadataComicvineOpsRouter } from './metadata/metadata-comicvine-ops';
 import { metadataCoreRouter } from './metadata/metadata-core';
-import { metadataFandomEnhancedRouter } from './metadata/metadata-fandom-enhanced';
-import { metadataFandomFetchRouter } from './metadata/metadata-fandom-fetch';
 import { metadataFandomUrlParserRouter } from './metadata/metadata-fandom-url-parser';
 import { metadataMangadexRouter } from './metadata/metadata-mangadex';
 import { metadataStaticAnalysisRouter } from './metadata/metadata-static-analysis';
@@ -60,8 +60,7 @@ import { metadataWikipediaRouter } from './metadata/metadata-wikipedia';
  * - refreshMetadata: Refresh metadata from providers
  * - updateUrls: Update metadata URLs
  *
- * Fandom Integration (5):
- * - getEnhancedFandomMetadata: Get enhanced Fandom metadata with chapters
+ * Fandom Integration (4):
  * - parseFandomUrlEnhanced: Parse Fandom URL with enhanced validation
  * - parseFandomUrl: Parse Fandom URL (basic)
  * - fetchFandomChapterMetadata: Fetch chapter metadata from Fandom

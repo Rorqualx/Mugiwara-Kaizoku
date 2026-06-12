@@ -51,8 +51,8 @@ export const scanLibrary = async (): Promise<void> => {
   try {
     logger.info('Starting library scan for all integrations');
     await Promise.all([
-    komga.scanLibrary(),
-    kavita.scanLibrary()]
+    komga.scanAllLibraries(),
+    kavita.scanAllLibraries()]
     );
     logger.info('Library scan completed successfully');
   } catch (error: unknown) {
@@ -97,8 +97,8 @@ export const refreshMetadata = async (mangaTitle: string): Promise<void> => {
 
     // Run metadata refresh for all integrations
     await Promise.all([
-    komga.refreshMetadata(mangaTitle),
-    kavita.refreshMetadata(mangaTitle)]
+    komga.refreshMetadataByTitle(mangaTitle),
+    kavita.refreshMetadataByTitle(mangaTitle)]
     );
 
     logger.info(`Metadata refresh completed for: ${mangaTitle}`);
@@ -180,8 +180,8 @@ export const runIntegrations = async (configService?: ConfigService): Promise<vo
     logger.info('Running enabled integrations', JSON.stringify(status));
 
     const tasks = [];
-    if (status.komga) tasks.push(komga.scanLibrary());
-    if (status.kavita) tasks.push(kavita.scanLibrary());
+    if (status.komga) tasks.push(komga.scanAllLibraries());
+    if (status.kavita) tasks.push(kavita.scanAllLibraries());
 
     if (tasks.length > 0) {
       await Promise.all(tasks);

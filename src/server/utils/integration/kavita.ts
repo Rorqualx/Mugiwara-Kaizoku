@@ -261,11 +261,9 @@ export class KavitaClient {
 }
 
 /**
- * Legacy function: Scans all configured Kavita libraries
- * 
- * @deprecated Use KavitaClient.scanLibrary instead
+ * Scans all configured Kavita libraries (no-op when the integration is disabled or unconfigured)
  */
-export const scanLibrary = async (): Promise<void> => {
+export const scanAllLibraries = async (): Promise<void> => {
   const config = await getKavitaConfig();
 
   if (config && config.enabled && config.host && config.apiKey) {
@@ -289,11 +287,9 @@ export const scanLibrary = async (): Promise<void> => {
 };
 
 /**
- * Legacy function: Refreshes metadata for a specific manga
- * 
- * @deprecated Use KavitaClient.refreshSeriesMetadata instead
+ * Refreshes Kavita metadata for the series matching a manga title (no-op when disabled or no match)
  */
-export const refreshMetadata = async (mangaName: string): Promise<void> => {
+export const refreshMetadataByTitle = async (mangaName: string): Promise<void> => {
   const config = await getKavitaConfig();
 
   if (config && config.enabled && config.host && config.apiKey) {

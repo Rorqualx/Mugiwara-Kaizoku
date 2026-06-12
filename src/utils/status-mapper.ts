@@ -9,7 +9,6 @@
  */
 import { MangaPublicationStatus, ChapterStatus } from '@prisma/client';
 
-import { logger } from '../utils/logger';
 /**
  * Comprehensive list of all known status strings across all providers
  */
@@ -289,20 +288,4 @@ export function getStatusVariants(status: MangaPublicationStatus): string[] {
         default:
             return [...KNOWN_STATUS_STRINGS.UNKNOWN];
     }
-}
-// Export all individual functions from the old status-mapping.ts for backwards compatibility
-// These are deprecated and will be removed in a future version
-/**
- * @deprecated Use mapToMangaStatus() instead
- */
-export function stringToDomainStatus(status: string): MangaPublicationStatus {
-    logger.warn('stringToDomainStatus is deprecated. Use mapToMangaStatus() instead.');
-    return mapToMangaStatus(status);
-}
-/**
- * @deprecated Use mapToMangaStatus(status, 'anilist') instead
- */
-export function anilistToDomainStatus(status: string): MangaPublicationStatus {
-    logger.warn('anilistToDomainStatus is deprecated. Use mapToMangaStatus(status, "anilist") instead.');
-    return mapToMangaStatus(status, 'anilist');
 }

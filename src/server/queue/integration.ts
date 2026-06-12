@@ -239,11 +239,11 @@ export class IntegrationManager {
     }
     switch (task.action) {
       case 'scan':
-        await komga.scanLibrary();
+        await komga.scanAllLibraries();
         break;
       case 'refresh':
         if (task["metadata"].title) {
-          await komga.refreshMetadata(task["metadata"]["title"]);
+          await komga.refreshMetadataByTitle(task["metadata"]["title"]);
         }
         break;
       default:throw new ValidationError(`Unknown Komga action: ${task.action}`);
@@ -264,11 +264,11 @@ export class IntegrationManager {
     }
     switch (task.action) {
       case 'scan':
-        await kavita.scanLibrary();
+        await kavita.scanAllLibraries();
         break;
       case 'refresh':
         if (task["metadata"].title) {
-          await kavita.refreshMetadata(task["metadata"]["title"]);
+          await kavita.refreshMetadataByTitle(task["metadata"]["title"]);
         }
         break;
       default:throw new ValidationError(`Unknown Kavita action: ${task.action}`);

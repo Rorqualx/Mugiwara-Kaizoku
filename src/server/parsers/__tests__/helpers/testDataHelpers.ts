@@ -27,7 +27,7 @@ import {
 } from '@/server/parsers/core/DataNormalizer';
 import type { DetectedFormat } from '@/server/parsers/core/FormatDetector';
 import type { ExtractedImage } from '@/server/parsers/extractors/ImageExtractor';
-import type { ExtractedMetadata } from '@/server/parsers/extractors/MetadataExtractor';
+import type { ExtractedMetadata } from '@/server/parsers/extractors/metadata-extractor';
 import type { TableData } from '@/server/parsers/extractors/TableExtractor';
 
 

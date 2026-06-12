@@ -68,10 +68,6 @@ export interface UseNotificationResult {
   showInfo: (options: NotificationOptions) => string;
   /** Shows a custom notification */
   showCustom: (options: NotificationProps) => string;
-  /** @deprecated No-op for bell notifications */
-  updateNotification: (id: string, options: Partial<NotificationProps>) => void;
-  /** @deprecated No-op for bell notifications */
-  closeNotification: (id: string) => void;
 }
 
 function dispatch(severity: NotificationSeverity, options: NotificationOptions): string {
@@ -119,20 +115,10 @@ export function useNotification(): UseNotificationResult {
     return dispatch('INFO', { title, message });
   };
 
-  const updateNotification = (_id: string, _options: Partial<NotificationProps>): void => {
-    // No-op: Bell notifications are database-persisted and cannot be updated from client
-  };
-
-  const closeNotification = (_id: string): void => {
-    // No-op: Bell notifications are database-persisted and cannot be closed from client
-  };
-
   return {
     showSuccess,
     showError,
     showInfo,
     showCustom,
-    updateNotification,
-    closeNotification,
   };
 }

@@ -310,16 +310,6 @@ export abstract class BaseHttpClient<_TResource = unknown, TError extends Error 
       return createErrorResult<T, TError>(transformedError);
     }
   }
-  /**
-   * Makes an HTTP request (backward compatibility)
-   * @deprecated Use requestAsync for new code
-   */
-  protected async request<T = unknown>(options: RequestOptions): Promise<T> {
-    return this.executeAsyncOperation(
-      () => this.requestAsync<T>(options),
-      'request'
-    );
-  }
   // HTTP method shortcuts with AsyncResult pattern
   protected async getAsync<T = unknown>(
     path: string,

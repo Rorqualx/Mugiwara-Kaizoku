@@ -22,12 +22,13 @@ import type { SearchResult } from '@/types/search.types';
 import type {
   AsyncResult} from '@/utils/async-result';
 import {
+  createSuccessResult,
   isSuccess,
   isError,
   isLoading,
   isIdle} from '@/utils/async-result';
 
-import { LegacySearchResultCard } from './SearchResultCard';
+import { SearchResultCard } from './SearchResultCard';
 
 /**
  * Base props for all search grid states
@@ -254,9 +255,8 @@ function ResultsGrid({
     <Grid>
       {results.map((result) =>
       <Grid.Col key={`${result.provider}-${result["id"]}`} span={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-          {/* Use LegacySearchResultCard for backward compatibility during migration */}
-          <LegacySearchResultCard
-          result={result}
+          <SearchResultCard
+          resultStatus={createSuccessResult<SearchResult, Error>(result)}
           {...(onSelectResult && { onSelect: onSelectResult })}
           isSelected={selectedResult?.id === result["id"] &&
           selectedResult.provider === result.provider}

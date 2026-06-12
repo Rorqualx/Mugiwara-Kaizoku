@@ -159,33 +159,6 @@ export function showNotification(props: { title?: string; message: string }): st
 }
 
 /**
- * Hide a specific notification (no-op for bell notifications)
- *
- * @deprecated Bell notifications cannot be hidden from client
- */
-export function hideNotification(_id: string): void {
-  // No-op
-}
-
-/**
- * Hide all notifications (no-op for bell notifications)
- *
- * @deprecated Bell notifications cannot be hidden from client
- */
-export function hideAllNotifications(): void {
-  // No-op
-}
-
-/**
- * Update an existing notification (no-op for bell notifications)
- *
- * @deprecated Bell notifications cannot be updated from client
- */
-export function updateNotification(_props: { id: string; message?: string }): void {
-  // No-op
-}
-
-/**
  * Helper to create notification handlers for async operations.
  */
 export function createNotificationHandlers(options: {

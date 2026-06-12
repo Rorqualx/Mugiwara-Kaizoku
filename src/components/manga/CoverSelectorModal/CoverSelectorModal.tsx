@@ -24,7 +24,7 @@ import {
 } from '@mantine/core';
 import { IconX } from '@tabler/icons-react';
 
-import { extractAllImages } from '@/services/imageExtractor';
+import { extractAllImages } from '@/services/image-extractor';
 import { proxyImageUrl } from '@/utils/image-proxy';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client';

@@ -239,15 +239,4 @@ describe('Status Mapper', () => {
     });
   });
 
-  describe('Backwards compatibility', () => {
-    it('should support deprecated functions with logger warnings', () => {
-      // Note: Deprecated functions use logger.warn, not console.warn
-      // Import the deprecated functions
-      const { stringToDomainStatus, anilistToDomainStatus } = require('../status-mapper');
-
-      // Verify the functions work correctly
-      expect(stringToDomainStatus('ongoing')).toBe(MangaPublicationStatus.ONGOING);
-      expect(anilistToDomainStatus('RELEASING')).toBe(MangaPublicationStatus.ONGOING);
-    });
-  });
 });

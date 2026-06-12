@@ -15,7 +15,7 @@ export type { ExtractedContent } from '@/server/parsers/core/ContentExtractor';
 // Re-export from external modules (needed by other modules)
 export type { ChapterData, ExtractedLink, VolumeData } from '@/server/parsers/core/ContentExtractor';
 export type { ExtractedImage } from '@/server/parsers/extractors/ImageExtractor';
-export type { ExtractedMetadata } from '@/server/parsers/extractors/MetadataExtractor';
+export type { ExtractedMetadata } from '@/server/parsers/extractors/metadata-extractor';
 
 // Export the Prisma enum for use in other modules
 export { MangaPublicationStatus };

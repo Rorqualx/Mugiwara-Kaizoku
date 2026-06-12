@@ -56,27 +56,6 @@ export interface SearchResultCardProps {
 }
 
 /**
- * Props for the legacy SearchResultCard component
- * @deprecated Use SearchResultCard with resultStatus instead
- */
-export interface LegacySearchResultCardProps {
-  /** The search result to display */
-  result: SearchResult;
-  /** Optional callback for when the result is selected */
-  onSelect?: (result: SearchResult) => void;
-  /** Whether this result is currently selected */
-  isSelected?: boolean;
-  /** Whether to show the external link button */
-  showExternalLink?: boolean;
-  /** Additional class name for the card */
-  className?: string;
-  /** Optional callback for quick-add */
-  onQuickAdd?: (result: SearchResult) => void;
-  /** Whether quick-add is enabled */
-  isQuickAddEnabled?: boolean;
-}
-
-/**
  * Search result card component
  *
  * Displays a manga search result with cover image, title, and metadata.
@@ -156,23 +135,4 @@ export function SearchResultCard({
       </Stack>
     </Card>
   );
-}
-
-/**
- * Backward compatibility wrapper for SearchResultCard
- * Accepts a raw SearchResult and converts it to AsyncResult
- * 
- * @param props - Legacy component props
- * @returns React element
- * @deprecated Use SearchResultCard with resultStatus instead
- */
-export function LegacySearchResultCard({
-  result,
-  ...props
-}: LegacySearchResultCardProps): React.ReactNode {
-  // Use explicit generic type parameters for better type safety
-  const resultStatus = createSuccessResult<SearchResult, Error>(result);
-
-  // Pass through to the new component
-  return <SearchResultCard resultStatus={resultStatus} {...props} />;
 }

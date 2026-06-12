@@ -22,7 +22,7 @@
 import * as cheerio from 'cheerio';
 
 import { ImageExtractor } from '../extractors/ImageExtractor';
-import { MetadataExtractor } from '../extractors/MetadataExtractor';
+import { MetadataExtractor } from '../extractors/metadata-extractor';
 import { TableExtractor } from '../extractors/TableExtractor';
 import { PatternLibrary } from '../patterns/PatternLibrary';
 import { StreamingParser } from '../streaming/StreamingParser';

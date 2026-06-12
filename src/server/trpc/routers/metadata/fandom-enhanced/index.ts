@@ -17,7 +17,6 @@ import { calculateTotalChapters } from '@/server/services/metadata/chapter-count
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
 import { logger } from '@/utils/logger';
 
 import { handleError } from '../metadata-utils';
@@ -30,63 +29,6 @@ import { extractChapterUrls, parseAndDeduplicateVolumes } from './volume-parser'
 import type { VolumeDetail } from './response-formatter';
 
 export const metadataFandomEnhancedRouter = router({
-  /**
-   * Get enhanced metadata from Fandom using dynamic parser
-   * @deprecated - Now included in standard Fandom search
-   */
-  getEnhancedFandomMetadata: publicProcedure
-    .input(
-      z.object({
-        url: z.string().url(),
-        followLinks: z.boolean().optional().default(false),
-        extractSummaries: z.boolean().optional().default(false),
-        maxDepth: z.number().optional().default(2),
-        forceRefresh: z.boolean().optional().default(false),
-      })
-    )
-    .mutation(async ({ input }): Promise<unknown> => {
-      try {
-        const { url, followLinks, extractSummaries, maxDepth, forceRefresh } = input;
-
-        // Validate it's a Fandom URL
-        if (!url.includes('fandom.com') && !url.includes('wikia.com')) {
-          throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
-        }
-
-        logger.info(`Getting enhanced Fandom metadata with dynamic parser: ${url}`);
-
-        // Import the enhanced service
-        const { FandomEnhancedService } = await import(
-          '@/server/services/fandom/dynamic/FandomEnhancedService'
-        );
-        const fandomEnhancedService = new FandomEnhancedService();
-
-        // Get enhanced metadata (service keeps AsyncResult; unwrap at the tRPC boundary)
-        const result = await fandomEnhancedService.getEnhancedMetadata(url, {
-          followLinks,
-          extractSummaries,
-          maxDepth,
-          cacheResults: !forceRefresh,
-        });
-
-        const data = unwrapResultOrThrow(result);
-
-        const resultData = data as {
-          stats?: { totalVolumes?: number; totalChapters?: number };
-        };
-        logger.info(
-          `Successfully extracted enhanced metadata: ${resultData.stats?.totalVolumes} volumes, ${resultData.stats?.totalChapters} chapters`
-        );
-
-        return data;
-      } catch (error: unknown) {
-        logger.error(
-          `Error getting enhanced Fandom metadata: ${error instanceof Error ? error.message : String(error)}`
-        );
-        throw toTRPCError(handleError(error));
-      }
-    }),
-
   /**
    * Parse a Fandom URL with enhanced chapter metadata (including covers)
    */
