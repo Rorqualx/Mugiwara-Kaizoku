@@ -221,11 +221,15 @@ async function enrichAllpagesChapters(
   await enrichTitlesFromWikitext(domain, chapters, pageMap, timeoutMs);
 }
 
-/** Extract chapter number from a page title like "Chapter 42", "Re: Chapter 1", "Act 5" */
-function extractChapterNumber(title: string): number | null {
-  // Standard: "Chapter 42", "Chapter_001", "Re: Chapter 1", "Manga Chapter 2.5" (86 Eighty Six)
-  const match = title.match(/^(?:Re:\s*)?(?:Manga[_ ])?Chapter[_ ](\d+(?:\.\d+)?)/i);
-  if (match?.[1]) return parseFloat(match[1]);
+/** Extract chapter number from a page title like "Chapter 42", "Re: Chapter 1", "Act 5".
+ *  Exported for direct unit testing — production callers are module-internal. */
+export function extractChapterNumber(title: string): number | null {
+  // Standard: "Chapter 42", "Chapter_001", "Re: Chapter 1", "Manga Chapter 2.5" (86 Eighty Six).
+  // The first alternation branch catches prequel "Chapter 0-1" → 0.1, which the
+  // plain-number branch would otherwise collapse to chapter 0.
+  const match = title.match(/^(?:Re:\s*)?(?:Manga[_ ])?Chapter[_ ](?:0+-(\d+)|(\d+(?:\.\d+)?))/i);
+  if (match?.[1]) return parseFloat(`0.${match[1]}`);
+  if (match?.[2]) return parseFloat(match[2]);
 
   // Rurouni Kenshin style: "Act 1", "Act 255"
   const actMatch = title.match(/^Act[_ ](\d+(?:\.\d+)?)/i);

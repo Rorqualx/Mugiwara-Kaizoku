@@ -48,17 +48,20 @@ function extractChapterNumber(text: string): number | null {
     }
   }
 
-  // Try "NN. Title" format (Erased style)
-  const dotMatch = text.match(/^(\d+)\.\s/);
-  if (dotMatch?.[1]) return parseInt(dotMatch[1], 10);
+  // Try "NN. Title" format (Erased style). The number itself may be a
+  // decimal ("1.5. Title"), so match digits-dot-digits before the
+  // separator dot rather than a bare integer.
+  const dotMatch = text.match(/^(\d+(?:\.\d+)?)\.\s/);
+  if (dotMatch?.[1]) return parseFloat(dotMatch[1]);
 
-  // Try "Chapter N" format
-  const chapterMatch = text.match(/Chapter\s+(\d+)/i);
-  if (chapterMatch?.[1]) return parseInt(chapterMatch[1], 10);
+  // Try "Chapter N" format — parseFloat so decimal chapters ("Chapter
+  // 1.5") survive instead of truncating to 1.
+  const chapterMatch = text.match(/Chapter\s+(\d+(?:\.\d+)?)/i);
+  if (chapterMatch?.[1]) return parseFloat(chapterMatch[1]);
 
   // Try leading number
-  const leadingMatch = text.match(/^(\d+)/);
-  if (leadingMatch?.[1]) return parseInt(leadingMatch[1], 10);
+  const leadingMatch = text.match(/^(\d+(?:\.\d+)?)/);
+  if (leadingMatch?.[1]) return parseFloat(leadingMatch[1]);
 
   return null;
 }
@@ -67,10 +70,10 @@ function extractChapterNumber(text: string): number | null {
  * Extracts chapter title from link text, removing the chapter number prefix.
  */
 function extractChapterTitle(text: string): string {
-  const dotMatch = text.match(/^\d+\.\s*(.+)/);
+  const dotMatch = text.match(/^\d+(?:\.\d+)?\.\s*(.+)/);
   if (dotMatch?.[1]) return dotMatch[1].trim();
 
-  const chapterMatch = text.match(/Chapter\s+\d+:?\s*(.+)/i);
+  const chapterMatch = text.match(/Chapter\s+\d+(?:\.\d+)?:?\s*(.+)/i);
   if (chapterMatch?.[1]) return chapterMatch[1].trim();
 
   return text.trim();

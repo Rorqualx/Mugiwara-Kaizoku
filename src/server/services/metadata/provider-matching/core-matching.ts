@@ -17,7 +17,10 @@
 // Imports
 // ============================================================================
 
+import { applySingleTokenGuard } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/matching/sequel-penalty';
+import { hasEditionMismatch } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/utils';
 import type { ProviderMatcher } from '@/server/utils/providerMatcher';
+import { diceCoefficient, normalizeTitle } from '@/server/utils/string';
 import type { MangaMetadata, SearchProvider } from '@/types/search.types';
 import type { AsyncResult } from '@/utils/async-result';
 import { createSuccessResult, createErrorResult, isSuccess } from '@/utils/async-result';
@@ -30,7 +33,6 @@ import {
   type ProviderMatchingServiceConfig,
   type MetadataWithProvider,
   normalizeForComparison,
-  levenshteinDistance,
 } from './types-and-utils';
 
 
@@ -42,28 +44,20 @@ import type { MetadataService } from '../metadataService';
 // ============================================================================
 
 /**
- * Calculate title similarity score between two strings
- * Uses Levenshtein distance normalized by max length
+ * Calculate title similarity score between two strings.
+ * Uses bigram Sørensen-Dice — the same scorer as the enrichment pipeline's
+ * matchers (anilist-match.ts). Replaces the old Levenshtein ratio, which
+ * over-scored short-vs-long title pairs and had drifted from the pipeline.
  *
  * @param query - The search query
  * @param title - The title to compare against
  * @returns Similarity score between 0 and 1 (1 = identical)
  */
 function calculateTitleSimilarity(query: string, title: string): number {
-  const normalizedQuery = normalizeForComparison(query);
-  const normalizedTitle = normalizeForComparison(title);
-
-  if (normalizedQuery === normalizedTitle) {
+  if (normalizeForComparison(query) === normalizeForComparison(title)) {
     return 1.0;
   }
-
-  const maxLen = Math.max(normalizedQuery.length, normalizedTitle.length);
-  if (maxLen === 0) {
-    return 0;
-  }
-
-  const distance = levenshteinDistance(normalizedQuery, normalizedTitle);
-  return Math.max(0, (maxLen - distance) / maxLen);
+  return diceCoefficient(normalizeTitle(query), normalizeTitle(title));
 }
 
 // ============================================================================
@@ -470,6 +464,14 @@ export function calculateConfidence(
   matchTitle: string,
   metadata?: MangaMetadata
 ): number {
+  // Hard-reject edition/spinoff mismatches (e.g. plain "Overlord" query vs
+  // "Overlord: Shin Sekai-hen" candidate) — the same gate the enrichment
+  // pipeline applies before scoring. Without it this legacy path silently
+  // proposed wrong-edition matches the pipeline would refuse.
+  if (hasEditionMismatch(query, matchTitle)) {
+    return 0;
+  }
+
   let score = 0;
 
   // Base score from title similarity
@@ -479,14 +481,16 @@ export function calculateConfidence(
   if (normalizedQuery === normalizedMatch) {
     // Perfect match
     score = 1.0;
-  } else if (normalizedQuery.includes(normalizedMatch) || normalizedMatch.includes(normalizedQuery)) {
-    // One contains the other
-    score = 0.8;
   } else {
-    // Calculate Levenshtein-based similarity
-    const maxLen = Math.max(normalizedQuery.length, normalizedMatch.length);
-    const distance = levenshteinDistance(normalizedQuery, normalizedMatch);
-    score = Math.max(0, (maxLen - distance) / maxLen) * 0.6;
+    // Bigram Sørensen-Dice, mirroring the pipeline's matchers
+    // (anilist-match.ts). Drops the old containment→0.8 shortcut, which let
+    // a single shared word ("Berserk" in "Berserk of Gluttony") rank as a
+    // very-high match, and the Levenshtein fallback that had drifted from
+    // the pipeline scorer.
+    score = diceCoefficient(normalizeTitle(query), normalizeTitle(matchTitle));
+    // Pipeline guard: penalise 1-token overlaps against long candidate
+    // titles so one common word can't drive a confident false match.
+    score = Math.max(0, applySingleTokenGuard(score, query, matchTitle));
   }
 
   // Boost score if alternative titles match
