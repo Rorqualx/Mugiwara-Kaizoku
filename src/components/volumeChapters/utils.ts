@@ -20,17 +20,24 @@ import type { Chapter } from "@prisma/client";
 const VOLUME_CHAPTER_OFFSET = 100_000;
 
 /**
- * Check if a chapter record is actually a volume-level file.
- * Uses the chapterNumber offset convention (100000 + volumeNumber).
+ * Check if a chapter record is actually a volume-level file: NULL
+ * chapterNumber AND index in the synthetic band (>= 100000). BOTH conditions
+ * are required — real numbered chapters can also be parked at sentinel
+ * indexes (e.g. Gantz gap-chapter stubs at 100007+ with chapterNumber
+ * 0.1-978). The chapterNumber >= 100000 check is a legacy fallback for rows
+ * written before pack import switched to the NULL convention.
  */
 export function isVolumeEntry(chapter: Chapter): boolean {
-  return chapter.chapterNumber !== null && chapter.chapterNumber >= VOLUME_CHAPTER_OFFSET;
+  if (chapter.chapterNumber !== null) {
+    return chapter.chapterNumber >= VOLUME_CHAPTER_OFFSET;
+  }
+  return chapter.index >= VOLUME_CHAPTER_OFFSET;
 }
 
 /**
- * Get the real volume number from a volume entry's chapterNumber.
- * For volume entries, chapterNumber = 100000 + volumeNumber.
- * Falls back to the volume field if chapterNumber is not in the offset range.
+ * Get the real volume number from a volume entry.
+ * Prefers the legacy chapterNumber offset (exact by construction) when
+ * present, then the volume field (set by all volume-file writers).
  */
 export function getVolumeNumber(chapter: Chapter): number {
   const cn = chapter.chapterNumber ?? 0;

@@ -562,7 +562,11 @@ export class PackImportService {
         data: {
           volume: volumeNumber, fileName: volumeDirName, filePath: chapterPath,
           size: totalSize, pageCount, downloadStatus: 'COMPLETED',
-          packDownloadId, fileFormat, title
+          packDownloadId, fileFormat, title,
+          // Volume-file rows carry NULL chapterNumber (the library-wide
+          // convention — see ensureVolumeFileRows). Re-imports also normalize
+          // legacy rows that still hold the old 100000+vol synthetic number.
+          chapterNumber: null
         }
       });
       logger.info(`[PackImport] Re-imported ${title} (id=${updated.id})`);
@@ -571,7 +575,13 @@ export class PackImportService {
 
     const chapter = await this.prismaClient.chapter.create({
       data: {
-        mangaId, volume: volumeNumber, chapterNumber: volumeIndex, index: volumeIndex,
+        // chapterNumber intentionally omitted (NULL): volume-file rows are
+        // marked by NULL chapterNumber + index in the 100000+ band, same as
+        // the library scanner and ensureVolumeFileRows. Writing the synthetic
+        // 100000+vol value here made enrichment phases (volume reassignment,
+        // volume-id backfill, pages-fill) misclassify these rows as numbered
+        // chapters and clobber their volume/volumeId.
+        mangaId, volume: volumeNumber, index: volumeIndex,
         title, fileName: volumeDirName, filePath: chapterPath,
         size: totalSize, pageCount, downloadStatus: 'COMPLETED',
         packDownloadId: BigInt(packDownloadId), fileFormat, monitored: true,

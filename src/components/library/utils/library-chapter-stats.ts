@@ -4,12 +4,19 @@
 /**
  * Chapter statistics helpers for library views.
  *
- * Single source of truth for sentinel-band filtering: pack import creates
- * synthetic volume rows at chapterNumber/index = 100000 + volumeNumber
- * (the library scanner uses the same index band with NULL chapterNumber).
- * Those rows are file pointers, not chapters — every user-facing count,
- * latest-chapter, and progress computation must exclude them, otherwise
- * Bleach's "Volume 74" row renders as "Chapters: 100074".
+ * Single source of truth for volume-file-row filtering: volume rows carry
+ * NULL chapterNumber and an index in the synthetic band (>= 100000) —
+ * written by pack import (100000 + vol), the library scanner
+ * (100000 + vol*100), and ensureVolumeFileRows. Those rows are file
+ * pointers, not chapters — every user-facing count, latest-chapter, and
+ * progress computation must exclude them, otherwise Bleach's "Volume 74"
+ * row renders as "Chapters: 100074".
+ *
+ * Both fields matter: real numbered chapters can also sit at sentinel
+ * indexes (Gantz gap-chapter stubs live at 100007+ with real
+ * chapterNumbers) and must still count as chapters. The
+ * chapterNumber >= 100000 case covers legacy pack-import rows written
+ * before the convention was unified on NULL.
  *
  * @module components/library/utils/library-chapter-stats
  */
@@ -25,10 +32,13 @@ type MangaWithRelations = Prisma.MangaGetPayload<{
     };
 }>;
 
-/** First index of the pack-import synthetic volume-row band. */
+/** First index of the synthetic volume-row band. */
 export const SENTINEL_INDEX_MIN = 100000;
 
-export function isRealChapter(chapter: { index: number }): boolean {
+export function isRealChapter(chapter: { index: number; chapterNumber?: number | null }): boolean {
+    if (chapter.chapterNumber !== null && chapter.chapterNumber !== undefined) {
+        return chapter.chapterNumber < SENTINEL_INDEX_MIN;
+    }
     return chapter.index < SENTINEL_INDEX_MIN;
 }
 

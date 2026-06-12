@@ -103,6 +103,12 @@ async function ensureRowForVolume(
     : ChapterStatus.PENDING;
 
   if (existing) {
+    // A file-backed volume row whose numbered chapters do NOT share one
+    // archive path is a pack-import compendium pointer (chapters may be
+    // pending or in per-chapter files from another source). Leave it alone:
+    // nulling its filePath / overwriting its archive-derived stats with
+    // chapter-row aggregates would orphan the archive on disk.
+    if (existing.filePath !== null && agg.sharedFilePath === null) return 'skipped';
     const needsUpdate = (existing.pageCount ?? 0) !== agg.totalPages
       || existing.size !== agg.totalSize
       || existing.filePath !== agg.sharedFilePath;

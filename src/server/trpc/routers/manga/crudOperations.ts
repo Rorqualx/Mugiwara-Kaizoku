@@ -238,9 +238,9 @@ export const crudRouter = router({
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
         // Slim chapter select: only filter/sort fields (~44 bytes/row vs ~500 for full).
-        // `index` is required so the library-table UI can filter out the
-        // index >= 100000 pack-import sentinel band when counting "real"
-        // chapters (see ResponsiveTableView's isRealChapter helper).
+        // `index` + `chapterNumber` are required so the library UI can filter
+        // out volume-file rows (NULL chapterNumber at index >= 100000) when
+        // counting "real" chapters (see library-chapter-stats' isRealChapter).
         Chapter: {
           select: {
             id: true,

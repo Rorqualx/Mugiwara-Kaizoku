@@ -54,6 +54,21 @@ describe('isRealChapter', () => {
     expect(isRealChapter({ index: SENTINEL_INDEX_MIN })).toBe(false);
     expect(isRealChapter({ index: 100074 })).toBe(false);
   });
+
+  it('treats legacy synthetic chapterNumbers as volume rows regardless of index', () => {
+    expect(isRealChapter({ index: 100074, chapterNumber: 100074 })).toBe(false);
+  });
+
+  it('keeps real numbered chapters parked at sentinel indexes (Gantz gap stubs)', () => {
+    // Gantz has real chapters (chapterNumber 0.1-978) stored at index 100007+.
+    expect(isRealChapter({ index: 100092, chapterNumber: 124 })).toBe(true);
+    expect(isRealChapter({ index: 100007, chapterNumber: 0.1 })).toBe(true);
+  });
+
+  it('treats NULL-chapterNumber rows in the sentinel band as volume rows', () => {
+    expect(isRealChapter({ index: 100200, chapterNumber: null })).toBe(false);
+    expect(isRealChapter({ index: 5, chapterNumber: null })).toBe(true);
+  });
 });
 
 describe('getLatestChapterNumber', () => {
@@ -64,6 +79,16 @@ describe('getLatestChapterNumber', () => {
   it('returns null when only sentinel rows exist', () => {
     const onlyVolumes = manga([chapter({ index: 100001, chapterNumber: 100001 })]);
     expect(getLatestChapterNumber(onlyVolumes)).toBeNull();
+  });
+
+  it('counts gap-chapter stubs parked at sentinel indexes', () => {
+    const gantz = manga([
+      chapter({ id: 1, index: 1, chapterNumber: 1 }),
+      chapter({ id: 2, index: 100359, chapterNumber: 978, downloadStatus: 'PENDING' }),
+      chapter({ id: 3, index: 100200, chapterNumber: null }),
+    ]);
+    expect(getLatestChapterNumber(gantz)).toBe('978');
+    expect(getDownloadStatus(gantz)).toEqual({ downloaded: 1, total: 2, hasErrors: false });
   });
 });
 

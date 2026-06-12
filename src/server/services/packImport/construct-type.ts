@@ -4,7 +4,7 @@
  * The pack-import pipeline (parser → linker → DB upsert) was originally
  * built assuming JP tankobon shape: filenames carry volume markers,
  * volumes are real release units, synthetic volume-placeholder rows
- * (chapterNumber >= 100000) are the correct DB representation. That
+ * (NULL chapterNumber, index >= 100000) are the correct DB representation. That
  * model breaks for:
  *
  * - **webtoon** (KR, vertical scroll, "Long Strip" tag): chapter-only;
