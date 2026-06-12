@@ -21,6 +21,7 @@ import { getGetComicsService } from '@/server/services/getcomics';
 import type { GetComicsCandidatePayload } from '@/server/services/library/indexerSearch/adapters/getcomics-adapter';
 import type { ReleaseCandidate } from '@/server/services/library/indexerSearch/types';
 import { resolveChapterDestination } from '@/server/services/library/releaseDispatcher/dispatch';
+import { createActiveNativeDownload } from '@/server/services/library/releaseDispatcher/native-download-guard';
 import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
@@ -72,17 +73,14 @@ export async function enqueueGetComicsCandidate(
   // 3. Create NativeDownload tracking row. Pattern mirrors enqueueMangaDex /
   //    enqueueSuwayomi (same try/rollback so a queue-enqueue failure doesn't
   //    leave an orphan QUEUED row behind).
-  const dl = await prisma.nativeDownload.create({
-    data: {
-      mangaId,
-      chapterId: chapterRowId,
-      chapterNumber,
-      status: NativeDownloadStatus.QUEUED,
-      progress: 0,
-      sourceType: 'GETCOMICS',
-      destinationPath,
-    },
+  const dl = await createActiveNativeDownload({
+    mangaId,
+    chapterId: chapterRowId,
+    chapterNumber,
+    sourceType: 'GETCOMICS',
+    destinationPath,
   });
+  if (dl === null) return false;
 
   try {
     await queueManager.enqueue(

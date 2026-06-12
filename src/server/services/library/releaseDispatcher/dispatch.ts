@@ -42,6 +42,7 @@ import {
 import { applyModeBias, loadDownloadMode } from '@/server/services/library/releaseDispatcher/download-mode';
 import type { DownloadModePreference } from '@/server/services/library/releaseDispatcher/download-mode';
 import { enqueueGetComicsCandidate } from '@/server/services/library/releaseDispatcher/getcomics-enqueue';
+import { createActiveNativeDownload } from '@/server/services/library/releaseDispatcher/native-download-guard';
 import { filterProwlarrCandidatesToScope } from '@/server/services/library/releaseDispatcher/scope-filtering';
 import { mangadexConfigService } from '@/server/services/mangadex/configService';
 import { isPreferredLanguage } from '@/server/services/mangadex/language-match';
@@ -277,17 +278,14 @@ async function enqueueMangaDexCandidate(
     });
     return false;
   }
-  const dl = await prisma.nativeDownload.create({
-    data: {
-      mangaId,
-      chapterId: p.chapterRowId,
-      chapterNumber: p.chapterNumber,
-      status: NativeDownloadStatus.QUEUED,
-      progress: 0,
-      sourceType: 'MANGADEX',
-      destinationPath,
-    },
+  const dl = await createActiveNativeDownload({
+    mangaId,
+    chapterId: p.chapterRowId,
+    chapterNumber: p.chapterNumber,
+    sourceType: 'MANGADEX',
+    destinationPath,
   });
+  if (dl === null) return false;
   try {
     await queueManager.enqueue(
       JobType.mangadex_download,
@@ -335,17 +333,14 @@ async function enqueueSuwayomiCandidate(
     });
     return false;
   }
-  const dl = await prisma.nativeDownload.create({
-    data: {
-      mangaId,
-      chapterId: p.chapterRowId,
-      chapterNumber: p.chapterNumber,
-      status: NativeDownloadStatus.QUEUED,
-      progress: 0,
-      sourceType: 'SUWAYOMI',
-      destinationPath,
-    },
+  const dl = await createActiveNativeDownload({
+    mangaId,
+    chapterId: p.chapterRowId,
+    chapterNumber: p.chapterNumber,
+    sourceType: 'SUWAYOMI',
+    destinationPath,
   });
+  if (dl === null) return false;
   try {
     await queueManager.enqueue(
       JobType.suwayomi_download,
