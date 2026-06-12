@@ -16,6 +16,8 @@
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
+import { useSession } from 'next-auth/react';
+
 import { useRealTime } from '@/providers/RealTimeProvider';
 // AsyncResult imports removed - not used in this file
 import { logger } from '@/utils/logger';
@@ -97,8 +99,14 @@ export function IntegrationStatusProvider({ children }: {children: ReactNode;}):
   // WebSocket connection for real-time updates
   const { isConnected, subscribe } = useRealTime();
 
+  // system.getStatus rejects unauthenticated callers — don't fire (or poll)
+  // it on the login page, it just 401s in the console.
+  const { status: sessionStatus } = useSession();
+  const isAuthenticated = sessionStatus === 'authenticated';
+
   // Use actual tRPC query for system status with WebSocket + polling fallback
   const systemStatusQuery = trpc.system.getStatus.useQuery(undefined, {
+    enabled: isAuthenticated,
     refetchInterval: isConnected ? false : 60000, // Only poll when WebSocket disconnected
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: false, // Prevent refetching on window focus
@@ -144,8 +152,11 @@ export function IntegrationStatusProvider({ children }: {children: ReactNode;}):
     } else if (systemStatusQuery.error) {
       setError(systemStatusQuery.error instanceof Error ? systemStatusQuery.error : new Error(String(systemStatusQuery.error)));
       setIsLoading(false);
+    } else if (!isAuthenticated) {
+      // Query is disabled pre-auth — don't report a perpetual loading state.
+      setIsLoading(false);
     }
-  }, [systemStatusQuery.data, systemStatusQuery.isLoading, systemStatusQuery.error]);
+  }, [systemStatusQuery.data, systemStatusQuery.isLoading, systemStatusQuery.error, isAuthenticated]);
 
   /**
    * Force refresh of integration status data

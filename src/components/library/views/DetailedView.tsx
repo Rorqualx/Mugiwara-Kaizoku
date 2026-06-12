@@ -11,7 +11,7 @@ import { useLibraryViewStore } from '@/store/index';
 import { toStringId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 
-import { filterAndSortManga, calculateProgress, getDownloadStatus } from '../utils/libraryUtils';
+import { filterAndSortManga, calculateProgress, getDownloadStatus, isRealChapter } from '../utils/libraryUtils';
 
 import type { Prisma } from '@prisma/client';
 
@@ -308,9 +308,9 @@ function MangaDetailCard({
 
   // Get latest 5 chapters
   const latestChapters = useMemo(() => {
-     
-    if (!manga.Chapter || manga.Chapter.length === 0) return [];
-    return [...manga.Chapter].sort((a, b) => {
+    const realChapters = (manga.Chapter ?? []).filter(isRealChapter);
+    if (realChapters.length === 0) return [];
+    return [...realChapters].sort((a, b) => {
       const aNum = parseFloat(String(a.chapterNumber ?? '0'));
       const bNum = parseFloat(String(b.chapterNumber ?? '0'));
       return bNum - aNum;
@@ -366,7 +366,7 @@ function MangaDetailCard({
             {descriptionElement}
 
             <StatsRow
-              chapterCount={manga.Chapter?.length ?? 0}
+              chapterCount={manga.Chapter?.filter(isRealChapter).length ?? 0}
               downloaded={downloadStatus.downloaded}
               total={downloadStatus.total}
               progress={progress}
@@ -381,7 +381,7 @@ function MangaDetailCard({
       
       <ChapterListSection
         latestChapters={latestChapters}
-        totalChapters={manga.Chapter?.length ?? 0}
+        totalChapters={manga.Chapter?.filter(isRealChapter).length ?? 0}
         expanded={expanded}
         onToggle={() => setExpanded(!expanded)}
       />

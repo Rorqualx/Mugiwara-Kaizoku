@@ -23,7 +23,7 @@ import { useLibraryViewStore } from '@/store/index';
 import { toStringId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 
-import { filterAndSortManga, calculateProgress, getLatestChapterNumber } from '../utils/libraryUtils';
+import { filterAndSortManga, calculateProgress, getLatestChapterNumber, isRealChapter } from '../utils/libraryUtils';
 
 import type { Prisma } from '@prisma/client';
 
@@ -262,6 +262,7 @@ interface ExpandedContentProps {
 }
 
 function ExpandedContent({ manga, isMobile, availableChapters, readChapters }: ExpandedContentProps): React.ReactElement {
+  const recentChapters = (manga.Chapter ?? []).filter(isRealChapter).slice(0, 5);
   return (
     <Stack gap="xs" pt="xs">
       <Group gap="lg" wrap="wrap">
@@ -284,12 +285,12 @@ function ExpandedContent({ manga, isMobile, availableChapters, readChapters }: E
         </Box>
       )}
 
-      {(manga.Chapter?.length ?? 0) > 0 && (
+      {recentChapters.length > 0 && (
         <Box>
           <Text size="sm" fw={500} mb={4}>Recent Chapters:</Text>
           <ScrollArea style={{ height: isMobile ? 150 : 200 }}>
             <Stack gap={4}>
-              {(manga.Chapter ?? []).slice(0, 5).map(chapter => (
+              {recentChapters.map(chapter => (
                 <Group key={chapter.id} justify="space-between">
                   <Text size="xs">{chapter.title || `Chapter ${chapter.chapterNumber}`}</Text>
                   <Badge size="xs" variant="dot">
@@ -412,12 +413,13 @@ export function ResponsiveDetailedView({
   const showCovers = useLibraryViewStore(state => state.showCovers);
   const showProgress = useLibraryViewStore(state => state.showProgress);
 
-  // Helper functions
+  // Helper functions — sentinel pack-import volume rows (index >= 100000)
+  // are not chapters and must not inflate the counts.
   const getAvailableChapters = (manga: MangaEntity): number => {
-    return manga.Chapter?.length ?? 0;
+    return manga.Chapter?.filter(isRealChapter).length ?? 0;
   };
   const getReadChapters = (manga: MangaEntity): number => {
-    return manga.Chapter?.filter(ch => ch.isRead).length ?? 0;
+    return manga.Chapter?.filter(ch => isRealChapter(ch) && ch.isRead).length ?? 0;
   };
 
   // Apply filtering and sorting

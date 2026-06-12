@@ -38,6 +38,16 @@ type MangaWithRelations = Prisma.MangaGetPayload<{
     };
 }>;
 
+// Chapter-stat helpers (sentinel-band filtering, progress, latest chapter)
+// live in library-chapter-stats.ts; re-exported here for existing callers.
+export {
+    SENTINEL_INDEX_MIN,
+    isRealChapter,
+    calculateProgress,
+    getLatestChapterNumber,
+    getDownloadStatus,
+} from './library-chapter-stats';
+
 interface FilterSortOptions {
     sortBy: SortOption;
     filterBy: FilterOption[];
@@ -435,54 +445,4 @@ export function getAvailableTags(manga: MangaWithRelations[]): string[] {
         }
     });
     return Array.from(tagsSet).sort();
-}
-/**
- * Calculate read progress percentage for a manga
- */
-export function calculateProgress(manga: MangaWithRelations): number {
-    if (!manga.Chapter || manga.Chapter.length === 0) {
-        return 0;
-    }
-    const readCount = manga.Chapter.filter(ch => ch.isRead).length;
-    return Math.round((readCount / manga.Chapter.length) * 100);
-}
-/**
- * Get the latest chapter number
- */
-export function getLatestChapterNumber(manga: MangaWithRelations): string | null {
-    if (!manga.Chapter || manga.Chapter.length === 0) {
-        return null;
-    }
-    // Sort chapters by number (descending) and get the first one
-    const sortedChapters = [...manga.Chapter].sort((a, b) => {
-        const aNum = parseFloat(String(a.chapterNumber ?? '0'));
-        const bNum = parseFloat(String(b.chapterNumber ?? '0'));
-        return bNum - aNum;
-    });
-    const firstChapter = sortedChapters[0];
-    if (firstChapter === undefined) {
-        return null;
-    }
-    const chapterNum = firstChapter.chapterNumber;
-    // Note: `0` is a valid chapter number (prologue). Don't treat it as missing.
-    return chapterNum !== null && chapterNum !== undefined ? String(chapterNum) : null;
-}
-/**
- * Get download status summary
- */
-export function getDownloadStatus(manga: MangaWithRelations): {
-    downloaded: number;
-    total: number;
-    hasErrors: boolean;
-} {
-    if (!manga.Chapter || manga.Chapter.length === 0) {
-        return { downloaded: 0, total: 0, hasErrors: false };
-    }
-    const downloaded = manga.Chapter.filter(ch => ch.downloadStatus === ChapterStatus.COMPLETED).length;
-    const hasErrors = manga.Chapter.some(ch => ch.downloadStatus === ChapterStatus.ERROR);
-    return {
-        downloaded,
-        total: manga.Chapter.length,
-        hasErrors
-    };
 }

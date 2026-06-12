@@ -31,9 +31,10 @@
 import '../scripts/brave-ethereum-fix';
 import type { ReactElement, ReactNode} from 'react';
 import React from "react";
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import Head from 'next/head';
+import { useSession } from 'next-auth/react';
 
 import '../styles/globals.css';
 import '../styles/prowlarr.css';
@@ -80,6 +81,29 @@ type AppPropsWithLayout = AppProps & {
     };
 };
 /**
+ * Logs the application-startup event once per mount, after authentication
+ * resolves. events.logStartup is a protectedProcedure — firing it from the
+ * login page just produced a 401. Lives inside AppProviders so useSession
+ * has a SessionProvider above it.
+ */
+function StartupEventLogger(): null {
+    const { status } = useSession();
+    const logged = useRef(false);
+    const logStartupMutation = trpc.events.logStartup.useMutation({
+        onError: (error) => {
+            logger.warn('Failed to log application startup event', { error: error.message });
+        }
+    });
+    useEffect(() => {
+        if (status !== 'authenticated' || logged.current) return;
+        logged.current = true;
+        logger.info('Application mounted');
+        logStartupMutation.mutate();
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation hook reference changes every render
+    }, [status]);
+    return null;
+}
+/**
  * Main Application Component
  *
  * Handles the core application setup and rendering:
@@ -101,12 +125,6 @@ function App({ Component, pageProps }: AppPropsWithLayout): React.ReactElement {
     const getLayout = Component.getLayout ?? ((page: ReactElement) => <RootLayout>{page}</RootLayout>);
     // NProgress integration for route transition feedback
     useRouterProgress();
-    // tRPC mutation for logging startup (fire-and-forget — failures must never break app boot)
-    const logStartupMutation = trpc.events.logStartup.useMutation({
-        onError: (error) => {
-            logger.warn('Failed to log application startup event', { error: error.message });
-        }
-    });
     // Auto-reload on stale webpack chunks (e.g. after server restart)
     useEffect(() => {
         const handleChunkError = (event: ErrorEvent): void => {
@@ -127,12 +145,6 @@ function App({ Component, pageProps }: AppPropsWithLayout): React.ReactElement {
         };
     }, []);
 
-    // Log application startup event (non-blocking)
-    useEffect(() => {
-        logger.info('Application mounted');
-        logStartupMutation.mutate();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Run only once on mount - mutation hook reference changes every render
     // Add a class to help prevent flash of unstyled content
     useEffect(() => {
         if (typeof document !== 'undefined') {
@@ -149,6 +161,7 @@ function App({ Component, pageProps }: AppPropsWithLayout): React.ReactElement {
         <title>Mugiwara-Kaizoku</title>
       </Head>
       <AppProviders session={session ?? null}>
+        <StartupEventLogger />
         <ErrorBoundary>
           {getLayout(<Component {...restPageProps}/>)}
         </ErrorBoundary>

@@ -19,7 +19,7 @@ import { useLibraryViewStore } from '@/store/index';
 import { toStringId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 
-import { filterAndSortManga, calculateProgress, getLatestChapterNumber, getDownloadStatus } from '../utils/libraryUtils';
+import { filterAndSortManga, calculateProgress, getLatestChapterNumber, getDownloadStatus, isRealChapter } from '../utils/libraryUtils';
 
 import type { Prisma } from '@prisma/client';
 
@@ -92,8 +92,8 @@ export function TableView({
             bVal = b.publicationStatus;
             break;
           case 'chapters':
-            aVal = a.Chapter?.length ?? 0;
-            bVal = b.Chapter?.length ?? 0;
+            aVal = a.Chapter?.filter(isRealChapter).length ?? 0;
+            bVal = b.Chapter?.filter(isRealChapter).length ?? 0;
             break;
           case 'progress':
             aVal = calculateProgress(a);
@@ -193,7 +193,7 @@ export function TableView({
         </Table.Td>
         
         <Table.Td>
-          <Text size="sm">{m.Chapter?.length ?? 0}</Text>
+          <Text size="sm">{m.Chapter?.filter(isRealChapter).length ?? 0}</Text>
           {latestChapter && <Text size="xs" c="dimmed">Latest: Ch. {latestChapter}</Text>}
         </Table.Td>
         

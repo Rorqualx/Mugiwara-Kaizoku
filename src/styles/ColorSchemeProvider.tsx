@@ -21,6 +21,7 @@ import { createContext, useContext, useCallback, useState, useEffect, useMemo } 
 
 import { MantineProvider, type MantineThemeOverride, type CSSVariablesResolver } from '@mantine/core';
 import { useColorScheme } from '@mantine/hooks';
+import { useSession } from 'next-auth/react';
 import { z } from 'zod';
 
 import {
@@ -219,9 +220,15 @@ export function ColorSchemeProvider({ children }: ColorSchemeProviderProps): Rea
     setThemeColorsConfigResult(createSuccessResult<ThemeColorsConfig, Error>(config));
   }, []);
 
-  // Load theme colors from database on mount
+  // config.get is a protectedProcedure — loading pre-auth just 401s on the
+  // login page. Defaults + the localStorage cache (applied by the inline
+  // script in _document.tsx) cover rendering until the session resolves.
+  const { status: sessionStatus } = useSession();
+  const isAuthenticated = sessionStatus === 'authenticated';
+
+  // Load theme colors from database once authenticated
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !isAuthenticated) return;
 
     const loadThemeColors = async (): Promise<void> => {
       setThemeColorsConfigResult(createLoadingResult<ThemeColorsConfig, Error>());
@@ -253,8 +260,8 @@ export function ColorSchemeProvider({ children }: ColorSchemeProviderProps): Rea
     };
 
     void loadThemeColors();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation ref changes every render; run once per auth transition
+  }, [isAuthenticated]);
 
   // Set the color scheme in both the UI store and localStorage
   const setColorScheme = useCallback((scheme: 'light' | 'dark' | 'system') => {

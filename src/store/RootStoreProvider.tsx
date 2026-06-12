@@ -19,6 +19,8 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import type { ReactNode, FC } from 'react';
 
+import { useSession } from 'next-auth/react';
+
 import { logger } from '@/utils/logger';
 
 import { trpc } from '../utils/trpc-client/index';
@@ -70,25 +72,32 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
   // Get integration store updater
   const updateProwlarr = useIntegrationStore((state) => state.updateProwlarr);
 
+  // These procedures reject unauthenticated callers, so firing them on the
+  // login page just produces 401 console noise + retry churn. Gate on session.
+  const { status: sessionStatus } = useSession();
+  const isAuthenticated = sessionStatus === 'authenticated';
+
   // Setup data queries with optimized options
-  // Enable queries by default and let React Query handle caching
   // PERFORMANCE FIX: Reduced retries from 3 to 1 to prevent request storms
   const queryOptions = useMemo(() => ({
-    enabled: true,  // Enable by default for better caching
+    enabled: isAuthenticated,
     retry: 1, // FIXED: Reduced from 3 to prevent request storms
     staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
     gcTime: 30 * 60 * 1000 // 30 minutes - keep in cache
-  }), []);
+  }), [isAuthenticated]);
 
   // Setup queries with base options - using correct procedure names
   // These will automatically cache and won't refetch on navigation
-  // IMPORTANT: Use publicProcedure endpoints to avoid auth requirements in dev mode
   const mangaQuery = trpc.manga.query.useQuery({ include: { library: true, metadata: true, chapters: false }, limit: 50 }, queryOptions);
   const libraryQuery = trpc.library.list.useQuery(undefined, queryOptions);
   const settingsQuery = trpc.settings.get.useQuery({ key: 'all' }, queryOptions);
 
   // Hydrate Prowlarr settings from database into integration store
   useEffect(() => {
+    // refetch() ignores the query's `enabled` flag, so this needs its own
+    // auth gate — re-runs (and hydrates once) when the session resolves.
+    if (!isAuthenticated) return undefined;
+
     let mounted = true;
 
     const hydrateProwlarrSettings = async (): Promise<void> => {
@@ -169,8 +178,8 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is stable, only run once on mount
-  }, [settingsQuery.refetch, updateProwlarr]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is stable, only run once authenticated
+  }, [isAuthenticated, settingsQuery.refetch, updateProwlarr]);
 
   // Update library store when library data is available
   // React Query handles the fetching and caching automatically

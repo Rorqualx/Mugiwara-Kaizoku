@@ -30,17 +30,12 @@ import { useNavigation } from '@/hooks/useNavigation';
 import { useLibraryViewStore } from '@/store/index';
 import { toStringId } from '@/utils/id-converters';
 
-import { filterAndSortManga, getLatestChapterNumber } from '../utils/libraryUtils';
+// Sentinel-band filtering (index >= 100000 pack-import volume rows) is
+// centralized in libraryUtils — getLatestChapterNumber/calculateProgress/
+// getDownloadStatus already apply it internally.
+import { filterAndSortManga, getLatestChapterNumber, isRealChapter } from '../utils/libraryUtils';
 
 import { ResponsiveTableRowActions } from './ResponsiveTableRowActions';
-
-// Pack-import sentinel band: Chapter rows with index >= 100000 represent
-// imported volume/pack files, not real chapters. They should not be counted
-// in user-facing totals (otherwise Akane-banashi's 273 pack rows + bogus
-// stubs inflated the "Chapters" column to 100197 and skewed Progress %).
-const SENTINEL_INDEX_MIN = 100000;
-type ChapterLike = { index: number; downloadStatus: string };
-const isRealChapter = (c: ChapterLike): boolean => c.index < SENTINEL_INDEX_MIN;
 
 import type { Prisma } from '@prisma/client';
 interface TableViewProps {
