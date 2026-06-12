@@ -12,6 +12,7 @@ import React, { useCallback } from 'react';
 import { showNotification } from '@mantine/notifications';
 import { IconCheck, IconX } from '@tabler/icons-react';
 
+import { useRealTime } from '@/providers/RealTimeProvider';
 import { JobStatus } from '@/utils/job-validation';
 import { trpc } from '@/utils/trpc-client';
 
@@ -35,12 +36,17 @@ export interface JobQueriesReturn {
 // even when the realtime socket is dropped (post-restart, network blips).
 // Background polling stays off to avoid wasted DB cycles in hidden tabs.
 const IN_PROGRESS_POLL_MS = 2000;
-const inProgressQueryOpts = {
-  refetchInterval: IN_PROGRESS_POLL_MS,
-  refetchIntervalInBackground: false,
-} as const;
 
 export function useJobQueries(): JobQueriesReturn {
+  // The jobs page subscribes to jobs:active/failed/completed and refetches
+  // on events (pages/jobs/active.tsx), so the 2s poll only needs to run
+  // while the socket is down — it previously polled unconditionally,
+  // hitting the jobs tables 3×/2s even with realtime connected.
+  const { isConnected } = useRealTime();
+  const inProgressQueryOpts = {
+    refetchInterval: isConnected ? (false as const) : IN_PROGRESS_POLL_MS,
+    refetchIntervalInBackground: false,
+  };
   const { data: pendingJobs, refetch: refetchPending } = trpc.jobs.getByStatus.useQuery({ status: JobStatus.pending }, inProgressQueryOpts);
   const { data: activeJobs, refetch: refetchActive } = trpc.jobs.getByStatus.useQuery({ status: JobStatus.active }, inProgressQueryOpts);
   const { data: retryingJobs, refetch: refetchRetrying } = trpc.jobs.getByStatus.useQuery({ status: JobStatus.retrying }, inProgressQueryOpts);
