@@ -37,7 +37,6 @@ import { aniListClaimFields, collectCandidates, type ProviderClaim } from '@/ser
 import { applySelectorCutover } from '@/server/services/metadata/selectors/cutover-overlay';
 import { persistSelectionAttempt } from '@/server/services/metadata/selectors/persist-attempt';
 import { computeShadowDeltas, runShadowSelection } from '@/server/services/metadata/selectors/shadow-mode';
-import { detectNonEnglishVariant } from '@/server/services/search/providers/comicvine-language-filter';
 import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
 import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { logger } from '@/utils/logger';
@@ -52,7 +51,6 @@ import { fetchMangaDexAggregate } from './phase-provider-fetch/mangadex-aggregat
 import { fetchMangaDexChapters } from './phase-provider-fetch/mangadex-chapter-list';
 import { pickBestMangaDexMatch, pickBestMangaDexMatchWithScore } from './phase-provider-fetch/mangadex-matcher';
 import { buildMangaUpdatesMetadataSupplements, fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
-import { diceCoefficient, normalizeTitle } from './utils';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
 import type { ChapterDataItem, EnrichmentPipelineOptions, EnrichmentProgress, UnifiedProviderResults } from './types';
@@ -143,11 +141,15 @@ export async function phaseProviderFetch(
   // Each call is capped at 60s so a hung provider can't stall the whole phase.
   const noop = Promise.resolve(null);
   const T = 60_000;
-  const [anilistSettled, mangadexSettled, comicvineSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
+  // ComicVine is intentionally absent from this wave: its only discovery
+  // path is the language-aware matcher in the second wave, which wants the
+  // AniList anchor when one exists. Running a title-only search here too
+  // just burned rate-limited ComicVine API calls on a result the verify
+  // step then discarded.
+  const [anilistSettled, mangadexSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
       enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId), T, 'anilist-fetch') : noop,
       enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch') : noop,
-      enabled.has('comicvine') ? withTimeoutOrNull(fetchComicVineDirect(title), T, 'comicvine-fetch') : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch') : noop,
       enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId), T, 'wikipedia-fetch') : noop,
       enabled.has('mangaupdates') ? withTimeoutOrNull(fetchMangaUpdatesDirect(title), T, 'mangaupdates-fetch') : noop,
@@ -184,7 +186,8 @@ export async function phaseProviderFetch(
     });
   }
   let mangadexData = mangadexSettled.status === 'fulfilled' ? mangadexSettled.value : null;
-  let comicvineData = comicvineSettled.status === 'fulfilled' ? comicvineSettled.value : null;
+  // Populated by the language-aware matcher in the second wave (see below).
+  let comicvineData: ComicVineDirectResult | null = null;
   let fandomResult = fandomSettled.status === 'fulfilled' ? fandomSettled.value : null;
   let wikipediaResult = wikiSettled.status === 'fulfilled' ? wikiSettled.value : null;
 
@@ -202,15 +205,8 @@ export async function phaseProviderFetch(
   // stale against. Fandom + Wikipedia are deferred — their discoverers
   // return only URLs (the validator score is dropped) and cached URLs skip
   // revalidation; a separate periodic revalidator fits that surface better.
-  if (comicvineData && typeof comicvineData.matchScore === 'number') {
-    validateBindingFreshness({
-      mangaId,
-      provider: 'comicvine',
-      currentScore: comicvineData.matchScore,
-      boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'comicvine'),
-      manualPin: false,
-    });
-  }
+  // ComicVine freshness is validated after the second wave — discovery only
+  // happens there now (language-aware matcher), so there is no Phase-1 score.
   if (muData && typeof muData.matchScore === 'number') {
     validateBindingFreshness({
       mangaId,
@@ -300,13 +296,20 @@ export async function phaseProviderFetch(
           verifyMangaDexWithAniList(title, anilistData, mangadexData), T, 'mangadex-verify',
         );
       })(),
-      // Re-discover ComicVine using AniList details + language guard.
-      // When the manga has a manual ComicVine binding (set via bindProvider mutation
-      // with `manual: true`), the matcher is skipped and we fetch by the bound id.
+      // Discover ComicVine via the language-aware matcher — the ONLY ComicVine
+      // discovery path. The legacy English-first selector
+      // (selectEnglishFirstVolume) was retired: it ignored
+      // `comicvine.preferredLanguage` and its last-resort fallback accepted ANY
+      // >=0.2 title match regardless of language. Without an AniList anchor the
+      // matcher runs on a title-only stand-in so the hard language guard still
+      // applies. When the manga has a manual ComicVine binding (set via
+      // bindProvider mutation with `manual: true`), the matcher is skipped and
+      // we fetch by the bound id.
       (async () => {
-        if (!anilistData) return comicvineData;
+        if (!enabled.has('comicvine')) return null;
+        const anilistDetails = anilistData?.details ?? buildTitleOnlyAniListDetails(title);
         return withTimeoutOrNull(
-          runLanguageAwareComicVineMatch(anilistData, mangaId), T, 'comicvine-verify',
+          runLanguageAwareComicVineMatch(anilistDetails, mangaId), T, 'comicvine-verify',
         );
       })(),
       // Re-verify MangaUpdates using AniList cross-validation (year, country, titles).
@@ -349,15 +352,26 @@ export async function phaseProviderFetch(
   muData = muVerified;
   kitsuData = kitsuRetried;
 
+  // ComicVine sticky-binding freshness check (moved here from the Phase-1
+  // block — discovery now happens in the wave above). `matchScore` is the
+  // matcher's titleSimilarity; undefined for manual pin-fetches, which the
+  // check skips.
+  if (comicvineData && typeof comicvineData.matchScore === 'number') {
+    validateBindingFreshness({
+      mangaId,
+      provider: 'comicvine',
+      currentScore: comicvineData.matchScore,
+      boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'comicvine'),
+      manualPin: false,
+    });
+  }
+
   // Log any failures
   if (anilistSettled.status === 'rejected') {
     log.warn('AniList fetch failed', { error: String(anilistSettled.reason) });
   }
   if (mangadexSettled.status === 'rejected') {
     log.warn('MangaDex fetch failed', { error: String(mangadexSettled.reason) });
-  }
-  if (comicvineSettled.status === 'rejected') {
-    log.warn('ComicVine fetch failed', { error: String(comicvineSettled.reason) });
   }
   if (muSettled.status === 'rejected') {
     log.warn('MangaUpdates fetch failed', { error: String(muSettled.reason) });
@@ -883,7 +897,7 @@ async function verifyMangaDexWithAniList(
 }
 
 // ============================================================================
-// ComicVine Direct Fetch (with English-First Filtering)
+// ComicVine Discovery (language-aware matcher)
 // ============================================================================
 
 interface ComicVineDirectResult {
@@ -892,53 +906,11 @@ interface ComicVineDirectResult {
   issues: ComicVineIssue[];
   seriesVolume: ComicVineVolume;
   /**
-   * Phase 3 #2 (rollout): matcher score the English-first selector computed
-   * for this volume. Undefined when the volume was pin-fetched by id
+   * Phase 3 #2 (rollout): the language-aware matcher's titleSimilarity for
+   * this volume. Undefined when the volume was pin-fetched by id
    * (manual binding) — the freshness check skips those.
    */
   matchScore?: number;
-}
-
-/**
- * Fetch ComicVine data directly using local ComicVineService.
- * Applies English-first publisher filtering to prefer VIZ Media over Shueisha.
- */
-async function fetchComicVineDirect(title: string): Promise<ComicVineDirectResult | null> {
-  const initialized = await comicvineService.initialize();
-  if (!initialized) {
-    log.info('ComicVine: not configured (no API key)');
-    return null;
-  }
-
-  const volumes = await comicvineService.searchBasicVolumes(title, 0, 20);
-  if (volumes.length === 0) {
-    log.info('ComicVine: no results found', { title });
-    return null;
-  }
-
-  // Apply English-first filtering
-  const selected = selectEnglishFirstVolume(volumes, title);
-  if (!selected) return null;
-  const bestVolume = selected.volume;
-
-  log.info('ComicVine: selected volume', {
-    id: bestVolume.id,
-    name: bestVolume.name,
-    publisher: bestVolume.publisher?.name,
-    issueCount: bestVolume.count_of_issues,
-  });
-
-  // Fetch all issues (individual volumes with descriptions and covers)
-  const issues = await comicvineService.getAllVolumeIssues(bestVolume.id);
-  log.info('ComicVine: fetched issues', { volumeId: bestVolume.id, count: issues.length });
-
-  return {
-    volumeId: bestVolume.id,
-    publisherName: bestVolume.publisher?.name,
-    issues,
-    seriesVolume: bestVolume,
-    matchScore: selected.score,
-  };
 }
 
 /**
@@ -1054,7 +1026,7 @@ async function fetchManualComicVineMatch(volumeId: number): Promise<ComicVineDir
 }
 
 async function runLanguageAwareComicVineMatch(
-  anilist: AniListDirectResult,
+  anilistDetails: AniListMangaDetails,
   mangaId?: number,
 ): Promise<ComicVineDirectResult | null> {
   if (mangaId !== undefined) {
@@ -1073,15 +1045,15 @@ async function runLanguageAwareComicVineMatch(
   }
 
   const configuredLanguage = await loadComicVinePreferredLanguage();
-  const preferredLanguage = resolveEffectiveComicVineLanguage(anilist.details, configuredLanguage);
+  const preferredLanguage = resolveEffectiveComicVineLanguage(anilistDetails, configuredLanguage);
   if (preferredLanguage !== configuredLanguage) {
     log.info('ComicVine: overriding preferredLanguage for JP-only AniList entry', {
       configured: configuredLanguage,
       effective: preferredLanguage,
-      anilistRomaji: anilist.details.title.romaji,
+      anilistRomaji: anilistDetails.title.romaji,
     });
   }
-  const matchResult = await findComicVineMatchForAniList(anilist.details, preferredLanguage);
+  const matchResult = await findComicVineMatchForAniList(anilistDetails, preferredLanguage);
 
   if (!matchResult.matched || !matchResult.matchedVolume) {
     log.warn('ComicVine: no language-correct match', {
@@ -1109,63 +1081,20 @@ async function runLanguageAwareComicVineMatch(
     publisherName: matched.publisherName ?? undefined,
     issues,
     seriesVolume: matchResult.matchedVolume,
+    matchScore: matched.titleSimilarity,
   };
 }
 
 /**
- * Select the best ComicVine volume with English-first publisher preference.
- * Uses the existing language detection from comicvine-language-filter.
- *
- * @deprecated Replaced by `findComicVineMatchForAniList` in
- * `src/server/services/comicvine/discovery/language-aware-matcher.ts`.
- * Kept for the rare case where AniList data is unavailable; will be removed
- * once the comicvine-accuracy loop confirms the new matcher's parity.
+ * Title-only stand-in for AniListMangaDetails when no AniList match exists.
+ * Lets the language-aware matcher (and its hard language guard) run for
+ * AniList-less manga instead of the retired English-first selector, which
+ * ignored `comicvine.preferredLanguage` and fell back to ANY >=0.2 title
+ * match regardless of language. The sentinel id is never read — the matcher
+ * only consumes title fields, synonyms, and countryOfOrigin.
  */
-function selectEnglishFirstVolume(volumes: ComicVineVolume[], title: string): { volume: ComicVineVolume; score: number } | null {
-  const normalizedQuery = normalizeTitle(title);
-
-  // Score each volume by title similarity and language
-  const scored = volumes.map(vol => {
-    const volName = vol.name ?? '';
-    const titleScore = diceCoefficient(normalizedQuery, normalizeTitle(volName));
-    const { isNonEnglish } = detectNonEnglishVariant(volName, vol.publisher?.name);
-    // Secondary check: French "Tome N" issue naming or non-English description text
-    const descText = (vol.deck ?? vol.description ?? '').replace(/<[^>]*>/g, '').slice(0, 300).toLowerCase();
-    const hasNonEnglishDesc = /\b(dans|est|les|une|des|avec|qui|pour|sur|cette|mais|aussi|oder|die|und|der|das|ein)\b/.test(descText);
-    const isNonEng = isNonEnglish || hasNonEnglishDesc;
-    const languageBonus = isNonEng ? 0 : 0.3;
-    return { vol, titleScore, score: titleScore + languageBonus, isNonEnglish: isNonEng };
-  });
-
-  // Sort by score descending, tiebreak by issue count (prefer most complete edition)
-  scored.sort((a, b) => b.score - a.score || (b.vol.count_of_issues ?? 0) - (a.vol.count_of_issues ?? 0));
-
-  // Prefer English results if any exist with reasonable TITLE similarity
-  // The title score itself must be >= 0.3 — language bonus alone is not sufficient
-  // to prevent matching unrelated volumes with English publishers
-  const topEnglish = scored.find(s => !s.isNonEnglish && s.titleScore >= 0.3);
-  if (topEnglish) {
-    log.info('ComicVine: English-first filter selected', {
-      selected: topEnglish.vol.name,
-      publisher: topEnglish.vol.publisher?.name,
-      titleScore: topEnglish.titleScore.toFixed(2),
-      totalScore: topEnglish.score.toFixed(2),
-    });
-    return { volume: topEnglish.vol, score: topEnglish.titleScore };
-  }
-
-  // Fallback to best overall match (must have minimum title similarity)
-  const best = scored[0];
-  if (best && best.titleScore >= 0.2) {
-    log.info('ComicVine: no English results, using best match', {
-      selected: best.vol.name,
-      publisher: best.vol.publisher?.name,
-      titleScore: best.titleScore.toFixed(2),
-    });
-    return { volume: best.vol, score: best.titleScore };
-  }
-
-  return null;
+function buildTitleOnlyAniListDetails(title: string): AniListMangaDetails {
+  return { id: 0, title: { english: title } };
 }
 
 // ============================================================================
