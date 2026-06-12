@@ -5,7 +5,6 @@
  * Requires authenticated user for all operations.
  */
 
-import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
@@ -209,48 +208,14 @@ const getAllBookmarkedManga = protectedProcedure
     }));
   });
 
-// ============================================================================
-// Chapter Bookmarks (Placeholder - BookmarkedChapter model not yet implemented)
-// ============================================================================
-
-/**
- * Get all bookmarked chapters for a manga
- * Note: BookmarkedChapter model not yet implemented in schema
- */
-const getBookmarkedChapters = protectedProcedure
-  .input(z.object({ mangaId: z.number() }))
-  .query(({ input: _input }) => {
-    // BookmarkedChapter model not yet implemented
-    throw new TRPCError({
-      code: 'NOT_IMPLEMENTED',
-      message: 'Chapter bookmarks are not yet available'
-    });
-  });
-
-/**
- * Toggle chapter bookmark
- * Note: BookmarkedChapter model not yet implemented in schema
- */
-const toggleChapterBookmark = protectedProcedure
-  .input(z.object({
-    chapterId: z.number(),
-    bookmarked: z.boolean()
-  }))
-  .mutation(({ input: _input }) => {
-    // BookmarkedChapter model not yet implemented
-    throw new TRPCError({
-      code: 'NOT_IMPLEMENTED',
-      message: 'Chapter bookmarks are not yet available'
-    });
-  });
+// Chapter-level bookmarks live in the reader (ReaderBookmark model,
+// reader/bookmarks.ts) — no separate BookmarkedChapter concept here.
 
 // ============================================================================
 // Router Export
 // ============================================================================
 
 export const bookmarkRouter = router({
-  getBookmarkedChapters,
-  toggleChapterBookmark,
   getBookmarkedVolumes,
   toggleVolumeBookmark,
   getMangaBookmark,

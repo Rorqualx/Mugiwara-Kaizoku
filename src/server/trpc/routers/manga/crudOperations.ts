@@ -22,6 +22,8 @@ import { z } from 'zod';
 
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { createMangaSafe } from '@/server/services/library/manga-create-guard';
+import { deleteMangaFiles } from '@/server/services/library/manga-file-deletion';
+import type { MangaFileDeletionResult } from '@/server/services/library/manga-file-deletion';
 import { autoBindAniList } from '@/server/services/library/scanner/anilist-auto-bind';
 import type { MetadataInput } from '@/server/services/manga/metadataBuilder';
 import {
@@ -432,6 +434,15 @@ export const crudRouter = router({
     const { title, metadataId } = manga;
 
     try {
+      // Delete files BEFORE the DB rows (needs Chapter.filePath to find them)
+      let fileResult: MangaFileDeletionResult | null = null;
+      if (shouldRemoveFiles) {
+        fileResult = await deleteMangaFiles(id);
+        if (fileResult.errors.length > 0) {
+          logger.warn(`File deletion completed with errors for manga ${id}`, { errors: fileResult.errors });
+        }
+      }
+
       // Single transaction: Delete manga (cascade handles chapters, volumes, etc.) + orphaned metadata
       // Prisma cascade deletes automatically handle: Chapter, Volume, ReadingProgress, etc.
       await ctx.prisma.$transaction([
@@ -448,7 +459,12 @@ export const crudRouter = router({
         logInfo(`Removed manga: ${title}`, EventType.MANGA_DELETED, EventSource.MANGA, {
           relatedEntityId: toStringId(id),
           relatedEntityType: 'manga',
-          details: { title, source: manga.source, filesRemoved: shouldRemoveFiles ?? false }
+          details: {
+            title,
+            source: manga.source,
+            filesRemoved: (fileResult?.filesDeleted ?? 0) > 0,
+            ...(fileResult ? { filesDeleted: fileResult.filesDeleted, filesSkipped: fileResult.filesSkipped, dirsPruned: fileResult.dirsPruned } : {})
+          }
         }),
         eventEmitter.emit('manga:deleted', { mangaId: id }),
         // Also emit WebSocket event for real-time updates
@@ -461,7 +477,7 @@ export const crudRouter = router({
 
       return {
         success: true,
-        message: `Manga "${title}" removed successfully.`
+        message: `Manga "${title}" removed successfully.${fileResult ? ` ${fileResult.filesDeleted} file(s) deleted.` : ''}`
       };
     } catch (error: unknown) {
       logger.error(`Error removing manga ID ${id}: ${error instanceof Error ? error.message : String(error)}`);

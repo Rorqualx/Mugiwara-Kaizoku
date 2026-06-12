@@ -289,40 +289,6 @@ export const volumeSplitRouter = router({
     }),
 
   /**
-   * Get confidence score statistics
-   *
-   * Returns statistics about split confidence scores for a manga
-   */
-  getConfidenceStats: publicProcedure
-    .input(z.object({ mangaId: z.number().int().positive() }))
-    .query(({ input }) => {
-      try {
-        // This would require storing confidence scores in database
-        // For now, return placeholder data
-        logger.info('[VolumeSplitRouter] Getting confidence statistics', {
-          mangaId: input.mangaId
-        });
-
-        // TODO: Implement confidence score storage and retrieval
-        return {
-          mangaId: input.mangaId,
-          averageConfidence: 0.85,
-          highConfidenceSplits: 0,
-          mediumConfidenceSplits: 0,
-          lowConfidenceSplits: 0,
-          message: 'Confidence tracking not yet implemented'
-        };
-      } catch (error: unknown) {
-        logger.error('[VolumeSplitRouter] Failed to get confidence stats', error);
-
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to get confidence statistics'
-        });
-      }
-    }),
-
-  /**
    * Get real-time progress for a volume split operation
    *
    * Returns current progress state for a specific operation

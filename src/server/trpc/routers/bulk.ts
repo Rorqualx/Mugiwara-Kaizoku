@@ -6,6 +6,7 @@ import { cache } from '@/server/cache/cache-adapter';
 import { prisma } from '@/server/db';
 import { enqueueDownloadTask } from '@/server/queue/download';
 import { queueManager } from '@/server/queue/queueManager';
+import { deleteMangaFiles } from '@/server/services/library/manga-file-deletion';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { ValidationError } from '@/utils/errors';
 import { toNumberId } from '@/utils/id-converters';
@@ -513,13 +514,28 @@ export const bulkRouter = router({
       const { mangaIds, deleteFiles } = input;
 
       try {
-        // TODO: If deleteFiles is true, implement file deletion logic
-        // This would need to get file paths from chapters and delete them
+        // Delete files BEFORE the DB rows (needs Chapter.filePath to find them)
+        let filesDeleted = 0;
+        let fileErrors = 0;
         if (deleteFiles) {
-          serverLogger.warn('File deletion requested but not yet implemented for bulk operations', {
-            mangaIds,
-            deleteFiles
-          });
+          const fileResults = await Promise.all(
+            mangaIds.map(async (mangaId) => {
+              try {
+                return await deleteMangaFiles(mangaId);
+              } catch (error: unknown) {
+                serverLogger.error('Bulk file deletion failed for manga', { mangaId, error });
+                return null;
+              }
+            })
+          );
+          for (const r of fileResults) {
+            if (r === null) {
+              fileErrors++;
+            } else {
+              filesDeleted += r.filesDeleted;
+              fileErrors += r.errors.length;
+            }
+          }
         }
 
         const result = await prisma.manga.deleteMany({
@@ -544,7 +560,7 @@ export const bulkRouter = router({
         return {
           success: true,
           count: result.count,
-          message: `Removed ${result.count} manga from library${deleteFiles ? ' (file deletion not yet implemented)' : ''}`
+          message: `Removed ${result.count} manga from library${deleteFiles ? ` (${filesDeleted} file(s) deleted${fileErrors > 0 ? `, ${fileErrors} file error(s)` : ''})` : ''}`
         };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
