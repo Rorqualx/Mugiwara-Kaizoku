@@ -244,6 +244,11 @@ export class ConnectionManager {
 
   /**
    * Persist connection to database
+   *
+   * Throws on failure: subscription rows FK onto this record and broadcast
+   * delivery joins against it, so a connection that isn't persisted can never
+   * receive events. setupConnection catches the throw and closes the socket
+   * (1011) instead of leaving a connected-but-deaf client.
    */
   public async persistConnection(
     connectionId: string,
@@ -279,6 +284,7 @@ export class ConnectionManager {
         error: getErrorMessage(error),
         connectionId,
       });
+      throw error;
     }
   }
 

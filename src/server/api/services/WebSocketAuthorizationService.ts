@@ -173,12 +173,12 @@ export class WebSocketAuthorizationService {
     for (const channel of channels) {
       const [channelType, ...channelParts] = channel.split(':');
 
-      switch (channelType) {
+      switch (channelType?.toLowerCase()) {
         case 'public':
           // Public channels always allowed
           results.set(channel, true);
           break;
-        case 'USER':
+        case 'user':
           // Can only subscribe to own user channel
           results.set(channel, channelParts[0] === client.userId);
           break;
@@ -219,10 +219,10 @@ export class WebSocketAuthorizationService {
   canSubscribe(client: WebSocketClient, channel: string): boolean {
     // Check permissions based on channel type
     const [channelType, ...channelParts] = channel.split(':');
-    switch (channelType) {
+    switch (channelType?.toLowerCase()) {
       case 'public':
         return true;
-      case 'USER':
+      case 'user':
         // Can only subscribe to own user channel
         return channelParts[0] === client.userId;
       case 'manga':
@@ -243,51 +243,40 @@ export class WebSocketAuthorizationService {
   }
 
   /**
+   * Whether the user holds a live (enabled, unexpired) API key.
+   *
+   * Client-initiated publish only happens through the external API SDK, so
+   * resource-channel writes are gated on holding a live API key. There is no
+   * per-resource permission table in the schema — write access is
+   * all-or-nothing per key, matching the single-user deployment model.
+   */
+  private async hasLiveApiKey(userId: string): Promise<boolean> {
+    const apiKey = await prisma.apiKey.findFirst({
+      where: {
+        userId,
+        enabled: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+    return !!apiKey;
+  }
+
+  /**
    * Check if client can publish to channel
    */
   async canPublish(client: WebSocketClient, channel: string): Promise<boolean> {
     // Check permissions based on channel type
-    const [channelType] = channel.split(':');
-    switch (channelType) {
+    const [channelType, ...channelParts] = channel.split(':');
+    switch (channelType?.toLowerCase()) {
       case 'public':
         return false; // Public channels are read-only
-      case 'USER':
+      case 'user':
         // Can only publish to own user channel
-        return channel === `user:${client.userId}`;
+        return !!client.userId && channelParts[0] === client.userId;
       case 'manga':
-      case 'library': {
-        // Check write permissions
-        // TODO: apiKey and permission models need to be added to schema.prisma
-        if (!client.userId) return false;
-        const writeApiKey = await prisma.apiKey.findFirst({
-          where: { userId: client.userId }
-        });
-        if (!writeApiKey) return false;
-         
-        const writePrismaRecord = prisma as unknown as Record<string, unknown>;
-         
-        const writePermissionModel = writePrismaRecord["permission"] as unknown as { findMany: (args: unknown) => Promise<unknown> };
-         
-        const writePermissions = await writePermissionModel.findMany({
-          where: { apiKeyId: writeApiKey.id },
-        });
-
-        // Type guard for permissions array
-        if (!Array.isArray(writePermissions)) {
-          return false;
-        }
-
-         
-        return writePermissions.some(
-           
-          (p: unknown) => {
-            const permission = p as Record<string, unknown>;
-            return permission["resource"] === channelType &&
-                   Array.isArray(permission["actions"]) &&
-                   permission["actions"].includes('write');
-          }
-        );
-      }
+      case 'library':
+        return client.userId ? this.hasLiveApiKey(client.userId) : false;
       default:
         return false;
     }

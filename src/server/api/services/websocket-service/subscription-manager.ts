@@ -127,13 +127,18 @@ export class SubscriptionManager {
     const permissionResults = await authorizationService.canSubscribeBatch(client, channels);
 
     // Separate allowed and denied channels
-    const allowedChannels = channels.filter((ch) => permissionResults.get(ch) === true);
+    const permittedChannels = channels.filter((ch) => permissionResults.get(ch) === true);
     const deniedChannels = channels.filter((ch) => permissionResults.get(ch) !== true);
 
-    // Persist all subscriptions to database in parallel
-    await Promise.all(
-      allowedChannels.map((channel) => this.persistSubscription(client.id, channel))
+    // Persist all subscriptions to database in parallel.
+    // Broadcast delivery reads subscribers FROM the database (getLocalSubscribers),
+    // so a channel whose persist failed must not be confirmed — the client would
+    // believe it is subscribed but never receive a single event.
+    const persistResults = await Promise.all(
+      permittedChannels.map((channel) => this.persistSubscription(client.id, channel))
     );
+    const allowedChannels = permittedChannels.filter((_, i) => persistResults[i]);
+    const failedChannels = permittedChannels.filter((_, i) => !persistResults[i]);
 
     // Add to client subscriptions (local cache) - synchronous
     for (const channel of allowedChannels) {
@@ -165,6 +170,7 @@ export class SubscriptionManager {
       data: {
         channels: allowedChannels,
         ...(deniedChannels.length > 0 && { denied: deniedChannels }),
+        ...(failedChannels.length > 0 && { failed: failedChannels }),
       },
       timestamp: new Date().toISOString(),
     });
@@ -175,8 +181,11 @@ export class SubscriptionManager {
 
   /**
    * Persist subscription to database
+   *
+   * @returns false when the row could not be written — the caller must not
+   * confirm the subscription, since broadcast delivery reads from this table.
    */
-  public async persistSubscription(connectionId: string, channel: string): Promise<void> {
+  public async persistSubscription(connectionId: string, channel: string): Promise<boolean> {
     try {
       await prisma.$executeRaw`
         INSERT INTO channel_subscriptions (connection_id, channel, subscribed_at)
@@ -188,12 +197,14 @@ export class SubscriptionManager {
         connectionId,
         channel,
       });
+      return true;
     } catch (error: unknown) {
       logger.error('Failed to persist subscription:', {
         error,
         connectionId,
         channel,
       });
+      return false;
     }
   }
 
@@ -209,20 +220,24 @@ export class SubscriptionManager {
     const { channels } = message;
 
     // Filter to only channels the client is actually subscribed to
-    const unsubscribedChannels = channels.filter((channel) => client.channels.has(channel));
+    const requestedChannels = channels.filter((channel) => client.channels.has(channel));
 
-    // Remove all subscriptions and presence in parallel
+    // Remove subscriptions from database. A channel whose DELETE failed stays
+    // subscribed (DB row still drives broadcast delivery), so keep it in the
+    // local cache and report it back instead of pretending it was removed.
+    const removeResults = await Promise.all(
+      requestedChannels.map((channel) => this.removeSubscription(client.id, channel))
+    );
+    const unsubscribedChannels = requestedChannels.filter((_, i) => removeResults[i]);
+    const failedChannels = requestedChannels.filter((_, i) => !removeResults[i]);
+
+    // Remove presence if user is authenticated
     const { userId } = client;
-    await Promise.all([
-      // Remove subscriptions from database
-      ...unsubscribedChannels.map((channel) => this.removeSubscription(client.id, channel)),
-      // Remove presence if user is authenticated
-      ...(userId
-        ? unsubscribedChannels.map((channel) =>
-            presenceService.setOffline(channel, userId)
-          )
-        : []),
-    ]);
+    if (userId) {
+      await Promise.all(
+        unsubscribedChannels.map((channel) => presenceService.setOffline(channel, userId))
+      );
+    }
 
     // Update local cache (synchronous)
     for (const channel of unsubscribedChannels) {
@@ -233,7 +248,10 @@ export class SubscriptionManager {
     this.sendToClient(client, {
       id: `evt_${Date.now()}`,
       type: 'unsubscribed',
-      data: { channels: unsubscribedChannels },
+      data: {
+        channels: unsubscribedChannels,
+        ...(failedChannels.length > 0 && { failed: failedChannels }),
+      },
       timestamp: new Date().toISOString(),
     });
 
@@ -243,8 +261,11 @@ export class SubscriptionManager {
 
   /**
    * Remove subscription from database
+   *
+   * @returns false when the row could not be deleted — the channel is still
+   * live for broadcast delivery, so the caller must not confirm the unsubscribe.
    */
-  public async removeSubscription(connectionId: string, channel: string): Promise<void> {
+  public async removeSubscription(connectionId: string, channel: string): Promise<boolean> {
     try {
       await prisma.$executeRaw`
         DELETE FROM channel_subscriptions
@@ -256,12 +277,14 @@ export class SubscriptionManager {
         connectionId,
         channel,
       });
+      return true;
     } catch (error: unknown) {
       logger.error('Failed to remove subscription:', {
         error,
         connectionId,
         channel,
       });
+      return false;
     }
   }
 }
