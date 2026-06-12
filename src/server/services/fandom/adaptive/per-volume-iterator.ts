@@ -149,6 +149,17 @@ async function fetchHtmlOnce(
   }
 }
 
+/** Short-TTL success cache for volume-page HTML. Pattern probing
+ *  (findVolumeUrlPattern), structure checks (hasPerVolumeStructure), and
+ *  batch processing all fetch the same Volume_N URLs within one enrichment
+ *  pass — previously each phase re-fetched Volume_1/Volume_2 from the
+ *  network. Pages are static on the timescale of a single run, so
+ *  successful fetches are reused briefly; failures are never cached so
+ *  transient nulls stay retryable. */
+const HTML_CACHE_TTL_MS = 5 * 60 * 1000;
+const HTML_CACHE_MAX_ENTRIES = 50;
+const htmlCache = new Map<string, { html: string; fetchedAt: number }>();
+
 /**
  * Fetches HTML from a URL with timeout and one retry on transient failures.
  */
@@ -157,13 +168,29 @@ async function fetchHtml(
   timeoutMs: number,
   userAgent: string
 ): Promise<string | null> {
-  const first = await fetchHtmlOnce(url, timeoutMs, userAgent);
-  if (first.html) return first.html;
-  if (!first.retryable) return null;
+  const cached = htmlCache.get(url);
+  if (cached) {
+    if (Date.now() - cached.fetchedAt < HTML_CACHE_TTL_MS) return cached.html;
+    htmlCache.delete(url);
+  }
 
-  await new Promise<void>((r) => { setTimeout(r, 1500); });
-  const second = await fetchHtmlOnce(url, timeoutMs, userAgent);
-  return second.html;
+  const first = await fetchHtmlOnce(url, timeoutMs, userAgent);
+  let html = first.html;
+  if (!html && first.retryable) {
+    await new Promise<void>((r) => { setTimeout(r, 1500); });
+    const second = await fetchHtmlOnce(url, timeoutMs, userAgent);
+    html = second.html;
+  }
+
+  if (html) {
+    if (htmlCache.size >= HTML_CACHE_MAX_ENTRIES) {
+      // Map preserves insertion order — drop the oldest entry (FIFO).
+      const oldest = htmlCache.keys().next().value;
+      if (oldest !== undefined) htmlCache.delete(oldest);
+    }
+    htmlCache.set(url, { html, fetchedAt: Date.now() });
+  }
+  return html;
 }
 
 /**
@@ -286,9 +313,10 @@ function buildAbsoluteUrl(href: string | undefined, baseUrl: string): string | u
 export function extractChaptersFromVolumePage(
   html: string,
   volumeNumber: number,
-  baseUrl: string
+  baseUrl: string,
+  $loaded?: cheerio.CheerioAPI
 ): VolumePageChapter[] {
-  const $ = cheerio.load(html);
+  const $ = $loaded ?? cheerio.load(html);
   const chapters: VolumePageChapter[] = [];
   const seenNumbers = new Set<number>();
 
@@ -493,9 +521,10 @@ function extractVolumeDescription($: cheerio.CheerioAPI): string | undefined {
  */
 function extractVolumeMetadata(
   html: string,
-  volumeNumber: number
+  volumeNumber: number,
+  $loaded?: cheerio.CheerioAPI
 ): Partial<VolumePageData> {
-  const $ = cheerio.load(html);
+  const $ = $loaded ?? cheerio.load(html);
   const metadata: Partial<VolumePageData> = { volumeNumber };
 
   // Extract title from page heading
@@ -645,9 +674,10 @@ function extractChapterNumberFromHeading(headingText: string): number | null {
 export function extractChapterSectionsFromVolumePage(
   html: string,
   chapters: VolumePageChapter[],
-  volumeNumber?: number
+  volumeNumber?: number,
+  $loaded?: cheerio.CheerioAPI
 ): void {
-  const $ = cheerio.load(html);
+  const $ = $loaded ?? cheerio.load(html);
   const chaptersByNumber = new Map<number, VolumePageChapter>();
   for (const ch of chapters) {
     chaptersByNumber.set(ch.number, ch);
@@ -845,9 +875,11 @@ export async function fetchVolumeZeroIfExists(
   const html = await fetchHtml(`${baseUrl}/wiki/Volume_0`, mergedOptions.timeoutMs, mergedOptions.userAgent);
   if (!html) return null;
 
-  const chapters = extractChaptersFromVolumePage(html, 0, baseUrl);
-  const metadata = extractVolumeMetadata(html, 0);
-  extractChapterSectionsFromVolumePage(html, chapters, 0);
+  // Parse the page once and share the DOM across the three extractors.
+  const $ = cheerio.load(html);
+  const chapters = extractChaptersFromVolumePage(html, 0, baseUrl, $);
+  const metadata = extractVolumeMetadata(html, 0, $);
+  extractChapterSectionsFromVolumePage(html, chapters, 0, $);
 
   const result: VolumePageData = { volumeNumber: 0, chapters };
   if (metadata.title) result.title = metadata.title;

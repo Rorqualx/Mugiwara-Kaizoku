@@ -230,108 +230,124 @@ export async function phaseProviderFetch(
     });
   }
 
-  // Retry Wikipedia with Wikidata + provider chapter counts for placeholder fallback
-  if (!wikipediaResult && anilistData && enabled.has('wikipedia')) {
-    const mdxCh = mangadexData?.lastChapter ? parseInt(mangadexData.lastChapter, 10) : undefined;
-    const muCh = muData?.latestChapter;
-    const wikiHints = {
-      anilistId: anilistData.id,
-      ...(anilistData.details.idMal ? { malId: anilistData.details.idMal } : {}),
-      ...(anilistData.details.chapters ? { anilistChapters: anilistData.details.chapters } : {}),
-      ...(muCh && muCh > 0 ? { malChapters: muCh } : {}),
-      ...(mdxCh && !isNaN(mdxCh) ? { mangadexChapters: mdxCh } : {}),
-    };
-    wikipediaResult = await withTimeoutOrNull(
-      fetchWikipediaChapterData(title, mangaId, wikiHints), T, 'wikipedia-retry',
-    );
-  }
-
-  // Re-discover Fandom when initial parallel fetch failed. Two fallback strategies:
-  //   (a) AniList externalLinks.Fandom — direct URL, highest confidence
-  //   (b) Re-run discovery with AniList + MU alt titles — the initial call only
-  //       had the user-supplied title; alt titles catch titles that search by
-  //       their romaji/english/native variants instead of the one fed in.
-  if (!fandomResult && enabled.has('fandom') && (anilistData || muData)) {
-    // (a) Direct AniList externalLinks
-    const fandomLink = anilistData?.details.externalLinks?.find(
-      link => link.url?.includes('.fandom.com') || link.site === 'Fandom',
-    );
-    if (fandomLink?.url) {
-      log.info('Fandom: re-discovering via AniList externalLinks', { url: fandomLink.url });
-      const retryResult = await withTimeoutOrNull(
-        fetchFandomForPhase1(mangaId, title, false, fandomLink.url), T, 'fandom-retry',
-      );
-      if (retryResult?.parseSuccess) fandomResult = retryResult;
-    }
-    // (b) Re-run discovery with alt titles when no externalLinks pointer exists
-    if (!fandomResult) {
-      const alDetails = anilistData?.details;
-      const altTitles = [
-        alDetails?.title.romaji, alDetails?.title.english, alDetails?.title.native,
-        ...(alDetails?.synonyms ?? []),
-        ...(muData?.alternativeTitles ?? []),
-      ].filter((t): t is string => typeof t === 'string' && t.length >= 3 && t !== title);
-      if (altTitles.length > 0) {
-        log.info('Fandom: re-discovering with alt titles', { count: altTitles.length });
-        const retryResult = await withTimeoutOrNull(
-          fetchFandomForPhase1(mangaId, title, false, undefined, altTitles),
-          T, 'fandom-alt-retry',
+  // Second wave: retry/verify steps that need the AniList anchor. All six
+  // read only `anilistData` plus the initial parallel-fetch snapshot
+  // captured above and write disjoint results, so they run concurrently —
+  // the previous strictly-sequential ordering stacked up to 6×60s of
+  // avoidable worst-case latency without changing any input a step saw
+  // (each step already read the pre-verify snapshot values). MAL stays
+  // after this wave because it cross-references the *verified* MangaDex.
+  const [wikipediaRetried, fandomRetried, mangadexVerified, comicvineVerified, muVerified, kitsuRetried] =
+    await Promise.all([
+      // Retry Wikipedia with Wikidata + provider chapter counts for placeholder fallback
+      (async () => {
+        if (wikipediaResult || !anilistData || !enabled.has('wikipedia')) return wikipediaResult;
+        const mdxCh = mangadexData?.lastChapter ? parseInt(mangadexData.lastChapter, 10) : undefined;
+        const muCh = muData?.latestChapter;
+        const wikiHints = {
+          anilistId: anilistData.id,
+          ...(anilistData.details.idMal ? { malId: anilistData.details.idMal } : {}),
+          ...(anilistData.details.chapters ? { anilistChapters: anilistData.details.chapters } : {}),
+          ...(muCh && muCh > 0 ? { malChapters: muCh } : {}),
+          ...(mdxCh && !isNaN(mdxCh) ? { mangadexChapters: mdxCh } : {}),
+        };
+        return withTimeoutOrNull(
+          fetchWikipediaChapterData(title, mangaId, wikiHints), T, 'wikipedia-retry',
         );
-        if (retryResult?.parseSuccess) fandomResult = retryResult;
-      }
-    }
-  }
-
-  // Re-verify MangaDex using AniList cross-reference (links.al).
-  // The initial parallel fetch only uses title scoring. Now that we have the AniList ID,
-  // re-run discovery with links.al pre-filtering for definitive verification.
-  if (anilistData && enabled.has('mangadex')) {
-    mangadexData = await withTimeoutOrNull(
-      verifyMangaDexWithAniList(title, anilistData, mangadexData), T, 'mangadex-verify',
-    );
-  }
-
-  // Re-discover ComicVine using AniList details + language guard.
-  // When the manga has a manual ComicVine binding (set via bindProvider mutation
-  // with `manual: true`), the matcher is skipped and we fetch by the bound id.
-  if (anilistData) {
-    comicvineData = await withTimeoutOrNull(
-      runLanguageAwareComicVineMatch(anilistData, mangaId), T, 'comicvine-verify',
-    );
-  }
-
-  // Re-verify MangaUpdates using AniList cross-validation (year, country, titles).
-  // The initial parallel fetch only uses title matching. Now that we have AniList data,
-  // re-search with alternative titles and cross-validation scoring.
-  if (anilistData && enabled.has('mangaupdates')) {
-    const alDetails = anilistData.details;
-    const alTitles = [
-      alDetails.title.romaji, alDetails.title.english, alDetails.title.native,
-      ...(alDetails.synonyms ?? []),
-    ].filter((t): t is string => typeof t === 'string' && t.length >= 3);
-    muData = await withTimeoutOrNull(
-      verifyMUWithAniList(
-        title, alDetails.startDate?.year, alDetails.countryOfOrigin, alTitles, muData,
-      ),
-      T, 'mangaupdates-verify',
-    );
-  }
-
-  // Retry Kitsu with AniList alt titles when initial title search returned nothing.
-  // Kitsu's free-text search is finicky with romanizations; alt titles often unlock matches.
-  if (!kitsuData && anilistData && enabled.has('kitsu')) {
-    const alDetails = anilistData.details;
-    const altTitles = [
-      alDetails.title.romaji, alDetails.title.english, alDetails.title.native,
-      ...(alDetails.synonyms ?? []),
-    ].filter((t): t is string => typeof t === 'string' && t.length >= 3 && t !== title);
-    if (altTitles.length > 0) {
-      kitsuData = await withTimeoutOrNull(
-        fetchKitsuDirect(title, { year: alDetails.startDate?.year, alternativeTitles: altTitles }),
-        T, 'kitsu-retry',
-      );
-    }
-  }
+      })(),
+      // Re-discover Fandom when initial parallel fetch failed. Two fallback strategies:
+      //   (a) AniList externalLinks.Fandom — direct URL, highest confidence
+      //   (b) Re-run discovery with AniList + MU alt titles — the initial call only
+      //       had the user-supplied title; alt titles catch titles that search by
+      //       their romaji/english/native variants instead of the one fed in.
+      // eslint-disable-next-line complexity -- same justification as the enclosing function: two guarded fallback strategies; splitting them would scatter the retry state
+      (async () => {
+        if (fandomResult || !enabled.has('fandom') || (!anilistData && !muData)) return fandomResult;
+        // (a) Direct AniList externalLinks
+        const fandomLink = anilistData?.details.externalLinks?.find(
+          link => link.url?.includes('.fandom.com') || link.site === 'Fandom',
+        );
+        if (fandomLink?.url) {
+          log.info('Fandom: re-discovering via AniList externalLinks', { url: fandomLink.url });
+          const retryResult = await withTimeoutOrNull(
+            fetchFandomForPhase1(mangaId, title, false, fandomLink.url), T, 'fandom-retry',
+          );
+          if (retryResult?.parseSuccess) return retryResult;
+        }
+        // (b) Re-run discovery with alt titles when no externalLinks pointer exists
+        const alDetails = anilistData?.details;
+        const altTitles = [
+          alDetails?.title.romaji, alDetails?.title.english, alDetails?.title.native,
+          ...(alDetails?.synonyms ?? []),
+          ...(muData?.alternativeTitles ?? []),
+        ].filter((t): t is string => typeof t === 'string' && t.length >= 3 && t !== title);
+        if (altTitles.length > 0) {
+          log.info('Fandom: re-discovering with alt titles', { count: altTitles.length });
+          const retryResult = await withTimeoutOrNull(
+            fetchFandomForPhase1(mangaId, title, false, undefined, altTitles),
+            T, 'fandom-alt-retry',
+          );
+          if (retryResult?.parseSuccess) return retryResult;
+        }
+        return fandomResult;
+      })(),
+      // Re-verify MangaDex using AniList cross-reference (links.al).
+      // The initial parallel fetch only uses title scoring. Now that we have the AniList ID,
+      // re-run discovery with links.al pre-filtering for definitive verification.
+      (async () => {
+        if (!anilistData || !enabled.has('mangadex')) return mangadexData;
+        return withTimeoutOrNull(
+          verifyMangaDexWithAniList(title, anilistData, mangadexData), T, 'mangadex-verify',
+        );
+      })(),
+      // Re-discover ComicVine using AniList details + language guard.
+      // When the manga has a manual ComicVine binding (set via bindProvider mutation
+      // with `manual: true`), the matcher is skipped and we fetch by the bound id.
+      (async () => {
+        if (!anilistData) return comicvineData;
+        return withTimeoutOrNull(
+          runLanguageAwareComicVineMatch(anilistData, mangaId), T, 'comicvine-verify',
+        );
+      })(),
+      // Re-verify MangaUpdates using AniList cross-validation (year, country, titles).
+      // The initial parallel fetch only uses title matching. Now that we have AniList data,
+      // re-search with alternative titles and cross-validation scoring.
+      (async () => {
+        if (!anilistData || !enabled.has('mangaupdates')) return muData;
+        const alDetails = anilistData.details;
+        const alTitles = [
+          alDetails.title.romaji, alDetails.title.english, alDetails.title.native,
+          ...(alDetails.synonyms ?? []),
+        ].filter((t): t is string => typeof t === 'string' && t.length >= 3);
+        return withTimeoutOrNull(
+          verifyMUWithAniList(
+            title, alDetails.startDate?.year, alDetails.countryOfOrigin, alTitles, muData,
+          ),
+          T, 'mangaupdates-verify',
+        );
+      })(),
+      // Retry Kitsu with AniList alt titles when initial title search returned nothing.
+      // Kitsu's free-text search is finicky with romanizations; alt titles often unlock matches.
+      (async () => {
+        if (kitsuData || !anilistData || !enabled.has('kitsu')) return kitsuData;
+        const alDetails = anilistData.details;
+        const altTitles = [
+          alDetails.title.romaji, alDetails.title.english, alDetails.title.native,
+          ...(alDetails.synonyms ?? []),
+        ].filter((t): t is string => typeof t === 'string' && t.length >= 3 && t !== title);
+        if (altTitles.length === 0) return kitsuData;
+        return withTimeoutOrNull(
+          fetchKitsuDirect(title, { year: alDetails.startDate?.year, alternativeTitles: altTitles }),
+          T, 'kitsu-retry',
+        );
+      })(),
+    ]);
+  wikipediaResult = wikipediaRetried;
+  fandomResult = fandomRetried;
+  mangadexData = mangadexVerified;
+  comicvineData = comicvineVerified;
+  muData = muVerified;
+  kitsuData = kitsuRetried;
 
   // Log any failures
   if (anilistSettled.status === 'rejected') {

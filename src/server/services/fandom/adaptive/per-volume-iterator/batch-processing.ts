@@ -7,19 +7,22 @@
  * @module per-volume-iterator/batch-processing
  */
 
+import * as cheerio from 'cheerio';
+
 import { logger } from '@/utils/logger';
 
 import { extractVolumeNumberFromTitle } from './allpages-discovery';
 
 import type { VolumePageData, PerVolumeIteratorOptions } from '../per-volume-iterator';
+import type { CheerioAPI } from 'cheerio';
 
 /** Dependencies injected from the parent module to avoid circular imports */
 export interface BatchDeps {
   fetchHtml: (url: string, timeoutMs: number, userAgent: string) => Promise<string | null>;
   formatVolumeNumber: (pattern: string, volNum: number) => string;
-  extractChaptersFromVolumePage: (html: string, volumeNumber: number, baseUrl: string) => import('../per-volume-iterator').VolumePageChapter[];
-  extractVolumeMetadata: (html: string, volumeNumber: number) => Partial<VolumePageData>;
-  extractChapterSectionsFromVolumePage: (html: string, chapters: import('../per-volume-iterator').VolumePageChapter[], volumeNumber?: number) => void;
+  extractChaptersFromVolumePage: (html: string, volumeNumber: number, baseUrl: string, $loaded?: CheerioAPI) => import('../per-volume-iterator').VolumePageChapter[];
+  extractVolumeMetadata: (html: string, volumeNumber: number, $loaded?: CheerioAPI) => Partial<VolumePageData>;
+  extractChapterSectionsFromVolumePage: (html: string, chapters: import('../per-volume-iterator').VolumePageChapter[], volumeNumber?: number, $loaded?: CheerioAPI) => void;
 }
 
 /** Process a single volume page and return structured data */
@@ -33,9 +36,13 @@ async function processVolumePage(
   const html = await deps.fetchHtml(url, options.timeoutMs, options.userAgent);
   if (!html) return null;
 
-  const chapters = deps.extractChaptersFromVolumePage(html, volNum, baseUrl);
-  const metadata = deps.extractVolumeMetadata(html, volNum);
-  deps.extractChapterSectionsFromVolumePage(html, chapters, volNum);
+  // Parse the page once and share the DOM across the three extractors —
+  // these previously each ran their own cheerio.load on the same HTML
+  // (3 full DOM parses per volume page).
+  const $ = cheerio.load(html);
+  const chapters = deps.extractChaptersFromVolumePage(html, volNum, baseUrl, $);
+  const metadata = deps.extractVolumeMetadata(html, volNum, $);
+  deps.extractChapterSectionsFromVolumePage(html, chapters, volNum, $);
 
   const result: VolumePageData = { volumeNumber: volNum, chapters };
   if (metadata.title) result.title = metadata.title;
