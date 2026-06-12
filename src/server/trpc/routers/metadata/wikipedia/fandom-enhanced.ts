@@ -18,10 +18,9 @@
 import { z } from 'zod';
 
 
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import { createErrorResult, createSuccessResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import { mergeMetadata, parseFandomUrl, type EnhancedMetadataResult } from './helpers';
@@ -32,7 +31,7 @@ export const fandomEnhancedRouter = router({
       mangaPageUrl: z.string().url(),
       includeGallery: z.boolean().default(true)
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<EnhancedMetadataResult, Error>> => {
+    .mutation(async ({ input }): Promise<EnhancedMetadataResult> => {
       try {
         logger.info(`Fetching enhanced metadata for URL: ${input.mangaPageUrl}`);
         const { FandomService } = await import('@/server/services/fandom/FandomService');
@@ -76,14 +75,14 @@ export const fandomEnhancedRouter = router({
             author: enhancedData.publication.author
           });
 
-          return createSuccessResult(enhancedData);
+          return enhancedData;
         } else {
           logger.error('Failed to fetch enhanced metadata - no data returned');
-          return createErrorResult(new Error('Failed to fetch enhanced metadata'));
+          throw toTRPCError(new Error('Failed to fetch enhanced metadata'));
         }
       } catch (error: unknown) {
         logger.error(`Error fetching enhanced metadata: ${error instanceof Error ? error.message : String(error)}`, error);
-        return createErrorResult(error instanceof Error ? error : new Error(`Metadata fetch failed: ${String(error)}`));
+        throw toTRPCError(error instanceof Error ? error : new Error(`Metadata fetch failed: ${String(error)}`));
       }
     }),
 });

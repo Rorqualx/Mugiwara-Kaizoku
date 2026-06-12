@@ -1,4 +1,3 @@
-import { isSuccess, isError, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';
 
@@ -71,50 +70,44 @@ export class UrlParsingService {
       const detectedProvider = this.providerParsers.detectProviderFromUrl(url);
       logger.info('Detected provider from URL:', detectedProvider);
 
-      let result: AsyncResult<unknown>;
+      let data: unknown;
 
-      // Use provider parsers
+      // Use provider parsers (each returns the bare payload and throws on failure)
       switch (detectedProvider) {
         case 'fandom':
-          result = await this.providerParsers.parseFandomUrl(url) as AsyncResult<unknown>;
+          data = await this.providerParsers.parseFandomUrl(url);
           break;
 
         case 'anilist':
-          result = await this.providerParsers.parseAnilistUrl(url) as AsyncResult<unknown>;
+          data = await this.providerParsers.parseAnilistUrl(url);
           break;
 
         case 'comicvine':
-          result = await this.providerParsers.parseComicvineUrl(url) as AsyncResult<unknown>;
+          data = await this.providerParsers.parseComicvineUrl(url);
           break;
 
         case 'wikipedia':
-          result = await this.providerParsers.parseWikipediaUrl(url) as AsyncResult<unknown>;
+          data = await this.providerParsers.parseWikipediaUrl(url);
           break;
 
         default:
           // Try generic parsing for unknown providers
-          result = await (this.mutations.parseUrlMutation as { mutateAsync: (input: { url: string }) => Promise<AsyncResult<unknown>> }).mutateAsync({ url });
+          data = await (this.mutations.parseUrlMutation as { mutateAsync: (input: { url: string }) => Promise<unknown> }).mutateAsync({ url });
       }
 
-      if (isSuccess(result)) {
-        const data = result.data;
+      // Use extracted modules for processing
+      const metadata = extractMetadataFromResult(data, detectedProvider);
+      setSelectedMetadata(metadata);
 
-        // Use extracted modules for processing
-        const metadata = extractMetadataFromResult(data, detectedProvider);
-        setSelectedMetadata(metadata);
+      const media = extractMediaFromResult(data, detectedProvider);
+      setMediaGallery(media);
 
-        const media = extractMediaFromResult(data, detectedProvider);
-        setMediaGallery(media);
+      const volumes = extractVolumesFromResult(data, detectedProvider);
+      setVolumesData(volumes);
 
-        const volumes = extractVolumesFromResult(data, detectedProvider);
-        setVolumesData(volumes);
+      notify({ severity: 'SUCCESS', title: 'URL Parsed Successfully', message: `Extracted metadata from ${detectedProvider}` });
 
-        notify({ severity: 'SUCCESS', title: 'URL Parsed Successfully', message: `Extracted metadata from ${detectedProvider}` });
-
-        onSuccess(data);
-      } else if (isError(result)) {
-        throw new Error((result.error as Error).message || 'Failed to fetch metadata');
-      }
+      onSuccess(data);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Failed to parse URL:', errorMessage);

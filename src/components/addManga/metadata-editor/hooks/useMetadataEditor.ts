@@ -8,7 +8,6 @@ import { useState, useCallback } from 'react';
 
 import { showNotification } from '@mantine/notifications';
 
-import { isSuccess, isError } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client';
 
 import { extractFieldFromParsedData } from '../data-extractors';
@@ -93,52 +92,40 @@ export function useMetadataEditor(props: MetadataEditorProps): UseMetadataEditor
         field: undefined, // Parse for all fields
       });
 
-      if (isSuccess(result)) {
-        const { type, data: rawData } = result.data;
-        const data =
-          rawData && typeof rawData === 'object' && !Array.isArray(rawData)
-            ? (rawData as Record<string, unknown>)
-            : {};
+      const { type, data: rawData } = result;
+      const data =
+        rawData && typeof rawData === 'object' && !Array.isArray(rawData)
+          ? (rawData as Record<string, unknown>)
+          : {};
 
-        let fieldsUpdated = 0;
+      let fieldsUpdated = 0;
 
-        for (const field of FIELDS_TO_CHECK) {
-          const value = extractFieldFromParsedData(field, data, type);
-          if (value !== null) {
-            handleFieldUpdate(field, value, `bulk:${type}`, bulkParseUrl);
-            fieldsUpdated++;
-          }
+      for (const field of FIELDS_TO_CHECK) {
+        const value = extractFieldFromParsedData(field, data, type);
+        if (value !== null) {
+          handleFieldUpdate(field, value, `bulk:${type}`, bulkParseUrl);
+          fieldsUpdated++;
         }
+      }
 
-        if (fieldsUpdated > 0) {
-          showNotification({
-            title: 'Bulk Parse Successful',
-            message: `Updated ${fieldsUpdated} fields from ${type} source`,
-            color: 'green',
-          });
-          setBulkParseUrl('');
-        } else {
-          showNotification({
-            title: 'No Data Extracted',
-            message: 'Could not extract any metadata from the URL',
-            color: 'yellow',
-          });
-        }
+      if (fieldsUpdated > 0) {
+        showNotification({
+          title: 'Bulk Parse Successful',
+          message: `Updated ${fieldsUpdated} fields from ${type} source`,
+          color: 'green',
+        });
+        setBulkParseUrl('');
       } else {
         showNotification({
-          title: 'Parse Failed',
-          message: isError(result)
-            ? result.error instanceof Error
-              ? result.error.message
-              : String(result.error)
-            : 'Could not parse the URL',
-          color: 'red',
+          title: 'No Data Extracted',
+          message: 'Could not extract any metadata from the URL',
+          color: 'yellow',
         });
       }
-    } catch {
+    } catch (error: unknown) {
       showNotification({
-        title: 'Error',
-        message: 'Failed to parse URL',
+        title: 'Parse Failed',
+        message: error instanceof Error ? error.message : 'Could not parse the URL',
         color: 'red',
       });
     } finally {

@@ -11,11 +11,11 @@ import { z } from 'zod';
 import type { prisma } from '@/server/db';
 import { configService } from '@/server/services/config/configService';
 import { NotificationFactory } from '@/server/services/notifications/factory/notificationFactory';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { getConfigJSON } from '@/server/utils/configReader';
-import type { AsyncResult } from '@/utils/async-result';
-import { createSuccessResult, createErrorResult, createContextualError, isSuccess } from '@/utils/async-result';
+import { createContextualError, isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 const notificationEventSchema = z.nativeEnum(NotificationEventType);
@@ -70,14 +70,19 @@ const webhookSettingsSchema = z.object({
   events: z.array(notificationEventSchema)
 });
 
-// Helper functions
-async function getNotificationConfig(_prismaClient: typeof prisma): Promise<{
+/**
+ * Aggregated notification provider configuration as stored in Config.
+ */
+interface NotificationProvidersConfig {
   email: Record<string, unknown> | undefined;
   discord: Record<string, unknown> | undefined;
   slack: Record<string, unknown> | undefined;
   telegram: Record<string, unknown> | undefined;
   webhook: Record<string, unknown> | undefined;
-}> {
+}
+
+// Helper functions
+async function getNotificationConfig(_prismaClient: typeof prisma): Promise<NotificationProvidersConfig> {
   const email = await getConfigJSON<Record<string, unknown>>('events.email');
   const discord = await getConfigJSON<Record<string, unknown>>('events.discord');
   const slack = await getConfigJSON<Record<string, unknown>>('events.slack');
@@ -90,23 +95,23 @@ async function updateNotificationConfig(
   prismaClient: typeof prisma,
   configKey: string,
   configValue: unknown
-): Promise<Record<string, unknown>> {
+): Promise<NotificationProvidersConfig> {
   await configService.set(`events.${configKey}`, configValue, { scope: ConfigScope.SYSTEM });
-  const config = await getNotificationConfig(prismaClient);
-  return config as Record<string, unknown>;
+  return getNotificationConfig(prismaClient);
 }
 
 export const notificationSettingsRouter = router({
   /**
    * Get notification configuration
+   *
+   * @returns The aggregated provider configuration (throws TRPCError on failure)
    */
-  getConfig: protectedProcedure.query(async ({ ctx }): Promise<AsyncResult<unknown, Error>> => {
+  getConfig: protectedProcedure.query(async ({ ctx }): Promise<NotificationProvidersConfig> => {
     try {
-      const config = await getNotificationConfig(ctx.prisma);
-      return createSuccessResult(config);
+      return await getNotificationConfig(ctx.prisma);
     } catch (error: unknown) {
       logger.error('Failed to get notification config', error instanceof Error ? error.message : String(error));
-      return createErrorResult(
+      throw toTRPCError(
         createContextualError('Failed to get notification configuration', 'INTERNAL_SERVER_ERROR')
       );
     }
@@ -117,14 +122,14 @@ export const notificationSettingsRouter = router({
    */
   updateEmailSettings: protectedProcedure
     .input(emailSettingsSchema)
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
         await updateNotificationConfig(ctx.prisma, 'email', input);
         logger.info('Email notification settings updated');
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error('Failed to update email settings', error instanceof Error ? error.message : String(error));
-        return createErrorResult(createContextualError('Failed to update email settings', 'INTERNAL_SERVER_ERROR'));
+        throw toTRPCError(createContextualError('Failed to update email settings', 'INTERNAL_SERVER_ERROR'));
       }
     }),
 
@@ -133,14 +138,14 @@ export const notificationSettingsRouter = router({
    */
   updateDiscordSettings: protectedProcedure
     .input(discordSettingsSchema)
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
         await updateNotificationConfig(ctx.prisma, 'discord', input);
         logger.info('Discord notification settings updated');
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error('Failed to update Discord settings', error instanceof Error ? error.message : String(error));
-        return createErrorResult(createContextualError('Failed to update Discord settings', 'INTERNAL_SERVER_ERROR'));
+        throw toTRPCError(createContextualError('Failed to update Discord settings', 'INTERNAL_SERVER_ERROR'));
       }
     }),
 
@@ -149,14 +154,14 @@ export const notificationSettingsRouter = router({
    */
   updateSlackSettings: protectedProcedure
     .input(slackSettingsSchema)
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
         await updateNotificationConfig(ctx.prisma, 'slack', input);
         logger.info('Slack notification settings updated');
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error('Failed to update Slack settings', error instanceof Error ? error.message : String(error));
-        return createErrorResult(createContextualError('Failed to update Slack settings', 'INTERNAL_SERVER_ERROR'));
+        throw toTRPCError(createContextualError('Failed to update Slack settings', 'INTERNAL_SERVER_ERROR'));
       }
     }),
 
@@ -165,14 +170,14 @@ export const notificationSettingsRouter = router({
    */
   updateTelegramSettings: protectedProcedure
     .input(telegramSettingsSchema)
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
         await updateNotificationConfig(ctx.prisma, 'telegram', input);
         logger.info('Telegram notification settings updated');
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error('Failed to update Telegram settings', error instanceof Error ? error.message : String(error));
-        return createErrorResult(createContextualError('Failed to update Telegram settings', 'INTERNAL_SERVER_ERROR'));
+        throw toTRPCError(createContextualError('Failed to update Telegram settings', 'INTERNAL_SERVER_ERROR'));
       }
     }),
 
@@ -181,14 +186,14 @@ export const notificationSettingsRouter = router({
    */
   updateWebhookSettings: protectedProcedure
     .input(webhookSettingsSchema)
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
         await updateNotificationConfig(ctx.prisma, 'webhook', input);
         logger.info('Webhook notification settings updated');
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error('Failed to update webhook settings', error instanceof Error ? error.message : String(error));
-        return createErrorResult(createContextualError('Failed to update webhook settings', 'INTERNAL_SERVER_ERROR'));
+        throw toTRPCError(createContextualError('Failed to update webhook settings', 'INTERNAL_SERVER_ERROR'));
       }
     }),
 

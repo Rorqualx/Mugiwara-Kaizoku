@@ -16,10 +16,9 @@
 
 import { z } from 'zod';
 
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import { handleError } from '../metadata-utils';
@@ -52,13 +51,13 @@ export const metadataFandomChapterRouter = router({
       })
     )
     .mutation(
-      async ({ input }): Promise<AsyncResult<ChapterMetadata, Error>> => {
+      async ({ input }): Promise<ChapterMetadata> => {
         try {
           const { url, forceRefresh } = input;
 
           // Validate it's a Fandom URL
           if (!url.includes('fandom.com')) {
-            return createErrorResult(new Error('Not a valid Fandom wiki URL'));
+            throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
           }
 
           logger.info(
@@ -143,12 +142,12 @@ export const metadataFandomChapterRouter = router({
             result.pageCount = pageCount;
           }
 
-          return createSuccessResult(result);
+          return result;
         } catch (error: unknown) {
           logger.error(
             `Error fetching chapter metadata: ${error instanceof Error ? error.message : String(error)}`
           );
-          return createErrorResult(handleError(error));
+          throw toTRPCError(handleError(error));
         }
       }
     ),

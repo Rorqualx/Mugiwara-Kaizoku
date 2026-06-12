@@ -11,7 +11,6 @@ import { notifications } from '@mantine/notifications';
 
 import type { TransmissionConfig, DelugeConfig, NZBGetConfig } from '@/types/config.types';
 import type { QuickDownloadResponse } from '@/types/quickDownload.types';
-import { isSuccess } from '@/utils/async-result';
 import { notify } from '@/utils/notify';
 import { mapSummaryToNotification } from '@/utils/quickDownload/notification-mapping';
 import { selectSmartClient } from '@/utils/smartClientSelector';
@@ -126,8 +125,8 @@ export function useEnabledClients(): EnabledClient[] {
   return useMemo((): EnabledClient[] => {
     const clients: EnabledClient[] = [];
 
-    if (settings && isSuccess(settings)) {
-      const settingsData = settings.data as SettingsData;
+    if (settings) {
+      const settingsData = settings as SettingsData;
 
       if (settingsData.transmission?.enabled) {
         clients.push({ value: 'transmission', label: 'Transmission' });

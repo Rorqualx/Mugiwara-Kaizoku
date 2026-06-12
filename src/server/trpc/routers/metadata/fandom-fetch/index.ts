@@ -16,10 +16,9 @@
 
 import { z } from 'zod';
 
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import {
@@ -133,7 +132,7 @@ export const metadataFandomFetchRouter = router({
       url: z.string().url()
     }))
     // eslint-disable-next-line complexity -- Pre-existing complexity from metadata extraction; would require major refactor
-    .mutation(async ({ input }): Promise<AsyncResult<FandomMetadata, Error>> => {
+    .mutation(async ({ input }): Promise<FandomMetadata> => {
       try {
         const { url } = input;
 
@@ -142,7 +141,7 @@ export const metadataFandomFetchRouter = router({
         // Validate it's a Fandom URL
         if (!validateFandomUrl(url)) {
           logger.debug('[Fandom Server] URL validation FAILED:', url);
-          return createErrorResult(new Error('Not a valid Fandom wiki URL'));
+          throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
         }
 
         logger.debug('[Fandom Server] URL validation passed, fetching page...');
@@ -189,7 +188,7 @@ export const metadataFandomFetchRouter = router({
         });
 
         // Build and return result
-        const result = buildFandomMetadataResult({
+        return buildFandomMetadataResult({
           url,
           ...(title !== undefined && { title }),
           ...(cover !== undefined && { cover }),
@@ -203,11 +202,9 @@ export const metadataFandomFetchRouter = router({
           ...(startDate !== undefined && { startDate }),
           ...(endDate !== undefined && { endDate })
         });
-
-        return createSuccessResult(result);
       } catch (error: unknown) {
         logger.error(`Error fetching Fandom metadata: ${error instanceof Error ? error.message : String(error)}`);
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error ?
             error :
             new Error(`Failed to fetch Fandom metadata: ${String(error)}`)

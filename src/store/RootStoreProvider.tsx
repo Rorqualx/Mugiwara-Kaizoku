@@ -106,14 +106,14 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
         if (!mounted) return;
 
         // Extract values from the 'all' settings query
-        // Note: settings.get returns AsyncResult<T>, so we need to access data.data
+        // Note: settings.get now returns the bare key/value record over the wire.
         // Guard against undefined settingsResult.data
         if (!settingsResult.data) {
           logger.debug('[RootStoreProvider] No settings data received');
           prowlarrHydrated.current = true; // Mark as hydrated to prevent retry loops
           return;
         }
-        const allSettings = (settingsResult.data as { data?: Record<string, unknown> }).data ?? {};
+        const allSettings = settingsResult.data as Record<string, unknown>;
         const enabledValue = allSettings['prowlarrEnabled'];
         const baseURLValue = allSettings['prowlarrBaseURL'];
         const apiKeyValue = allSettings['prowlarrApiKey'];

@@ -14,8 +14,6 @@ import type * as React from 'react';
 
 import { extractComicVineAlternativeTitles } from '@/components/addManga/services/sourceManagementService/comicvine-operations';
 import type { Chapter, ProviderMetadata, Volume, VolumesData } from '@/types/universalImportWizard.types';
-import type { AsyncResult } from '@/utils/async-result';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { vanillaTrpcClient } from '@/utils/trpc-client/vanilla';
 
@@ -204,23 +202,7 @@ export function fetchComicVineChapterCoversBackground(
   void vanillaTrpcClient.metadata.scrapeComicVineChapters
     .mutate({ seriesUrl })
     .then((result: unknown) => {
-      if (!isSuccess(result as AsyncResult<unknown, unknown>)) {
-        logger.warn('[ComicVine Background] Scraping failed - result not successful');
-        setVolumesData(prev => ({
-          ...prev,
-          isScrapingChapters: false,
-          scrapingProgress: {
-            current: 0,
-            total: 0,
-            message: 'Failed to fetch chapter data',
-            stage: 'error' as const
-          }
-        }));
-        return;
-      }
-
-      const successResult = result as { status: 'success'; data: unknown };
-      const data = successResult.data as { volumes?: Array<{
+      const data = result as { volumes?: Array<{
         volumeNumber?: number;
         volumeTitle?: string;
         chapters?: Array<{ number?: string; title?: string }>;

@@ -67,21 +67,21 @@ export async function parseComicVineUrl(
   logger.info('[parseComicVineUrl] PHASE A: Using ComicVine API to fetch volume details for ID:', volumeId);
 
   // PHASE A: API-based volume fetch (fast, gets covers immediately)
-  const result = await mutations.fetchComicvineVolumeDetailsMutation.mutateAsync({
-    url: urlToParse,
-    id: volumeId,
-    type: 'volume'
-  }) as { data?: Record<string, unknown>; error?: Error };
-
-  if (result.error ?? !result.data) {
-    logger.error('[parseComicVineUrl] PHASE A failed:', result.error);
-    notify({ severity: 'ERROR', title: 'ComicVine API Error', message: result.error?.message ?? 'Failed to fetch volume data' });
+  // The tRPC procedure returns the bare payload and throws TRPCError on failure.
+  let apiData: Record<string, unknown>;
+  try {
+    apiData = await mutations.fetchComicvineVolumeDetailsMutation.mutateAsync({
+      url: urlToParse,
+      id: volumeId,
+      type: 'volume'
+    }) as unknown as Record<string, unknown>;
+  } catch (error) {
+    logger.error('[parseComicVineUrl] PHASE A failed:', error);
+    notify({ severity: 'ERROR', title: 'ComicVine API Error', message: error instanceof Error ? error.message : 'Failed to fetch volume data' });
     return;
   }
 
   logger.info('[parseComicVineUrl] PHASE A complete: API returned volume data');
-
-  const apiData = result.data;
 
   // Transform API response to volume data format
   // ComicVine terminology for manga:

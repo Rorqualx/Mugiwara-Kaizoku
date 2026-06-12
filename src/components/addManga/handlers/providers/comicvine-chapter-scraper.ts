@@ -100,7 +100,7 @@ export async function scrapeComicVineChaptersInBackground(
     const isObject = (val: unknown): val is Record<string, unknown> =>
       typeof val === 'object' && val !== null;
 
-    // Extract volumes from result (handles both AsyncResult and direct structure)
+    // Extract volumes from result (bare payload with `volumes` array)
     const volumes = extractVolumesFromResult(result, isObject);
 
     if (!volumes || volumes.length === 0) {
@@ -205,23 +205,26 @@ interface ScrapedVolume {
 }
 
 /**
- * Extract volumes array from API result (handles AsyncResult and direct structure)
+ * Extract volumes array from API result
+ *
+ * The tRPC procedure returns `{ volumes: [...] }` directly; the legacy
+ * `data.volumes` shape is still handled defensively.
  */
 function extractVolumesFromResult(
   result: unknown,
   isObject: (val: unknown) => val is Record<string, unknown>
 ): ScrapedVolume[] | null {
-  // Check for AsyncResult with data.volumes
-  if (isObject(result) && isObject(result['data']) && Array.isArray(result['data']['volumes'])) {
-    const volumes = result['data']['volumes'] as ScrapedVolume[];
-    logger.info(`[ComicVine Background] Found ${volumes.length} volumes in result.data.volumes`);
-    return volumes;
-  }
-
-  // Fallback: Check if volumes is directly on the result
+  // Current wire shape: volumes directly on the result
   if (isObject(result) && Array.isArray(result['volumes'])) {
     const volumes = result['volumes'] as ScrapedVolume[];
     logger.info(`[ComicVine Background] Found ${volumes.length} volumes in result.volumes`);
+    return volumes;
+  }
+
+  // Legacy/defensive: nested data.volumes
+  if (isObject(result) && isObject(result['data']) && Array.isArray(result['data']['volumes'])) {
+    const volumes = result['data']['volumes'] as ScrapedVolume[];
+    logger.info(`[ComicVine Background] Found ${volumes.length} volumes in result.data.volumes`);
     return volumes;
   }
 

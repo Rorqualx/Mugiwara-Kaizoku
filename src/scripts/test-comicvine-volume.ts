@@ -12,7 +12,6 @@
 import { createTRPCProxyClient, httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 
-import { isError, isSuccess } from '../utils/async-result';
 import { logger } from '../utils/logger';
 
 import type { AppRouter } from '../server/trpc/root';
@@ -222,17 +221,14 @@ async function testIssueDetails(): Promise<void> {
   logger.info('1. Fetching Fire Force Volume 34 (Issue) details...');
   const issueUrl = 'https://comicvine.gamespot.com/fire-force-34-extinguish-the-flames-of-despair/4000-1020567/';
 
-  const issueResult = await trpc["metadata"].fetchComicvineVolumeDetails.mutate({
-    url: issueUrl
-  });
-
-  if (isSuccess(issueResult)) {
+  try {
+    const issue = await trpc["metadata"].fetchComicvineVolumeDetails.mutate({
+      url: issueUrl
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Test script type bridging
-    logIssueDetails(issueResult.data as any);
-  } else if (isError(issueResult)) {
-    logger.info('   ❌ Failed to fetch issue details:', issueResult.error instanceof Error ? issueResult.error.message : String(issueResult.error));
-  } else {
-    logger.info('   ⏳ Issue fetch in idle/loading state');
+    logIssueDetails(issue as any);
+  } catch (error: unknown) {
+    logger.info('   ❌ Failed to fetch issue details:', error instanceof Error ? error.message : String(error));
   }
 
   logger.info('\n' + '='.repeat(60) + '\n');
@@ -245,18 +241,15 @@ async function testVolumeDetails(): Promise<void> {
   logger.info('2. Fetching Fire Force Volume (Series) details...');
   const volumeUrl = 'https://comicvine.gamespot.com/fire-force/4050-104877/';
 
-  const volumeResult = await trpc["metadata"].fetchComicvineVolumeDetails.mutate({
-    url: volumeUrl,
-    type: 'volume'
-  });
-
-  if (isSuccess(volumeResult)) {
+  try {
+    const volume = await trpc["metadata"].fetchComicvineVolumeDetails.mutate({
+      url: volumeUrl,
+      type: 'volume'
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument -- Test script type bridging
-    logVolumeDetails(volumeResult.data as any);
-  } else if (isError(volumeResult)) {
-    logger.info('   ❌ Failed to fetch volume details:', volumeResult.error instanceof Error ? volumeResult.error.message : String(volumeResult.error));
-  } else {
-    logger.info('   ⏳ Volume fetch in idle/loading state');
+    logVolumeDetails(volume as any);
+  } catch (error: unknown) {
+    logger.info('   ❌ Failed to fetch volume details:', error instanceof Error ? error.message : String(error));
   }
 
   logger.info('\n' + '='.repeat(60) + '\n');
@@ -268,18 +261,15 @@ async function testVolumeDetails(): Promise<void> {
 async function testDirectId(): Promise<void> {
   logger.info('3. Fetching by direct ComicVine ID (104877 - Fire Force series)...');
 
-  const idResult = await trpc["metadata"].fetchComicvineVolumeDetails.mutate({
-    id: '104877',
-    type: 'volume'
-  });
-
-  if (isSuccess(idResult)) {
-    const issueCount = 'issueCount' in idResult.data ? (idResult.data.issueCount ?? 0) : 0;
-    logger.info(`   ✅ Successfully fetched: ${idResult.data.name ?? 'N/A'} (${issueCount} issues)`);
-  } else if (isError(idResult)) {
-    logger.info('   ❌ Failed to fetch by ID:', idResult.error instanceof Error ? idResult.error.message : String(idResult.error));
-  } else {
-    logger.info('   ⏳ ID fetch in idle/loading state');
+  try {
+    const volume = await trpc["metadata"].fetchComicvineVolumeDetails.mutate({
+      id: '104877',
+      type: 'volume'
+    });
+    const issueCount = 'issueCount' in volume ? (volume.issueCount ?? 0) : 0;
+    logger.info(`   ✅ Successfully fetched: ${volume.name ?? 'N/A'} (${issueCount} issues)`);
+  } catch (error: unknown) {
+    logger.info('   ❌ Failed to fetch by ID:', error instanceof Error ? error.message : String(error));
   }
 }
 

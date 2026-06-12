@@ -3,7 +3,6 @@
  */
 
 import type { ProviderMetadata } from '@/types/universalImportWizard.types';
-import { isSuccess, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import { calculateVolumeCount, calculateChapterCount } from './count-calculators';
@@ -23,22 +22,13 @@ export async function tryBasicFetch(
 
   const response = await mutations.fetchFandomMutation.mutateAsync({
     url
-  }) as AsyncResult<unknown, unknown>;
-
-  logger.debug('[Fandom BasicFetch] Response received', {
-    status: response.status,
-    hasData: !!(response as { data?: unknown }).data
   });
 
-  if (!isSuccess(response)) {
-    logger.debug('[Fandom BasicFetch] isSuccess check FAILED', {
-      status: response.status,
-      expectedStatus: 'success'
-    });
-    return undefined;
-  }
+  logger.debug('[Fandom BasicFetch] Response received', {
+    hasData: !!response
+  });
 
-  const data = response.data as Record<string, unknown>;
+  const data = response as unknown as Record<string, unknown>;
 
   // Calculate counts
   const volumes = data['volumes'];

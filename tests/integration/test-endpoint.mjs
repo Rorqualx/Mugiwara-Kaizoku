@@ -26,18 +26,17 @@ async function testChapterMetadataEndpoint() {
     console.log('\n=== Response ===');
     console.log(JSON.stringify(result, null, 2));
     
-    if (result.result?.data?.json) {
+    // tRPC returns the bare payload on success; errors come back as result.error
+    if (result.error) {
+      console.log('\n=== Error ===');
+      console.log('Error:', result.error.json?.message ?? result.error);
+    } else if (result.result?.data?.json) {
       const data = result.result.data.json;
       console.log('\n=== Extracted Metadata ===');
-      console.log('Status:', data.status);
-      if (data.status === 'success' && data.data) {
-        console.log('Cover Image:', data.data.coverImageUrl);
-        console.log('Title:', data.data.title);
-        console.log('Chapter Number:', data.data.chapterNumber);
-        console.log('Description:', data.data.description?.substring(0, 100) + '...');
-      } else if (data.status === 'error') {
-        console.log('Error:', data.error);
-      }
+      console.log('Cover Image:', data.coverImageUrl);
+      console.log('Title:', data.title);
+      console.log('Chapter Number:', data.chapterNumber);
+      console.log('Description:', data.description?.substring(0, 100) + '...');
     }
   } catch (error) {
     console.error('Error testing endpoint:', error.message);

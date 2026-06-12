@@ -29,8 +29,6 @@ import {
   IconChevronRight,
 } from '@tabler/icons-react';
 
-import { isSuccess, isError } from '@/utils/async-result';
-
 import type {
   BrowseDirectoryModalProps,
   DirectoryEntry,
@@ -50,6 +48,7 @@ export const BrowseDirectoryModal = memo<BrowseDirectoryModalProps>(
     opened,
     browseResult,
     isBrowseLoading,
+    browseError,
     currentBrowsePath,
     onNavigateToPath,
     onSelectDirectory,
@@ -68,12 +67,11 @@ export const BrowseDirectoryModal = memo<BrowseDirectoryModalProps>(
         <Stack gap="md">
           {/* Navigation Controls */}
           {(() => {
-            if (isBrowseLoading || !browseResult || !isSuccess(browseResult)) {
+            if (isBrowseLoading || !browseResult) {
               return null;
             }
 
-            const data = browseResult.data;
-            const parent = data.parent;
+            const parent = browseResult.parent;
 
             return (
               <Group gap="xs">
@@ -133,16 +131,11 @@ export const BrowseDirectoryModal = memo<BrowseDirectoryModalProps>(
 
           {/* Directory List */}
           {(() => {
-            if (
-              isBrowseLoading ||
-              !browseResult ||
-              !isSuccess(browseResult)
-            ) {
+            if (isBrowseLoading || !browseResult) {
               return null;
             }
 
-            const data = browseResult.data;
-            const entries = data.entries;
+            const entries = browseResult.entries;
 
             return (
               <ScrollArea h={400} type="auto">
@@ -212,7 +205,7 @@ export const BrowseDirectoryModal = memo<BrowseDirectoryModalProps>(
           })()}
 
           {/* Error State */}
-          {!isBrowseLoading && browseResult && isError(browseResult) ? (
+          {!isBrowseLoading && Boolean(browseError) ? (
             <Alert
               icon={<IconAlertCircle size={16} />}
               title="Browse Error"

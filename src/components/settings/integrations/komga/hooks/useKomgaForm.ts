@@ -32,11 +32,6 @@ const initialValues: KomgaFormValues = {
   libraries: []
 };
 
-// Type guard for settings data with data property
-const hasDataProperty = (value: unknown): value is { data: unknown } => {
-  return typeof value === 'object' && value !== null && 'data' in value;
-};
-
 // Type guard for Komga config
 const isKomgaConfig = (config: unknown): config is KomgaConfig => {
   return (
@@ -61,28 +56,26 @@ export function useKomgaForm(settingsData: unknown): UseFormReturnType<KomgaForm
     []
   );
 
-  // Update form when settings data loads
+  // Update form when settings data loads.
+  // settingsData is now the bare integration payload over the wire.
   useEffect(() => {
-    if (hasDataProperty(settingsData)) {
-      const settings = settingsData.data;
-      // Type guard to ensure we have KomgaConfig
-      if (isKomgaConfig(settings)) {
-        const values: Partial<KomgaFormValues> = {
-          enabled: settings.enabled
-        };
+    if (isKomgaConfig(settingsData)) {
+      const settings = settingsData;
+      const values: Partial<KomgaFormValues> = {
+        enabled: settings.enabled
+      };
 
-        if (settings.host !== undefined) values.host = settings.host;
-        if (settings.authMethod !== undefined) values.authMethod = settings.authMethod;
-        if (settings.username !== undefined) values.username = settings.username;
-        if (settings.password !== undefined) values.password = settings.password;
-        if (settings.apiKey !== undefined) values.apiKey = settings.apiKey;
-        if (settings.syncInterval !== undefined) values.syncInterval = settings.syncInterval;
-        if (settings.autoSync !== undefined) values.autoSync = settings.autoSync;
-        if (settings.syncDirection !== undefined) values.syncDirection = settings.syncDirection;
-        if (settings.libraries !== undefined) values.libraries = settings.libraries;
+      if (settings.host !== undefined) values.host = settings.host;
+      if (settings.authMethod !== undefined) values.authMethod = settings.authMethod;
+      if (settings.username !== undefined) values.username = settings.username;
+      if (settings.password !== undefined) values.password = settings.password;
+      if (settings.apiKey !== undefined) values.apiKey = settings.apiKey;
+      if (settings.syncInterval !== undefined) values.syncInterval = settings.syncInterval;
+      if (settings.autoSync !== undefined) values.autoSync = settings.autoSync;
+      if (settings.syncDirection !== undefined) values.syncDirection = settings.syncDirection;
+      if (settings.libraries !== undefined) values.libraries = settings.libraries;
 
-        setFormValues(values);
-      }
+      setFormValues(values);
     }
   }, [settingsData, setFormValues]);
 

@@ -18,11 +18,10 @@ import { z } from 'zod';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { configReader } from '@/server/utils/configReader';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 /** Scheduler interval response type */
@@ -82,7 +81,7 @@ export const systemSchedulerRouter = router({
       })
     )
     .mutation(
-      async ({ input }): Promise<AsyncResult<SetSchedulerIntervalSuccess, Error>> => {
+      async ({ input }): Promise<SetSchedulerIntervalSuccess> => {
         try {
           const { intervalSeconds } = input;
           const intervalHours = intervalSeconds / 3600;
@@ -123,16 +122,16 @@ export const systemSchedulerRouter = router({
             },
           });
 
-          return createSuccessResult({
+          return {
             interval: intervalSeconds,
             intervalHours,
             message: `Scheduler interval updated to ${intervalSeconds} seconds (${intervalHours.toFixed(1)} hours)`
-          });
+          };
         } catch (error: unknown) {
           logger.error(
             `Failed to set auto-download scheduler interval: ${error instanceof Error ? error.message : String(error)}`
           );
-          return createErrorResult(
+          throw toTRPCError(
             error instanceof Error ? error : new Error('Failed to set scheduler interval')
           );
         }

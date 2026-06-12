@@ -11,8 +11,6 @@ import React from 'react';
 import { Modal, Stack, Group, Button, Box, Text, Divider, ScrollArea, Loader, Alert } from '@mantine/core';
 import { IconChevronRight, IconHome, IconFolder, IconAlertCircle } from '@tabler/icons-react';
 
-import { isSuccess, isError, type AsyncResult } from '@/utils/async-result';
-
 interface DirectoryBrowserModalProps {
     /** Whether the modal is open */
     opened: boolean;
@@ -24,10 +22,12 @@ interface DirectoryBrowserModalProps {
     onNavigate: (path: string) => void;
     /** Function called when a directory is selected */
     onSelect: (path: string) => void;
-    /** Browse result data from API */
+    /** Browse result payload from the API ({ currentPath, parent, entries }) */
     browseResult: unknown;
     /** Whether the browse query is loading */
     isLoading: boolean;
+    /** Browse query error (failures now arrive via tRPC's error channel) */
+    error?: unknown;
 }
 
 /**
@@ -40,7 +40,8 @@ export function DirectoryBrowserModal({
     onNavigate,
     onSelect,
     browseResult,
-    isLoading
+    isLoading,
+    error
 }: DirectoryBrowserModalProps): React.ReactElement {
     return (
         <Modal
@@ -53,14 +54,12 @@ export function DirectoryBrowserModal({
                 {/* Navigation Controls */}
                 {(() => {
                     if (isLoading || !browseResult) return null;
-                    const asyncResult = browseResult as AsyncResult<unknown, unknown>;
-                    if (!isSuccess(asyncResult)) return null;
 
                     return (
                         <Group gap="xs">
                             {/* Back Button - shown when we have a parent directory */}
                             {(() => {
-                                const resultData = asyncResult.data as Record<string, unknown>;
+                                const resultData = browseResult as Record<string, unknown>;
                                 const parentPath = resultData["parent"];
                                 if (!parentPath) return null;
                                 return (
@@ -111,14 +110,12 @@ export function DirectoryBrowserModal({
                 {/* Directory List */}
                 {(() => {
                     if (isLoading || !browseResult) return null;
-                    const asyncResult = browseResult as AsyncResult<unknown, unknown>;
-                    if (!isSuccess(asyncResult)) return null;
 
                     return (
                         <ScrollArea h={400} type="auto">
                             <Stack gap="xs">
                                 {(() => {
-                                    const resultData = asyncResult.data as Record<string, unknown>;
+                                    const resultData = browseResult as Record<string, unknown>;
                                     const entries = (resultData["entries"] ?? []) as unknown[];
                                     return entries.map((entry: unknown, idx: number) => {
                                         const entryObj = entry as Record<string, unknown>;
@@ -170,17 +167,11 @@ export function DirectoryBrowserModal({
                 })()}
 
                 {/* Error State */}
-                {(() => {
-                    if (isLoading || !browseResult) return null;
-                    const asyncResult = browseResult as AsyncResult<unknown, unknown>;
-                    if (!isError(asyncResult)) return null;
-
-                    return (
-                        <Alert icon={<IconAlertCircle size={16} />} title="Browse Error" color="red">
-                            Failed to load directory contents
-                        </Alert>
-                    );
-                })()}
+                {!isLoading && Boolean(error) && (
+                    <Alert icon={<IconAlertCircle size={16} />} title="Browse Error" color="red">
+                        Failed to load directory contents
+                    </Alert>
+                )}
 
                 {/* Use Current Directory Button */}
                 {!isLoading && currentPath && (

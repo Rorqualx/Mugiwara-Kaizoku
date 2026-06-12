@@ -52,8 +52,8 @@ async function compareFandomMetadata() {
     const primaryEnhanceData = await primaryEnhanceResponse.json();
     let primaryMetadata = null;
     
-    if (primaryEnhanceData.result?.data?.json?.status === 'success') {
-      primaryMetadata = primaryEnhanceData.result.data.json.data;
+    if (primaryEnhanceData.result?.data?.json) {
+      primaryMetadata = primaryEnhanceData.result.data.json;
       console.log('\n📊 Fandom as PRIMARY - Metadata Available:');
       console.log(`   ✓ Volume covers: ${primaryMetadata.coverArt?.volumeCovers?.length || 0}`);
       console.log(`   ✓ Gallery images: ${primaryMetadata.coverArt?.gallery?.length || 0}`);
@@ -118,8 +118,8 @@ async function compareFandomMetadata() {
       const additionalEnhanceData = await additionalEnhanceResponse.json();
       let additionalMetadata = null;
       
-      if (additionalEnhanceData.result?.data?.json?.status === 'success') {
-        additionalMetadata = additionalEnhanceData.result.data.json.data;
+      if (additionalEnhanceData.result?.data?.json) {
+        additionalMetadata = additionalEnhanceData.result.data.json;
         console.log('\n📊 Fandom as ADDITIONAL - Metadata Available:');
         console.log(`   ✓ Volume covers: ${additionalMetadata.coverArt?.volumeCovers?.length || 0}`);
         console.log(`   ✓ Gallery images: ${additionalMetadata.coverArt?.gallery?.length || 0}`);

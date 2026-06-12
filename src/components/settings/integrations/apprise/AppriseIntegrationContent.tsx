@@ -61,8 +61,8 @@ export function AppriseIntegrationContent(): ReactElement {
   const form = useForm({ initialValues: { enabled: false, serviceUrl: '', servicesText: '' } });
 
   React.useEffect(() => {
-    if (!settingsData || !('data' in settingsData)) return;
-    const settings = settingsData.data;
+    if (!settingsData) return;
+    const settings: unknown = settingsData;
     if (!isAppriseSettings(settings)) return;
     form.setValues({
       enabled: settings.enabled,

@@ -172,8 +172,8 @@
                 const data = await response.json();
                 responseDisplay.textContent = JSON.stringify(data, null, 2);
                 
-                if (data.result?.data?.json?.data?.coverImageUrl) {
-                    const coverUrl = data.result.data.json.data.coverImageUrl;
+                if (data.result?.data?.json?.coverImageUrl) {
+                    const coverUrl = data.result.data.json.coverImageUrl;
                     console.log('API returned cover URL:', coverUrl);
                     
                     // Test loading the image from API response

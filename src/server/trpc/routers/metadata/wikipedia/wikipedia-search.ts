@@ -11,10 +11,9 @@
 
 import { z } from 'zod';
 
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 export const wikipediaSearchRouter = router({
@@ -25,7 +24,7 @@ export const wikipediaSearchRouter = router({
         limit: z.number().optional().default(5),
       })
     )
-    .query(async ({ input }): Promise<AsyncResult<unknown[], Error>> => {
+    .query(async ({ input }): Promise<unknown[]> => {
       try {
         logger.info(`Searching Wikipedia for: ${input.query}`);
         // Import Wikipedia service
@@ -35,19 +34,18 @@ export const wikipediaSearchRouter = router({
         // Search Wikipedia
         const results = await wikipediaService.searchManga(input.query);
         // Transform results
-        const transformedResults = results.map((result) => ({
+        return results.map((result) => ({
           id: result.pageId,
           title: result['title'],
           description: result.extract ?? '',
           url: result.url,
           source: 'wikipedia',
         }));
-        return createSuccessResult(transformedResults);
       } catch (error: unknown) {
         logger.error(
           `Error searching Wikipedia: ${error instanceof Error ? error.message : String(error)}`
         );
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error
             ? error
             : new Error(`Failed to search Wikipedia: ${String(error)}`)

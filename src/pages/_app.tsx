@@ -101,8 +101,12 @@ function App({ Component, pageProps }: AppPropsWithLayout): React.ReactElement {
     const getLayout = Component.getLayout ?? ((page: ReactElement) => <RootLayout>{page}</RootLayout>);
     // NProgress integration for route transition feedback
     useRouterProgress();
-    // tRPC mutation for logging startup
-    const logStartupMutation = trpc.events.logStartup.useMutation();
+    // tRPC mutation for logging startup (fire-and-forget — failures must never break app boot)
+    const logStartupMutation = trpc.events.logStartup.useMutation({
+        onError: (error) => {
+            logger.warn('Failed to log application startup event', { error: error.message });
+        }
+    });
     // Auto-reload on stale webpack chunks (e.g. after server restart)
     useEffect(() => {
         const handleChunkError = (event: ErrorEvent): void => {

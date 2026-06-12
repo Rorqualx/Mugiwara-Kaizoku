@@ -47,11 +47,8 @@ export function useConfig(): UseConfigReturn {
     async <T = unknown,>(key: string): Promise<T | undefined> => {
       try {
         setError(null);
-        const result = await utils.settings.get.fetch({ key });
-        if (typeof result === 'object' && 'data' in result && result.data !== undefined) {
-          return result.data as T;
-        }
-        return undefined;
+        const value = await utils.settings.get.fetch({ key });
+        return value === undefined ? undefined : (value as T);
       } catch (err: unknown) {
         logger.error(`Error getting config for key '${key}':`, err);
         setError(err instanceof Error ? err : new Error(String(err)));
@@ -65,11 +62,7 @@ export function useConfig(): UseConfigReturn {
     async (keys: string[]): Promise<Record<string, unknown>> => {
       try {
         setError(null);
-        const result = await utils.settings.getBatch.fetch({ keys });
-        if (typeof result === 'object' && 'data' in result) {
-          return result.data as Record<string, unknown>;
-        }
-        return {};
+        return await utils.settings.getBatch.fetch({ keys });
       } catch (err: unknown) {
         logger.error(`Error getting batch config for keys [${keys.join(', ')}]:`, err);
         setError(err instanceof Error ? err : new Error(String(err)));

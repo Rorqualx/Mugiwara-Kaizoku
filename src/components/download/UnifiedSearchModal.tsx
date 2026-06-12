@@ -31,7 +31,6 @@ import { ChapterStatus } from '@prisma/client';
 import { IconSearch, IconInfoCircle } from '@tabler/icons-react';
 import { DataTable } from 'mantine-datatable';
 
-import { isSuccess } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
@@ -109,8 +108,8 @@ export function UnifiedSearchModal({
   const enabledClients = useMemo(() => {
     const clients: Array<{ value: string; label: string }> = [];
 
-    if (settings && isSuccess(settings)) {
-      const settingsData = settings.data as SettingsData;
+    if (settings) {
+      const settingsData = settings as SettingsData;
 
       if (settingsData.transmission?.enabled) {
         clients.push({ value: 'transmission', label: 'Transmission' });
@@ -131,8 +130,8 @@ export function UnifiedSearchModal({
 
   // Check configuration
   const isProwlarrConfigured = useMemo(() => {
-    if (!settings || !isSuccess(settings)) return false;
-    const settingsData = settings.data as SettingsData;
+    if (!settings) return false;
+    const settingsData = settings as SettingsData;
     return !!(settingsData.prowlarrBaseURL && settingsData.prowlarrApiKey);
   }, [settings]);
 

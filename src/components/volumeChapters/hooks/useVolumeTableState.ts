@@ -57,7 +57,7 @@ export function useVolumeTableState(params: UseVolumeTableStateParams): UseVolum
   const deleteChaptersMutation = trpc.chapter.deleteMany.useMutation({
     onSuccess: (result) => {
       logger.info('[useVolumeTableState] deleteMany:', result);
-      if (result.status === 'success') showSuccessNotification(result.data.message);
+      showSuccessNotification(result.message);
       invalidateAndRefresh();
     },
     onError: (error) => showErrorNotification(error.message)
@@ -65,7 +65,7 @@ export function useVolumeTableState(params: UseVolumeTableStateParams): UseVolum
 
   const deleteChapterMutation = trpc.chapter.deleteOne.useMutation({
     onSuccess: (result) => {
-      if (result.status === 'success') showSuccessNotification(result.data.message);
+      showSuccessNotification(result.message);
       invalidateAndRefresh();
       setDeletingChapterId(undefined);
     },

@@ -14,7 +14,6 @@
 
 import { useCallback, useMemo } from 'react';
 
-import type { AsyncResult } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client';
 
 export interface UseConfigValueResult<T> {
@@ -26,18 +25,9 @@ export interface UseConfigValueResult<T> {
   refetch: () => Promise<void>;
 }
 
-function unwrap<T>(raw: unknown, defaultValue: T): T {
-  if (
-    raw &&
-    typeof raw === 'object' &&
-    'status' in raw &&
-    (raw as { status: string }).status === 'success' &&
-    'data' in raw
-  ) {
-    const data = (raw as { data: unknown }).data;
-    if (data !== undefined && data !== null) {
-      return data as T;
-    }
+function coerce<T>(raw: unknown, defaultValue: T): T {
+  if (raw !== undefined && raw !== null) {
+    return raw as T;
   }
   return defaultValue;
 }
@@ -66,10 +56,7 @@ export function useConfigValue<T>(key: string, defaultValue: T): UseConfigValueR
 
   const setValue = useCallback(
     async (value: T): Promise<void> => {
-      utils.settings.get.setData(queryInput, {
-        status: 'success',
-        data: value as unknown,
-      } as AsyncResult<unknown, Error>);
+      utils.settings.get.setData(queryInput, value as unknown);
       await mutation.mutateAsync({ key, value: value as unknown });
     },
     [mutation, utils.settings.get, key, queryInput],
@@ -83,7 +70,7 @@ export function useConfigValue<T>(key: string, defaultValue: T): UseConfigValueR
   const mutationError = mutation.error ? new Error(mutation.error.message) : null;
 
   return {
-    value: unwrap<T>(query.data, defaultValue),
+    value: coerce<T>(query.data, defaultValue),
     isLoading: query.isLoading,
     saving: mutation.isPending,
     error: queryError ?? mutationError,

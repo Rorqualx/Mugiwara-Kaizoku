@@ -11,10 +11,9 @@
 import { z } from 'zod';
 
 import { comicVineScraper } from '@/server/services/comicvine/scrapingService';
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import { fetchComicvineDetails } from './metadata-comicvine/details-fetcher';
@@ -126,24 +125,19 @@ export const metadataComicvineRouter = router({
     .mutation(
       async ({
         input,
-      }): Promise<
-        AsyncResult<
-          {
-            id?: string | number;
-            cover?: string;
-            description?: string;
-            alternativeTitles?: string[];
-            genres?: string[];
-            authors?: string[];
-            publisher?: string;
-            status?: string;
-            volumeCount?: number;
-            issueCount?: number;
-            startYear?: number;
-          },
-          Error
-        >
-      > => {
+      }): Promise<{
+        id?: string | number;
+        cover?: string;
+        description?: string;
+        alternativeTitles?: string[];
+        genres?: string[];
+        authors?: string[];
+        publisher?: string;
+        status?: string;
+        volumeCount?: number;
+        issueCount?: number;
+        startYear?: number;
+      }> => {
         try {
           const { url, id } = input;
 
@@ -156,12 +150,12 @@ export const metadataComicvineRouter = router({
             if (match) {
               comicvineId = match[1];
             } else {
-              return createErrorResult(new Error('Invalid ComicVine URL format'));
+              throw TRPCErrors.badRequest('Invalid ComicVine URL format');
             }
           }
 
           if (!comicvineId) {
-            return createErrorResult(new Error('ComicVine ID or URL is required'));
+            throw TRPCErrors.badRequest('ComicVine ID or URL is required');
           }
 
           logger.info(`Fetching enhanced metadata for ComicVine ID: ${comicvineId}`);
@@ -179,17 +173,17 @@ export const metadataComicvineRouter = router({
             const manga = typedResponse.results;
             const metadataResult = extractComicvineMetadata(manga, comicvineId);
             logger.info(`ComicVine metadata extracted successfully`, { id: comicvineId });
-            return createSuccessResult(metadataResult);
+            return metadataResult;
           } else if (typedResponse.results === null) {
             logger.warn(`ComicVine volume not found: ${comicvineId}`);
-            return createErrorResult(new Error(`ComicVine volume not found: ${comicvineId}`));
+            throw TRPCErrors.notFound('ComicVine volume', comicvineId);
           } else {
             logger.warn(`ComicVine fetch failed: ${typedResponse.error}`);
-            return createErrorResult(new Error(`ComicVine error: ${typedResponse.error ?? 'Unknown error'}`));
+            throw toTRPCError(new Error(`ComicVine error: ${typedResponse.error ?? 'Unknown error'}`));
           }
         } catch (error: unknown) {
           logger.error(`Error fetching ComicVine metadata: ${error instanceof Error ? error.message : String(error)}`);
-          return createErrorResult(
+          throw toTRPCError(
             error instanceof Error ? error : new Error(`Failed to fetch ComicVine metadata: ${String(error)}`)
           );
         }
@@ -220,7 +214,6 @@ export const metadataComicvineRouter = router({
       async ({
         input,
       }): Promise<
-        AsyncResult<
           {
             id: number;
             name?: string;
@@ -290,15 +283,13 @@ export const metadataComicvineRouter = router({
               name?: string;
               role?: string;
             }>;
-          },
-          Error
-        >
+          }
       > => {
         try {
           const { url, id, type } = input;
           const parsedInput = parseMetadataInput(url, id, type);
           if (!parsedInput.success) {
-            return createErrorResult(new Error(parsedInput.error));
+            throw TRPCErrors.badRequest(parsedInput.error);
           }
 
           const { id: itemId, type: itemType } = parsedInput.data;
@@ -309,17 +300,15 @@ export const metadataComicvineRouter = router({
           const result = await fetchComicvineDetails(comicvineService, itemType, numericId);
 
           if (!result) {
-            return createErrorResult(
-              new Error(`${itemType === 'issue' ? 'Issue' : 'Volume'} with ID ${numericId} not found`)
-            );
+            throw TRPCErrors.notFound(itemType === 'issue' ? 'Issue' : 'Volume', numericId);
           }
 
-          return createSuccessResult(result);
+          return result;
         } catch (error: unknown) {
           logger.error(
             `Error fetching ComicVine volume/issue details: ${error instanceof Error ? error.message : String(error)}`
           );
-          return createErrorResult(
+          throw toTRPCError(
             error instanceof Error ? error : new Error(`Failed to fetch ComicVine details: ${String(error)}`)
           );
         }
@@ -348,16 +337,11 @@ export const metadataComicvineRouter = router({
     .mutation(
       async ({
         input,
-      }): Promise<
-        AsyncResult<
-          {
-            covers: string[];
-            totalIssues: number;
-            coversFound: number;
-          },
-          Error
-        >
-      > => {
+      }): Promise<{
+        covers: string[];
+        totalIssues: number;
+        coversFound: number;
+      }> => {
         try {
           const { url } = input;
 
@@ -366,7 +350,7 @@ export const metadataComicvineRouter = router({
 
           // Validate URL is a ComicVine URL
           if (!url.includes('comicvine.gamespot.com')) {
-            return createErrorResult(new Error('URL must be a ComicVine page'));
+            throw TRPCErrors.badRequest('URL must be a ComicVine page');
           }
 
           // Step 1: Try to extract volume ID and use API first
@@ -394,11 +378,11 @@ export const metadataComicvineRouter = router({
                 const coversFound = covers.filter(c => c !== '').length;
                 logger.info(`[ComicVine API] Found ${coversFound} issue covers out of ${covers.length} issues`);
 
-                return createSuccessResult({
+                return {
                   covers,
                   totalIssues: covers.length,
                   coversFound,
-                });
+                };
               }
               logger.info(`[ComicVine API] No issues found, falling back to scraping`);
             } catch (apiError: unknown) {
@@ -415,16 +399,16 @@ export const metadataComicvineRouter = router({
           const coversFound = covers.filter((c: string) => c !== '').length;
           logger.info(`[ComicVine Scraper] Found ${coversFound} issue covers out of ${covers.length} issues`);
 
-          return createSuccessResult({
+          return {
             covers,
             totalIssues: covers.length,
             coversFound,
-          });
+          };
         } catch (error: unknown) {
           logger.error(
             `Error fetching ComicVine issue covers: ${error instanceof Error ? error.message : String(error)}`
           );
-          return createErrorResult(
+          throw toTRPCError(
             error instanceof Error ? error : new Error(`Failed to fetch issue covers: ${String(error)}`)
           );
         }

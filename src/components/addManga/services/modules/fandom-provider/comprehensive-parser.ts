@@ -7,7 +7,6 @@
  */
 
 import type { ProviderMetadata } from '@/types/universalImportWizard.types';
-import { isSuccess, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import { buildMetadataFromParsedData } from './metadata-from-parsed';
@@ -23,15 +22,15 @@ export type OnChapterCoversLoaded = (metadata: ProviderMetadata) => void;
  * Parse the mutation response and build metadata
  */
 function parseResponseToMetadata(
-  response: AsyncResult<unknown, unknown>,
+  response: unknown,
   result: Record<string, unknown>,
   url: string
 ): ProviderMetadata | undefined {
-  if (!isSuccess(response)) {
+  if (!response || typeof response !== 'object') {
     return undefined;
   }
 
-  const data = response.data as Record<string, unknown>;
+  const data = response as Record<string, unknown>;
   return buildMetadataFromParsedData(data, result, url);
 }
 
@@ -67,7 +66,7 @@ export async function tryComprehensiveParsing(
     forceRefresh: false,
     fetchChapterCovers: false,
     maxChaptersToFetch: 0
-  }) as AsyncResult<unknown, unknown>;
+  });
 
   const fastMetadata = parseResponseToMetadata(fastResponse, result, url);
 
@@ -98,7 +97,7 @@ export async function tryComprehensiveParsing(
           forceRefresh: false,
           fetchChapterCovers: true,
           maxChaptersToFetch: 0
-        }) as AsyncResult<unknown, unknown>;
+        });
 
         const coverMetadata = parseResponseToMetadata(coverResponse, result, url);
 

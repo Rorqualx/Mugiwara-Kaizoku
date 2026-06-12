@@ -118,21 +118,18 @@ async function testUrlPreservation() {
       const enhanceData = await enhanceResponse.json();
       
       if (enhanceData.result?.data?.json) {
-        const asyncResult = enhanceData.result.data.json;
-        
-        if (asyncResult.status === 'success' && asyncResult.data) {
-          const enhanced = asyncResult.data;
-          console.log('✅ Enhancement successful with preserved URL:');
-          console.log(`   Volume covers: ${enhanced.coverArt?.volumeCovers?.length || 0}`);
-          console.log(`   Gallery images: ${enhanced.coverArt?.gallery?.length || 0}`);
-          console.log(`   Character art: ${enhanced.coverArt?.characterArt?.length || 0}`);
-          
-          if (enhanced.coverArt?.volumeCovers?.length > 0) {
-            console.log('\n🎉 SUCCESS: URL preservation enables proper enhancement!');
-          }
-        } else if (asyncResult.status === 'error') {
-          console.error('❌ Enhancement failed:', asyncResult.error);
+        // tRPC returns the bare payload on success
+        const enhanced = enhanceData.result.data.json;
+        console.log('✅ Enhancement successful with preserved URL:');
+        console.log(`   Volume covers: ${enhanced.coverArt?.volumeCovers?.length || 0}`);
+        console.log(`   Gallery images: ${enhanced.coverArt?.gallery?.length || 0}`);
+        console.log(`   Character art: ${enhanced.coverArt?.characterArt?.length || 0}`);
+
+        if (enhanced.coverArt?.volumeCovers?.length > 0) {
+          console.log('\n🎉 SUCCESS: URL preservation enables proper enhancement!');
         }
+      } else if (enhanceData.error) {
+        console.error('❌ Enhancement failed:', enhanceData.error.json?.message || enhanceData.error);
       }
     }
     

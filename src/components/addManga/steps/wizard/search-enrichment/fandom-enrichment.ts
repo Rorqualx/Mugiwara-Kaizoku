@@ -6,7 +6,6 @@
 
 import { isRecord } from '@/lib/type-guards';
 import type { ProviderMetadata, Volume } from '@/types/universalImportWizard.types';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { vanillaTrpcClient } from '@/utils/trpc-client/vanilla';
 
@@ -107,46 +106,43 @@ export async function fetchFandomMetadataAsync(
   // Process parseFandomUrl result (volumes, chapters, gallery)
   if (parseResult.status === 'fulfilled') {
     logger.warn('[SearchEnrichment] parseFandomUrl fulfilled', {
-      isSuccess: isSuccess(parseResult.value),
-      valueKeys: Object.keys(parseResult.value as Record<string, unknown>),
+      valueKeys: Object.keys(parseResult.value as unknown as Record<string, unknown>),
     });
 
-    if (isSuccess(parseResult.value)) {
-      const parsed = parseResult.value.data as unknown as Record<string, unknown>;
-      logger.warn('[SearchEnrichment] Fandom parse complete', {
-        hasGallery: !!parsed['gallery'],
-        galleryLength: Array.isArray(parsed['gallery']) ? parsed['gallery'].length : 0,
-        volumeCount: parsed['volumes'],
-        chapterCount: parsed['chapters'],
-        hasVolumeDetails: !!parsed['volumeDetails'],
-        volumeDetailsLength: Array.isArray(parsed['volumeDetails']) ? parsed['volumeDetails'].length : 0,
-      });
+    const parsed = parseResult.value as unknown as Record<string, unknown>;
+    logger.warn('[SearchEnrichment] Fandom parse complete', {
+      hasGallery: !!parsed['gallery'],
+      galleryLength: Array.isArray(parsed['gallery']) ? parsed['gallery'].length : 0,
+      volumeCount: parsed['volumes'],
+      chapterCount: parsed['chapters'],
+      hasVolumeDetails: !!parsed['volumeDetails'],
+      volumeDetailsLength: Array.isArray(parsed['volumeDetails']) ? parsed['volumeDetails'].length : 0,
+    });
 
-      if (Array.isArray(parsed['gallery']) && parsed['gallery'].length > 0) {
-        enrichedMetadata.gallery = parsed['gallery'] as string[];
+    if (Array.isArray(parsed['gallery']) && parsed['gallery'].length > 0) {
+      enrichedMetadata.gallery = parsed['gallery'] as string[];
+    }
+    if (Array.isArray(parsed['volumeDetails']) && parsed['volumeDetails'].length > 0) {
+      enrichedMetadata.volumeData = parsed['volumeDetails'] as Volume[];
+      // Log first volume details for debugging
+      const firstVol = parsed['volumeDetails'][0] as Record<string, unknown> | undefined;
+      if (firstVol) {
+        const chapters = firstVol['chapters'];
+        logger.warn('[SearchEnrichment] First volume sample', {
+          volumeNumber: firstVol['volumeNumber'],
+          title: firstVol['title'],
+          hasChapters: !!chapters,
+          chapterCount: Array.isArray(chapters) ? chapters.length : 0,
+          hasDescription: !!firstVol['description'],
+          keys: Object.keys(firstVol),
+        });
       }
-      if (Array.isArray(parsed['volumeDetails']) && parsed['volumeDetails'].length > 0) {
-        enrichedMetadata.volumeData = parsed['volumeDetails'] as Volume[];
-        // Log first volume details for debugging
-        const firstVol = parsed['volumeDetails'][0] as Record<string, unknown> | undefined;
-        if (firstVol) {
-          const chapters = firstVol['chapters'];
-          logger.warn('[SearchEnrichment] First volume sample', {
-            volumeNumber: firstVol['volumeNumber'],
-            title: firstVol['title'],
-            hasChapters: !!chapters,
-            chapterCount: Array.isArray(chapters) ? chapters.length : 0,
-            hasDescription: !!firstVol['description'],
-            keys: Object.keys(firstVol),
-          });
-        }
-      }
-      if (typeof parsed['volumes'] === 'number' && parsed['volumes'] > 0) {
-        enrichedMetadata.volumes = parsed['volumes'];
-      }
-      if (typeof parsed['chapters'] === 'number' && parsed['chapters'] > 0) {
-        enrichedMetadata.chapters = parsed['chapters'];
-      }
+    }
+    if (typeof parsed['volumes'] === 'number' && parsed['volumes'] > 0) {
+      enrichedMetadata.volumes = parsed['volumes'];
+    }
+    if (typeof parsed['chapters'] === 'number' && parsed['chapters'] > 0) {
+      enrichedMetadata.chapters = parsed['chapters'];
     }
   } else {
     const rejectedResult = parseResult as PromiseRejectedResult;
@@ -158,55 +154,52 @@ export async function fetchFandomMetadataAsync(
   // Process fetchFandomMetadata result (description, authors, genres, etc.)
   if (metadataResult.status === 'fulfilled') {
     logger.warn('[SearchEnrichment] fetchFandomMetadata fulfilled', {
-      isSuccess: isSuccess(metadataResult.value),
-      valueKeys: Object.keys(metadataResult.value as Record<string, unknown>),
+      valueKeys: Object.keys(metadataResult.value as unknown as Record<string, unknown>),
     });
 
-    if (isSuccess(metadataResult.value)) {
-      const data = metadataResult.value.data as unknown as Record<string, unknown>;
-      logger.warn('[SearchEnrichment] Fandom metadata fetch complete', {
-        hasDescription: !!data['description'],
-        descriptionLength: typeof data['description'] === 'string' ? data['description'].length : 0,
-        descriptionPreview: typeof data['description'] === 'string' ? data['description'].substring(0, 100) : '',
-        hasGenres: !!data['genres'],
-        hasAuthors: !!data['authors'],
-        hasCover: !!data['cover'],
-        allKeys: Object.keys(data),
-      });
+    const data = metadataResult.value as unknown as Record<string, unknown>;
+    logger.warn('[SearchEnrichment] Fandom metadata fetch complete', {
+      hasDescription: !!data['description'],
+      descriptionLength: typeof data['description'] === 'string' ? data['description'].length : 0,
+      descriptionPreview: typeof data['description'] === 'string' ? data['description'].substring(0, 100) : '',
+      hasGenres: !!data['genres'],
+      hasAuthors: !!data['authors'],
+      hasCover: !!data['cover'],
+      allKeys: Object.keys(data),
+    });
 
-      if (data['description'] && typeof data['description'] === 'string') {
-        enrichedMetadata.description = data['description'];
-        enrichedMetadata.synopsis = data['description'];
-      }
-      if (data['cover'] && typeof data['cover'] === 'string') {
-        enrichedMetadata.coverImage = data['cover'];
-      }
-      if (data['status'] && typeof data['status'] === 'string') {
-        enrichedMetadata.status = data['status'];
-      }
-      if (Array.isArray(data['genres']) && data['genres'].length > 0) {
-        enrichedMetadata.genres = data['genres'] as string[];
-      }
-      if (Array.isArray(data['authors']) && data['authors'].length > 0) {
-        enrichedMetadata.authors = data['authors'] as string[];
-      }
-      if (Array.isArray(data['alternativeTitles']) && data['alternativeTitles'].length > 0) {
-        enrichedMetadata.alternativeTitles = data['alternativeTitles'] as string[];
-      }
-      if (data['originalRun'] && typeof data['originalRun'] === 'string') {
-        enrichedMetadata.startDate = data['originalRun'];
-      }
-      if (typeof data['myAnimeListId'] === 'number') {
-        enrichedMetadata.idMal = data['myAnimeListId'];
-      } else if (typeof data['myAnimeListId'] === 'string' && data['myAnimeListId'].length > 0) {
-        enrichedMetadata.idMal = parseInt(data['myAnimeListId'], 10);
-      }
-      if (data['startDate'] && typeof data['startDate'] === 'string') {
-        enrichedMetadata.startDate = data['startDate'];
-      }
-      if (data['endDate'] && typeof data['endDate'] === 'string') {
-        enrichedMetadata.endDate = data['endDate'];
-      }
+    if (data['description'] && typeof data['description'] === 'string') {
+      enrichedMetadata.description = data['description'];
+      enrichedMetadata.synopsis = data['description'];
+    }
+    if (data['cover'] && typeof data['cover'] === 'string') {
+      enrichedMetadata.coverImage = data['cover'];
+    }
+    if (data['status'] && typeof data['status'] === 'string') {
+      enrichedMetadata.status = data['status'];
+    }
+    if (Array.isArray(data['genres']) && data['genres'].length > 0) {
+      enrichedMetadata.genres = data['genres'] as string[];
+    }
+    if (Array.isArray(data['authors']) && data['authors'].length > 0) {
+      enrichedMetadata.authors = data['authors'] as string[];
+    }
+    if (Array.isArray(data['alternativeTitles']) && data['alternativeTitles'].length > 0) {
+      enrichedMetadata.alternativeTitles = data['alternativeTitles'] as string[];
+    }
+    if (data['originalRun'] && typeof data['originalRun'] === 'string') {
+      enrichedMetadata.startDate = data['originalRun'];
+    }
+    if (typeof data['myAnimeListId'] === 'number') {
+      enrichedMetadata.idMal = data['myAnimeListId'];
+    } else if (typeof data['myAnimeListId'] === 'string' && data['myAnimeListId'].length > 0) {
+      enrichedMetadata.idMal = parseInt(data['myAnimeListId'], 10);
+    }
+    if (data['startDate'] && typeof data['startDate'] === 'string') {
+      enrichedMetadata.startDate = data['startDate'];
+    }
+    if (data['endDate'] && typeof data['endDate'] === 'string') {
+      enrichedMetadata.endDate = data['endDate'];
     }
   } else {
     const rejectedResult = metadataResult as PromiseRejectedResult;
@@ -254,14 +247,7 @@ export function fetchFandomChapterCoversBackground(
       maxChaptersToFetch: 0,
     })
     .then((result) => {
-      if (!isSuccess(result)) {
-        logger.warn('[SearchEnrichment] Background chapter cover fetch failed', {
-          error: 'Result not successful',
-        });
-        return;
-      }
-
-      const parsed = result.data as unknown as Record<string, unknown>;
+      const parsed = result as unknown as Record<string, unknown>;
       const volumeDetails = parsed['volumeDetails'];
 
       if (!Array.isArray(volumeDetails) || volumeDetails.length === 0) {
@@ -329,12 +315,7 @@ export function enrichFandomResult(
       maxChaptersToFetch: 0,
     })
     .then((parseResult) => {
-      if (!isSuccess(parseResult)) {
-        logger.warn('[SearchEnrichment] Fandom parse failed', { parseResult });
-        return;
-      }
-
-      const parsed = parseResult.data as unknown as Record<string, unknown>;
+      const parsed = parseResult as unknown as Record<string, unknown>;
       const volumeDetails = parsed['volumeDetails'];
       const chapterCoverCount = countChapterCoversInVolumes(volumeDetails);
 
@@ -359,12 +340,7 @@ export function enrichFandomResult(
   void vanillaTrpcClient.metadata.fetchFandomMetadata
     .mutate({ url: fandomUrl })
     .then((metadataResult) => {
-      if (!isSuccess(metadataResult)) {
-        logger.warn('[SearchEnrichment] Fandom metadata fetch failed', { metadataResult });
-        return;
-      }
-
-      const data = metadataResult.data as unknown as Record<string, unknown>;
+      const data = metadataResult as unknown as Record<string, unknown>;
       logger.debug('[SearchEnrichment] Fandom metadata fetch complete', {
         hasDescription: !!data['description'],
         hasGenres: !!data['genres'],

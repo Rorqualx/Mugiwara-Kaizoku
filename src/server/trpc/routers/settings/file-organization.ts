@@ -18,14 +18,10 @@ import {
   type FileOrganizationSettings,
 } from '@/server/services/config/generalConfigService';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError,
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 import { fileOrganizationSchema } from './utils';
@@ -38,12 +34,11 @@ export const settingsFileOrganizationRouter = router({
    *
    * @returns The file organization settings
    */
-  getFileOrganization: protectedProcedure.query(async () => {
+  getFileOrganization: protectedProcedure.query(async (): Promise<FileOrganizationSettings> => {
     try {
       const configService = getGlobalConfigService();
       const generalConfigService = getGeneralConfigService(configService);
-      const settings = await generalConfigService.getFileOrganizationSettings();
-      return createSuccessResult(settings);
+      return await generalConfigService.getFileOrganizationSettings();
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -65,7 +60,7 @@ export const settingsFileOrganizationRouter = router({
    */
   updateFileOrganization: protectedProcedure
     .input(fileOrganizationSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const configService = getGlobalConfigService();
         const generalConfigService = getGeneralConfigService(configService);
@@ -82,14 +77,14 @@ export const settingsFileOrganizationRouter = router({
         await generalConfigService.updateFileOrganization(
           fileOrgData as Partial<FileOrganizationSettings>
         );
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         logger.error(
           `Error updating file organization settings: ${errorMessage}`
         );
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }

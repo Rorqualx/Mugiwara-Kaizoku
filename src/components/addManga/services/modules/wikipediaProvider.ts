@@ -1,5 +1,4 @@
 import type { ProviderMetadata, Volume, Chapter } from '@/types/universalImportWizard.types';
-import { isSuccess, isError, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import {
@@ -127,15 +126,10 @@ export async function fetchEnhancedWikipediaMetadata(
 
   try {
     logger.debug('[fetchEnhancedWikipediaMetadata] Calling mutation...');
-    const response = await fetchWikipediaMutation.mutateAsync({ title }) as AsyncResult<unknown, unknown>;
-    logger.debug('[fetchEnhancedWikipediaMetadata] Mutation response', { status: (response as { status?: string }).status });
+    const response = await fetchWikipediaMutation.mutateAsync({ title });
+    logger.debug('[fetchEnhancedWikipediaMetadata] Mutation response received');
 
-    if (isError(response)) {
-      logger.error('[Wikipedia] Mutation error:', response.error);
-      return fetchWikipediaMetadata(searchResult);
-    }
-
-    const data = (isSuccess(response) ? response.data : response) as Record<string, unknown>;
+    const data = response as Record<string, unknown>;
     logEnhancedResponse(data);
 
     const volumeList = (data["volumeList"] as unknown[] | undefined) ?? [];

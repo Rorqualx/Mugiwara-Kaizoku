@@ -14,10 +14,10 @@
 import { z } from 'zod';
 
 import { calculateTotalChapters } from '@/server/services/metadata/chapter-count-helpers';
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult, isError, isSuccess } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
+import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
 import { logger } from '@/utils/logger';
 
 import { handleError } from '../metadata-utils';
@@ -44,13 +44,13 @@ export const metadataFandomEnhancedRouter = router({
         forceRefresh: z.boolean().optional().default(false),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<unknown, Error>> => {
+    .mutation(async ({ input }): Promise<unknown> => {
       try {
         const { url, followLinks, extractSummaries, maxDepth, forceRefresh } = input;
 
         // Validate it's a Fandom URL
         if (!url.includes('fandom.com') && !url.includes('wikia.com')) {
-          return createErrorResult(new Error('Not a valid Fandom wiki URL'));
+          throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
         }
 
         logger.info(`Getting enhanced Fandom metadata with dynamic parser: ${url}`);
@@ -61,7 +61,7 @@ export const metadataFandomEnhancedRouter = router({
         );
         const fandomEnhancedService = new FandomEnhancedService();
 
-        // Get enhanced metadata
+        // Get enhanced metadata (service keeps AsyncResult; unwrap at the tRPC boundary)
         const result = await fandomEnhancedService.getEnhancedMetadata(url, {
           followLinks,
           extractSummaries,
@@ -69,27 +69,21 @@ export const metadataFandomEnhancedRouter = router({
           cacheResults: !forceRefresh,
         });
 
-        if (isError(result)) {
-          return result;
-        }
+        const data = unwrapResultOrThrow(result);
 
-        if (!isSuccess(result)) {
-          return result;
-        }
-
-        const resultData = result.data as {
+        const resultData = data as {
           stats?: { totalVolumes?: number; totalChapters?: number };
         };
         logger.info(
           `Successfully extracted enhanced metadata: ${resultData.stats?.totalVolumes} volumes, ${resultData.stats?.totalChapters} chapters`
         );
 
-        return result;
+        return data;
       } catch (error: unknown) {
         logger.error(
           `Error getting enhanced Fandom metadata: ${error instanceof Error ? error.message : String(error)}`
         );
-        return createErrorResult(handleError(error));
+        throw toTRPCError(handleError(error));
       }
     }),
 
@@ -107,22 +101,17 @@ export const metadataFandomEnhancedRouter = router({
     .mutation(
       async ({
         input,
-      }): Promise<
-        AsyncResult<
-          {
-            volumes: number;
-            chapters: number;
-            volumeDetails: VolumeDetail[];
-          },
-          Error
-        >
-      > => {
+      }): Promise<{
+        volumes: number;
+        chapters: number;
+        volumeDetails: VolumeDetail[];
+      }> => {
         try {
           const { url, fetchChapterCovers, maxChaptersToFetch } = input;
 
           // Validate it's a Fandom URL
           if (!url.includes('fandom.com')) {
-            return createErrorResult(new Error('Not a valid Fandom wiki URL'));
+            throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
           }
 
           logger.info(`Parsing Fandom URL with enhanced options: ${url}`);
@@ -162,16 +151,16 @@ export const metadataFandomEnhancedRouter = router({
             `Parsed ${uniqueVolumes.length} volumes with ${totalChapters} chapters from Fandom (enhanced: ${fetchChapterCovers}, details fetched: ${chapterDetailsMap.size})`
           );
 
-          return createSuccessResult({
+          return {
             volumes: uniqueVolumes.length,
             chapters: totalChapters,
             volumeDetails,
-          });
+          };
         } catch (error: unknown) {
           logger.error(
             `Error parsing Fandom URL: ${error instanceof Error ? error.message : String(error)}`
           );
-          return createErrorResult(handleError(error));
+          throw toTRPCError(handleError(error));
         }
       }
     ),

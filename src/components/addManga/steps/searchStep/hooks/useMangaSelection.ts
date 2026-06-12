@@ -110,17 +110,10 @@ export function useMangaSelection({
           vanillaTrpcClient.metadata.warmupFlareSolverr.mutate({
             volumeId
           }).then((warmupResult) => {
-            // AsyncResult has status: 'success' | 'error' | 'idle' | 'loading'
-            if (warmupResult.status === 'success') {
-              logger.info('[handleMangaSelect] FlareSolverr warmup complete', {
-                warmedUp: warmupResult.data.warmedUp,
-                message: warmupResult.data.message
-              });
-            } else if (warmupResult.status === 'error') {
-              logger.warn('[handleMangaSelect] FlareSolverr warmup returned error (scraping will retry)', {
-                error: warmupResult.error.message
-              });
-            }
+            logger.info('[handleMangaSelect] FlareSolverr warmup complete', {
+              warmedUp: warmupResult.warmedUp,
+              message: warmupResult.message
+            });
           }).catch((warmupError: unknown) => {
             // Non-critical - scraping will still work, just slower on first request
             logger.warn('[handleMangaSelect] FlareSolverr warmup failed (scraping will retry)', {
@@ -164,50 +157,47 @@ export function useMangaSelection({
           });
 
           logger.debug('[useMangaSelection] AniList fetch result', {
-            isSuccess: isSuccess(anilistResult),
             hasData: !!anilistResult
           });
 
-          if (isSuccess(anilistResult)) {
-            const anilistData = anilistResult.data as Record<string, unknown>;
-            logger.debug('[useMangaSelection] AniList enriched data', {
-              hasAuthors: !!anilistData['authors'],
-              authors: anilistData['authors'],
-              hasArtists: !!anilistData['artists'],
-              artists: anilistData['artists'],
-              startDate: anilistData['startDate']
-            });
+          const anilistData = anilistResult as Record<string, unknown>;
+          logger.debug('[useMangaSelection] AniList enriched data', {
+            hasAuthors: !!anilistData['authors'],
+            authors: anilistData['authors'],
+            hasArtists: !!anilistData['artists'],
+            artists: anilistData['artists'],
+            startDate: anilistData['startDate']
+          });
 
-            // Merge enriched data with the selected result
-            // Build object incrementally to avoid spread type errors
-            const enrichedFields: Partial<ExtendedMangaSearchResult> = {};
-            if (Array.isArray(anilistData['authors']) && anilistData['authors'].length > 0) {
-              enrichedFields.authors = anilistData['authors'] as string[];
-            }
-            if (Array.isArray(anilistData['artists']) && anilistData['artists'].length > 0) {
-              (enrichedFields as Record<string, unknown>)['artists'] = anilistData['artists'] as string[];
-            }
-            if (anilistData['startDate'] && typeof anilistData['startDate'] === 'string') {
-              (enrichedFields as Record<string, unknown>)['startDate'] = anilistData['startDate'];
-            }
-            if (anilistData['endDate'] && typeof anilistData['endDate'] === 'string') {
-              (enrichedFields as Record<string, unknown>)['endDate'] = anilistData['endDate'];
-            }
-
-            enrichedSelected = {
-              ...selected,
-              ...enrichedFields,
-              // Preserve original provider/source
-              provider: selected.provider,
-              source: selected.source
-            } as ExtendedMangaSearchResult;
-
-            logger.debug('[useMangaSelection] AniList result enriched', {
-              hasAuthors: !!enrichedSelected.authors,
-              authorsCount: enrichedSelected.authors?.length ?? 0,
-              authors: enrichedSelected.authors
-            });
+          // Merge enriched data with the selected result
+          // Build object incrementally to avoid spread type errors
+          const enrichedFields: Partial<ExtendedMangaSearchResult> = {};
+          if (Array.isArray(anilistData['authors']) && anilistData['authors'].length > 0) {
+            enrichedFields.authors = anilistData['authors'] as string[];
           }
+          if (Array.isArray(anilistData['artists']) && anilistData['artists'].length > 0) {
+            (enrichedFields as Record<string, unknown>)['artists'] = anilistData['artists'] as string[];
+          }
+          if (anilistData['startDate'] && typeof anilistData['startDate'] === 'string') {
+            (enrichedFields as Record<string, unknown>)['startDate'] = anilistData['startDate'];
+          }
+          if (anilistData['endDate'] && typeof anilistData['endDate'] === 'string') {
+            (enrichedFields as Record<string, unknown>)['endDate'] = anilistData['endDate'];
+          }
+
+          enrichedSelected = {
+            ...selected,
+            ...enrichedFields,
+            // Preserve original provider/source
+            provider: selected.provider,
+            source: selected.source
+          } as ExtendedMangaSearchResult;
+
+          logger.debug('[useMangaSelection] AniList result enriched', {
+            hasAuthors: !!enrichedSelected.authors,
+            authorsCount: enrichedSelected.authors?.length ?? 0,
+            authors: enrichedSelected.authors
+          });
         } catch (enrichError) {
           logger.error('[useMangaSelection] AniList enrichment error', { error: enrichError });
           // Continue with unenriched result

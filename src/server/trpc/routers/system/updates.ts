@@ -5,13 +5,9 @@
 import { z } from 'zod';
 
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { toTRPCError } from '@/server/trpc/errors';
 import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import {
-  createSuccessResult,
-  createErrorResult
-} from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 import { compareSemver, getPackageVersion, parseChangelog } from './utils';
@@ -123,11 +119,11 @@ export const checkForUpdates = protectedProcedure.query((): CheckUpdatesResponse
  *
  * @param {Object} input - Update parameters
  * @param {string} [input.version] - Specific version to update to (optional)
- * @returns {Promise<AsyncResult<PerformUpdateResponse, Error>>} Update instructions and success status
+ * @returns {PerformUpdateResponse} Update instructions
  */
 export const performUpdate = adminProcedure
   .input(z.object({ version: z.string().optional() }))
-  .mutation(({ input: _input }): Promise<AsyncResult<PerformUpdateResponse, Error>> => {
+  .mutation(({ input: _input }): PerformUpdateResponse => {
     try {
       const isDocker = process.env['DOCKER'] === 'true';
 
@@ -139,7 +135,7 @@ export const performUpdate = adminProcedure
       });
 
       if (isDocker) {
-        return Promise.resolve(createSuccessResult({
+        return {
           message: 'To update the Docker container, run: docker-compose pull && docker-compose up -d',
           instructions: [
             'Stop the container: docker-compose down',
@@ -147,10 +143,10 @@ export const performUpdate = adminProcedure
             'Start the container: docker-compose up -d',
             'Check logs for any issues: docker-compose logs -f',
           ],
-        }));
+        };
       }
 
-      return Promise.resolve(createSuccessResult({
+      return {
         message: 'To update the local installation, run: git pull && bun install && bun run build:clean && bun run start',
         instructions: [
           'Stop the current process',
@@ -159,12 +155,12 @@ export const performUpdate = adminProcedure
           'Build the application: bun run build:clean',
           'Start the application: bun run start',
         ],
-      }));
+      };
     } catch (error: unknown) {
       logger.error(`Failed to perform update: ${error instanceof Error ? error.message : String(error)}`);
-      return Promise.resolve(createErrorResult(
+      throw toTRPCError(
         error instanceof Error ? error : new Error('Failed to perform update')
-      ));
+      );
     }
   });
 

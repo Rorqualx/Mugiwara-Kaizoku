@@ -23,13 +23,9 @@ import { z } from 'zod';
 import { backupService } from '@/server/services/backup/index';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { toTRPCError } from '@/server/trpc/errors';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import {
-  createSuccessResult,
-  createErrorResult
-} from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logging';
 
@@ -102,7 +98,7 @@ export const systemBackupRouter = router({
    * @param {string} [input.name] - Optional name for the backup
    * @param {string} [input.notes] - Optional notes about the backup
    * @param {Array<string>} [input.contents] - What to include in the backup (DATABASE, CONFIGURATION, MEDIA_FILES)
-   * @returns {Promise<AsyncResult<CreateBackupResult, Error>>} Success status and ID of the created backup
+   * @returns {Promise<CreateBackupResult>} ID of the created backup
    */
   createBackup: adminProcedure
     .input(z.object({
@@ -110,7 +106,7 @@ export const systemBackupRouter = router({
       notes: z.string().max(1000).optional(),
       contents: z.array(z.enum(['DATABASE', 'CONFIGURATION', 'MEDIA_FILES'])).optional()
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<CreateBackupResult, Error>> => {
+    .mutation(async ({ input }): Promise<CreateBackupResult> => {
       try {
         const contents = input.contents?.map((content) => {
           switch (content) {
@@ -149,7 +145,7 @@ export const systemBackupRouter = router({
           name: input.name,
         });
 
-        return createSuccessResult({ backupId });
+        return { backupId };
       }
       catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -178,13 +174,13 @@ export const systemBackupRouter = router({
    *
    * @param {Object} input - Delete parameters
    * @param {number} input.id - ID of the backup to delete
-   * @returns {Promise<AsyncResult<null, Error>>} Success status
+   * @returns {Promise<null>} Resolves when the backup has been deleted
    */
   deleteBackup: adminProcedure
     .input(z.object({
       id: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<null, Error>> => {
+    .mutation(async ({ input }): Promise<null> => {
       try {
         await backupService.deleteBackup(input.id);
 
@@ -194,7 +190,7 @@ export const systemBackupRouter = router({
           operation: 'deleted',
         });
 
-        return createSuccessResult(null);
+        return null;
       }
       catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -224,13 +220,13 @@ export const systemBackupRouter = router({
    *
    * @param {Object} input - Restore parameters
    * @param {number} input.id - ID of the backup to restore
-   * @returns {Promise<AsyncResult<null, Error>>} Success status
+   * @returns {Promise<null>} Resolves when the restore has been initiated
    */
   restoreBackup: adminProcedure
     .input(z.object({
       id: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<null, Error>> => {
+    .mutation(async ({ input }): Promise<null> => {
       try {
         // Emit restore started event
         void realtimeEmitter.emitBackupOperation({
@@ -246,7 +242,7 @@ export const systemBackupRouter = router({
           operation: 'restored',
         });
 
-        return createSuccessResult(null);
+        return null;
       }
       catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -288,7 +284,7 @@ export const systemBackupRouter = router({
    * @param {boolean} [input.includeDatabase] - Whether to include database in backups
    * @param {boolean} [input.includeConfig] - Whether to include configuration in backups
    * @param {boolean} [input.includeMedia] - Whether to include media files in backups
-   * @returns {Promise<AsyncResult<ScheduleBackupResult, Error>>} Success status, message, and task ID
+   * @returns {Promise<ScheduleBackupResult>} Confirmation message and task ID
    */
   scheduleBackup: adminProcedure
     .input(z.object({
@@ -300,7 +296,7 @@ export const systemBackupRouter = router({
       includeConfig: z.boolean().optional(),
       includeMedia: z.boolean().optional()
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<ScheduleBackupResult, Error>> => {
+    .mutation(async ({ input }): Promise<ScheduleBackupResult> => {
       try {
         // Get ConfigService instance
         const configService = getGlobalConfigService();
@@ -329,20 +325,16 @@ export const systemBackupRouter = router({
           operation: 'scheduled',
         });
 
-        return createSuccessResult({
+        return {
           message: 'Backup schedule updated and backup task scheduled',
           taskId: String(taskId)
-        });
+        };
       }
       catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error('Failed to schedule backup', { error: errorMessage, input });
 
-        if (error instanceof ValidationError) {
-          return createErrorResult(new Error(errorMessage));
-        }
-
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error ? error : new Error('Failed to schedule backup')
         );
       }

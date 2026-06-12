@@ -8,8 +8,6 @@
  */
 import { useMemo } from 'react';
 
-import { isSuccess } from '@/utils/async-result';
-
 import { DEFAULT_FIELD_PRIORITIES, FallbackMode } from '../types/search.types';
 import { trpc } from '../utils/trpc-client/index';
 
@@ -90,44 +88,27 @@ export function useFieldProviderPreferences(): FieldProviderPreferences {
     keys: ['fieldProviderPreferences.enabled', 'fieldProviderPreferences.preferences', 'fieldProviderPreferences.fallbackMode']
   });
 
-  // Extract individual settings from batch result and maintain isSuccess compatibility
-  // Wrap in useMemo to prevent re-creation on every render
-  const enabledSetting = useMemo(() =>
-    batchSettings && isSuccess(batchSettings)
-      ? { ...batchSettings, data: (batchSettings.data as Record<string, unknown>)['fieldProviderPreferences.enabled'] ?? false }
-      : null
-  , [batchSettings]);
-
-  const preferencesSetting = useMemo(() =>
-    batchSettings && isSuccess(batchSettings)
-      ? { ...batchSettings, data: (batchSettings.data as Record<string, unknown>)['fieldProviderPreferences.preferences'] ?? {} }
-      : null
-  , [batchSettings]);
-
-  const fallbackModeSetting = useMemo(() =>
-    batchSettings && isSuccess(batchSettings)
-      ? { ...batchSettings, data: (batchSettings.data as Record<string, unknown>)['fieldProviderPreferences.fallbackMode'] ?? 'priority' }
-      : null
-  , [batchSettings]);
+  // batchSettings is now the bare Record<string, unknown> payload — extract
+  // each setting directly. Wrap in useMemo to prevent re-creation on every render.
 
   // Process enabled state
   const enabled = useMemo(() => {
-    if (!enabledSetting || !isSuccess(enabledSetting)) return false;
-    return enabledSetting.data as boolean;
-  }, [enabledSetting]);
+    if (!batchSettings) return false;
+    return Boolean(batchSettings['fieldProviderPreferences.enabled'] ?? false);
+  }, [batchSettings]);
 
   // Process preferences
   const preferences = useMemo(() => {
-    if (!preferencesSetting || !isSuccess(preferencesSetting)) return buildDefaultPreferences();
-    const savedPrefs = preferencesSetting.data as Record<string, string>;
+    if (!batchSettings) return buildDefaultPreferences();
+    const savedPrefs = (batchSettings['fieldProviderPreferences.preferences'] ?? {}) as Record<string, string>;
     return Object.keys(savedPrefs).length > 0 ? savedPrefs : buildDefaultPreferences();
-  }, [preferencesSetting]);
+  }, [batchSettings]);
 
   // Process fallback mode
   const fallbackMode = useMemo(() => {
-    if (!fallbackModeSetting || !isSuccess(fallbackModeSetting)) return 'priority' as FallbackMode;
-    return extractFallbackMode(fallbackModeSetting.data);
-  }, [fallbackModeSetting]);
+    if (!batchSettings) return 'priority' as FallbackMode;
+    return extractFallbackMode(batchSettings['fieldProviderPreferences.fallbackMode'] ?? 'priority');
+  }, [batchSettings]);
 
   // Helper function to get preferred provider for a field
   const getPreferredProvider = (field: string): string | null => {

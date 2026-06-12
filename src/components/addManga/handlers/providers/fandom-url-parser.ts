@@ -160,24 +160,24 @@ export async function parseFandomUrl(options: ParseFandomUrlOptions): Promise<vo
   ]);
 
   // Extract volume/chapter data from parse result
-  const result = parseResult.status === 'fulfilled'
-    ? parseResult.value as { data?: { volumeDetails?: unknown[]; chapters?: number; totalChapters?: number; gallery?: string[] } }
+  // (tRPC returns the bare payload; wrap it under `data` to keep downstream access uniform)
+  type ParsedFandomData = { volumeDetails?: unknown[]; chapters?: number; totalChapters?: number; gallery?: string[] };
+  const result: { data?: ParsedFandomData } | undefined = parseResult.status === 'fulfilled'
+    ? { data: parseResult.value as unknown as ParsedFandomData }
     : undefined;
 
   // Extract metadata (authors, idMal, description, genres) from fetch result
   type FetchData = {
-    data?: {
-      authors?: string[];
-      myAnimeListId?: number;
-      description?: string;
-      genres?: string[];
-      startDate?: string;
-      endDate?: string;
-      status?: string;
-    };
+    authors?: string[];
+    myAnimeListId?: number;
+    description?: string;
+    genres?: string[];
+    startDate?: string;
+    endDate?: string;
+    status?: string;
   };
   const fetchData = fetchResult.status === 'fulfilled'
-    ? (fetchResult.value as FetchData).data
+    ? (fetchResult.value as unknown as FetchData)
     : undefined;
 
   logger.info('[parseFandomUrl] Both mutations completed:', {

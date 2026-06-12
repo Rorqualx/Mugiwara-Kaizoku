@@ -17,18 +17,19 @@ interface SettingsResponseData {
 /**
  * Extracts settings data from query response
  *
- * @param data - Raw query data
- * @param isSuccessFn - Success check function (accepts unknown data)
+ * `settings.get` now returns the bare payload over the wire (no AsyncResult
+ * envelope), so this just narrows the unknown payload to the expected shape.
+ *
+ * @param data - Raw query data (the bare settings payload)
  * @returns Extracted settings data or undefined
  */
 export function extractSettingsData(
-  data: unknown,
-  isSuccessFn: <T>(data: unknown) => data is T
+  data: unknown
 ): SettingsResponseData | undefined {
-  if (!data || !isSuccessFn(data)) {
+  if (!data || typeof data !== 'object') {
     return undefined;
   }
-  return (data as { data?: SettingsResponseData }).data;
+  return data as SettingsResponseData;
 }
 
 /**

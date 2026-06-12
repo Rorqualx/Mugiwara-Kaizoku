@@ -5,7 +5,6 @@
  */
 
 import type { ProviderMetadata } from '@/types/universalImportWizard.types';
-import { isSuccess, isError, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 interface Mutation {
@@ -35,13 +34,10 @@ export async function fetchAnilistMetadata(
   logger.info('[AniList] Using ID:', id);
   // Convert to string if it's a number (the API expects string)
   const idString = String(id);
-  const response = await fetchAnilistMutation.mutateAsync({ id: idString }) as AsyncResult<unknown, unknown>;
+  // The tRPC procedure returns the bare payload and throws TRPCError on failure
+  const response = await fetchAnilistMutation.mutateAsync({ id: idString }) as unknown;
 
-  if (isError(response)) {
-    throw new Error((response.error as Error).message || 'Failed to fetch data');
-  }
-
-  const data = (isSuccess(response) ? response.data : response) as Record<string, unknown>;
+  const data = response as Record<string, unknown>;
   const media = (data["Media"] ?? data) as Record<string, unknown>;
 
   // Debug: Log the actual structure of media object to see what cover fields are available
@@ -138,7 +134,6 @@ export async function fetchAnilistMetadata(
 
   logger.info('[AniList sourceManagementService] Received from tRPC:', {
     responseType: typeof response,
-    isSuccessResult: isSuccess(response),
     dataKeys: Object.keys(data),
     mediaKeys: Object.keys(media),
     mediaTagsCount: (media["tags"] as unknown[] | undefined)?.length ?? 0,

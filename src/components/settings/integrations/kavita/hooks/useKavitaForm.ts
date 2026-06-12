@@ -16,13 +16,6 @@ import type { KavitaConfig } from '@/types/config.types';
 import type { KavitaFormValues } from '../types';
 
 /**
- * Type guard for settings data with data property
- */
-function hasDataProperty(value: unknown): value is { data: unknown } {
-  return typeof value === 'object' && value !== null && 'data' in value;
-}
-
-/**
  * Type guard for Kavita configuration
  *
  * @param config - Unknown configuration object
@@ -62,25 +55,23 @@ export function useKavitaForm(params: UseKavitaFormParams): ReturnType<typeof us
     }
   });
 
-  // Update form when settings data loads
+  // Update form when settings data loads.
+  // settingsData is now the bare integration payload over the wire.
   useEffect(() => {
-    if (hasDataProperty(settingsData)) {
-      const settings = settingsData.data;
-      // Type guard to ensure we have KavitaConfig
-      if (isKavitaConfig(settings)) {
-        const values: Partial<KavitaFormValues> = {
-          enabled: settings.enabled
-        };
+    if (isKavitaConfig(settingsData)) {
+      const settings = settingsData;
+      const values: Partial<KavitaFormValues> = {
+        enabled: settings.enabled
+      };
 
-        if (settings.host !== undefined) values.host = settings.host;
-        if (settings.apiKey !== undefined) values.apiKey = settings.apiKey;
-        if (settings.syncInterval !== undefined) values.syncInterval = settings.syncInterval;
-        if (settings.autoSync !== undefined) values.autoSync = settings.autoSync;
-        if (settings.syncDirection !== undefined) values.syncDirection = settings.syncDirection;
-        if (settings.libraries !== undefined) values.libraries = settings.libraries;
+      if (settings.host !== undefined) values.host = settings.host;
+      if (settings.apiKey !== undefined) values.apiKey = settings.apiKey;
+      if (settings.syncInterval !== undefined) values.syncInterval = settings.syncInterval;
+      if (settings.autoSync !== undefined) values.autoSync = settings.autoSync;
+      if (settings.syncDirection !== undefined) values.syncDirection = settings.syncDirection;
+      if (settings.libraries !== undefined) values.libraries = settings.libraries;
 
-        form.setValues(values);
-      }
+      form.setValues(values);
     }
 
     // Note: form is intentionally excluded from dependencies to prevent infinite re-renders.

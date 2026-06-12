@@ -24,14 +24,10 @@ import { promises as fs } from 'fs';
 import { TRPCError } from '@trpc/server';
 
 import { getPathMapper, type PathMapping } from '@/server/services/download/pathMapper';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError,
-  type AsyncResult
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
@@ -90,7 +86,7 @@ export const pathMappingManagementRouter = router({
    * @returns Array of path mappings with metadata
    */
   getAll: protectedProcedure
-    .query(async (): Promise<AsyncResult<Array<PathMapping & { source: 'environment' | 'database'; index: number; accessible?: boolean }>, Error>> => {
+    .query(async (): Promise<Array<PathMapping & { source: 'environment' | 'database'; index: number; accessible?: boolean }>> => {
       try {
         // Load database mappings first (always complete)
         const dbMappings = await loadMappingsFromDatabase();
@@ -138,11 +134,11 @@ export const pathMappingManagementRouter = router({
         );
 
         logger.info(`[PathMapping Router] Retrieved ${mappingsWithMetadata.length} path mappings (${dbMappings.length} from database, ${allMappingsWithSource.length - dbMappings.length} from environment)`);
-        return createSuccessResult(mappingsWithMetadata);
+        return mappingsWithMetadata;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`[PathMapping Router] Failed to get path mappings: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'PATH_MAPPING_ERROR')
         );
       }
@@ -158,7 +154,7 @@ export const pathMappingManagementRouter = router({
    */
   add: protectedProcedure
     .input(pathMappingSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<MappingSaveResult, Error>> => {
+    .mutation(async ({ input }): Promise<MappingSaveResult> => {
       try {
         // Load current mappings
         const mappings = await loadMappingsFromDatabase();
@@ -189,7 +185,7 @@ export const pathMappingManagementRouter = router({
         logger.info(
           `[PathMapping Router] Added path mapping: ${input.remotePath} -> ${input.localPath} (accessible: ${probe.accessible})`,
         );
-        return createSuccessResult(result);
+        return result;
       } catch (error) {
         if (error instanceof TRPCError) {
           throw error;
@@ -197,7 +193,7 @@ export const pathMappingManagementRouter = router({
 
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`[PathMapping Router] Failed to add path mapping: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'PATH_MAPPING_ERROR')
         );
       }
@@ -214,7 +210,7 @@ export const pathMappingManagementRouter = router({
    */
   update: protectedProcedure
     .input(updatePathMappingSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<MappingSaveResult, Error>> => {
+    .mutation(async ({ input }): Promise<MappingSaveResult> => {
       try {
         // Load current mappings
         const mappings = await loadMappingsFromDatabase();
@@ -247,7 +243,7 @@ export const pathMappingManagementRouter = router({
         logger.info(
           `[PathMapping Router] Updated path mapping at index ${input.index} (accessible: ${probe.accessible})`,
         );
-        return createSuccessResult(result);
+        return result;
       } catch (error) {
         if (error instanceof TRPCError) {
           throw error;
@@ -255,7 +251,7 @@ export const pathMappingManagementRouter = router({
 
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`[PathMapping Router] Failed to update path mapping: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'PATH_MAPPING_ERROR')
         );
       }
@@ -271,7 +267,7 @@ export const pathMappingManagementRouter = router({
    */
   remove: protectedProcedure
     .input(removePathMappingSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         // Load current mappings
         const mappings = await loadMappingsFromDatabase();
@@ -291,7 +287,7 @@ export const pathMappingManagementRouter = router({
         await saveMappingsToDatabase(mappings);
 
         logger.info(`[PathMapping Router] Removed path mapping: ${removed?.remotePath} -> ${removed?.localPath}`);
-        return createSuccessResult(true);
+        return true;
       } catch (error) {
         if (error instanceof TRPCError) {
           throw error;
@@ -299,7 +295,7 @@ export const pathMappingManagementRouter = router({
 
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`[PathMapping Router] Failed to remove path mapping: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'PATH_MAPPING_ERROR')
         );
       }

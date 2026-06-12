@@ -15,8 +15,10 @@ import type {
   MangaDexAggregateVolume,
   TransformedMangaDexVolume
 } from '@/server/services/mangadex/types';
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { unwrapResultAsync } from '@/server/trpc/unwrap-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -231,14 +233,14 @@ export const metadataMangadexRouter = router({
         mangaTitle: z.string().optional()
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<FetchMangaDexVolumesResult, Error>> => {
+    .mutation(async ({ input }): Promise<FetchMangaDexVolumesResult> => {
       try {
-        return await handleFetchMangaDexVolumes(input);
+        return await unwrapResultAsync(handleFetchMangaDexVolumes(input));
       } catch (error: unknown) {
         logger.error('Error fetching MangaDex volumes', {
           error: error instanceof Error ? error.message : String(error)
         });
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error ? error : new Error(`Failed to fetch MangaDex volumes: ${String(error)}`)
         );
       }

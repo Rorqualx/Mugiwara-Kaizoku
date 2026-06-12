@@ -111,8 +111,8 @@ async function simulateUIFlow() {
       
       const enhanceData = await enhanceResponse.json();
       
-      if (enhanceData.result?.data?.json?.status === 'success') {
-        const enhanced = enhanceData.result.data.json.data;
+      if (enhanceData.result?.data?.json) {
+        const enhanced = enhanceData.result.data.json;
         console.log('✅ Fandom enhancement successful:');
         console.log(`   - Volume covers: ${enhanced.coverArt?.volumeCovers?.length || 0}`);
         console.log(`   - Gallery images: ${enhanced.coverArt?.gallery?.length || 0}`);

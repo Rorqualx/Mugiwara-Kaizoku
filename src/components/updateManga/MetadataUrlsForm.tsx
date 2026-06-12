@@ -142,21 +142,19 @@ export function MetadataUrlsForm({ manga, onUpdate }: MetadataUrlsFormProps): Re
             setIsParsing(true);
             try {
                 const result = await parseFandomUrlMutation.mutateAsync({ url: newUrl });
-                if (result.status === 'success') {
-                    urlEntry.parseData = {
-                        volumes: result.data.volumes,
-                        chapters: result.data.chapters,
-                        volumeDetails: result.data.volumeDetails.slice(0, 5) // Show first 5 volumes
-                    };
-                    showNotification({
-                        title: 'Parse Successful',
-                        message: `Found ${result.data.volumes} volumes with ${result.data.chapters} chapters`,
-                        color: 'teal',
-                        icon: <IconCheck size={18}/>
-                    });
-                }
+                urlEntry.parseData = {
+                    volumes: result.volumes,
+                    chapters: result.chapters,
+                    volumeDetails: result.volumeDetails.slice(0, 5) // Show first 5 volumes
+                };
+                showNotification({
+                    title: 'Parse Successful',
+                    message: `Found ${result.volumes} volumes with ${result.chapters} chapters`,
+                    color: 'teal',
+                    icon: <IconCheck size={18}/>
+                });
             }
-            catch (_error: unknown) { /* empty */ }
+            catch (_error: unknown) { /* error notification handled by mutation onError */ }
             finally {
                 setIsParsing(false);
             }
@@ -183,6 +181,7 @@ export function MetadataUrlsForm({ manga, onUpdate }: MetadataUrlsFormProps): Re
                 });
             }
         }
+        catch (_error: unknown) { /* error notifications handled by mutation onError callbacks */ }
         finally {
             setIsUpdating(false);
         }

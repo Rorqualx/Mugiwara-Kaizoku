@@ -17,10 +17,9 @@
 import { z } from 'zod';
 
 import type { Context } from '@/server/trpc/context';
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import {
@@ -59,7 +58,7 @@ export const metadataUrlParserRouter = router({
       async ({
         input,
         ctx,
-      }): Promise<AsyncResult<ParsedMetadataResult, Error>> => {
+      }): Promise<ParsedMetadataResult> => {
         try {
           const { url, field } = input;
           logger.info(`Parsing metadata URL: ${url} for field: ${field ?? 'auto'}`);
@@ -86,7 +85,7 @@ export const metadataUrlParserRouter = router({
           }
         } catch (error: unknown) {
           logger.error(`Error parsing metadata URL: ${error instanceof Error ? error.message : String(error)}`);
-          return createErrorResult(
+          throw toTRPCError(
             error instanceof Error ? error : new Error(`Failed to parse metadata URL: ${String(error)}`)
           );
         }

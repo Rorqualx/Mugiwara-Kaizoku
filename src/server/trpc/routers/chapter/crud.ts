@@ -19,7 +19,6 @@ import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -32,7 +31,7 @@ export const chapterCrudRouter = router({
    */
   markAllAsRead: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ updatedCount: number; message: string }> => {
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -58,10 +57,10 @@ export const chapterCrudRouter = router({
         data: { count: result.count }
       });
 
-      return createSuccessResult({
+      return {
         updatedCount: result.count,
         message: `Marked ${result.count} chapters as read`
-      });
+      };
     }),
 
   /**
@@ -69,7 +68,7 @@ export const chapterCrudRouter = router({
    */
   markAllAsUnread: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ updatedCount: number; message: string }> => {
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -95,10 +94,10 @@ export const chapterCrudRouter = router({
         data: { count: result.count }
       });
 
-      return createSuccessResult({
+      return {
         updatedCount: result.count,
         message: `Marked ${result.count} chapters as unread`
-      });
+      };
     }),
 
   /**
@@ -153,7 +152,11 @@ export const chapterCrudRouter = router({
       mangaId: z.number(),
       offset: z.number().default(-1)
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{
+      updatedCount: number;
+      message: string;
+      details?: { oldRange: string; newRange: string };
+    }> => {
       const { mangaId, offset } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -172,7 +175,7 @@ export const chapterCrudRouter = router({
       });
 
       if (chapters.length === 0) {
-        return createSuccessResult({ updatedCount: 0, message: 'No chapters to update' });
+        return { updatedCount: 0, message: 'No chapters to update' };
       }
 
       const updatePromises = chapters.map(chapter => {
@@ -204,14 +207,14 @@ export const chapterCrudRouter = router({
         }
       });
 
-      return createSuccessResult({
+      return {
         updatedCount: chapters.length,
         message: `Updated ${chapters.length} chapter indices (offset: ${offset})`,
         details: {
           oldRange: `${chapters[0]?.index} - ${chapters[chapters.length - 1]?.index}`,
           newRange: `${(chapters[0]?.index ?? 0) + offset} - ${((chapters[chapters.length - 1]?.index ?? 0) + offset)}`
         }
-      });
+      };
     }),
 
   /**
@@ -222,7 +225,7 @@ export const chapterCrudRouter = router({
       chapterId: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ deletedId: number; message: string }> => {
       const { chapterId, mangaId } = input;
 
       const chapter = await prisma.chapter.findUnique({
@@ -245,10 +248,10 @@ export const chapterCrudRouter = router({
         data: { title: chapter.title }
       });
 
-      return createSuccessResult({
+      return {
         deletedId: chapterId,
         message: `Deleted "${chapter.title}"`
-      });
+      };
     }),
 
   /**
@@ -260,7 +263,7 @@ export const chapterCrudRouter = router({
       chapterId: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ chapterId: number; message: string }> => {
       const { chapterId, mangaId } = input;
 
       const chapter = await prisma.chapter.findUnique({
@@ -302,10 +305,10 @@ export const chapterCrudRouter = router({
         data: { title: chapter.title, downloadStatus: 'AVAILABLE' }
       });
 
-      return createSuccessResult({
+      return {
         chapterId,
         message: `Removed file for "${chapter.title}"`
-      });
+      };
     }),
 
   /**
@@ -317,11 +320,11 @@ export const chapterCrudRouter = router({
       chapterIds: z.array(z.number().int().positive()),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ deletedCount: number; message: string }> => {
       const { chapterIds, mangaId } = input;
 
       if (chapterIds.length === 0) {
-        return createSuccessResult({ deletedCount: 0, message: 'No files to delete' });
+        return { deletedCount: 0, message: 'No files to delete' };
       }
 
       // Get all chapters with their file paths
@@ -370,10 +373,10 @@ export const chapterCrudRouter = router({
         data: { filesRemoved: filesDeleted }
       });
 
-      return createSuccessResult({
+      return {
         deletedCount: filesDeleted,
         message: `Removed ${filesDeleted} file${filesDeleted !== 1 ? 's' : ''}`
-      });
+      };
     }),
 
   /**
@@ -384,11 +387,11 @@ export const chapterCrudRouter = router({
       chapterIds: z.array(z.number().int().positive()),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ deletedCount: number; message: string }> => {
       const { chapterIds, mangaId } = input;
 
       if (chapterIds.length === 0) {
-        return createSuccessResult({ deletedCount: 0, message: 'No chapters to delete' });
+        return { deletedCount: 0, message: 'No chapters to delete' };
       }
 
       // Verify all chapters belong to this manga
@@ -416,9 +419,9 @@ export const chapterCrudRouter = router({
         data: { deletedChapters: result.count }
       });
 
-      return createSuccessResult({
+      return {
         deletedCount: result.count,
         message: `Deleted ${result.count} chapter${result.count !== 1 ? 's' : ''}`
-      });
+      };
     })
 });

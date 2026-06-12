@@ -61,16 +61,15 @@ export interface BrowseModalProps {
 }
 
 /**
- * Type guard to check if browse result is successful
+ * Type guard for the bare browse payload ({ currentPath, parent, entries }).
+ * Errors no longer arrive in-band — they surface via the query's error state.
  */
-function isBrowseResultSuccess(result: unknown): result is { status: 'success'; data: unknown } {
+function isBrowseResult(result: unknown): result is BrowseResult {
   return (
     result !== undefined &&
     result !== null &&
     typeof result === 'object' &&
-    'status' in result &&
-    result["status"] === 'success' &&
-    'data' in result
+    'entries' in result
   );
 }
 
@@ -86,9 +85,9 @@ function NavigationControls({
   currentBrowsePath: string;
   onNavigate: (path: string) => void;
 }): React.ReactElement | null {
-  if (!isBrowseResultSuccess(browseResult)) return null;
+  if (!isBrowseResult(browseResult)) return null;
 
-  const data = browseResult.data as BrowseResult;
+  const data = browseResult;
 
   return (
     <Group gap="xs">
@@ -129,10 +128,9 @@ function DirectoryList({
   currentBrowsePath: string;
   onNavigate: (path: string) => void;
 }): React.ReactElement | null {
-  if (!isBrowseResultSuccess(browseResult)) return null;
+  if (!isBrowseResult(browseResult)) return null;
 
-  const data = browseResult.data as BrowseResult;
-  const entries = data.entries ?? [];
+  const entries = browseResult.entries ?? [];
   const isStartingLocation = !currentBrowsePath;
 
   return (

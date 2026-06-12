@@ -72,8 +72,8 @@ function ChapterReassignModalComponent(props: ChapterReassignModalProps): JSX.El
     // Process chapter links (linking files to existing chapters)
     for (const { sourceChapterId, targetChapterId } of chapterLinks) {
       promises.push(
-        linkMutation.mutateAsync({ sourceChapterId, targetChapterId, mangaId }).then(result => {
-          if (result.status === 'success') linkCount += 1;
+        linkMutation.mutateAsync({ sourceChapterId, targetChapterId, mangaId }).then(() => {
+          linkCount += 1;
         })
       );
     }
@@ -81,13 +81,19 @@ function ChapterReassignModalComponent(props: ChapterReassignModalProps): JSX.El
     // Process volume conversions
     for (const { chapterId, volumeNumber } of volumeConversions) {
       promises.push(
-        convertMutation.mutateAsync({ chapterId, volumeNumber, mangaId }).then(result => {
-          if (result.status === 'success') volumeCount += 1;
+        convertMutation.mutateAsync({ chapterId, volumeNumber, mangaId }).then(() => {
+          volumeCount += 1;
         })
       );
     }
 
-    await Promise.all(promises);
+    try {
+      await Promise.all(promises);
+    } catch {
+      // Per-mutation onError handlers already notified the user; skip the
+      // success summary when any assignment failed.
+      return;
+    }
 
     const totalUpdated = linkCount + volumeCount;
     if (totalUpdated > 0) {

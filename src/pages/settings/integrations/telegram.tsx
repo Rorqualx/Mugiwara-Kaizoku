@@ -103,8 +103,8 @@ export default function TelegramIntegrationSettings(): ReactElement {
 
   // Update form when settings data loads
   useEffect(() => {
-    if (settingsData && 'data' in settingsData && settingsData.data) {
-      const settings = settingsData.data;
+    if (settingsData) {
+      const settings: unknown = settingsData;
       // Type guard to ensure we have TelegramConfig
       if (
         typeof settings === 'object' &&

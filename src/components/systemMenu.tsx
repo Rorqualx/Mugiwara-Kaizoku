@@ -32,7 +32,6 @@ import {
 import { notify } from '@/utils/notify';
 
 import { useAuthActions } from "../lib/auth/client-actions";
-import { isSuccess, isError } from "../utils/async-result";
 import { trpc } from "../utils/trpc-client/index";
 
 
@@ -65,91 +64,93 @@ export function SystemMenu(): React.ReactElement {
 
   const restartMutation = trpc.system.restart.useMutation({
     onSuccess: (data) => {
-      if (isSuccess(data)) {
-        const notificationId = `restart-${Date.now()}`;
+      const notificationId = `restart-${Date.now()}`;
 
-        // Show appropriate notification based on environment
-        if (data.data.isDocker) {
-          notifications.show({
-            id: notificationId,
-            title: "Container Restarting",
-            message: "Docker container is restarting. Page will reload automatically.",
-            color: "blue",
-            icon: <IconReload size={18} />,
-            loading: true,
-            autoClose: false
-          });
-        } else if (data.data.requiresManualRestart) {
-          notifications.show({
-            id: notificationId,
-            title: "Manual Restart Required",
-            message: "Please restart with 'npm run dev' in your terminal",
-            color: "yellow",
-            icon: <IconInfoCircle size={18} />,
-            autoClose: false
-          });
-        } else {
-          notifications.show({
-            id: notificationId,
-            title: "Restarting Application",
-            message: data.data.message,
-            color: "blue",
-            icon: <IconReload size={18} />,
-            loading: true,
-            autoClose: 5000
-          });
-        }
-      } else if (isError(data)) {
-        notify({ severity: 'WARNING', title: "Restart Blocked", message: data.error.message, toast: { autoClose: 7000 } });
+      // Show appropriate notification based on environment
+      if (data.isDocker) {
+        notifications.show({
+          id: notificationId,
+          title: "Container Restarting",
+          message: "Docker container is restarting. Page will reload automatically.",
+          color: "blue",
+          icon: <IconReload size={18} />,
+          loading: true,
+          autoClose: false
+        });
+      } else if (data.requiresManualRestart) {
+        notifications.show({
+          id: notificationId,
+          title: "Manual Restart Required",
+          message: "Please restart with 'npm run dev' in your terminal",
+          color: "yellow",
+          icon: <IconInfoCircle size={18} />,
+          autoClose: false
+        });
+      } else {
+        notifications.show({
+          id: notificationId,
+          title: "Restarting Application",
+          message: data.message,
+          color: "blue",
+          icon: <IconReload size={18} />,
+          loading: true,
+          autoClose: 5000
+        });
       }
     },
     onError: (error) => {
-      notify({ severity: 'ERROR', title: "Restart Failed", message: (error instanceof Error ? error.message : String(error)), toast: { autoClose: 7000 } });
+      // PRECONDITION_FAILED means the restart was blocked by active operations
+      if (error.data?.code === 'PRECONDITION_FAILED') {
+        notify({ severity: 'WARNING', title: "Restart Blocked", message: error.message, toast: { autoClose: 7000 } });
+        return;
+      }
+      notify({ severity: 'ERROR', title: "Restart Failed", message: error.message, toast: { autoClose: 7000 } });
     }
   });
 
   const shutdownMutation = trpc.system.shutdown.useMutation({
     onSuccess: (data) => {
-      if (isSuccess(data)) {
-        const notificationId = `shutdown-${Date.now()}`;
+      const notificationId = `shutdown-${Date.now()}`;
 
-        // Show appropriate notification based on environment
-        if (data.data.isDocker) {
-          notifications.show({
-            id: notificationId,
-            title: "Container Shutting Down",
-            message: "Docker container is stopping. May restart based on policy.",
-            color: "red",
-            icon: <IconPower size={18} />,
-            loading: true,
-            autoClose: false
-          });
-        } else if (data.data.isDevelopment) {
-          notifications.show({
-            id: notificationId,
-            title: "Application Stopped",
-            message: "To restart, run 'npm run dev' in your terminal",
-            color: "yellow",
-            icon: <IconInfoCircle size={18} />,
-            autoClose: false
-          });
-        } else {
-          notifications.show({
-            id: notificationId,
-            title: "Shutting Down",
-            message: data.data.message,
-            color: "red",
-            icon: <IconPower size={18} />,
-            loading: true,
-            autoClose: 5000
-          });
-        }
-      } else if (isError(data)) {
-        notify({ severity: 'WARNING', title: "Shutdown Blocked", message: data.error.message, toast: { autoClose: 7000 } });
+      // Show appropriate notification based on environment
+      if (data.isDocker) {
+        notifications.show({
+          id: notificationId,
+          title: "Container Shutting Down",
+          message: "Docker container is stopping. May restart based on policy.",
+          color: "red",
+          icon: <IconPower size={18} />,
+          loading: true,
+          autoClose: false
+        });
+      } else if (data.isDevelopment) {
+        notifications.show({
+          id: notificationId,
+          title: "Application Stopped",
+          message: "To restart, run 'npm run dev' in your terminal",
+          color: "yellow",
+          icon: <IconInfoCircle size={18} />,
+          autoClose: false
+        });
+      } else {
+        notifications.show({
+          id: notificationId,
+          title: "Shutting Down",
+          message: data.message,
+          color: "red",
+          icon: <IconPower size={18} />,
+          loading: true,
+          autoClose: 5000
+        });
       }
     },
     onError: (error) => {
-      notify({ severity: 'ERROR', title: "Shutdown Failed", message: (error instanceof Error ? error.message : String(error)), toast: { autoClose: 7000 } });
+      // PRECONDITION_FAILED means the shutdown was blocked by active operations
+      if (error.data?.code === 'PRECONDITION_FAILED') {
+        notify({ severity: 'WARNING', title: "Shutdown Blocked", message: error.message, toast: { autoClose: 7000 } });
+        return;
+      }
+      notify({ severity: 'ERROR', title: "Shutdown Failed", message: error.message, toast: { autoClose: 7000 } });
     }
   });
 

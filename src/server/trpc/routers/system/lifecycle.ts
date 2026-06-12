@@ -17,14 +17,9 @@ import { env } from '@/env/server';
 import { prisma } from '@/server/db';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { TRPCErrors } from '@/server/trpc/errors';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError
-} from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 /** Input schema for restart and shutdown operations */
@@ -175,7 +170,7 @@ export const systemLifecycleRouter = router({
   /** Restarts the application with graceful handling */
   restart: adminProcedure
     .input(lifecycleInputSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<RestartResponse, Error>> => {
+    .mutation(async ({ input }): Promise<RestartResponse> => {
       try {
         logger.info('restart:initiated', {
           force: input.force,
@@ -185,9 +180,8 @@ export const systemLifecycleRouter = router({
 
         const { blocked, activeJobs, warnings } = await checkActiveJobsBlocked(input.force, 'restart');
         if (blocked) {
-          return createErrorResult(
-            createContextualError('Active operations are in progress', 'ACTIVE_OPERATIONS', { activeJobs, warnings })
-          );
+          logger.warn('restart:blocked', { activeJobs, warnings });
+          throw TRPCErrors.preconditionFailed('Active operations are in progress');
         }
 
         const envInfo = getEnvironmentInfo();
@@ -208,14 +202,15 @@ export const systemLifecycleRouter = router({
 
         logger.info('restart:response-sent', { message, warnings, requiresManualRestart });
 
-        return createSuccessResult({
+        return {
           message,
           warnings,
           restartTime: new Date().toISOString(),
           requiresManualRestart,
           isDocker: envInfo.isDocker
-        });
+        };
       } catch (error: unknown) {
+        if (error instanceof TRPCError) throw error;
         logger.error('restart:failed', error instanceof Error ? error.message : String(error));
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to initiate restart' });
       }
@@ -224,7 +219,7 @@ export const systemLifecycleRouter = router({
   /** Shuts down the application gracefully */
   shutdown: adminProcedure
     .input(lifecycleInputSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<ShutdownResponse, Error>> => {
+    .mutation(async ({ input }): Promise<ShutdownResponse> => {
       try {
         logger.info('shutdown:initiated', {
           force: input.force,
@@ -234,9 +229,8 @@ export const systemLifecycleRouter = router({
 
         const { blocked, activeJobs, warnings } = await checkActiveJobsBlocked(input.force, 'shutdown');
         if (blocked) {
-          return createErrorResult(
-            createContextualError('Active operations are in progress', 'ACTIVE_OPERATIONS', { activeJobs, warnings })
-          );
+          logger.warn('shutdown:blocked', { activeJobs, warnings });
+          throw TRPCErrors.preconditionFailed('Active operations are in progress');
         }
 
         await eventEmitter.emit('system:shutdown', { timestamp: new Date() });
@@ -259,14 +253,15 @@ export const systemLifecycleRouter = router({
 
         logger.info('shutdown:response-sent', { message, warnings });
 
-        return createSuccessResult({
+        return {
           message,
           warnings,
           shutdownTime: new Date().toISOString(),
           isDocker: envInfo.isDocker,
           isDevelopment: envInfo.isDevelopment
-        });
+        };
       } catch (error: unknown) {
+        if (error instanceof TRPCError) throw error;
         logger.error('shutdown:failed', error instanceof Error ? error.message : String(error));
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to initiate shutdown' });
       }

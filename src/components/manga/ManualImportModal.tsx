@@ -24,7 +24,6 @@ import {
 import { showNotification } from '@mantine/notifications';
 import { IconFolder, IconUpload, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
 
-import type { AsyncResult } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client';
 
 // Components
@@ -80,7 +79,7 @@ export function ManualImportModal({
   const utils = trpc.useUtils();
 
   // Browse query for directory navigation
-  const { data: browseResult, isLoading: isBrowseLoading } = trpc.pathMapping.browse.useQuery(
+  const { data: browseResult, isLoading: isBrowseLoading, error: browseError } = trpc.pathMapping.browse.useQuery(
     { path: currentBrowsePath },
     {
       enabled: browseModalOpen,
@@ -379,8 +378,9 @@ export function ManualImportModal({
         opened={browseModalOpen}
         onClose={() => { void handleCloseBrowse(); }}
         currentPath={currentBrowsePath}
-        browseResult={browseResult as AsyncResult<BrowseResultData> | null}
+        browseResult={(browseResult as BrowseResultData | undefined) ?? null}
         isLoading={isBrowseLoading}
+        error={browseError}
         onNavigate={handleNavigateToPath}
         onSelect={handleSelectDirectory}
         onGoHome={() => setCurrentBrowsePath('')}

@@ -17,7 +17,6 @@ import { trpc } from '@/utils/trpc-client/index';
 
 import { SettingsSwitch } from '../SettingsSwitch';
 
-import { getTestConnectionDisplay } from './connection-test-result';
 import { parseBaseURL } from './parse-base-url';
 
 import type { DelugeConfig } from './types';
@@ -84,9 +83,8 @@ export const DelugeSettings: React.FC = (): JSX.Element => {
         password,
         ssl
       });
-      const display = getTestConnectionDisplay(result);
-      setTestSuccess(display.success);
-      setTestMessage(display.message);
+      setTestSuccess(true);
+      setTestMessage(result.message);
     } catch (_error: unknown) {
       setTestSuccess(false);
       setTestMessage(_error instanceof Error ? _error.message : 'Connection failed');

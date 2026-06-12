@@ -11,7 +11,7 @@
  *
  * Key Features:
  * - Database operations with ExtendedPrismaClient for optional models
- * - AsyncResult pattern for error handling
+ * - TRPCError-based error handling (failures throw, success returns bare data)
  * - Integration with refreshService helpers
  * - Integration with metadata-helpers for conflict resolution
  */
@@ -20,10 +20,10 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
+import { TRPCErrors, toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult, isError } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
+import { isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
@@ -33,7 +33,6 @@ import {
 } from '../metadata-helpers';
 
 import {
-  handleError,
   UpdateFieldPreferencesSchema,
   ResolveConflictSchema,
   GetConflictsSchema,
@@ -242,14 +241,14 @@ export const metadataCoreRouter = router({
    */
   resolveConflict: publicProcedure
     .input(ResolveConflictSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const { conflictId, resolutionValue, resolutionProvider } = input;
         const extendedPrisma = prisma as ExtendedPrismaClient;
 
         if (!extendedPrisma.metadataConflict) {
           logger.warn('MetadataConflict model not available, cannot resolve conflict');
-          return createErrorResult(new Error('MetadataConflict model not available'));
+          throw TRPCErrors.internal('MetadataConflict model not available');
         }
 
         const conflict = await extendedPrisma.metadataConflict.findUnique({
@@ -258,7 +257,7 @@ export const metadataCoreRouter = router({
         });
 
         if (!conflict) {
-          return createErrorResult(new Error('Conflict not found'));
+          throw TRPCErrors.notFound('Conflict', conflictId);
         }
 
         await extendedPrisma.metadataConflict.update({
@@ -295,12 +294,12 @@ export const metadataCoreRouter = router({
           logger.warn(`Failed to update provider preference: ${preferenceResult.error.message}`);
         }
 
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error(
           `Error resolving metadata conflict: ${error instanceof Error ? error.message : String(error)}`
         );
-        return createErrorResult(handleError(error));
+        throw toTRPCError(error);
       }
     }),
 
@@ -318,7 +317,7 @@ export const metadataCoreRouter = router({
         })
         .optional()
     )
-    .mutation(async ({ input }): Promise<AsyncResult<{ count: number }, Error>> => {
+    .mutation(async ({ input }): Promise<{ count: number }> => {
       try {
         // Build where clause based on input
         const where = input?.mangaId
@@ -332,11 +331,11 @@ export const metadataCoreRouter = router({
           `Cleared ${result.count} metadata cache entries${input?.mangaId ? ` for manga ${input.mangaId}` : ''}`
         );
 
-        return createSuccessResult({ count: result.count });
+        return { count: result.count };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error clearing metadata cache: ${errorMessage}`);
-        return createErrorResult(new Error(`Failed to clear metadata cache: ${errorMessage}`));
+        throw toTRPCError(new Error(`Failed to clear metadata cache: ${errorMessage}`));
       }
     }),
 
@@ -350,7 +349,7 @@ export const metadataCoreRouter = router({
         urls: z.array(z.string()),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const { mangaId, urls } = input;
         // Find the manga with its metadata
@@ -359,10 +358,10 @@ export const metadataCoreRouter = router({
           include: { Metadata: true },
         });
         if (!manga) {
-          return createErrorResult(new Error('Manga not found'));
+          throw TRPCErrors.notFound('Manga', mangaId);
         }
         if (!manga.Metadata) {
-          return createErrorResult(new Error('Manga has no metadata'));
+          throw TRPCErrors.preconditionFailed('Manga has no metadata');
         }
         // Update the metadata URLs
         await prisma.metadata.update({
@@ -372,12 +371,12 @@ export const metadataCoreRouter = router({
           },
         });
         logger.info(`Updated metadata URLs for manga ID ${mangaId}: ${urls.length} URLs`);
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         logger.error(
           `Error updating metadata URLs: ${error instanceof Error ? error.message : String(error)}`
         );
-        return createErrorResult(handleError(error));
+        throw toTRPCError(error);
       }
     }),
 

@@ -4,7 +4,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
 import { useComicvineConfig } from '@/hooks/useComicvineConfig';
-import { isSuccess, isError } from '@/utils/async-result';
 import { notify } from '@/utils/notify';
 import { safeErrorMessage } from '@/utils/safe-render';
 import { trpc } from '@/utils/trpc-client';
@@ -86,20 +85,16 @@ export function useComicVineForm(): UseComicVineFormReturn {
     setValidationError(null);
 
     try {
-      const result = await testConnection.mutateAsync({
+      await testConnection.mutateAsync({
         provider: 'comicvine',
         config: {
           apiKey: apiKeyInput
         }
       });
 
-      if (isSuccess(result)) {
-        notify({ severity: 'SUCCESS', title: 'Connection Successful', message: 'Successfully connected to ComicVine API' });
-      } else if (isError(result)) {
-        notify({ severity: 'ERROR', title: 'Connection Failed', message: safeErrorMessage(result.error, 'Failed to connect to ComicVine') });
-      }
+      notify({ severity: 'SUCCESS', title: 'Connection Successful', message: 'Successfully connected to ComicVine API' });
     } catch (err: unknown) {
-      notify({ severity: 'ERROR', title: 'Test Failed', message: safeErrorMessage(err, 'Failed to test API connection') });
+      notify({ severity: 'ERROR', title: 'Connection Failed', message: safeErrorMessage(err, 'Failed to connect to ComicVine') });
     } finally {
       setTesting(false);
     }

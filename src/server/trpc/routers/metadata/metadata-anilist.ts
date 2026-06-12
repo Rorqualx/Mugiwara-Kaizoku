@@ -10,7 +10,7 @@
  * - Comprehensive metadata extraction (titles, images, descriptions, staff, etc.)
  * - Enhanced data transformation (tags → themes, staff → authors/artists)
  * - Type-safe data access using safeGet utilities
- * - Robust error handling with AsyncResult pattern
+ * - Robust error handling (failures throw TRPCError, success returns bare data)
  *
  * Data Transformations:
  * - Cover images: Extracted from nested coverImage object (extraLarge > large > medium)
@@ -22,8 +22,10 @@
 
 import { z } from 'zod';
 
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -551,14 +553,14 @@ export const metadataAnilistRouter = router({
         id: z.string().optional(),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<AniListMetadataResult, Error>> => {
+    .mutation(async ({ input }): Promise<AniListMetadataResult> => {
       logger.info('🔄 [ANILIST MUTATION] Called with input:', input);
 
       try {
         // Extract ID from input
         const idResult = extractAniListId(input.url, input.id);
         if ('error' in idResult) {
-          return createErrorResult(idResult.error);
+          throw toTRPCError(idResult.error);
         }
 
         logger.info(`Fetching enhanced metadata for AniList ID: ${idResult.id}`);
@@ -567,12 +569,10 @@ export const metadataAnilistRouter = router({
         const { anilistService } = await import('../../../services/anilist/service');
         const manga = await anilistService.getMangaDetails(parseInt(idResult.id, 10));
 
-        return processMangaResponse(manga);
+        return unwrapResultOrThrow(processMangaResponse(manga));
       } catch (error: unknown) {
         logger.error(`Error fetching AniList metadata: ${error instanceof Error ? error.message : String(error)}`);
-        return createErrorResult(
-          error instanceof Error ? error : new Error(`Failed to fetch AniList metadata: ${String(error)}`)
-        );
+        throw toTRPCError(error);
       }
     }),
 });

@@ -14,11 +14,11 @@ import { configService } from '@/server/services/config/configService';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import type { ConfigWithMetadata } from '@/types/search.types';
-import type { AsyncResult} from '@/utils/async-result';
-import { createSuccessResult, createErrorResult, createContextualError } from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
+import { toTRPCError } from '../errors';
 import { adminProcedure, protectedProcedure } from '../procedures';
 import { router, } from '../trpc';
 // Convert enum to Zod enum using actual enum values
@@ -74,20 +74,19 @@ export const configRouter = router({
         defaultValue: z.unknown().optional(),
         skipCache: z.boolean().optional()
     }))
-        .mutation(async ({ input }): Promise<AsyncResult<unknown, Error>> => {
+        .mutation(async ({ input }): Promise<unknown> => {
         try {
             // If skipCache is true, force a database read
             if (input.skipCache) {
                 // Currently no direct way to bypass cache in ConfigService, so we'll invalidate first
                 configService.clearCache(input.key);
             }
-            const value = await configService.get(input.key, input.defaultValue);
-            return createSuccessResult(value as unknown);
+            return await configService.get(input.key, input.defaultValue);
         }
         catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error getting config ${input.key}:`, error);
-            return createErrorResult(
+            throw toTRPCError(
                 createContextualError(errorMessage, 'CONFIG_GET_ERROR', { key: input.key })
             );
         }
@@ -241,20 +240,20 @@ export const configRouter = router({
         .input(z.object({
         namespace: z.string().optional()
     }))
-        .mutation(async ({ input }): Promise<AsyncResult<{values: Record<string, unknown>}, Error>> => {
+        .mutation(async ({ input }): Promise<{values: Record<string, unknown>}> => {
         try {
             // If no namespace provided, get all configs
             const configs = input.namespace
                 ? await configService.getByNamespace(input.namespace)
                 : await configService.getAll();
-            return createSuccessResult({
+            return {
                 values: configs as Record<string, unknown>
-            });
+            };
         }
         catch (error: unknown) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error getting configs by namespace ${input.namespace}:`, error);
-            return createErrorResult(
+            throw toTRPCError(
                 createContextualError(errorMessage, 'CONFIG_NAMESPACE_ERROR', { namespace: input.namespace })
             );
         }

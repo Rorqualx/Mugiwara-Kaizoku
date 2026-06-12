@@ -29,7 +29,6 @@ import {
 } from '@tabler/icons-react';
 
 import { MangaDexDownloadOptions } from '@/components/manga/MangaDexDownloadOptions';
-import { isSuccess } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 import { mapSummaryToNotification } from '@/utils/quickDownload/notification-mapping';
@@ -161,9 +160,9 @@ export function DownloadButton({
 
   // Get enabled download clients
   const enabledClients = useMemo(() => {
-    if (!settings || !isSuccess(settings)) return [];
+    if (!settings) return [];
 
-    const settingsData = settings.data as SettingsData;
+    const settingsData = settings as SettingsData;
     const clients: string[] = [];
 
     // Use bracket notation for dotted key access
@@ -177,8 +176,8 @@ export function DownloadButton({
 
   // Check if Prowlarr is configured
   const isProwlarrConfigured = useMemo(() => {
-    if (!settings || !isSuccess(settings)) return false;
-    const settingsData = settings.data as SettingsData;
+    if (!settings) return false;
+    const settingsData = settings as SettingsData;
     return !!(settingsData.prowlarrBaseURL && settingsData.prowlarrApiKey);
   }, [settings]);
 

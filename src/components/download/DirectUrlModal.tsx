@@ -46,7 +46,6 @@ import {
   IconLock,
 } from '@tabler/icons-react';
 
-import { isSuccess } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
@@ -172,9 +171,9 @@ export function DirectUrlModal({
 
   // Get enabled clients from settings
   const enabledClients = useMemo((): Array<{ value: string; label: string }> => {
-    if (!settings || !isSuccess(settings)) return [];
+    if (!settings) return [];
 
-    const settingsData = settings.data as SettingsData;
+    const settingsData = settings as SettingsData;
     const clients: Array<{ value: string; label: string }> = [];
 
     // Torrent clients

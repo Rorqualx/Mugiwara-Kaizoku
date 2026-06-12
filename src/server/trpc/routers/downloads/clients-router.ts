@@ -19,14 +19,10 @@
 
 import { z } from 'zod';
 
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import {
-  createSuccessResult,
-  createErrorResult,
-  isSuccess,
-} from '@/utils/async-result';
+import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import { getConfiguredClient, getEnabledClients } from './client-config';
@@ -119,11 +115,14 @@ export const downloadsClientsRouter = router({
    *
    * ESLint fix: Uses Promise.all for parallel upserts
    * instead of await-in-loop pattern.
+   *
+   * @returns true when the configuration was persisted
+   * @throws TRPCError when the configuration could not be saved
    */
   updateConfig: protectedProcedure
     .input(downloadClientConfigSchema)
     .mutation(
-      async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+      async ({ input, ctx }): Promise<boolean> => {
         try {
           const clientType = input.type;
           const prefix = `download.${clientType}.`;
@@ -166,7 +165,7 @@ export const downloadsClientsRouter = router({
           logger.info(
             `[downloads.ts] Download client configured: ${input.type}`
           );
-          return createSuccessResult(true);
+          return true;
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
@@ -174,7 +173,7 @@ export const downloadsClientsRouter = router({
             '[downloads.ts] Failed to update download config:',
             errorMessage
           );
-          return createErrorResult(new Error(errorMessage));
+          throw toTRPCError(error);
         }
       }
     ),

@@ -21,7 +21,6 @@ import { } from '@tabler/icons-react';
 import { } from '@tabler/icons-react';
 import { IconAlertCircle } from '@tabler/icons-react';
 
-import { isSuccess} from "@/utils/async-result";
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client';
 
@@ -87,9 +86,8 @@ export default function SearchProvidersSettings(): React.ReactElement {
       notify({ severity: 'ERROR', title: 'Error', message: (error instanceof Error ? error.message : String(error)) ?? 'Failed to update configuration' });
     }
   });
-  // Local state for form
-  const configData = config && isSuccess(config) ? config.data : config;
-  const searchConfig = configData as { defaultProvider?: string; providers?: Record<string, ProviderConfig> } | undefined;
+  // Local state for form — config is now the bare SearchProviderConfig payload
+  const searchConfig = config as { defaultProvider?: string; providers?: Record<string, ProviderConfig> } | undefined;
   const [selectedProvider, setSelectedProvider] = useState<string>(searchConfig?.defaultProvider ?? '');
   const [providerConfigs, setProviderConfigs] = useState<Record<string, ProviderConfig>>(searchConfig?.providers ?? {});
   const [prowlarrConfig, setProwlarrConfig] = useState<ProwlarrConfig>({
@@ -102,10 +100,9 @@ export default function SearchProvidersSettings(): React.ReactElement {
   // Update local state when data loads
   React.useEffect(() => {
     if (config) {
-      const configData = config && isSuccess(config) ? config.data : config;
-      const searchConfig = configData as { defaultProvider?: string; providers?: Record<string, ProviderConfig> } | undefined;
-      setSelectedProvider(searchConfig?.defaultProvider ?? '');
-      setProviderConfigs(searchConfig?.providers ?? {});
+      const loadedConfig = config as { defaultProvider?: string; providers?: Record<string, ProviderConfig> } | undefined;
+      setSelectedProvider(loadedConfig?.defaultProvider ?? '');
+      setProviderConfigs(loadedConfig?.providers ?? {});
       setProwlarrConfig({
         enabled: false,
         url: '',

@@ -9,10 +9,9 @@
 import { z } from 'zod';
 
 import { adaptiveParse, toVolumeDetails } from '@/server/services/fandom/adaptive';
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import {
@@ -420,27 +419,26 @@ export const metadataFandomUrlParserRouter = router({
         recommendedParser: z.string().optional(),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<FandomParseResult, Error>> => {
+    .mutation(async ({ input }): Promise<FandomParseResult> => {
       const { url, fetchChapterCovers, maxChaptersToFetch, parsingHints, recommendedParser } = input;
 
       if (!validateFandomUrl(url)) {
-        return createErrorResult(new Error('Not a valid Fandom wiki URL'));
+        throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
       }
 
       logger.info(`Parsing Fandom URL: ${url}`, { fetchChapterCovers, maxChaptersToFetch });
 
       try {
-        const result = await parseFandomUrlInternal(
+        return await parseFandomUrlInternal(
           url,
           fetchChapterCovers,
           maxChaptersToFetch,
           parsingHints,
           recommendedParser
         );
-        return createSuccessResult(result);
       } catch (error: unknown) {
         logger.error(`Error parsing Fandom URL: ${error instanceof Error ? error.message : String(error)}`);
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error ? error : new Error(`Failed to parse Fandom URL: ${String(error)}`)
         );
       }

@@ -21,7 +21,6 @@ import {
 import { showNotification } from '@mantine/notifications';
 import { IconEdit, IconLink } from '@tabler/icons-react';
 
-import { isSuccess, isError } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client';
 
 import { extractFieldFromParsedData } from './data-extractors';
@@ -62,49 +61,37 @@ export const FieldEditor: React.FC<FieldEditorProps> = ({
         field,
       });
 
-      if (isSuccess(result)) {
-        const data = result.data.data;
-        const parsedData =
-          data && typeof data === 'object' && !Array.isArray(data)
-            ? (data as Record<string, unknown>)
-            : {};
-        const extractedValue = extractFieldFromParsedData(
-          field,
-          parsedData,
-          result.data.type
-        );
+      const data = result.data;
+      const parsedData =
+        data && typeof data === 'object' && !Array.isArray(data)
+          ? (data as Record<string, unknown>)
+          : {};
+      const extractedValue = extractFieldFromParsedData(
+        field,
+        parsedData,
+        result.type
+      );
 
-        if (extractedValue !== undefined) {
-          onUpdate(extractedValue, `url:${result.data.parser}`, urlInput);
-          setEditValue(extractedValue);
-          setUrlInput('');
-          showNotification({
-            title: 'URL Parsed Successfully',
-            message: `Extracted ${field} from ${result.data.type} source`,
-            color: 'green',
-          });
-        } else {
-          showNotification({
-            title: 'No Data Found',
-            message: `Could not extract ${field} from the provided URL`,
-            color: 'yellow',
-          });
-        }
+      if (extractedValue !== undefined) {
+        onUpdate(extractedValue, `url:${result.parser}`, urlInput);
+        setEditValue(extractedValue);
+        setUrlInput('');
+        showNotification({
+          title: 'URL Parsed Successfully',
+          message: `Extracted ${field} from ${result.type} source`,
+          color: 'green',
+        });
       } else {
         showNotification({
-          title: 'Parse Failed',
-          message: isError(result)
-            ? result.error instanceof Error
-              ? result.error.message
-              : String(result.error)
-            : 'Could not parse the URL',
-          color: 'red',
+          title: 'No Data Found',
+          message: `Could not extract ${field} from the provided URL`,
+          color: 'yellow',
         });
       }
-    } catch {
+    } catch (error: unknown) {
       showNotification({
-        title: 'Error',
-        message: 'Failed to parse URL',
+        title: 'Parse Failed',
+        message: error instanceof Error ? error.message : 'Could not parse the URL',
         color: 'red',
       });
     } finally {

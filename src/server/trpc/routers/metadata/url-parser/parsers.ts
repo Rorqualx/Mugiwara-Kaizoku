@@ -2,7 +2,8 @@
  * URL Parser Functions
  *
  * Individual parser functions for different metadata URL types.
- * Each parser handles a specific provider and returns AsyncResult.
+ * Each parser returns the parsed result directly and throws on failure
+ * (errors are converted to TRPCError at the tRPC boundary).
  *
  * Supported providers:
  * - Fandom wikis (fandom.com)
@@ -15,9 +16,6 @@
  * - Generic HTML/JSON content
  */
 
-import { createSuccessResult, createErrorResult, isSuccess, isError } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
-
 import type { ParsedMetadataResult, Context } from './types';
 
 /**
@@ -28,26 +26,21 @@ import type { ParsedMetadataResult, Context } from './types';
  *
  * @param url - Fandom wiki URL to parse
  * @param ctx - tRPC context for authenticated calls
- * @returns AsyncResult with parsed Fandom metadata
+ * @returns Parsed Fandom metadata (throws TRPCError on failure)
  */
 export async function parseFandomUrl(
   url: string,
   ctx: Context
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   const { metadataRouter } = await import('../../metadata');
-  const fandomResult = await metadataRouter.createCaller(ctx).fetchFandomMetadata({ url });
+  const data = await metadataRouter.createCaller(ctx).fetchFandomMetadata({ url });
 
-  if (isSuccess(fandomResult)) {
-    return createSuccessResult({
-      type: 'fandom',
-      data: fandomResult.data,
-      confidence: 0.9,
-      parser: 'fandom',
-    });
-  }
-  return createErrorResult(
-    isError(fandomResult) ? (fandomResult.error as Error) : new Error('Failed to parse Fandom URL')
-  );
+  return {
+    type: 'fandom',
+    data,
+    confidence: 0.9,
+    parser: 'fandom',
+  };
 }
 
 /**
@@ -58,26 +51,21 @@ export async function parseFandomUrl(
  *
  * @param url - AniList URL to parse
  * @param ctx - tRPC context for authenticated calls
- * @returns AsyncResult with parsed AniList metadata
+ * @returns Parsed AniList metadata (throws TRPCError on failure)
  */
 export async function parseAnilistUrl(
   url: string,
   ctx: Context
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   const { metadataRouter } = await import('../../metadata');
-  const anilistResult = await metadataRouter.createCaller(ctx).fetchAnilistMetadata({ url });
+  const data = await metadataRouter.createCaller(ctx).fetchAnilistMetadata({ url });
 
-  if (isSuccess(anilistResult)) {
-    return createSuccessResult({
-      type: 'anilist',
-      data: anilistResult.data,
-      confidence: 0.95,
-      parser: 'anilist',
-    });
-  }
-  return createErrorResult(
-    isError(anilistResult) ? (anilistResult.error as Error) : new Error('Failed to parse AniList URL')
-  );
+  return {
+    type: 'anilist',
+    data,
+    confidence: 0.95,
+    parser: 'anilist',
+  };
 }
 
 /**
@@ -87,35 +75,32 @@ export async function parseAnilistUrl(
  * from ComicVine API.
  *
  * @param url - ComicVine URL to parse (must contain volume ID in /XXXXX- format)
- * @returns AsyncResult with parsed ComicVine volume data
+ * @returns Parsed ComicVine volume data (throws on failure)
  */
 export async function parseComicvineUrl(
   url: string
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   const match = url.match(/\/(\d+)-/);
   if (!match?.[1]) {
-    return createErrorResult(new Error('Invalid ComicVine URL format'));
+    throw new Error('Invalid ComicVine URL format');
   }
 
   const volumeId = match[1];
   const { comicvineService } = await import('@/server/services/comicvine/service');
-  const volumeResult = await comicvineService.getVolume(volumeId, '');
+  const response = await comicvineService.getVolume(volumeId, '');
 
-  if (!isSuccess(volumeResult as AsyncResult<unknown, unknown>)) {
-    return createErrorResult(new Error('Failed to fetch ComicVine volume'));
+  // ComicVineResponse uses error: "OK" for success, results for data
+  const typedResponse = response as { error?: string; results?: unknown };
+  if (typedResponse.error !== 'OK' || !typedResponse.results) {
+    throw new Error('Failed to fetch ComicVine volume');
   }
 
-  const typedVolumeResult = volumeResult as AsyncResult<unknown, Error>;
-  if (!isSuccess(typedVolumeResult)) {
-    return createErrorResult(new Error('Failed to fetch ComicVine volume'));
-  }
-
-  return createSuccessResult({
+  return {
     type: 'comicvine',
-    data: typedVolumeResult.data,
+    data: typedResponse.results,
     confidence: 0.85,
     parser: 'comicvine',
-  });
+  };
 }
 
 /**
@@ -125,11 +110,11 @@ export async function parseComicvineUrl(
  * to extract volume data from manga/comic series pages.
  *
  * @param url - Wikipedia URL to parse
- * @returns AsyncResult with parsed Wikipedia volume data
+ * @returns Parsed Wikipedia volume data (throws on failure)
  */
 export async function parseWikipediaUrl(
   url: string
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   const axios = (await import('axios')).default;
   const response = await axios.get(url);
   const html: unknown = response.data;
@@ -138,12 +123,12 @@ export async function parseWikipediaUrl(
   const htmlStr = typeof html === 'string' ? html : String(html);
   const volumeData = parseVolumeTablesEnhanced(htmlStr, parsePageAdaptive);
 
-  return createSuccessResult({
+  return {
     type: 'wikipedia',
     data: volumeData,
     confidence: 0.8,
     parser: 'wikipedia',
-  });
+  };
 }
 
 /**
@@ -153,25 +138,25 @@ export async function parseWikipediaUrl(
  * Returns basic ID and URL data for further processing.
  *
  * @param url - MyAnimeList manga URL (must contain /manga/XXXXX)
- * @returns AsyncResult with parsed MAL ID and URL
+ * @returns Parsed MAL ID and URL (throws on invalid format)
  */
 export async function parseMalUrl(
   url: string
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   // No-op await to satisfy @typescript-eslint/require-await
   await Promise.resolve();
 
   const match = url.match(/manga\/(\d+)/);
   if (!match) {
-    return createErrorResult(new Error('Invalid MyAnimeList URL format'));
+    throw new Error('Invalid MyAnimeList URL format');
   }
 
-  return createSuccessResult({
+  return {
     type: 'mal',
     data: { id: match[1], url },
     confidence: 0.7,
     parser: 'mal',
-  });
+  };
 }
 
 /**
@@ -181,20 +166,20 @@ export async function parseMalUrl(
  * Returns the URL as image data for cover/artwork usage.
  *
  * @param url - Direct image URL
- * @returns AsyncResult with image URL data
+ * @returns Image URL data
  */
 export async function parseImageUrl(
   url: string
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   // No-op await to satisfy @typescript-eslint/require-await
   await Promise.resolve();
 
-  return createSuccessResult({
+  return {
     type: 'image',
     data: { imageUrl: url },
     confidence: 1.0,
     parser: 'image',
-  });
+  };
 }
 
 /**
@@ -204,21 +189,21 @@ export async function parseImageUrl(
  * Useful for API endpoints or JSON metadata files.
  *
  * @param url - URL pointing to JSON content
- * @returns AsyncResult with parsed JSON data
+ * @returns Parsed JSON data
  */
 export async function parseJsonUrl(
   url: string
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   const axios = (await import('axios')).default;
   const response = await axios.get(url);
   const jsonData: unknown = response.data;
 
-  return createSuccessResult({
+  return {
     type: 'json',
     data: jsonData,
     confidence: 0.9,
     parser: 'json',
-  });
+  };
 }
 
 /**
@@ -228,11 +213,11 @@ export async function parseJsonUrl(
  * Handles JSON, HTML, and image responses with appropriate confidence levels.
  *
  * @param url - Generic URL to parse
- * @returns AsyncResult with parsed content based on detected type
+ * @returns Parsed content based on detected type (throws on unknown type)
  */
 export async function parseGenericUrl(
   url: string
-): Promise<AsyncResult<ParsedMetadataResult, Error>> {
+): Promise<ParsedMetadataResult> {
   const axios = (await import('axios')).default;
   const response = await axios.get(url);
   const contentType = response.headers['content-type'] as unknown;
@@ -240,12 +225,12 @@ export async function parseGenericUrl(
 
   if (contentTypeStr.includes('application/json')) {
     const jsonData: unknown = response.data;
-    return createSuccessResult({
+    return {
       type: 'json',
       data: jsonData,
       confidence: 0.7,
       parser: 'generic',
-    });
+    };
   } else if (contentTypeStr.includes('text/html')) {
     const responseData: unknown = response.data;
     const htmlData =
@@ -253,22 +238,22 @@ export async function parseGenericUrl(
         ? responseData.substring(0, 10000)
         : String(responseData).substring(0, 10000);
 
-    return createSuccessResult({
+    return {
       type: 'html',
       data: { html: htmlData },
       confidence: 0.5,
       parser: 'generic',
-    });
+    };
   } else if (contentTypeStr.includes('image/')) {
-    return createSuccessResult({
+    return {
       type: 'image',
       data: { imageUrl: url },
       confidence: 1.0,
       parser: 'generic',
-    });
+    };
   }
 
-  return createErrorResult(new Error('Unknown URL type'));
+  throw new Error('Unknown URL type');
 }
 
 /**

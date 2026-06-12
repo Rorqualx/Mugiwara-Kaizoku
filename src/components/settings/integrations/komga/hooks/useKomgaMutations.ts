@@ -1,6 +1,5 @@
 import { useState } from 'react';
 
-import type { AsyncResult } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client/index';
 
 export interface UseKomgaMutationsProps {
@@ -13,7 +12,7 @@ export interface UseKomgaMutationsReturn {
   setIsTesting: (testing: boolean) => void;
   updateConfigMutation: {
     isPending: boolean;
-    mutateAsync: (params: { type: 'komga'; enabled: boolean; config: Record<string, unknown> }) => Promise<AsyncResult<boolean, Error>>;
+    mutateAsync: (params: { type: 'komga'; enabled: boolean; config: Record<string, unknown> }) => Promise<boolean>;
   };
   testConnectionMutation: {
     isPending: boolean;

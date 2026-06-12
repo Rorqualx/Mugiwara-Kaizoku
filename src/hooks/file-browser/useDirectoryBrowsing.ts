@@ -50,22 +50,16 @@ export function useDirectoryBrowsing(
     { enabled: opened && hasBrowseCapability }
   );
 
-  // Extract browse data with type guards
+  // Extract browse data with type guards.
+  // pathMapping.browse now returns the bare payload over the wire
+  // ({ currentPath, parent, entries }) — failures surface via the query's
+  // error channel instead of an in-band AsyncResult envelope.
   const browseData = useMemo((): BrowseData | null => {
     if (!browseResult) return null;
 
-    // Type guard to check if browseResult has AsyncResult structure
-    const hasAsyncResultShape = isObject(browseResult) && 'status' in browseResult;
-    if (!hasAsyncResultShape) return null;
-
-    // Now cast to AsyncResult-like type
-    type AsyncResultLike = { status: 'success' | 'error' | 'loading' | 'idle'; data?: unknown };
-    const resultCast = browseResult as AsyncResultLike;
-
-    // Check if it's a success result using proper AsyncResult pattern
-    if (resultCast.status !== 'success' || !('data' in resultCast)) return null;
-
-    const data = isObject(resultCast.data) ? resultCast.data as Record<string, unknown> : null;
+    const data = isObject(browseResult) && 'entries' in browseResult
+      ? browseResult as Record<string, unknown>
+      : null;
     if (!data) return null;
 
     return {

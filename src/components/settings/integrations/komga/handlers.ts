@@ -1,11 +1,9 @@
-import type { AsyncResult } from '@/utils/async-result';
-
 import type { KomgaFormValues } from './hooks';
 
 
 export interface UpdateConfigParams {
   values: KomgaFormValues;
-  mutateAsync: (params: { type: 'komga'; enabled: boolean; config: Record<string, unknown> }) => Promise<AsyncResult<boolean, Error>>;
+  mutateAsync: (params: { type: 'komga'; enabled: boolean; config: Record<string, unknown> }) => Promise<boolean>;
 }
 
 export function handleSubmit({ values, mutateAsync }: UpdateConfigParams): void {

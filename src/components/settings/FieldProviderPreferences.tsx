@@ -12,7 +12,6 @@ import { Paper, Text, Table, Alert, LoadingOverlay, Stack, Divider, Box } from '
 import { IconCheck, IconAlertCircle } from '@tabler/icons-react';
 
 import { METADATA_FIELDS, METADATA_PROVIDERS, FieldProviderPreferencesType } from '@/types/search.types';
-import { isSuccess } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client/index';
 
 import {
@@ -55,17 +54,17 @@ export function FieldProviderPreferences({ mangaId, isGlobal = true, onUpdate }:
         keys: ['fieldProviderPreferences.preferences', 'fieldProviderPreferences.fallbackMode']
     });
 
-    // Extract individual settings from batch result and maintain isSuccess compatibility
-    // Wrap in useMemo to prevent creating new objects on every render
+    // batchSettings is now the bare Record<string, unknown> payload — extract
+    // each setting directly. Wrap in useMemo to prevent re-creation on every render.
     const preferencesSetting = useMemo(() => {
-        return batchSettings && isSuccess(batchSettings)
-            ? { ...batchSettings, data: (batchSettings.data as Record<string, unknown>)['fieldProviderPreferences.preferences'] ?? {} }
+        return batchSettings
+            ? (batchSettings['fieldProviderPreferences.preferences'] ?? {})
             : null;
     }, [batchSettings]);
 
     const fallbackModeSetting = useMemo(() => {
-        return batchSettings && isSuccess(batchSettings)
-            ? { ...batchSettings, data: (batchSettings.data as Record<string, unknown>)['fieldProviderPreferences.fallbackMode'] ?? 'priority' }
+        return batchSettings
+            ? (batchSettings['fieldProviderPreferences.fallbackMode'] ?? 'priority')
             : null;
     }, [batchSettings]);
 
@@ -90,8 +89,8 @@ export function FieldProviderPreferences({ mangaId, isGlobal = true, onUpdate }:
     // Load current preferences
     useEffect(() => {
         // Load preferences and filter out disabled providers
-        if (preferencesSetting && isSuccess(preferencesSetting)) {
-            const savedPrefs = preferencesSetting.data as Record<string, string | string[]>;
+        if (preferencesSetting !== null) {
+            const savedPrefs = preferencesSetting as Record<string, string | string[]>;
             const migratedPrefs = Object.keys(savedPrefs).length > 0
                 ? migratePreferences(savedPrefs)
                 : getDefaultPreferences();
@@ -108,11 +107,8 @@ export function FieldProviderPreferences({ mangaId, isGlobal = true, onUpdate }:
         }
 
         // Load fallback mode
-        if (fallbackModeSetting && isSuccess(fallbackModeSetting)) {
-            const mode = fallbackModeSetting.data;
-            if (mode === 'priority' || mode === 'confidence') {
-                setFallbackMode(mode);
-            }
+        if (fallbackModeSetting === 'priority' || fallbackModeSetting === 'confidence') {
+            setFallbackMode(fallbackModeSetting);
         }
 
         // Update provider status state for PriorityOrderEditor

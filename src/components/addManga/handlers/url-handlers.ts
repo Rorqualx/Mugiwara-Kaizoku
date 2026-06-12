@@ -25,7 +25,6 @@ import type {
   VolumesData,
   WizardFormData
 } from '@/types/universalImportWizard.types';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';
 
@@ -109,12 +108,11 @@ async function parseMangaDexUrl(params: MangaDexParseParams): Promise<void> {
   }
 
   logger.info('[handleVolumeUrlParse] Fetching MangaDex volumes', { mangadexId });
-  const result = await mutations.fetchMangaDexVolumesMutation.mutateAsync({ mangadexId, language: 'en' });
-
-  if (isSuccess(result)) {
-    applyMangaDexVolumeData(result.data, setVolumesData, setSelectedSourcesMetadata, setVolumeDisplaySource, setChapterDisplaySource);
-  } else {
-    logger.warn('[handleVolumeUrlParse] MangaDex volume fetch failed');
+  try {
+    const result = await mutations.fetchMangaDexVolumesMutation.mutateAsync({ mangadexId, language: 'en' });
+    applyMangaDexVolumeData(result, setVolumesData, setSelectedSourcesMetadata, setVolumeDisplaySource, setChapterDisplaySource);
+  } catch (error) {
+    logger.warn('[handleVolumeUrlParse] MangaDex volume fetch failed', { error: error instanceof Error ? error.message : String(error) });
     notify({ severity: 'ERROR', title: 'MangaDex Fetch Failed', message: 'Could not fetch volume data from MangaDex' });
   }
 }

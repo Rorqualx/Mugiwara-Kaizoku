@@ -16,8 +16,6 @@ import { eventService } from '@/server/services/events/eventService';
 import type { EventFilters } from '@/server/services/events/eventService';
 import { EventType, EventSource, EventLevel } from '@/server/services/events/eventTypes';
 import { getConfigJSON } from '@/server/utils/configReader';
-import {
-  createSuccessResult} from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { logAppStartup, logAppShutdown } from '@/utils/system-event-logger';
 
@@ -196,7 +194,7 @@ export const eventsRouter = router({
     defaultLogLevel: z.enum(['debug', 'info', 'warning', 'error', 'critical']),
     componentLogLevels: z.record(z.string(), z.enum(['debug', 'info', 'warning', 'error', 'critical']))
   })).
-  mutation(async ({ input }) => {
+  mutation(async ({ input }): Promise<boolean> => {
     // Update settings in Config table
     await prisma.config.upsert({
       where: { key: 'events.settings' },
@@ -250,22 +248,22 @@ export const eventsRouter = router({
         }
       }
     });
-    return createSuccessResult(true);
+    return true;
   }),
   /**
    * Log application startup event
    */
   logStartup: protectedProcedure.
-  mutation(async () => {
+  mutation(async (): Promise<boolean> => {
     await logAppStartup();
-    return createSuccessResult(true);
+    return true;
   }),
   /**
    * Log application shutdown event
    */
   logShutdown: adminProcedure.
-  mutation(async () => {
+  mutation(async (): Promise<boolean> => {
     await logAppShutdown();
-    return createSuccessResult(true);
+    return true;
   })
 });

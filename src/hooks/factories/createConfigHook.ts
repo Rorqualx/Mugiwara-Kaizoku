@@ -121,13 +121,13 @@ export function createConfigHook<TSchema extends z.ZodType>(
       const fetchConfig = async (): Promise<void> => {
         try {
           setIsLoading(true);
-          const result = await configMutationRef.current.mutateAsync({
+          const value = await configMutationRef.current.mutateAsync({
             key: configKey,
             defaultValue: defaultValueRef.current
           });
-          if (isSuccess(result) && result.data) {
+          if (value !== undefined && value !== null) {
             try {
-              const parsed = schemaRef.current.parse(result.data as unknown) as ConfigType;
+              const parsed = schemaRef.current.parse(value) as ConfigType;
               setConfigData(parsed);
             } catch (_parseError: unknown) {
               // Schema validation failed, use default value
@@ -218,18 +218,18 @@ export function createConfigHook<TSchema extends z.ZodType>(
 
           // Revert optimistic update on error
           if (optimisticUpdates) {
-            // Re-fetch the config
-            const result = await configMutation.mutateAsync({
-              key: configKey,
-              defaultValue
-            });
-            if (isSuccess(result) && result.data) {
-              try {
-                const parsed = schema.parse(result.data as unknown) as unknown as ConfigType;
+            try {
+              // Re-fetch the config
+              const refreshed = await configMutation.mutateAsync({
+                key: configKey,
+                defaultValue
+              });
+              if (refreshed !== undefined && refreshed !== null) {
+                const parsed = schema.parse(refreshed) as unknown as ConfigType;
                 setConfigData(parsed);
-              } catch {
-                setConfigData(defaultValue);
               }
+            } catch {
+              setConfigData(defaultValue);
             }
           }
 
@@ -265,13 +265,13 @@ export function createConfigHook<TSchema extends z.ZodType>(
     const refetch = useCallback(async (): Promise<void> => {
       try {
         setIsLoading(true);
-        const result = await configMutation.mutateAsync({
+        const value = await configMutation.mutateAsync({
           key: configKey,
           defaultValue
         });
-        if (isSuccess(result) && result.data) {
+        if (value !== undefined && value !== null) {
           try {
-            const parsed = schema.parse(result.data as unknown) as unknown as ConfigType;
+            const parsed = schema.parse(value) as unknown as ConfigType;
             setConfigData(parsed);
           } catch (e: unknown) {
             console.error(`Invalid config for ${configKey}:`, e);

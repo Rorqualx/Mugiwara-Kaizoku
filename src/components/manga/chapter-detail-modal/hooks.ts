@@ -9,7 +9,6 @@
 
 import { useMemo, useState } from 'react';
 
-import { isSuccess } from '@/utils/async-result';
 import { notify } from '@/utils/notify';
 import { selectSmartClient } from '@/utils/smartClientSelector';
 import { trpc } from '@/utils/trpc-client/index';
@@ -76,8 +75,8 @@ export function useChapterModalData({
   const enabledClients = useMemo((): Array<{ value: string; label: string }> => {
     const clients: Array<{ value: string; label: string }> = [];
 
-    if (settings && isSuccess(settings)) {
-      const settingsData = settings.data as SettingsData;
+    if (settings) {
+      const settingsData = settings as SettingsData;
 
       if (settingsData.transmission?.enabled) {
         clients.push({ value: 'transmission', label: 'Transmission' });

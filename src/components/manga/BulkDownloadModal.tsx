@@ -19,7 +19,6 @@ import { IconCloud, IconDownload, IconInfoCircle } from '@tabler/icons-react';
 
 import type { TransmissionConfig, DelugeConfig, NZBGetConfig } from '@/types/config.types';
 import type { MangaWithRelations } from '@/types/search.types';
-import { isSuccess} from '@/utils/async-result';
 import { getChapterRanges } from '@/utils/formatters';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
@@ -125,8 +124,8 @@ export function BulkDownloadModal({
     if (!method) {
       // Mangal is deprecated, check Prowlarr only
       // Check if Prowlarr is configured (has base URL and API key)
-      if (settings && isSuccess(settings)) {
-        const settingsData = settings.data as SettingsData;
+      if (settings) {
+        const settingsData = settings as SettingsData;
         if (settingsData.prowlarrBaseURL && settingsData.prowlarrApiKey) {
           setMethod(DownloadMethod.PROWLARR); // Use PROWLARR for Prowlarr downloads
         }
@@ -148,8 +147,8 @@ export function BulkDownloadModal({
     return getChapterRanges(chapterIds, chaptersWithNumericIds);
   }, [chapterIds, mangaChapters]);
   const enabledClients = useMemo(() => {
-    if (settings && isSuccess(settings)) {
-      return getEnabledClients(settings.data as SettingsData);
+    if (settings) {
+      return getEnabledClients(settings as SettingsData);
     }
     return [];
   }, [settings]);
@@ -177,7 +176,7 @@ export function BulkDownloadModal({
                   <IconCloud size={16} />
                   <Box ml={10}>Download Client</Box>
                 </Center>,
-        disabled: !settings || !isSuccess(settings) || !(settings.data as SettingsData).prowlarrBaseURL || !(settings.data as SettingsData).prowlarrApiKey
+        disabled: !settings || !(settings as SettingsData).prowlarrBaseURL || !(settings as SettingsData).prowlarrApiKey
       }]} />
 
 

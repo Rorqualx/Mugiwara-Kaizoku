@@ -13,10 +13,9 @@
 
 import { z } from 'zod';
 
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
@@ -36,7 +35,7 @@ export const metadataChaptersRouter = router({
       volumesPageUrl: z.string().url(),
       extractChapterUrls: z.boolean().default(true)
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<{
+    .mutation(async ({ input }): Promise<{
       volumes: Array<{
         volumeNumber: number;
         title: string;
@@ -52,7 +51,7 @@ export const metadataChaptersRouter = router({
       }>;
       totalVolumes: number;
       totalChapters: number;
-    }, Error>> => {
+    }> => {
       try {
         const axios = (await import('axios')).default;
         const { parseVolumeTables } = await import('@/server/services/metadata/utils/fandomTableParser');
@@ -75,7 +74,7 @@ export const metadataChaptersRouter = router({
         const parsedData = parseVolumeTables(htmlStr);
 
         if (parsedData.length === 0) {
-          return createErrorResult(new Error('No volume data found on the page'));
+          throw toTRPCError(new Error('No volume data found on the page'));
         }
 
         // Convert the parsed data to the expected format
@@ -123,15 +122,15 @@ export const metadataChaptersRouter = router({
 
         logger.info(`Parsed ${volumes.length} volumes with ${totalChapters} chapters from ${input.volumesPageUrl}`);
 
-        return createSuccessResult({
+        return {
           volumes,
           totalVolumes: volumes.length,
           totalChapters
-        });
+        };
       }
       catch (error: unknown) {
         logger.error(`Error parsing enhanced volumes: ${error instanceof Error ? error.message : String(error)}`);
-        return createErrorResult(error instanceof Error ? error : new Error(`Volume parsing failed: ${String(error)}`));
+        throw toTRPCError(error instanceof Error ? error : new Error(`Volume parsing failed: ${String(error)}`));
       }
     }),
 
@@ -144,7 +143,7 @@ export const metadataChaptersRouter = router({
       chapterUrls: z.array(z.string().url()),
       mangaId: z.number()
     }))
-    .mutation(async ({ input }): Promise<AsyncResult<{
+    .mutation(async ({ input }): Promise<{
       success: boolean;
       count: number;
       failed: number;
@@ -158,7 +157,7 @@ export const metadataChaptersRouter = router({
         releaseDate?: string;
         pageCount?: number;
       }>;
-    }, Error>> => {
+    }> => {
       try {
         const { ChapterDetailService } = await import('@/server/services/fandom/chapter-detail');
         const chapterService = new ChapterDetailService();
@@ -175,16 +174,16 @@ export const metadataChaptersRouter = router({
         // Save chapter details to database if needed
         // This would require a new table or extending the existing chapter model
         logger.info(`Fetched details for ${details.length} chapters out of ${input.chapterUrls.length} requested`);
-        return createSuccessResult({
+        return {
           success: true,
           count: details.length,
           failed: input.chapterUrls.length - details.length,
           details: details
-        });
+        };
       }
       catch (error: unknown) {
         logger.error(`Error fetching chapter details: ${error instanceof Error ? error.message : String(error)}`);
-        return createErrorResult(error instanceof Error ? error : new Error(`Chapter detail fetch failed: ${String(error)}`));
+        throw toTRPCError(error instanceof Error ? error : new Error(`Chapter detail fetch failed: ${String(error)}`));
       }
     }),
 
@@ -201,7 +200,7 @@ export const metadataChaptersRouter = router({
       onlyMissingDetails: z.boolean().optional().default(true)
     }))
     // eslint-disable-next-line max-lines-per-function -- Complex procedural endpoint
-    .mutation(async ({ input }): Promise<AsyncResult<{
+    .mutation(async ({ input }): Promise<{
       success: boolean;
       totalCount: number;
       processedCount: number;
@@ -218,7 +217,7 @@ export const metadataChaptersRouter = router({
           pageCount?: number;
         }>;
       }>;
-    }, Error>> => {
+    }> => {
       try {
         const { chapterUrls, mangaId: _mangaId, batchSize, onlyMissingDetails } = input;
 
@@ -330,16 +329,16 @@ export const metadataChaptersRouter = router({
           batchResults.unshift(cachedBatch);
         }
 
-        return createSuccessResult({
+        return {
           success: true,
           totalCount: chapterUrls.length,
           processedCount: urlsToFetch.length + cachedDetails.size,
           batchResults
-        });
+        };
       }
       catch (error: unknown) {
         logger.error(`Error in progressive chapter fetch: ${error instanceof Error ? error.message : String(error)}`);
-        return createErrorResult(error instanceof Error ? error : new Error(`Progressive fetch failed: ${String(error)}`));
+        throw toTRPCError(error instanceof Error ? error : new Error(`Progressive fetch failed: ${String(error)}`));
       }
     })
 });

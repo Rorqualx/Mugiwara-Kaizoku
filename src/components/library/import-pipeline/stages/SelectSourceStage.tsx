@@ -58,6 +58,7 @@ function SelectSourceStageComponent({
   const {
     browseModalOpen,
     browseResult,
+    browseError,
     currentBrowsePath,
     handleBrowseClick,
     handleCloseBrowse,
@@ -141,6 +142,7 @@ function SelectSourceStageComponent({
         opened={browseModalOpen}
         onClose={handleCloseBrowse}
         browseResult={browseResult}
+        browseError={browseError}
         currentBrowsePath={currentBrowsePath}
         setCurrentBrowsePath={setCurrentBrowsePath}
         onNavigateToPath={handleNavigateToPath}

@@ -6,7 +6,6 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { createSuccessResult } from '@/utils/async-result';
 import { ensureDirectoriesExist, resolveLibraryPath } from '@/utils/defaultPaths';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
@@ -211,14 +210,14 @@ export const libraryRouter = router({
       interval: z.enum(['never', 'hourly', 'daily', 'weekly', 'monthly', 'custom']),
       customInterval: z.string().optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<null> => {
       await updateGlobalMonitoringInterval(input.interval, input.customInterval);
       void realtimeEmitter.emitSystemEvent({
         eventType: 'library:global-interval:updated', source: 'libraryRouter',
         message: `Global monitoring interval updated to ${input.interval}`,
         data: { interval: input.interval, customInterval: input.customInterval }
       });
-      return createSuccessResult(null);
+      return null;
     }),
 
   importLibrary: importLibraryProcedure,

@@ -5,7 +5,6 @@
  */
 
 import type { ProviderMetadata } from '@/types/universalImportWizard.types';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { vanillaTrpcClient } from '@/utils/trpc-client/vanilla';
 
@@ -28,12 +27,7 @@ export function enrichAniListResult(
   void vanillaTrpcClient.metadata.fetchAnilistMetadata
     .mutate({ id: String(anilistId) })
     .then((fetchResult) => {
-      if (!isSuccess(fetchResult)) {
-        logger.warn('[SearchEnrichment] AniList fetch failed', { fetchResult });
-        return;
-      }
-
-      const data = fetchResult.data as unknown as Record<string, unknown>;
+      const data = fetchResult as unknown as Record<string, unknown>;
       logger.debug('[SearchEnrichment] AniList fetch complete', {
         hasAuthors: !!data['authors'],
         authorsLength: Array.isArray(data['authors']) ? data['authors'].length : 0,

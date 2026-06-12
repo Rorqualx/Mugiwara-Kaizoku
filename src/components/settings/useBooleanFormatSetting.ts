@@ -21,19 +21,6 @@ import { showNotification } from '@mantine/notifications';
 import { logger } from '@/utils/logger';
 import { trpc } from '@/utils/trpc-client';
 
-/** AsyncResult success shape returned by `settings.get`. */
-type SettingsGetSuccess = { status: 'success'; data: unknown };
-
-function isSuccess(value: unknown): value is SettingsGetSuccess {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'status' in value &&
-    (value as { status: unknown }).status === 'success' &&
-    'data' in value
-  );
-}
-
 function parseBool(raw: unknown): boolean {
   if (typeof raw === 'boolean') return raw;
   if (typeof raw === 'string') return raw === 'true';
@@ -73,16 +60,13 @@ export function useBooleanFormatSetting(
     { refetchOnWindowFocus: false },
   );
 
-  const enabled = isSuccess(settingsData) ? parseBool(settingsData.data) : false;
+  const enabled = parseBool(settingsData);
 
   const updateSetting = trpc.settings.set.useMutation({
     onMutate: async ({ value }) => {
       await utils.settings.get.cancel({ key: settingKey });
       const previous = utils.settings.get.getData({ key: settingKey });
-      utils.settings.get.setData(
-        { key: settingKey },
-        { status: 'success', data: value } as SettingsGetSuccess,
-      );
+      utils.settings.get.setData({ key: settingKey }, value);
       return { previous };
     },
     onError: (err, _input, context) => {

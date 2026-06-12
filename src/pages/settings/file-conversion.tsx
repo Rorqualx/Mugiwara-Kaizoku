@@ -23,14 +23,12 @@ import { StatisticsCard } from '@/components/settings/file-conversion/Statistics
 import type { ConversionSettingsValues } from '@/components/settings/file-conversion/types';
 import { useConversionSettings } from '@/components/settings/file-conversion/useConversionSettings';
 import { useRealTime } from '@/providers/RealTimeProvider';
-import type { AsyncResult } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client/index';
 
-// settings.get returns AsyncResult<unknown, Error>; "true" comes back as either
+// settings.get returns the bare value; "true" comes back as either
 // the string literal (legacy KV rows) or the boolean (newer JSON-typed rows).
-function parseEnabledFlag(result: AsyncResult<unknown, Error> | undefined): boolean {
-  if (result?.status !== 'success') return false;
-  return result.data === 'true' || result.data === true;
+function parseEnabledFlag(value: unknown): boolean {
+  return value === 'true' || value === true;
 }
 
 function FileConversionSettings(): React.ReactElement {

@@ -24,14 +24,11 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { logService } from '@/server/services/logs/index';
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import {
-  isSuccess,
-  createSuccessResult,
-  createErrorResult,
-  createContextualError,
-} from '@/utils/async-result';
+import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
+import { isSuccess } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logging';
@@ -326,7 +323,7 @@ export const systemLogsRouter = router({
    *
    * @param {Object} input - Mutation parameters
    * @param {string} input.path - Path to the log file to clear
-   * @returns {Promise<Object>} Success status
+   * @returns {Promise<boolean>} True when the log file was cleared
    */
   clearLogFile: adminProcedure
     .input(
@@ -334,15 +331,10 @@ export const systemLogsRouter = router({
         path: z.string(),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         if (!hasMethod(logService, 'clearLogFile')) {
-          return createErrorResult(
-            createContextualError(
-              'Log service not available',
-              'LOG_SERVICE_UNAVAILABLE'
-            )
-          );
+          throw TRPCErrors.unavailable('Log service');
         }
 
         // Type-safe method extraction
@@ -351,19 +343,12 @@ export const systemLogsRouter = router({
         ] as ClearLogFileMethod;
         const result = await clearLogFileMethod(input.path);
 
-        if (isSuccess(result)) {
-          return createSuccessResult(!!result.data);
-        }
-        return createErrorResult(
-          createContextualError('Failed to clear log file', 'LOG_CLEAR_FAILED')
-        );
+        return !!unwrapResultOrThrow(result, 'Failed to clear log file');
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
         logger.error('Failed to clear log file', errorMessage);
-        return createErrorResult(
-          createContextualError(errorMessage, 'INTERNAL_SERVER_ERROR')
-        );
+        throw toTRPCError(error);
       }
     }),
 

@@ -21,7 +21,6 @@ import { DataTable } from 'mantine-datatable';
 
 import type { TransmissionConfig, DelugeConfig, NZBGetConfig } from '@/types/config.types';
 import type { MangaWithRelations } from '@/types/search.types';
-import { isSuccess } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
@@ -134,8 +133,8 @@ export function PackSearchModal({
   const enabledClients = useMemo(() => {
     const clients: Array<{ value: string; label: string }> = [];
 
-    if (settings && isSuccess(settings)) {
-      const settingsData = settings.data as SettingsData;
+    if (settings) {
+      const settingsData = settings as SettingsData;
 
       if (settingsData.transmission?.enabled) {
         clients.push({
@@ -297,11 +296,11 @@ export function PackSearchModal({
 
         </Group>
 
-        {(!settings || !isSuccess(settings) || !(settings.data as SettingsData).prowlarrBaseURL || !(settings.data as SettingsData).prowlarrApiKey) && <Alert icon={<IconInfoCircle />} color="red">
+        {(!settings || !(settings as SettingsData).prowlarrBaseURL || !(settings as SettingsData).prowlarrApiKey) && <Alert icon={<IconInfoCircle />} color="red">
             Prowlarr is not configured. Please configure Prowlarr Base URL and API Key in Settings → Indexers.
           </Alert>}
 
-        {settings && isSuccess(settings) && (settings.data as SettingsData).prowlarrBaseURL && (settings.data as SettingsData).prowlarrApiKey && enabledClients.length === 0 && <Alert icon={<IconInfoCircle />} color="orange">
+        {Boolean(settings) && Boolean((settings as SettingsData).prowlarrBaseURL) && Boolean((settings as SettingsData).prowlarrApiKey) && enabledClients.length === 0 && <Alert icon={<IconInfoCircle />} color="orange">
             No download clients are configured. Please configure a download client to download packs.
           </Alert>}
 

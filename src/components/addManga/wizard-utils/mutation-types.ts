@@ -16,7 +16,6 @@ import type {
   FandomVolumeDetail,
   FandomChapterDetail,
 } from '@/server/trpc/routers/metadata/fandom-url-parser-utils';
-import type { AsyncResult } from '@/utils/async-result';
 
 // Re-export imported types
 export type { FandomMetadata, FandomParseResult, FandomVolumeDetail, FandomChapterDetail };
@@ -403,37 +402,41 @@ export interface WikipediaAnalysisResponse {
 /**
  * Properly typed mutation interface for tRPC mutations used in the wizard.
  * Each mutation has specific input and output types instead of `any`.
+ *
+ * Note: tRPC procedures return the bare payload and throw a TRPCError on
+ * failure (no AsyncResult envelope over the wire). Callers must use
+ * try/catch around mutateAsync.
  */
 export interface MutationResults {
   fetchAnilistMutation: {
-    mutateAsync: (params: AnilistInput) => Promise<AsyncResult<AniListMetadataResult, Error>>;
+    mutateAsync: (params: AnilistInput) => Promise<AniListMetadataResult>;
   };
   fetchFandomMutation: {
-    mutateAsync: (params: FandomInput) => Promise<AsyncResult<FandomMetadata, Error>>;
+    mutateAsync: (params: FandomInput) => Promise<FandomMetadata>;
   };
   parseFandomUrlMutation: {
-    mutateAsync: (params: ParseFandomUrlInput) => Promise<AsyncResult<FandomParseResult, Error>>;
+    mutateAsync: (params: ParseFandomUrlInput) => Promise<FandomParseResult>;
   };
   fetchComicvineMutation: {
-    mutateAsync: (params: ComicvineInput) => Promise<AsyncResult<ComicvineMetadataResult, Error>>;
+    mutateAsync: (params: ComicvineInput) => Promise<ComicvineMetadataResult>;
   };
   fetchComicvineVolumeDetailsMutation: {
-    mutateAsync: (params: ComicvineVolumeDetailsInput) => Promise<AsyncResult<ComicvineVolumeDetailsResult, Error>>;
+    mutateAsync: (params: ComicvineVolumeDetailsInput) => Promise<ComicvineVolumeDetailsResult>;
   };
   parseUrlMutation: {
-    mutateAsync: (params: ParseUrlInput) => Promise<AsyncResult<ParsedMetadataResult, Error>>;
+    mutateAsync: (params: ParseUrlInput) => Promise<ParsedMetadataResult>;
   };
   fetchFandomChapterMetadata: {
-    mutateAsync: (params: FandomChapterInput) => Promise<AsyncResult<ChapterMetadata, Error>>;
+    mutateAsync: (params: FandomChapterInput) => Promise<ChapterMetadata>;
   };
   scrapeComicVineVolumeMutation: {
-    mutateAsync: (params: ScrapeComicVineVolumeInput) => Promise<AsyncResult<ScrapedVolume, Error>>;
+    mutateAsync: (params: ScrapeComicVineVolumeInput) => Promise<ScrapedVolume>;
   };
   scrapeComicVineChaptersMutation: {
-    mutateAsync: (params: ScrapeComicVineChaptersInput) => Promise<AsyncResult<ScrapedVolumesResult, Error>>;
+    mutateAsync: (params: ScrapeComicVineChaptersInput) => Promise<ScrapedVolumesResult>;
   };
   scrapeComicVineVolumeUrlsMutation: {
-    mutateAsync: (params: ScrapeComicVineVolumeUrlsInput) => Promise<AsyncResult<VolumeUrlsResult, Error>>;
+    mutateAsync: (params: ScrapeComicVineVolumeUrlsInput) => Promise<VolumeUrlsResult>;
   };
   analyzeUrlMutation: {
     mutateAsync: (params: AnalyzeUrlInput) => Promise<StaticAnalysisResponse>;
@@ -444,6 +447,6 @@ export interface MutationResults {
     isPending: boolean;
   };
   fetchMangaDexVolumesMutation?: {
-    mutateAsync: (params: FetchMangaDexVolumesInput) => Promise<AsyncResult<FetchMangaDexVolumesResult, Error>>;
+    mutateAsync: (params: FetchMangaDexVolumesInput) => Promise<FetchMangaDexVolumesResult>;
   };
 }

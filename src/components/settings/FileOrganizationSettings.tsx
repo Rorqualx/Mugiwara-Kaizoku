@@ -80,14 +80,13 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         }
 
         try {
-            // settingsData is AsyncResult<unknown>; `data` can be either a
-            // JSON string (legacy stored shape) OR an already-deserialized
+            // settingsData is the bare payload; it can be either a JSON
+            // string (legacy stored shape) OR an already-deserialized
             // object (current configService cache returns parsed values).
             // The old typeof==='string' check silently bailed on the object
             // case, leaving the local useState defaults visible — looking
             // like saves reverted across reloads. Accept both shapes.
-            const settingsObj = settingsData as Record<string, unknown>;
-            const rawValue = 'data' in settingsObj ? settingsObj["data"] : null;
+            const rawValue: unknown = settingsData;
             let parsed: unknown = null;
             if (typeof rawValue === 'string' && rawValue.length > 0) {
                 parsed = JSON.parse(rawValue);
@@ -152,7 +151,7 @@ export function FileOrganizationSettings(): React.ReactElement | null {
 
     // Browse query for directory navigation
     // Uses trpc.pathMapping.browse directly - types come from AppRouter
-    const { data: browseResult, isLoading: isBrowseLoading } = trpc.pathMapping.browse.useQuery(
+    const { data: browseResult, isLoading: isBrowseLoading, error: browseQueryError } = trpc.pathMapping.browse.useQuery(
         { path: currentBrowsePath },
         {
             enabled: browseModalOpen,
@@ -191,32 +190,22 @@ export function FileOrganizationSettings(): React.ReactElement | null {
     // gives us automatic rollback (the UI no longer shows a saved value that
     // wasn't actually persisted) without rewriting all 10+ change handlers.
     const updateFileOrganization = trpc.settings.set.useMutation({
-        onSuccess: (result: unknown) => {
-            // tRPC fires onSuccess as long as the HTTP call returns 2xx.
-            // The actual save outcome is in the AsyncResult body — when
-            // the server-side validator rejects the payload it returns
-            // {status:'error', error:...} *inside* a successful response.
-            // Without this guard, every rejected save flashed "Saved"
-            // and the user only discovered it didn't persist after a
-            // reboot. Re-sync from server to revert the optimistic
-            // state flip too.
-            const r = result as { status?: string; error?: { message?: string } } | null;
-            if (r?.status === 'error') {
-                const errorMessage = r.error?.message ?? 'Save rejected by server';
-                logger.error('File organization save rejected by server', { errorMessage });
-                setError(`Failed to update settings: ${errorMessage}`);
-                showNotification({ title: 'Save failed', message: errorMessage, color: 'red' });
-                void utils.settings.get.invalidate({ key: 'fileOrganization' });
-                setIsLoaded(false);
-                return;
-            }
+        onSuccess: () => {
+            // settings.set now throws a TRPCError (BAD_REQUEST) when the
+            // server-side validator rejects the payload, so reaching here
+            // means the save actually persisted — no AsyncResult body to
+            // inspect anymore.
             setError(null);
             showNotification({ title: "Saved", message: "File organization settings updated", color: "green" });
         },
         onError: (err: unknown) => {
+            // Validation rejections and save failures both land here. Re-sync
+            // from the server (invalidate + clear the isLoaded gate) so the
+            // existing loader effect rolls back every optimistic state flip.
             logger.error("Failed to update file organization settings:", err);
             const errorMessage = err instanceof Error ? err.message : String(err);
             setError(`Failed to update settings: ${errorMessage}`);
+            showNotification({ title: 'Save failed', message: errorMessage, color: 'red' });
             void utils.settings.get.invalidate({ key: "fileOrganization" });
             setIsLoaded(false);
         }
@@ -486,6 +475,7 @@ export function FileOrganizationSettings(): React.ReactElement | null {
         onSelect={handleSelectDirectory}
         browseResult={browseResult}
         isLoading={isBrowseLoading}
+        error={browseQueryError}
       />
 
     </Paper>);

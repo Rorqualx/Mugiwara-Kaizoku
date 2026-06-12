@@ -226,13 +226,14 @@ export function ColorSchemeProvider({ children }: ColorSchemeProviderProps): Rea
     const loadThemeColors = async (): Promise<void> => {
       setThemeColorsConfigResult(createLoadingResult<ThemeColorsConfig, Error>());
       try {
-        const result = await getConfigMutation.mutateAsync({
+        // config.get now returns the bare config value over the wire.
+        const value: unknown = await getConfigMutation.mutateAsync({
           key: THEME_CONFIG_KEY,
           defaultValue: DEFAULT_THEME_CONFIG
         });
 
-        if ('data' in result && result.data) {
-          const validatedConfig = parseThemeConfig(result.data);
+        if (value !== undefined && value !== null) {
+          const validatedConfig = parseThemeConfig(value);
           if (validatedConfig) {
             setThemeColorsConfigResult(createSuccessResult<ThemeColorsConfig, Error>(validatedConfig));
             logger.info('Loaded theme colors from database');

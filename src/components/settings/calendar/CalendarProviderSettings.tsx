@@ -9,7 +9,6 @@ import React, { useState, useEffect } from 'react';
 import { Card, Title, Text, Switch, TextInput, PasswordInput, Button, Group, Stack, Alert, Divider, Badge, Loader, Collapse, ActionIcon} from '@mantine/core';
 import { IconCheck, IconAlertCircle, IconChevronDown, IconChevronUp, IconPlugConnected, IconTestPipe } from '@tabler/icons-react';
 
-import { isSuccess} from '@/utils/async-result';
 import { notify } from '@/utils/notify';
 import { safeErrorMessage } from '@/utils/safe-render';
 import { trpc } from '@/utils/trpc-client/index';
@@ -63,8 +62,8 @@ export function CalendarProviderSettings(): JSX.Element {
     // Load settings on mount
     useEffect(() => {
         if (settingsQuery.data) {
-            // When we request 'metadata' key, we should get just the metadata object
-            const metadata = isSuccess(settingsQuery.data) ? settingsQuery.data.data : null;
+            // When we request 'metadata' key, we get just the metadata object
+            const metadata: unknown = settingsQuery.data;
             if (metadata && typeof metadata === 'object' && 'providers' in metadata) {
                 const typedMetadata = metadata as { providers: unknown };
                 const providersData = typedMetadata["providers"] as unknown;
@@ -137,7 +136,7 @@ export function CalendarProviderSettings(): JSX.Element {
         setSaving(true);
         try {
             // Get current metadata settings
-            const currentMetadata = settingsQuery.data && isSuccess(settingsQuery.data) ? settingsQuery.data.data : null;
+            const currentMetadata = settingsQuery.data ?? null;
             if (!currentMetadata) {
                 // If no metadata exists, create new metadata structure
                 await updateSettings.mutateAsync({

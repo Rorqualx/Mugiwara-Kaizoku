@@ -17,14 +17,10 @@ import { prisma } from '@/server/db';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { unifiedProviderRegistry } from '@/server/services/search/UnifiedProviderRegistry';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure, settingsProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError,
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 import { isObject, hasProperty } from '@/utils/type-guards';
 
@@ -37,7 +33,7 @@ import { validateConfigKey } from './config-key-validators';
 /** Handle 'all' key - returns all configurations */
 async function handleGetAllConfig(
   cacheKey: string
-): Promise<AsyncResult<Record<string, unknown>, Error>> {
+): Promise<Record<string, unknown>> {
   const configService = getGlobalConfigService();
   const allConfig = await configService.getAll();
 
@@ -61,14 +57,14 @@ async function handleGetAllConfig(
   });
 
   await cacheProvider.set(cacheKey, values, { ttl: 600, namespace: 'settings', tags: ['settings', 'all'] });
-  return createSuccessResult(values);
+  return values;
 }
 
 /** Handle 'metadata' key - returns metadata config */
 async function handleGetMetadataConfig(
   cacheKey: string,
   defaultValue: unknown
-): Promise<AsyncResult<unknown, Error>> {
+): Promise<unknown> {
   const configService = getGlobalConfigService();
   let value = await configService.get('metadata', defaultValue);
 
@@ -92,7 +88,7 @@ async function handleGetMetadataConfig(
   });
 
   await cacheProvider.set(cacheKey, value, { ttl: 600, namespace: 'settings', tags: ['settings', 'metadata'] });
-  return createSuccessResult(value);
+  return value;
 }
 
 /**
@@ -160,6 +156,24 @@ async function recordSettingsAuditEvent(
 }
 
 
+/**
+ * Fetch a single config key, swallowing per-key failures (a bad key must
+ * not fail the whole batch). Returns the key/value pair, or null when the
+ * key is missing or its lookup failed.
+ */
+async function fetchConfigValue(
+  key: string,
+): Promise<[string, unknown] | null> {
+  try {
+    const configService = getGlobalConfigService();
+    const value = await configService.get(key);
+    return value !== undefined ? [key, value] : null;
+  } catch (error: unknown) {
+    logger.warn(`Error getting config key '${key}':`, error);
+    return null;
+  }
+}
+
 // ============================================================================
 // Router Definition
 // ============================================================================
@@ -168,43 +182,30 @@ export const settingsConfigRouter = router({
   /** Get multiple configuration values in a batch */
   getBatch: settingsProcedure
     .input(z.object({ keys: z.array(z.string()) }))
-    .query(async ({ input }): Promise<AsyncResult<Record<string, unknown>, Error>> => {
+    .query(async ({ input }): Promise<Record<string, unknown>> => {
       try {
-        const configService = getGlobalConfigService();
-        const results: Record<string, unknown> = {};
-
-        await Promise.all(
-          input.keys.map(async (key) => {
-            try {
-              const value = await configService.get(key);
-              if (value !== undefined) {
-                results[key] = value;
-              }
-            } catch (error: unknown) {
-              logger.warn(`Error getting config key '${key}':`, error);
-            }
-          })
+        const entries = await Promise.all(input.keys.map(async (key) => fetchConfigValue(key)));
+        return Object.fromEntries(
+          entries.filter((entry): entry is [string, unknown] => entry !== null)
         );
-
-        return createSuccessResult(results);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error getting batch configuration: ${errorMessage}`);
-        return createErrorResult(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
+        throw toTRPCError(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
       }
     }),
 
   /** Get a specific configuration value by key */
   get: settingsProcedure
     .input(z.object({ key: z.string(), defaultValue: z.unknown().optional() }))
-    .query(async ({ input }): Promise<AsyncResult<unknown, Error>> => {
+    .query(async ({ input }): Promise<unknown> => {
       try {
         const cacheKey = `settings:get:${input.key}`;
 
         const cached = await cacheProvider.get(cacheKey);
         if (cached) {
           logger.debug(`Cache hit for settings.get key: ${input.key}`);
-          return createSuccessResult(cached);
+          return cached;
         }
 
         if (input.key === 'all') {
@@ -221,18 +222,18 @@ export const settingsConfigRouter = router({
         await cacheProvider.set(cacheKey, value, { ttl: 600, namespace: 'settings', tags: ['settings', input.key] });
         logger.debug(`Cache miss for settings.get key: ${input.key}, cached for 600s`);
 
-        return createSuccessResult(value);
+        return value;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error getting configuration: ${errorMessage}`);
-        return createErrorResult(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
+        throw toTRPCError(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
       }
     }),
 
   /** Set a specific configuration value */
   set: protectedProcedure
     .input(z.object({ key: z.string(), value: z.unknown() }))
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       const userId = ctx.user.id;
       let validatedValue: unknown;
       try {
@@ -282,25 +283,17 @@ export const settingsConfigRouter = router({
           userId,
         );
 
-        const result = createSuccessResult(true);
-
-        // Safety check for contaminated result
-        if (typeof result === 'object' && 'data' in result && typeof result.data !== 'boolean') {
-          logger.error(`[settings.set] WARNING: Result data is not boolean for key ${input.key}!`);
-          return createSuccessResult(true);
-        }
-
-        return result;
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error setting configuration: ${errorMessage}`);
-        return createErrorResult(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
+        throw toTRPCError(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
       }
     }),
   /** Set multiple configuration values atomically */
   setBatch: protectedProcedure
     .input(z.object({ items: z.array(z.object({ key: z.string(), value: z.unknown() })) }))
-    .mutation(async ({ input, ctx }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
       const userId = ctx.user.id;
       let validatedItems: { key: string; value: unknown }[];
       try {
@@ -311,7 +304,7 @@ export const settingsConfigRouter = router({
       } catch (validationError: unknown) {
         const message = validationError instanceof Error ? validationError.message : String(validationError);
         logger.warn(`[settings.setBatch] Rejected batch: ${message}`);
-        return createErrorResult(createContextualError(message, "INVALID_CONFIG_VALUE"));
+        throw new TRPCError({ code: 'BAD_REQUEST', message });
       }
       try {
         const configService = getGlobalConfigService();
@@ -354,19 +347,11 @@ export const settingsConfigRouter = router({
           userId,
         );
 
-        const result = createSuccessResult(true);
-
-        // Safety check for contaminated result
-        if (typeof result === 'object' && 'data' in result && typeof result.data !== 'boolean') {
-          logger.error(`[settings.setBatch] WARNING: Result data is not boolean!`);
-          return createSuccessResult(true);
-        }
-
-        return result;
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error setting batch configuration: ${errorMessage}`);
-        return createErrorResult(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
+        throw toTRPCError(createContextualError(errorMessage, 'CONFIGURATION_ERROR'));
       }
     }),
 });

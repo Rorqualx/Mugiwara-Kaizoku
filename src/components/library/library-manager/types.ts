@@ -9,7 +9,6 @@
  */
 
 import type { LibraryEntity } from '@/types/search.types';
-import type { AsyncResult } from '@/utils/async-result';
 
 // ============================================================================
 // Directory Browse Types
@@ -41,10 +40,6 @@ export interface BrowseResultData {
     entries: DirectoryEntry[];
 }
 
-/**
- * AsyncResult type for browse operations
- */
-export type BrowseAsyncResult = AsyncResult<BrowseResultData, Error>;
 
 // ============================================================================
 // Component Prop Types
@@ -112,10 +107,12 @@ export interface ScanControlsProps {
 export interface BrowseDirectoryModalProps {
     /** Whether the modal is open */
     opened: boolean;
-    /** Browse operation result */
-    browseResult: BrowseAsyncResult | undefined;
+    /** Browse operation result payload */
+    browseResult: BrowseResultData | undefined;
     /** Whether browse operation is loading */
     isBrowseLoading: boolean;
+    /** Browse query error, if any (errors now arrive via tRPC's error channel) */
+    browseError?: unknown;
     /** Current path being browsed */
     currentBrowsePath: string;
     /** Callback to navigate to a different path */

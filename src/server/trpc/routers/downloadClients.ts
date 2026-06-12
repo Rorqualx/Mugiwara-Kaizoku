@@ -4,11 +4,12 @@
  * This router handles testing and management of download clients.
  * Replaces direct fetch calls to /api/download-clients/* endpoints.
  *
- * All `test*` mutations return `AsyncResult<{ message, data }, Error>` on both
- * success and failure paths so the UI has a single shape to branch on. A
- * thrown exception or an isError `client.getAllItems()` result both surface as
- * `createErrorResult(...)` — previously a getAllItems isError was nested
- * inside `createSuccessResult` and reported as success.
+ * All `test*` mutations return bare `{ message, data }` on success and throw
+ * a `TRPCError` (via `toTRPCError`) on failure, so clients use tRPC's typed
+ * error channel instead of branching on a wire-serialized AsyncResult. Both a
+ * thrown exception and an isError `client.getAllItems()` result surface as a
+ * thrown `TRPCError`; the realtime `downloadClient:tested` event is emitted on
+ * both the success and failure paths.
  */
 import { z } from 'zod';
 
@@ -18,9 +19,9 @@ import { NzbgetClient } from '@/server/services/download/clients/nzbgetClient';
 import { SabnzbdClient } from '@/server/services/download/clients/sabnzbdClient';
 import { TransmissionClient } from '@/server/services/download/clients/transmission';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import type { AsyncResult } from '@/utils/async-result';
-import { createErrorResult, createSuccessResult, isError } from '@/utils/async-result';
+import { isError } from '@/utils/async-result';
 
+import { toTRPCError } from '../errors';
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
@@ -84,30 +85,31 @@ function emitTestEvent(details: TestEventDetails, success: boolean, errorMessage
 }
 
 /**
- * Runs a download-client connection test and normalizes the result. Both a
- * thrown exception and an isError `getAllItems()` result are reported as
- * `createErrorResult` so the caller has a single AsyncResult shape to branch on.
+ * Runs a download-client connection test. Returns the bare test result on
+ * success; both a thrown exception and an isError `getAllItems()` result are
+ * reported by emitting the failure realtime event and throwing a `TRPCError`.
  */
 async function runConnectionTest(
     details: TestEventDetails,
     client: BaseDownloadClient,
-): Promise<AsyncResult<TestResultData, Error>> {
+): Promise<TestResultData> {
+    let result: Awaited<ReturnType<BaseDownloadClient['getAllItems']>>;
     try {
-        const result = await client.getAllItems();
-        if (isError(result)) {
-            emitTestEvent(details, false, result.error.message);
-            return createErrorResult(result.error);
-        }
-        emitTestEvent(details, true);
-        return createSuccessResult({
-            message: 'Connection successful',
-            data: 'data' in result ? result.data : null,
-        });
+        result = await client.getAllItems();
     } catch (error: unknown) {
         const err = error instanceof Error ? error : new Error(String(error));
         emitTestEvent(details, false, err.message);
-        return createErrorResult(err);
+        throw toTRPCError(err);
     }
+    if (isError(result)) {
+        emitTestEvent(details, false, result.error.message);
+        throw toTRPCError(result.error);
+    }
+    emitTestEvent(details, true);
+    return {
+        message: 'Connection successful',
+        data: 'data' in result ? result.data : null,
+    };
 }
 
 export const downloadClientsRouter = router({
@@ -116,7 +118,7 @@ export const downloadClientsRouter = router({
      */
     testTransmission: protectedProcedure
         .input(transmissionConfigSchema)
-        .mutation(async ({ input }): Promise<AsyncResult<TestResultData, Error>> => {
+        .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new TransmissionClient({
                 host: input.host,
                 port: input.port,
@@ -133,7 +135,7 @@ export const downloadClientsRouter = router({
      */
     testNzbget: protectedProcedure
         .input(nzbgetConfigSchema)
-        .mutation(async ({ input }): Promise<AsyncResult<TestResultData, Error>> => {
+        .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new NzbgetClient({
                 host: input.host,
                 port: input.port,
@@ -152,7 +154,7 @@ export const downloadClientsRouter = router({
      */
     testSabnzbd: protectedProcedure
         .input(sabnzbdConfigSchema)
-        .mutation(async ({ input }): Promise<AsyncResult<TestResultData, Error>> => {
+        .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new SabnzbdClient({
                 host: input.host,
                 port: input.port,
@@ -170,7 +172,7 @@ export const downloadClientsRouter = router({
      */
     testDeluge: protectedProcedure
         .input(delugeConfigSchema)
-        .mutation(async ({ input }): Promise<AsyncResult<TestResultData, Error>> => {
+        .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new DelugeClient({
                 host: input.host,
                 port: input.port,

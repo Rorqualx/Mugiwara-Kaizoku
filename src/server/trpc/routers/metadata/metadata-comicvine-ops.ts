@@ -15,10 +15,10 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult, createErrorResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
+import { unwrapResultAsync } from '@/server/trpc/unwrap-result';
 import { logger } from '@/utils/logger';
 
 import {
@@ -226,7 +226,7 @@ export const metadataComicvineOpsRouter = router({
 
   scrapeComicVineChapters: publicProcedure
     .input(z.object({ volumeUrls: z.array(z.string()).optional(), seriesUrl: z.string().optional() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ volumes: Array<ScrapedVolumeItem | null> }> => {
       const { volumeUrls, seriesUrl } = input;
       logger.info('[ComicVine scrapeComicVineChapters] Called', { volumeUrlsCount: volumeUrls?.length ?? 0, hasSeriesUrl: !!seriesUrl });
 
@@ -236,14 +236,14 @@ export const metadataComicvineOpsRouter = router({
         // The scraper parses chapter titles from the volume pages
         logger.info('[ComicVine] Scraping series for actual chapter titles');
         const volumesData = await scrapeSeriesChaptersFallback(seriesUrl);
-        return createSuccessResult({ volumes: volumesData });
+        return { volumes: volumesData };
       }
 
       if (volumeUrls && volumeUrls.length > 0) {
         logger.info(`Scraping ${volumeUrls.length} ComicVine volume(s)`);
         const results = await scrapeVolumesWithConcurrency(volumeUrls, 5);
         logScrapingResults(results, volumeUrls.length);
-        return createSuccessResult({ volumes: results });
+        return { volumes: results as Array<ScrapedVolumeItem | null> };
       }
 
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Either volumeUrls or seriesUrl must be provided' });
@@ -251,26 +251,26 @@ export const metadataComicvineOpsRouter = router({
 
   scrapeComicVineVolumeUrls: publicProcedure
     .input(z.object({ seriesUrl: z.string() }))
-    .mutation(async ({ input }): Promise<AsyncResult<{
+    .mutation(async ({ input }): Promise<{
       volumeUrls: Array<{ volumeNumber: number; url: string; coverImageUrl?: string; title?: string; summary?: string }>;
       fromApi?: boolean;
-    }, Error>> => {
+    }> => {
       const { seriesUrl } = input;
       logger.info(`[ComicVine scrapeComicVineVolumeUrls] Called with URL: ${seriesUrl}`);
 
       const apiUrls = await tryGetVolumeUrlsFromApi(seriesUrl);
-      if (apiUrls) return createSuccessResult({ volumeUrls: apiUrls, fromApi: true });
+      if (apiUrls) return { volumeUrls: apiUrls, fromApi: true };
 
       const volumeUrls = await scrapeVolumeUrlsFallback(seriesUrl);
-      return createSuccessResult({ volumeUrls, fromApi: false });
+      return { volumeUrls, fromApi: false };
     }),
 
   scrapeComicVineVolume: publicProcedure
     .input(z.object({ volumeUrl: z.string().url() }))
-    .mutation(async ({ input }): Promise<AsyncResult<{
+    .mutation(async ({ input }): Promise<{
       volumeDetails: Array<{ volumeNumber: number; title: string; summary: string; coverUrl: string; chapters: MappedChapter[] }>;
       totalChapters: number;
-    }, Error>> => {
+    }> => {
       const { volumeUrl } = input;
       logger.info(`[ComicVine scrapeComicVineVolume] Called with URL: ${volumeUrl}`);
 
@@ -288,16 +288,16 @@ export const metadataComicvineOpsRouter = router({
           chapters: vol.chapters.map(mapChapterToResponse)
         }));
         const totalChapters = apiResult.volumes.reduce((sum, vol) => sum + vol.totalChapters, 0);
-        return createSuccessResult({ volumeDetails, totalChapters });
+        return { volumeDetails, totalChapters };
       }
 
       const scraped = await scrapeVolumeChaptersFallback(volumeUrl);
-      return createSuccessResult({ volumeDetails: [scraped], totalChapters: scraped.totalChapters });
+      return { volumeDetails: [scraped], totalChapters: scraped.totalChapters };
     }),
 
   warmupFlareSolverr: publicProcedure
     .input(z.object({ volumeId: z.string().optional() }))
-    .mutation(async ({ input }): Promise<AsyncResult<{ warmedUp: boolean; message: string }, Error>> => {
+    .mutation(async ({ input }): Promise<{ warmedUp: boolean; message: string }> => {
       logger.info('[FlareSolverr Warmup] Starting warmup for ComicVine scraping');
       const { protectedFetch } = await import('../../../services/shared/protectedFetch');
       const warmupUrl = input.volumeId ? `https://comicvine.gamespot.com/volume/4050-${input.volumeId}/` : 'https://comicvine.gamespot.com/';
@@ -306,27 +306,27 @@ export const metadataComicvineOpsRouter = router({
 
       if (result.success) {
         logger.info('[FlareSolverr Warmup] Warmup successful', { usedFlareSolverr: result.usedFlareSolverr });
-        return createSuccessResult({ warmedUp: true, message: result.usedFlareSolverr ? 'FlareSolverr bypass complete' : 'Already had cached cookies' });
+        return { warmedUp: true, message: result.usedFlareSolverr ? 'FlareSolverr bypass complete' : 'Already had cached cookies' };
       }
-      return createSuccessResult({ warmedUp: false, message: `Warmup failed: ${result.error ?? 'Unknown error'}` });
+      return { warmedUp: false, message: `Warmup failed: ${result.error ?? 'Unknown error'}` };
     }),
 
   testProvider: publicProcedure
     .input(z.object({ provider: z.string(), config: z.record(z.any()).optional() }))
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       logger.info(`Testing provider connection: ${input.provider}`);
       const provider = input.provider.toLowerCase();
 
       if (provider === 'comicvine') {
         const apiKey: unknown = input.config?.['apiKey'];
-        if (!apiKey || typeof apiKey !== 'string') return createErrorResult(new Error('API key is required'));
-        return testComicVineProvider(apiKey);
+        if (!apiKey || typeof apiKey !== 'string') throw TRPCErrors.badRequest('API key is required');
+        return unwrapResultAsync(testComicVineProvider(apiKey));
       }
-      if (provider === 'anilist') return testAniListProvider();
+      if (provider === 'anilist') return unwrapResultAsync(testAniListProvider());
       if (provider === 'fandom' || provider === 'wikipedia') {
         logger.info(`${input.provider} provider test successful (no auth required)`);
-        return createSuccessResult(true);
+        return true;
       }
-      return createErrorResult(new Error(`Unknown provider: ${input.provider}`));
+      throw TRPCErrors.badRequest(`Unknown provider: ${input.provider}`);
     })
 });

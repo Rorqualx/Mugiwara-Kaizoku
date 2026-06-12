@@ -64,11 +64,10 @@ export function usePathMappings(): UsePathMappingsReturn {
 
   // Load existing mappings on mount
   useEffect(() => {
-    // mappingsResult is AsyncResult<PathMapping[], Error> | undefined; only proceed on success.
-    if (mappingsResult?.status === 'success') {
-      const mappings = Array.isArray((mappingsResult as { data: unknown }).data)
-        ? ((mappingsResult as { data: unknown }).data as PathMapping[])
-        : [];
+    // mappingsResult is now the bare mapping array (errors surface via the
+    // query's error channel); only proceed when data is present.
+    if (Array.isArray(mappingsResult)) {
+      const mappings = mappingsResult as PathMapping[];
 
       // Map existing database mappings to client fields
       const newPaths: PathMappings = {
@@ -126,20 +125,8 @@ export function usePathMappings(): UsePathMappingsReturn {
     setIsSaving(true);
     try {
       // Remove all existing database mappings first (in reverse order to avoid index shifting)
-      // Type guards for AsyncResult pattern - defensive checks for runtime safety
-      /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-      if (
-        mappingsResult !== undefined &&
-        mappingsResult !== null &&
-        typeof mappingsResult === 'object' &&
-        'status' in mappingsResult &&
-        mappingsResult['status'] === 'success' &&
-        'data' in mappingsResult
-      ) {
-        /* eslint-enable @typescript-eslint/no-unnecessary-condition */
-        const mappings = Array.isArray((mappingsResult as { data: unknown }).data)
-          ? ((mappingsResult as { data: unknown }).data as PathMapping[])
-          : [];
+      if (Array.isArray(mappingsResult)) {
+        const mappings = mappingsResult as PathMapping[];
         const indicesToRemove: number[] = [];
 
         // Collect indices of database mappings
@@ -215,21 +202,7 @@ export function usePathMappings(): UsePathMappingsReturn {
   const testSinglePath = async (path: string): Promise<boolean> => {
     try {
       const result = await utils.pathMapping.testPath.fetch({ path });
-      // Type guards for AsyncResult pattern - defensive checks for runtime safety
-      /* eslint-disable @typescript-eslint/no-unnecessary-condition */
-      if (
-        result !== undefined &&
-        result !== null &&
-        typeof result === 'object' &&
-        'status' in result &&
-        result['status'] === 'success' &&
-        'data' in result
-      ) {
-        /* eslint-enable @typescript-eslint/no-unnecessary-condition */
-        const data = (result as { data: unknown }).data as { accessible: boolean };
-        return data.accessible;
-      }
-      return false;
+      return result.accessible;
     } catch (_error) {
       return false;
     }

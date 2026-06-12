@@ -1,5 +1,3 @@
-import type { AsyncResult } from '@/utils/async-result';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 /**
@@ -58,16 +56,12 @@ export async function processVolumeChunk(
 ): Promise<unknown[]> {
   logger.info(`[ComicVine] Scraping batch ${chunkIndex + 1}/${totalChunks}`);
 
-  const chunkResponse = (await scrapeChaptersMutation.mutateAsync({
+  const chunkResponse = await scrapeChaptersMutation.mutateAsync({
     volumeUrls: chunk
-  })) as AsyncResult<unknown, unknown>;
+  });
 
-  if (isSuccess(chunkResponse)) {
-    const chunkData = chunkResponse.data as Record<string, unknown>;
-    return (chunkData['volumes'] ?? []) as unknown[];
-  }
-
-  return [];
+  const chunkData = chunkResponse as Record<string, unknown>;
+  return (chunkData['volumes'] ?? []) as unknown[];
 }
 
 /**

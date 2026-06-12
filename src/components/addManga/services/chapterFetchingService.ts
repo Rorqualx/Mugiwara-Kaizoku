@@ -1,7 +1,7 @@
 import { notifications } from '@mantine/notifications';
 
 import type { Chapter, MediaGallery } from '@/types/universalImportWizard.types';
-import { isSuccess, AsyncResult, createSuccessResult, createErrorResult, createContextualError } from '@/utils/async-result';
+import { isSuccess, createSuccessResult, createErrorResult, createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';
 /**
@@ -122,16 +122,12 @@ export class ChapterFetchingService {
 
       logger.info('Chapter metadata fetch result:', { data: result });
 
-      const asyncResult = result as AsyncResult<ChapterMetadata, unknown>;
-      if (isSuccess(asyncResult)) {
-        logger.info('Chapter metadata fetched successfully:', { data: asyncResult.data });
+      const chapterData = result as ChapterMetadata;
+      logger.info('Chapter metadata fetched successfully:', { data: chapterData });
 
-        // Add to cache
-        this.chapterMetadataCache.set(chapterUrl, asyncResult.data);
-        return asyncResult.data;
-      } else {
-        logger.info('Chapter metadata fetch failed or no data:', { data: result });
-      }
+      // Add to cache
+      this.chapterMetadataCache.set(chapterUrl, chapterData);
+      return chapterData;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error('Failed to fetch chapter metadata:', errorMessage);
@@ -238,33 +234,20 @@ export class ChapterFetchingService {
 
           logger.info(`Result for ${url}:`, { data: result });
 
-          const asyncResult = result as AsyncResult<ChapterMetadata, unknown>;
-          if (isSuccess(asyncResult)) {
-            const chapterData = asyncResult.data;
-            newCache.set(url, chapterData);
-            logger.info(`Successfully cached metadata for: ${url}`, { data: chapterData });
+          const chapterData = result as ChapterMetadata;
+          newCache.set(url, chapterData);
+          logger.info(`Successfully cached metadata for: ${url}`, { data: chapterData });
 
-            // Handle chapter cover art if available
-            if (chapterData.coverImageUrl) {
-              handleChapterCoverFound(url, chapterData.coverImageUrl);
-            }
-
-            return {
-              url,
-              success: true,
-              data: asyncResult.data
-            };
-          } else {
-            logger.info(`Failed to get data for ${url}, result:`, result);
-            lastError = 'No data in result';
-
-            // If not the last attempt, wait before retrying
-            if (attempt < maxRetries) {
-              const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
-              logger.info(`Retrying ${url} in ${delay}ms...`);
-              await new Promise<void>(resolve => { setTimeout(resolve, delay); });
-            }
+          // Handle chapter cover art if available
+          if (chapterData.coverImageUrl) {
+            handleChapterCoverFound(url, chapterData.coverImageUrl);
           }
+
+          return {
+            url,
+            success: true,
+            data: chapterData
+          };
         } catch (error) {
           logger.error(`Error fetching metadata for ${url} (attempt ${attempt}):`, error);
           lastError = error;

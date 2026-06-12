@@ -54,8 +54,8 @@ export function TelegramIntegrationContent(): ReactElement {
   const form = useForm({ initialValues: { enabled: false, botToken: '', chatId: '' } });
 
   React.useEffect(() => {
-    if (!settingsData || !('data' in settingsData)) return;
-    const settings = settingsData.data;
+    if (!settingsData) return;
+    const settings: unknown = settingsData;
     if (!isTelegramSettings(settings)) return;
     form.setValues({
       enabled: settings.enabled,

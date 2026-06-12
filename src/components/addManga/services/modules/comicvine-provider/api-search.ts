@@ -2,7 +2,6 @@
  * API search and data fetching operations for ComicVine
  */
 
-import { isSuccess, isError, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import type { ComicVineData, ComicVineMutations } from './types';
@@ -79,45 +78,20 @@ export async function fetchAndValidateApiResponse(
 
   // Match primary path parameters: url, id, type
   // This ensures we get the same response structure including individual issue covers
+  // The tRPC procedure returns the bare payload and throws TRPCError on failure.
   const response = await mutations.fetchComicvineVolumeDetailsMutation.mutateAsync({
     ...(url && { url }),
     id: String(volumeId),
     type: 'volume'
-  }) as AsyncResult<unknown, unknown>;
+  });
+
+  const data = response as unknown as ComicVineData | undefined;
 
   // Log raw response structure for debugging
   logger.info('[ComicVine API] Raw response received:', {
     responseType: typeof response,
-    isAsyncResult: 'isSuccess' in response || 'isError' in response,
-    hasDataProperty: 'data' in response,
-    responseKeys: Object.keys(response),
+    responseKeys: data ? Object.keys(data) : [],
   });
-
-  // Check for error response
-  if (isError(response)) {
-    const error = response.error as Error;
-    const errorMsg = error.message || 'Unknown API error';
-    logger.error('[ComicVine API] API returned error:', { error: errorMsg, volumeId });
-    throw new Error(errorMsg);
-  }
-
-  // Extract data from AsyncResult or use response directly
-  let data: ComicVineData | undefined;
-
-  if (isSuccess(response)) {
-    // Response is a proper AsyncResult with success
-    data = response.data as ComicVineData;
-    logger.info('[ComicVine API] Extracted data from AsyncResult.data');
-  } else if ('results' in response) {
-    // Response might be a raw API response with 'results' field
-    const rawResponse = response as { results?: unknown };
-    data = rawResponse.results as ComicVineData | undefined;
-    logger.info('[ComicVine API] Extracted data from response.results');
-  } else {
-    // Fallback: treat entire response as data
-    data = response as ComicVineData;
-    logger.warn('[ComicVine API] Using response directly as data - may indicate response format issue');
-  }
 
   // Validate that we have actual data
   if (!data || Object.keys(data).length === 0) {

@@ -16,7 +16,6 @@ import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createSuccessResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -162,11 +161,11 @@ export const chapterReassignmentRouter = router({
       volumeNumber: z.number().int().nullable(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ updated: number; message: string }> => {
       const { chapterIds, volumeNumber, mangaId } = input;
 
       if (chapterIds.length === 0) {
-        return createSuccessResult({ updated: 0, message: 'No chapters to reassign' });
+        return { updated: 0, message: 'No chapters to reassign' };
       }
 
       const manga = await prisma.manga.findUnique({
@@ -208,10 +207,10 @@ export const chapterReassignmentRouter = router({
       });
 
       const target = effectiveVolNum !== null ? `Volume ${effectiveVolNum}` : 'Unassigned';
-      return createSuccessResult({
+      return {
         updated: result.count,
         message: `Reassigned ${result.count} chapter${result.count !== 1 ? 's' : ''} to ${target}`
-      });
+      };
     }),
 
   /**
@@ -268,7 +267,7 @@ export const chapterReassignmentRouter = router({
    */
   autoAssignToVolumes: protectedProcedure
     .input(z.object({ mangaId: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ assigned: number; unassigned: number; message: string }> => {
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -291,11 +290,11 @@ export const chapterReassignmentRouter = router({
       });
 
       if (volumes.length === 0) {
-        return createSuccessResult({
+        return {
           assigned: 0,
           unassigned: 0,
           message: 'No volumes with chapter ranges. Use manual assignment or set ranges on volumes.'
-        });
+        };
       }
 
       const unassignedChapters = await prisma.chapter.findMany({
@@ -304,7 +303,7 @@ export const chapterReassignmentRouter = router({
       });
 
       if (unassignedChapters.length === 0) {
-        return createSuccessResult({ assigned: 0, unassigned: 0, message: 'No unassigned chapters found' });
+        return { assigned: 0, unassigned: 0, message: 'No unassigned chapters found' };
       }
 
       // Build update list
@@ -339,7 +338,7 @@ export const chapterReassignmentRouter = router({
         ? `Assigned ${updates.length} chapter${updates.length !== 1 ? 's' : ''}${stillUnassigned > 0 ? ` (${stillUnassigned} unmatched)` : ''}`
         : 'No chapters matched volume ranges. Use manual assignment.';
 
-      return createSuccessResult({ assigned: updates.length, unassigned: stillUnassigned, message: msg });
+      return { assigned: updates.length, unassigned: stillUnassigned, message: msg };
     }),
 
   /**
@@ -353,7 +352,12 @@ export const chapterReassignmentRouter = router({
       volumeNumber: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{
+      volumeId: number;
+      volumeNumber: number;
+      chaptersUpdated: number;
+      message: string;
+    }> => {
       const { chapterId, volumeNumber, mangaId } = input;
 
       const chapter = await prisma.chapter.findUnique({
@@ -440,12 +444,12 @@ export const chapterReassignmentRouter = router({
         data: { convertedToVolume: volumeNumber, chapterId, chaptersUpdated: updateResult.count }
       });
 
-      return createSuccessResult({
+      return {
         volumeId: volume.id,
         volumeNumber,
         chaptersUpdated: updateResult.count,
         message: `Converted "${chapter.fileName}" to Volume ${volumeNumber} (${updateResult.count} chapters updated)`
-      });
+      };
     }),
 
   /**
@@ -458,7 +462,7 @@ export const chapterReassignmentRouter = router({
       targetChapterId: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ targetChapterId: number; message: string }> => {
       const { sourceChapterId, targetChapterId, mangaId } = input;
 
       // Get source chapter (the unassigned file)
@@ -523,9 +527,9 @@ export const chapterReassignmentRouter = router({
         data: { linkedFile: source.fileName, targetChapter: chapterNum }
       });
 
-      return createSuccessResult({
+      return {
         targetChapterId,
         message: `Linked "${source.fileName}" to Chapter ${chapterNum}`
-      });
+      };
     })
 });

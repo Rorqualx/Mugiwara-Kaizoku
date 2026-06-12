@@ -21,6 +21,27 @@ import { notify } from '@/utils/notify';
 // ============================================================================
 
 /**
+ * Call the fetchWikipediaMetadata tRPC mutation, returning null on failure.
+ * The procedure returns the bare payload and throws a TRPCError on error.
+ */
+async function fetchWikipediaMetadataSafe(
+  titleFromUrl: string,
+  parsingHints?: WikipediaParsingHints
+): Promise<unknown> {
+  const { vanillaTrpcClient } = await import('@/utils/trpc-client/vanilla');
+  try {
+    return await vanillaTrpcClient.metadata.fetchWikipediaMetadata.mutate({
+      title: titleFromUrl,
+      // Pass parsing hints if available (for optimized extraction)
+      ...(parsingHints ? { parsingHints } : {}),
+    });
+  } catch (mutationError: unknown) {
+    logger.warn('[parseWikipediaUrl] tRPC mutation returned error:', mutationError);
+    return null;
+  }
+}
+
+/**
  * Handles Wikipedia URL parsing and volume data extraction.
  * Uses tRPC endpoint for Wikipedia API access, with fallback to direct HTML parsing.
  *
@@ -85,28 +106,18 @@ export async function parseWikipediaUrl(
 
   // Use server-side tRPC endpoint which has proper Wikipedia API access
   // This avoids CORS issues and uses the Wikipedia service with full parsing logic
-  logger.debug('[parseWikipediaUrl] Importing tRPC client...');
-  const { vanillaTrpcClient } = await import('@/utils/trpc-client/vanilla');
-  const { isSuccess } = await import('@/utils/async-result');
-  logger.debug('[parseWikipediaUrl] tRPC client imported, calling mutation...');
-
   try {
     logger.debug('[parseWikipediaUrl] About to call tRPC mutation', {
       title: titleFromUrl,
       hasParsingHints: !!parsingHints,
     });
-    const result = await vanillaTrpcClient.metadata.fetchWikipediaMetadata.mutate({
-      title: titleFromUrl,
-      // Pass parsing hints if available (for optimized extraction)
-      ...(parsingHints ? { parsingHints } : {}),
-    });
+    const result = await fetchWikipediaMetadataSafe(titleFromUrl, parsingHints);
     logger.debug('[parseWikipediaUrl] tRPC mutation RETURNED', {
       resultType: typeof result,
-      resultKeys: Object.keys(result),
-      status: (result as Record<string, unknown>)['status'] ?? 'N/A'
+      resultKeys: result && typeof result === 'object' ? Object.keys(result) : [],
     });
 
-    if (!isSuccess(result) || !result.data) {
+    if (!result) {
       // Fallback: try direct HTML parsing for chapter list URLs
       if (effectiveUrl.includes('List_of_') && effectiveUrl.includes('_chapters')) {
         logger.info('[parseWikipediaUrl] Falling back to direct HTML parsing for chapter list URL');
@@ -118,7 +129,7 @@ export async function parseWikipediaUrl(
       return;
     }
 
-    const wikiData = result.data as Record<string, unknown>;
+    const wikiData = result as Record<string, unknown>;
     logger.info('[parseWikipediaUrl] Got Wikipedia metadata via tRPC:', {
       title: wikiData['title'],
       volumes: wikiData['volumes'],

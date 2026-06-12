@@ -105,8 +105,8 @@ export default function AppriseIntegrationSettings(): ReactElement {
 
   // Update form when settings data loads
   useEffect(() => {
-    if (settingsData && 'data' in settingsData && settingsData.data) {
-      const settings = settingsData.data;
+    if (settingsData) {
+      const settings: unknown = settingsData;
       // Type guard to ensure we have AppriseConfig
       if (
         typeof settings === 'object' &&

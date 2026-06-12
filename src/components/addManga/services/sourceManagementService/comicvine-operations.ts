@@ -6,8 +6,6 @@
  * @module ComicVineOperations
  */
 
-import type { AsyncResult } from '@/utils/async-result';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 /**
@@ -151,13 +149,7 @@ async function scrapeVolumeChunks(
       // eslint-disable-next-line no-await-in-loop -- Sequential processing required for FlareSolverr memory management
       const response = await mutation.mutateAsync({ volumeUrls: [url] });
 
-      const asyncResult = response as AsyncResult<unknown, unknown>;
-      if (!isSuccess(asyncResult)) {
-        logger.warn(`[ComicVine] Volume ${progress} failed to scrape`);
-        continue;
-      }
-
-      const chunkData = asyncResult.data as Record<string, unknown>;
+      const chunkData = response as Record<string, unknown>;
       const volumes = (chunkData['volumes'] ?? []) as unknown[];
       allVolumeChapters.push(...volumes);
     } catch (error) {
@@ -334,17 +326,18 @@ export async function scrapeComicVineSeriesData(
     return { scrapedChapterCount: 0, volumeData: updatedVolumeData };
   }
 
-  const volumeUrlsResponse = await mutations.scrapeComicVineVolumeUrlsMutation.mutateAsync({
-    seriesUrl: comicVineUrl
-  }) as AsyncResult<unknown, unknown>;
-
-  // Early return if fetching URLs failed
-  if (!isSuccess(volumeUrlsResponse)) {
-    logger.warn('[ComicVine] Failed to fetch volume URLs');
+  let volumeUrlsResponse: unknown;
+  try {
+    volumeUrlsResponse = await mutations.scrapeComicVineVolumeUrlsMutation.mutateAsync({
+      seriesUrl: comicVineUrl
+    });
+  } catch (error) {
+    // Early return if fetching URLs failed (procedure throws TRPCError on failure)
+    logger.warn('[ComicVine] Failed to fetch volume URLs', { error: error instanceof Error ? error.message : String(error) });
     return { scrapedChapterCount: 0, volumeData: updatedVolumeData };
   }
 
-  const responseData = volumeUrlsResponse.data as Record<string, unknown>;
+  const responseData = volumeUrlsResponse as Record<string, unknown>;
   const volumeUrls = (responseData['volumeUrls'] ?? []) as VolumeUrl[];
 
   logger.info(`[ComicVine] Found ${volumeUrls.length} volume URLs to scrape`);

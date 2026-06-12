@@ -23,14 +23,10 @@ import type {
   ProviderSettings,
   SearchProviderConfig,
 } from '@/server/services/search/configService';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import {
-  createContextualError,
-  createErrorResult,
-  createSuccessResult,
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 // Import from foundation utils
@@ -59,14 +55,14 @@ export const settingsSearchRouter = router({
    * @returns {Object} The search configuration
    */
   getConfig: protectedProcedure.query(
-    async (): Promise<AsyncResult<SearchProviderConfig, Error>> => {
+    async (): Promise<SearchProviderConfig> => {
       try {
         // Check cache first (10 minute TTL)
         const cacheKey = 'settings:search:config';
         const cached = await cacheProvider.get(cacheKey);
         if (cached) {
           logger.debug('Cache hit for search.getConfig');
-          return createSuccessResult(cached as SearchProviderConfig);
+          return cached as SearchProviderConfig;
         }
 
         const config = await searchConfigService.loadConfig();
@@ -80,11 +76,11 @@ export const settingsSearchRouter = router({
 
         logger.debug('Cache miss for search.getConfig, cached for 600s');
 
-        return createSuccessResult(config as SearchProviderConfig);
+        return config as SearchProviderConfig;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error getting search configuration: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error
             ? error
             : new Error(`Error getting search configuration: ${errorMessage}`)
@@ -109,7 +105,7 @@ export const settingsSearchRouter = router({
         providers: z.record(searchProviderSchema).optional(),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const partialConfig: Partial<SearchProviderConfig> = {};
         if (input.defaultProvider !== undefined) {
@@ -127,15 +123,12 @@ export const settingsSearchRouter = router({
         await cacheProvider.del('settings:search:config');
         logger.debug('Cache invalidated for search.updateConfig');
 
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error updating search configuration: ${errorMessage}`);
-        return createErrorResult(
-          createContextualError(
-            error instanceof Error ? error.message : String(error),
-            'CONFIGURATION_ERROR'
-          )
+        throw toTRPCError(
+          createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }
     }),
@@ -154,18 +147,15 @@ export const settingsSearchRouter = router({
         providerId: z.string(),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         await searchConfigService.setDefaultProvider(input.providerId);
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error setting default provider: ${errorMessage}`);
-        return createErrorResult(
-          createContextualError(
-            error instanceof Error ? error.message : String(error),
-            'CONFIGURATION_ERROR'
-          )
+        throw toTRPCError(
+          createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }
     }),
@@ -186,7 +176,7 @@ export const settingsSearchRouter = router({
         enabled: z.boolean(),
       })
     )
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const config = await searchConfigService.loadConfig();
         // Create a copy of the config to avoid mutating the original
@@ -206,15 +196,12 @@ export const settingsSearchRouter = router({
           };
         }
         await searchConfigService.saveConfig(updatedConfig);
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error toggling provider: ${errorMessage}`);
-        return createErrorResult(
-          createContextualError(
-            error instanceof Error ? error.message : String(error),
-            'CONFIGURATION_ERROR'
-          )
+        throw toTRPCError(
+          createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }
     }),
@@ -229,7 +216,7 @@ export const settingsSearchRouter = router({
    */
   updateProwlarrConfig: protectedProcedure
     .input(prowlarrConfigSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const partialConfig: Partial<SearchProviderConfig> = {
           prowlarrEnabled: input.enabled,
@@ -237,15 +224,12 @@ export const settingsSearchRouter = router({
           prowlarrApiKey: input.apiKey,
         };
         await searchConfigService.saveConfig(partialConfig);
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error updating Prowlarr configuration: ${errorMessage}`);
-        return createErrorResult(
-          createContextualError(
-            error instanceof Error ? error.message : String(error),
-            'CONFIGURATION_ERROR'
-          )
+        throw toTRPCError(
+          createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }
     }),

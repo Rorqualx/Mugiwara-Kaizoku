@@ -472,10 +472,7 @@ describe('system/backup.ts Router - Authentication & Authorization', () => {
       const result = await caller.createBackup(validInput);
       expect(result).toEqual(
         expect.objectContaining({
-          status: 'success',
-          data: expect.objectContaining({
-            backupId: expect.any(Number),
-          }),
+          backupId: expect.any(Number),
         })
       );
     });
@@ -506,11 +503,7 @@ describe('system/backup.ts Router - Authentication & Authorization', () => {
       const caller = createCaller(systemBackupRouter, createSession('ADMIN'));
 
       const result = await caller.deleteBackup({ id: 1 });
-      expect(result).toEqual(
-        expect.objectContaining({
-          status: 'success',
-        })
-      );
+      expect(result).toBeNull();
     });
   });
 
@@ -539,11 +532,7 @@ describe('system/backup.ts Router - Authentication & Authorization', () => {
       const caller = createCaller(systemBackupRouter, createSession('ADMIN'));
 
       const result = await caller.restoreBackup({ id: 1 });
-      expect(result).toEqual(
-        expect.objectContaining({
-          status: 'success',
-        })
-      );
+      expect(result).toBeNull();
     });
   });
 
@@ -582,11 +571,8 @@ describe('system/backup.ts Router - Authentication & Authorization', () => {
       const result = await caller.scheduleBackup(validInput);
       expect(result).toEqual(
         expect.objectContaining({
-          status: 'success',
-          data: expect.objectContaining({
-            message: expect.any(String),
-            taskId: expect.any(String),
-          }),
+          message: expect.any(String),
+          taskId: expect.any(String),
         })
       );
     });
@@ -628,9 +614,11 @@ describe('settings/backup.ts Router - Authentication & Authorization', () => {
 
       // @ts-expect-error - Testing auth layer with mocked caller
       const result = await caller.getBackupSettings();
+      // getBackupSettings now returns the bare settings payload (no AsyncResult envelope)
       expect(result).toEqual(
         expect.objectContaining({
-          status: 'success',
+          enabled: true,
+          frequency: 'weekly',
         })
       );
       expect(mockGeneralConfigService.getBackupSettings).toHaveBeenCalled();
@@ -673,11 +661,8 @@ describe('settings/backup.ts Router - Authentication & Authorization', () => {
 
       // @ts-expect-error - Testing auth layer with mocked caller
       const result = await caller.updateBackupSettings(validInput);
-      expect(result).toEqual(
-        expect.objectContaining({
-          status: 'success',
-        })
-      );
+      // updateBackupSettings now returns bare `true` (no AsyncResult envelope)
+      expect(result).toBe(true);
       expect(mockGeneralConfigService.updateBackupSettings).toHaveBeenCalled();
     });
   });

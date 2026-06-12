@@ -16,10 +16,10 @@ async function testCompleteFlow() {
       }
     });
     
-    const result = response.data?.result?.data?.json;
-    
-    if (result?.status === 'success' && result?.data) {
-      const data = result.data;
+    // tRPC returns the bare payload (errors appear in response.data.error)
+    const data = response.data?.result?.data?.json;
+
+    if (data) {
       console.log(`✅ Success! Parsed ${data.totalVolumes} volumes with ${data.totalChapters} chapters\n`);
       
       // Count chapter URLs
@@ -40,10 +40,10 @@ async function testCompleteFlow() {
       
       console.log(`\n📊 Total chapter URLs extracted: ${urlCount} / ${data.totalChapters}`);
       
-    } else if (result?.status === 'error') {
-      console.error('❌ Error:', result.error?.message || 'Unknown error');
+    } else if (response.data?.error) {
+      console.error('❌ Error:', response.data.error.json?.message || 'Unknown error');
     } else {
-      console.log('Unexpected response:', JSON.stringify(result, null, 2));
+      console.log('Unexpected response:', JSON.stringify(response.data, null, 2));
     }
     
   } catch (error) {

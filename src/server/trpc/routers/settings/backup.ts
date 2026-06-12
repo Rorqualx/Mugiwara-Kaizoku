@@ -11,29 +11,27 @@
 
 import { TRPCError } from '@trpc/server';
 
-import { getGeneralConfigService } from '@/server/services/config/generalConfigService';
+import {
+  getGeneralConfigService,
+  type BackupSettings,
+} from '@/server/services/config/generalConfigService';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { toTRPCError } from '@/server/trpc/errors';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError,
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 import { backupSettingsSchema } from './utils';
 
 export const settingsBackupRouter = router({
   /** Get backup settings - retrieves current backup configuration */
-  getBackupSettings: adminProcedure.query(async () => {
+  getBackupSettings: adminProcedure.query(async (): Promise<BackupSettings> => {
     try {
       const configService = getGlobalConfigService();
       const generalConfigService = getGeneralConfigService(configService);
-      const settings = await generalConfigService.getBackupSettings();
-      return createSuccessResult(settings);
+      return await generalConfigService.getBackupSettings();
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error getting backup settings: ${errorMessage}`);
@@ -47,7 +45,7 @@ export const settingsBackupRouter = router({
   /** Update backup settings - updates backup configuration */
   updateBackupSettings: adminProcedure
     .input(backupSettingsSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const configService = getGlobalConfigService();
         const generalConfigService = getGeneralConfigService(configService);
@@ -61,15 +59,12 @@ export const settingsBackupRouter = router({
           data: { autoBackup: input.autoBackup }
         });
 
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error updating backup settings: ${errorMessage}`);
-        return createErrorResult(
-          createContextualError(
-            error instanceof Error ? error.message : String(error),
-            'CONFIGURATION_ERROR'
-          )
+        throw toTRPCError(
+          createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }
     }),

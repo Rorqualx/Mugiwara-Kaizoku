@@ -1,4 +1,3 @@
-import type {} from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -6,8 +5,6 @@ import { prisma } from '@/server/db';
 import type { IDownloadWorkerData } from '@/server/queue/download';
 import { enqueueDownloadTask } from '@/server/queue/download';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import {
-  createSuccessResult} from '@/utils/async-result';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, EventType, EventSource } from '@/utils/system-event-logger';
@@ -71,13 +68,13 @@ export const downloadRouter = router({
    * Download all chapters of a manga
    *
    * @param input Object containing manga ID
-   * @returns Download status and task information
+   * @returns Bare status message (errors are thrown as TRPCError)
    */
   downloadAllChapters: protectedProcedure.
   input(z.object({
     mangaId: z.number()
   })).
-  mutation(async ({ input }) => {
+  mutation(async ({ input }): Promise<{ message: string }> => {
     try {
       const { mangaId } = input;
 
@@ -143,9 +140,9 @@ export const downloadRouter = router({
         filename: `All chapters (${manga['Chapter'].length})`
       });
 
-      return createSuccessResult({
+      return {
         message: `Started downloading ${manga['Chapter'].length} chapters`
-      });
+      };
     } catch (error: unknown) {
       logger.error(`Failed to download all chapters: ${error instanceof Error ? error.message : String(error)}`);
 
@@ -164,13 +161,13 @@ export const downloadRouter = router({
    * Download missing chapters of a manga
    *
    * @param input Object containing manga ID
-   * @returns Download status and task information
+   * @returns Bare status message and optional chapter count (errors are thrown as TRPCError)
    */
   downloadMissingChapters: protectedProcedure.
   input(z.object({
     mangaId: z.number()
   })).
-  mutation(async ({ input }) => {
+  mutation(async ({ input }): Promise<{ message: string; chapterCount?: number }> => {
     try {
       const { mangaId } = input;
 
@@ -192,10 +189,10 @@ export const downloadRouter = router({
       }
 
       if (manga['Chapter'].length === 0) {
-        return createSuccessResult({
+        return {
           message: 'No missing chapters to download',
           chapterCount: 0
-        });
+        };
       }
 
       // Create download tasks for missing chapters (in parallel for better performance)
@@ -236,9 +233,9 @@ export const downloadRouter = router({
         filename: `Missing chapters (${manga['Chapter'].length})`
       });
 
-      return createSuccessResult({
+      return {
         message: `Started downloading ${manga['Chapter'].length} chapters`
-      });
+      };
     } catch (error: unknown) {
       logger.error(`Failed to download missing chapters: ${error instanceof Error ? error.message : String(error)}`);
 
@@ -257,14 +254,14 @@ export const downloadRouter = router({
    * Download next N chapters of a manga
    *
    * @param input Object containing manga ID and count
-   * @returns Download status and task information
+   * @returns Bare status message and optional chapter count (errors are thrown as TRPCError)
    */
   downloadNextChapters: protectedProcedure.
   input(z.object({
     mangaId: z.number(),
     count: z.number().min(1).max(50).default(5)
   })).
-  mutation(async ({ input }) => {
+  mutation(async ({ input }): Promise<{ message: string; chapterCount?: number }> => {
     try {
       const { mangaId, count } = input;
 
@@ -290,10 +287,10 @@ export const downloadRouter = router({
       }
 
       if (manga['Chapter'].length === 0) {
-        return createSuccessResult({
+        return {
           message: 'No next chapters available for download',
           chapterCount: 0
-        });
+        };
       }
 
       // Create download tasks for next chapters (in parallel for better performance)
@@ -335,9 +332,9 @@ export const downloadRouter = router({
         filename: `Next chapters (${manga['Chapter'].length})`
       });
 
-      return createSuccessResult({
+      return {
         message: `Started downloading next ${manga['Chapter'].length} chapters`
-      });
+      };
     } catch (error: unknown) {
       logger.error(`Failed to download next chapters: ${error instanceof Error ? error.message : String(error)}`);
 

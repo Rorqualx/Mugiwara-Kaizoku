@@ -239,9 +239,8 @@ export function useImportPipeline(): UseImportPipelineReturn {
       seededRef.current = true;
       return;
     }
-    // AsyncResult shape: { status: 'success', data: value }
-    const result = globalFileModeQuery.data as { status: string; data?: unknown };
-    const rawValue = result.data;
+    // settings.get now returns the bare value over the wire.
+    const rawValue: unknown = globalFileModeQuery.data;
     if (typeof rawValue === 'string') {
       const validModes: FileMode[] = ['keep_in_place', 'move', 'copy'];
       if (validModes.includes(rawValue as FileMode)) {

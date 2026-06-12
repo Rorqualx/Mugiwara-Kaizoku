@@ -64,36 +64,31 @@ async function testFandomEnhancement() {
       dataKeys: enhanceData.result?.data ? Object.keys(enhanceData.result.data) : []
     });
     
-    // Check if it's an AsyncResult
+    // tRPC returns the bare payload on success; errors appear under enhanceData.error
     if (enhanceData.result?.data?.json) {
-      const asyncResult = enhanceData.result.data.json;
-      console.log('\n📦 AsyncResult structure:', {
-        status: asyncResult.status,
-        hasData: !!asyncResult.data,
-        dataKeys: asyncResult.data ? Object.keys(asyncResult.data) : []
+      const enhanced = enhanceData.result.data.json;
+      console.log('\n📦 Payload structure:', {
+        dataKeys: Object.keys(enhanced)
       });
-      
-      if (asyncResult.status === 'success' && asyncResult.data) {
-        const enhanced = asyncResult.data;
-        console.log('\n✅ Enhanced metadata received:');
-        console.log(`   Title: ${enhanced.title}`);
-        console.log(`   Alternative titles: ${enhanced.alternativeTitles?.length || 0}`);
-        console.log(`   Volume covers: ${enhanced.coverArt?.volumeCovers?.length || 0}`);
-        console.log(`   Gallery images: ${enhanced.coverArt?.gallery?.length || 0}`);
-        console.log(`   Character art: ${enhanced.coverArt?.characterArt?.length || 0}`);
-        
-        if (enhanced.coverArt?.volumeCovers?.length > 0) {
-          console.log('\n📚 Sample volume covers:');
-          enhanced.coverArt.volumeCovers.slice(0, 3).forEach((cover, idx) => {
-            console.log(`   ${idx + 1}. ${cover.title || 'Volume ' + cover.volume}`);
-            console.log(`      URL: ${cover.url?.substring(0, 50)}...`);
-          });
-        }
-        
-        console.log('\n🎉 Fandom enhancement is working correctly!');
-      } else if (asyncResult.status === 'error') {
-        console.error('❌ Enhancement failed with error:', asyncResult.error);
+
+      console.log('\n✅ Enhanced metadata received:');
+      console.log(`   Title: ${enhanced.title}`);
+      console.log(`   Alternative titles: ${enhanced.alternativeTitles?.length || 0}`);
+      console.log(`   Volume covers: ${enhanced.coverArt?.volumeCovers?.length || 0}`);
+      console.log(`   Gallery images: ${enhanced.coverArt?.gallery?.length || 0}`);
+      console.log(`   Character art: ${enhanced.coverArt?.characterArt?.length || 0}`);
+
+      if (enhanced.coverArt?.volumeCovers?.length > 0) {
+        console.log('\n📚 Sample volume covers:');
+        enhanced.coverArt.volumeCovers.slice(0, 3).forEach((cover, idx) => {
+          console.log(`   ${idx + 1}. ${cover.title || 'Volume ' + cover.volume}`);
+          console.log(`      URL: ${cover.url?.substring(0, 50)}...`);
+        });
       }
+
+      console.log('\n🎉 Fandom enhancement is working correctly!');
+    } else if (enhanceData.error) {
+      console.error('❌ Enhancement failed with error:', enhanceData.error.json?.message || enhanceData.error);
     } else {
       console.error('❌ Unexpected response structure:', JSON.stringify(enhanceData, null, 2));
     }

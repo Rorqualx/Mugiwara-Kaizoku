@@ -215,13 +215,11 @@ http.post('/api/trpc/settings.update', () => {
 }),
 
 // Standard settings procedures (new API format)
+// settings.get/set now return the bare payload over the wire (no AsyncResult envelope).
 http.get('/api/trpc/settings.get', () => {
   return HttpResponse.json({
     result: {
-      data: {
-        success: true,
-        value: mockSettings
-      }
+      data: mockSettings
     }
   });
 }),
@@ -229,9 +227,7 @@ http.get('/api/trpc/settings.get', () => {
 http.post('/api/trpc/settings.set', () => {
   return HttpResponse.json({
     result: {
-      data: {
-        success: true
-      }
+      data: true
     }
   });
 }),

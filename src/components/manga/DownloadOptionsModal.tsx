@@ -4,7 +4,6 @@ import { Modal, Stack, SegmentedControl, Select, Button, Alert, TextInput, Group
 import { IconDownload, IconInfoCircle, IconCloud, IconLink, IconSearch, IconBook } from '@tabler/icons-react';
 
 import { DownloadMethod } from '@/types/search.types';
-import { isSuccess} from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
@@ -93,9 +92,9 @@ export function DownloadOptionsModal({
 
   // Get enabled download clients
   const enabledClients = React.useMemo(() => {
-    if (!settings || !isSuccess(settings)) return [];
+    if (!settings) return [];
 
-    const settingsData = settings.data as SettingsData;
+    const settingsData = settings as SettingsData;
     const clients: Array<{ value: string; label: string }> = [];
 
     if (settingsData.transmissionEnabled) {
@@ -147,9 +146,9 @@ export function DownloadOptionsModal({
     }
   };
   // Check if Prowlarr is configured (has base URL and API key) instead of just the enabled flag
-  const isProwlarrConfigured = settings && isSuccess(settings) &&
-    !!(settings.data as SettingsData).prowlarrBaseURL &&
-    !!(settings.data as SettingsData).prowlarrApiKey;
+  const isProwlarrConfigured = Boolean(settings) &&
+    !!(settings as SettingsData).prowlarrBaseURL &&
+    !!(settings as SettingsData).prowlarrApiKey;
   const hasEnabledClients = enabledClients.length > 0;
 
   // Build method options dynamically

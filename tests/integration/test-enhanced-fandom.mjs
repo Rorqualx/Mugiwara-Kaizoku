@@ -20,9 +20,9 @@ async function testEnhancedFandomExtraction() {
       }
     });
     
-    // The actual data is in response.data.result.data.json.data
-    if (response.data.result?.data?.json?.status === 'success') {
-      const metadata = response.data.result.data.json.data;
+    // tRPC returns the bare payload at response.data.result.data.json (errors throw / appear in response.data.error)
+    if (response.data.result?.data?.json) {
+      const metadata = response.data.result.data.json;
       
       console.log('=== EXTRACTED METADATA ===\n');
       console.log('Title:', metadata.title);

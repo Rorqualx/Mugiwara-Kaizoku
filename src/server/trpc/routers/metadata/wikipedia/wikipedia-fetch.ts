@@ -14,10 +14,9 @@ import { z } from 'zod';
 import type { WikipediaParseResult } from '@/server/services/wikipedia/adaptive';
 import { adaptiveExtract } from '@/server/services/wikipedia/wikipedia/manga-extractor';
 import type { WikipediaMangaData } from '@/server/services/wikipedia/wikipedia/types';
+import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import { createErrorResult, createSuccessResult } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 /**
@@ -369,7 +368,7 @@ export const wikipediaFetchRouter = router({
       })
     )
     // eslint-disable-next-line max-lines-per-function, complexity -- Complex mutation with adaptive parsing, fallback chain, and metadata transformation. Breaking apart would reduce cohesion.
-    .mutation(async ({ input }): Promise<AsyncResult<unknown, Error>> => {
+    .mutation(async ({ input }): Promise<unknown> => {
       try {
         const { title, parsingHints } = input;
 
@@ -443,9 +442,7 @@ export const wikipediaFetchRouter = router({
         }
 
         if (!result) {
-          return createErrorResult(
-            new Error('No Wikipedia page found for this title')
-          );
+          throw TRPCErrors.notFound('Wikipedia page for this title');
         }
 
         // Log status sources for debugging
@@ -490,12 +487,12 @@ export const wikipediaFetchRouter = router({
           enrichedWithWikipedia: true,
         };
 
-        return createSuccessResult(metadata);
+        return metadata;
       } catch (error: unknown) {
         logger.error(
           `Error fetching Wikipedia metadata: ${error instanceof Error ? error.message : String(error)}`
         );
-        return createErrorResult(
+        throw toTRPCError(
           error instanceof Error
             ? error
             : new Error(

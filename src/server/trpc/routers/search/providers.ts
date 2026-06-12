@@ -16,8 +16,6 @@ import { z } from 'zod';
 import { unifiedProviderRegistry } from '@/server/services/search/UnifiedProviderRegistry';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import { createSuccessResult } from '@/utils/async-result';
 
 
 // Import from foundation utils
@@ -60,7 +58,7 @@ export const searchProvidersRouter = router({
    *
    * @param {object} input - Provider parameters
    * @param {string} input.provider - Provider type to set as default
-   * @returns {Promise<AsyncResult<boolean, Error>>} Success result
+   * @returns {Promise<boolean>} True when the default provider was updated
    */
   setDefaultProvider: protectedProcedure
     .input(
@@ -69,10 +67,10 @@ export const searchProvidersRouter = router({
       })
     )
     .mutation(
-      async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+      async ({ input }): Promise<boolean> => {
         try {
           await unifiedProviderRegistry.setDefaultProvider(input.provider);
-          return createSuccessResult(true);
+          return true;
         } catch (error: unknown) {
           handleSearchError(error, 'setDefaultProvider');
         }

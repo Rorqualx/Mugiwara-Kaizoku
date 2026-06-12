@@ -127,13 +127,11 @@ export function ChapterDetailModal({
   // Delete chapter file mutation (keeps metadata, removes only the file)
   const deleteFileMutation = trpc.chapter.deleteFile.useMutation({
     onSuccess: (result) => {
-      if (result.status === 'success') {
-        notify({ severity: 'SUCCESS', title: 'File Removed', message: result.data.message });
-        // Invalidate manga queries to refresh the chapter list
-        void utils.manga.get.invalidate({ id: mangaId });
-        void utils.manga.detail.invalidate({ id: mangaId });
-        onClose();
-      }
+      notify({ severity: 'SUCCESS', title: 'File Removed', message: result.message });
+      // Invalidate manga queries to refresh the chapter list
+      void utils.manga.get.invalidate({ id: mangaId });
+      void utils.manga.detail.invalidate({ id: mangaId });
+      onClose();
     },
     onError: (error) => {
       notify({ severity: 'ERROR', title: 'Error', message: error.message });

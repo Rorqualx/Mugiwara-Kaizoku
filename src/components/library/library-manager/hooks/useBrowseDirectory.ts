@@ -14,7 +14,7 @@ import { useState, useCallback } from 'react';
 import { logger } from '@/utils/logger';
 import { trpc } from '@/utils/trpc-client';
 
-import type { BrowseAsyncResult } from '../types';
+import type { BrowseResultData } from '../types';
 
 /**
  * Return type for useBrowseDirectory hook
@@ -25,8 +25,9 @@ export interface UseBrowseDirectoryReturn {
   currentBrowsePath: string;
 
   // tRPC query result
-  browseResult: BrowseAsyncResult | undefined;
+  browseResult: BrowseResultData | undefined;
   isBrowseLoading: boolean;
+  browseError: unknown;
 
   // Callbacks
   handleBrowseClick: () => void;
@@ -70,7 +71,7 @@ export function useBrowseDirectory({
   const [currentBrowsePath, setCurrentBrowsePath] = useState('');
 
   // tRPC query - only fetches when modal is open
-  const { data: browseResult, isLoading: isBrowseLoading } =
+  const { data: browseResult, isLoading: isBrowseLoading, error: browseError } =
     trpc.pathMapping.browse.useQuery(
       { path: currentBrowsePath },
       {
@@ -124,6 +125,7 @@ export function useBrowseDirectory({
     // tRPC query result
     browseResult,
     isBrowseLoading,
+    browseError,
 
     // Callbacks
     handleBrowseClick,

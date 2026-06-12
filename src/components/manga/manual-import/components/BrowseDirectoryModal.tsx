@@ -27,17 +27,16 @@ import {
   IconAlertCircle
 } from '@tabler/icons-react';
 
-import { isSuccess, isError } from '@/utils/async-result';
-import type { AsyncResult } from '@/utils/async-result';
-
 import type { DirectoryEntry, BrowseResultData } from '../types';
 
 interface BrowseDirectoryModalProps {
   opened: boolean;
   onClose: () => void;
   currentPath: string;
-  browseResult: AsyncResult<BrowseResultData> | null;
+  browseResult: BrowseResultData | null;
   isLoading: boolean;
+  /** Browse query error, if any (errors now arrive via tRPC's error channel) */
+  error?: unknown;
   onNavigate: (path: string) => void;
   onSelect: (path: string) => void;
   onGoHome: () => void;
@@ -49,6 +48,7 @@ export function BrowseDirectoryModal({
   currentPath,
   browseResult,
   isLoading,
+  error,
   onNavigate,
   onSelect,
   onGoHome
@@ -62,13 +62,13 @@ export function BrowseDirectoryModal({
     >
       <Stack gap="md">
         {/* Navigation buttons */}
-        {!isLoading && browseResult && isSuccess(browseResult) && (
+        {!isLoading && browseResult && (
           <Group gap="xs">
-            {browseResult.data.parent && (
+            {browseResult.parent && (
               <Button
                 variant="light"
                 leftSection={<IconChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />}
-                onClick={() => onNavigate(browseResult.data.parent ?? '')}
+                onClick={() => onNavigate(browseResult.parent ?? '')}
               >
                 Go Back
               </Button>
@@ -106,10 +106,10 @@ export function BrowseDirectoryModal({
         )}
 
         {/* Directory listing */}
-        {!isLoading && browseResult && isSuccess(browseResult) && (
+        {!isLoading && browseResult && (
           <ScrollArea h={400} type="auto">
             <Stack gap="xs">
-              {browseResult.data.entries.map((entry: DirectoryEntry, idx: number) => {
+              {browseResult.entries.map((entry: DirectoryEntry, idx: number) => {
                 if (!entry.isDirectory) return null;
                 const isStartingLocation = !currentPath;
 
@@ -150,7 +150,7 @@ export function BrowseDirectoryModal({
         )}
 
         {/* Error state */}
-        {!isLoading && browseResult && isError(browseResult) && (
+        {!isLoading && Boolean(error) && (
           <Alert icon={<IconAlertCircle size={16} />} title="Browse Error" color="red">
             Failed to load directory contents
           </Alert>

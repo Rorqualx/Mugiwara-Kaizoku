@@ -25,14 +25,10 @@ import * as path from 'path';
 import { TRPCError } from '@trpc/server';
 
 import { getPathMapper } from '@/server/services/download/pathMapper';
+import { toTRPCError } from '@/server/trpc/errors';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError,
-  type AsyncResult
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
@@ -189,15 +185,15 @@ export const pathMappingAccessibilityRouter = router({
    */
   testPath: adminProcedure
     .input(testPathSchema)
-    .query(async ({ input }): Promise<AsyncResult<{ accessible: boolean; error?: string }, Error>> => {
+    .query(async ({ input }): Promise<{ accessible: boolean; error?: string }> => {
       try {
         const result = await testPathAccessibility(input.path);
         logger.info(`[PathMapping Accessibility] Path accessibility test for ${input.path}: ${result.accessible}`);
-        return createSuccessResult(result);
+        return result;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`[PathMapping Accessibility] Failed to test path: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'PATH_MAPPING_ERROR')
         );
       }
@@ -217,21 +213,20 @@ export const pathMappingAccessibilityRouter = router({
    */
   browse: adminProcedure
     .input(browsePathSchema)
-    .query(async ({ input }): Promise<AsyncResult<{ currentPath: string; parent: string | null; entries: DirectoryEntry[] }, Error>> => {
+    .query(async ({ input }): Promise<{ currentPath: string; parent: string | null; entries: DirectoryEntry[] }> => {
       try {
         // If no path provided, return common starting points
         if (!input.path) {
           const entries = await getBrowseStartingPoints();
-          return createSuccessResult({
+          return {
             currentPath: '',
             parent: null,
             entries
-          });
+          };
         }
 
         // Process and read the specified path
-        const result = await processBrowsePath(input.path);
-        return createSuccessResult(result);
+        return await processBrowsePath(input.path);
       } catch (error) {
         if (error instanceof TRPCError) {
           throw error;
@@ -239,7 +234,7 @@ export const pathMappingAccessibilityRouter = router({
 
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`[PathMapping Accessibility] Failed to browse path: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'PATH_MAPPING_ERROR')
         );
       }

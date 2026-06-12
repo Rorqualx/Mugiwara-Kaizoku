@@ -17,14 +17,10 @@ import { getGlobalConfigService } from '@/server/services/config/globalConfigSer
 import { getIntegrationConfigService } from '@/server/services/integration/configService';
 import type { KomgaConfig, KavitaConfig, TelegramConfig, AppriseConfig } from '@/server/services/integration/configService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import {
-  createSuccessResult,
-  createErrorResult,
-  createContextualError
-} from '@/utils/async-result';
+import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
 import { integrationConfigSchema } from './utils';
@@ -134,7 +130,7 @@ export const settingsIntegrationRouter = router({
     .input(z.object({
       type: z.enum(['kavita', 'komga', 'telegram', 'apprise']),
     }))
-    .query(async ({ input }): Promise<AsyncResult<RedactedIntegration, Error>> => {
+    .query(async ({ input }): Promise<RedactedIntegration> => {
       try {
         const configService = getGlobalConfigService();
         const integrationConfigService = getIntegrationConfigService(configService);
@@ -152,11 +148,11 @@ export const settingsIntegrationRouter = router({
           settings = await integrationConfigService.getAppriseConfig();
         }
 
-        return createSuccessResult(settings);
+        return settings;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error getting integration settings: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }
@@ -174,7 +170,7 @@ export const settingsIntegrationRouter = router({
    */
   updateIntegration: protectedProcedure
     .input(integrationConfigSchema)
-    .mutation(async ({ input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(async ({ input }): Promise<boolean> => {
       try {
         const configService = getGlobalConfigService();
         const integrationConfigService = getIntegrationConfigService(configService);
@@ -211,11 +207,11 @@ export const settingsIntegrationRouter = router({
           data: { type: input.type, enabled: input.enabled }
         });
 
-        return createSuccessResult(true);
+        return true;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(`Error updating integration settings: ${errorMessage}`);
-        return createErrorResult(
+        throw toTRPCError(
           createContextualError(errorMessage, 'CONFIGURATION_ERROR')
         );
       }

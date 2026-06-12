@@ -210,6 +210,7 @@ export function SeriesPathEditor({ mangaId, libraryPath }: SeriesPathEditorProps
         <BrowseDirectoryModal
           opened={browse.browseModalOpen}
           browseResult={browse.browseResult}
+          browseError={browse.browseError}
           isBrowseLoading={browse.isBrowseLoading}
           currentBrowsePath={browse.currentBrowsePath}
           onNavigateToPath={browse.handleNavigateToPath}

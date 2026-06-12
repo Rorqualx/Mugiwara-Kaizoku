@@ -9,7 +9,6 @@ import {
   processScrapedVolumes,
   type VolumeData
 } from '@/components/addManga/services/helpers/comicVineScrapingHelpers';
-import { isSuccess, type AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import type { ComicVineMutations, ScrapedData } from './types';
@@ -34,13 +33,9 @@ export async function scrapeSeriesPage(
 
     const volumeUrlsResponse = await mutations.scrapeComicVineVolumeUrlsMutation.mutateAsync({
       seriesUrl: comicVineUrl
-    }) as AsyncResult<unknown, unknown>;
+    });
 
-    if (!isSuccess(volumeUrlsResponse)) {
-      return { scrapedChapterCount, scrapedChapterData, volumeData };
-    }
-
-    const responseData = volumeUrlsResponse.data as Record<string, unknown>;
+    const responseData = volumeUrlsResponse as unknown as Record<string, unknown>;
     const volumeUrls = (responseData["volumeUrls"] ?? []) as Array<Record<string, unknown>>;
     logger.info(`[ComicVine] Found ${volumeUrls.length} volume URLs to scrape`);
 
@@ -140,25 +135,23 @@ export async function scrapeVolumePage(
     }
     const scrapeResponse = await mutations.scrapeComicVineVolumeMutation.mutateAsync({
       volumeUrl: comicVineUrl
-    }) as AsyncResult<unknown, unknown>;
+    });
 
-    if (isSuccess(scrapeResponse)) {
-      const responseData = scrapeResponse.data as Record<string, unknown>;
-      const volumeDetails = responseData["volumeDetails"] as Array<Record<string, unknown>> | undefined;
+    const responseData = scrapeResponse as unknown as Record<string, unknown>;
+    const volumeDetails = responseData["volumeDetails"] as Array<Record<string, unknown>> | undefined;
 
-      if (volumeDetails?.[0]) {
-        const scrapedData = volumeDetails[0];
-        const chapters = scrapedData["chapters"];
-        const chaptersArray = Array.isArray(chapters) ? chapters : [];
-        const totalChapters = responseData["totalChapters"];
-        scrapedChapterCount = typeof totalChapters === 'number' ? totalChapters : chaptersArray.length;
-        scrapedChapterData = chaptersArray;
+    if (volumeDetails?.[0]) {
+      const scrapedData = volumeDetails[0];
+      const chapters = scrapedData["chapters"];
+      const chaptersArray = Array.isArray(chapters) ? chapters : [];
+      const totalChapters = responseData["totalChapters"];
+      scrapedChapterCount = typeof totalChapters === 'number' ? totalChapters : chaptersArray.length;
+      scrapedChapterData = chaptersArray;
 
-        logger.info('[ComicVine] Successfully scraped chapter data:', {
-          totalChapters: scrapedChapterCount,
-          chaptersFound: scrapedChapterData.length
-        });
-      }
+      logger.info('[ComicVine] Successfully scraped chapter data:', {
+        totalChapters: scrapedChapterCount,
+        chaptersFound: scrapedChapterData.length
+      });
     }
   } catch (scrapeError) {
     logger.warn('[ComicVine] Failed to scrape chapter data from volume page:', scrapeError);

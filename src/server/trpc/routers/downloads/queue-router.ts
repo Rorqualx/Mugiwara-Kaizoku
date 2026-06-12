@@ -28,11 +28,11 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { parseVolumeRange } from '@/server/utils/volumeRangeParser';
-import type { AsyncResult } from '@/utils/async-result';
-import { createErrorResult, isSuccess } from '@/utils/async-result';
+import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
@@ -198,6 +198,8 @@ export const downloadsQueueRouter = router({
 
   /**
    * Pause download
+   *
+   * @throws TRPCError - always; the Download model is not implemented yet
    */
   pause: protectedProcedure
     .input(
@@ -205,20 +207,20 @@ export const downloadsQueueRouter = router({
         downloadId: z.string(),
       })
     )
-    .mutation(({ input: _input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(({ input: _input }): Promise<boolean> => {
       // TODO: Add Download model (separate download tracking)
       logger.warn(
         'Pause download not implemented - Download model not yet created'
       );
-      return Promise.resolve(
-        createErrorResult(
-          new Error('Download model not implemented - use Chapter.downloadStatus')
-        )
+      throw toTRPCError(
+        new Error('Download model not implemented - use Chapter.downloadStatus')
       );
     }),
 
   /**
    * Resume download
+   *
+   * @throws TRPCError - always; the Download model is not implemented yet
    */
   resume: protectedProcedure
     .input(
@@ -226,20 +228,20 @@ export const downloadsQueueRouter = router({
         downloadId: z.string(),
       })
     )
-    .mutation(({ input: _input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(({ input: _input }): Promise<boolean> => {
       // TODO: Add Download model (separate download tracking)
       logger.warn(
         'Resume download not implemented - Download model not yet created'
       );
-      return Promise.resolve(
-        createErrorResult(
-          new Error('Download model not implemented - use Chapter.downloadStatus')
-        )
+      throw toTRPCError(
+        new Error('Download model not implemented - use Chapter.downloadStatus')
       );
     }),
 
   /**
    * Remove download
+   *
+   * @throws TRPCError - always; the Download model is not implemented yet
    */
   remove: protectedProcedure
     .input(
@@ -248,15 +250,13 @@ export const downloadsQueueRouter = router({
         deleteFiles: z.boolean().optional(),
       })
     )
-    .mutation(({ input: _input }): Promise<AsyncResult<boolean, Error>> => {
+    .mutation(({ input: _input }): Promise<boolean> => {
       // TODO: Add Download model (separate download tracking)
       logger.warn(
         'Remove download not implemented - Download model not yet created'
       );
-      return Promise.resolve(
-        createErrorResult(
-          new Error('Download model not implemented - use Chapter.downloadStatus')
-        )
+      throw toTRPCError(
+        new Error('Download model not implemented - use Chapter.downloadStatus')
       );
     }),
 

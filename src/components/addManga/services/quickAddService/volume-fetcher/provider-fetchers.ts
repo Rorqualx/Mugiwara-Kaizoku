@@ -7,7 +7,6 @@
  */
 
 import type { AppRouter } from '@/server/trpc/root';
-import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 import type { FetchedVolumeData } from '../types';
@@ -38,11 +37,7 @@ export async function tryFetchFromFandom(
       maxChaptersToFetch: 0
     });
 
-    if (!isSuccess(fandomResult)) {
-      return null;
-    }
-
-    const data = fandomResult.data as { volumes?: number; chapters?: number; volumeDetails?: unknown[] };
+    const data = fandomResult as { volumes?: number; chapters?: number; volumeDetails?: unknown[] };
     const totalVolumes = data.volumes ?? 0;
     const totalChapters = data.chapters ?? 0;
     const volumeDetails = data.volumeDetails ?? [];
@@ -118,11 +113,7 @@ export async function tryFetchFromComicVine(
       type: 'volume'
     });
 
-    if (!isSuccess(comicvineResult)) {
-      return null;
-    }
-
-    return transformComicVineResponse(comicvineResult.data as Record<string, unknown>);
+    return transformComicVineResponse(comicvineResult as unknown as Record<string, unknown>);
   } catch (comicvineError) {
     logger.info('[volume-fetcher] Failed to fetch from ComicVine', {
       error: comicvineError instanceof Error ? comicvineError.message : String(comicvineError)
@@ -287,15 +278,9 @@ export async function tryFetchFromMangaDex(
       language: 'en'
     });
 
-    if (!isSuccess(mangadexResult)) {
-      logger.debug('[volume-fetcher] MangaDex fetch returned error result');
-      return null;
-    }
-
-    const data = mangadexResult.data;
-    const volumes = data.volumes;
-    const totalVolumes = data.totalVolumes;
-    const totalChapters = data.totalChapters;
+    const volumes = mangadexResult.volumes;
+    const totalVolumes = mangadexResult.totalVolumes;
+    const totalChapters = mangadexResult.totalChapters;
 
     if (totalVolumes > 0 || volumes.length > 0) {
       logger.info('[volume-fetcher] Got volume data from MangaDex', {

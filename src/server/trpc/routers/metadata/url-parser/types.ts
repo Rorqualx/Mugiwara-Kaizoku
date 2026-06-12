@@ -5,7 +5,6 @@
  */
 
 import type { Context } from '@/server/trpc/context';
-import type { AsyncResult } from '@/utils/async-result';
 
 /**
  * Parser result type for metadata URL parsing
@@ -19,11 +18,14 @@ export interface ParsedMetadataResult {
 
 /**
  * Parser function signature
+ *
+ * Parsers return the result directly and throw on failure (converted to
+ * TRPCError at the tRPC boundary).
  */
 export type UrlParserFn = (
   url: string,
   ctx: Context
-) => Promise<AsyncResult<ParsedMetadataResult, Error>>;
+) => Promise<ParsedMetadataResult>;
 
 /**
  * Supported URL types

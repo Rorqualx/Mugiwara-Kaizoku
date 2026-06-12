@@ -14,11 +14,25 @@
 
 import { z } from 'zod';
 
+import { toTRPCError } from '@/server/trpc/errors';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
-import type { AsyncResult } from '@/utils/async-result';
-import { createErrorResult, createSuccessResult, isError, isSuccess } from '@/utils/async-result';
+import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
 import { logger } from '@/utils/logger';
+
+/** A single Fandom wiki search hit returned over the wire */
+interface FandomWikiSearchHit {
+  title: string;
+  url: string;
+  snippet: string;
+  wiki: string;
+  pageId: number;
+  score?: number;
+  size?: number;
+  wordcount?: number;
+  timestamp?: string;
+  isRecommended?: boolean;
+}
 
 export const fandomSearchRouter = router({
   searchFandomWikis: publicProcedure.
@@ -26,45 +40,16 @@ export const fandomSearchRouter = router({
     title: z.string(),
     wikis: z.array(z.string()).optional()
   })).
-  query(async ({ input }): Promise<AsyncResult<Array<{
-    title: string;
-    url: string;
-    snippet: string;
-    wiki: string;
-    pageId: number;
-    score?: number;
-    size?: number;
-    wordcount?: number;
-    timestamp?: string;
-    isRecommended?: boolean;
-  }>, Error>> => {
+  query(async ({ input }): Promise<FandomWikiSearchHit[]> => {
     try {
       const { fandomSearchService } = await import('@/server/services/fandom/fandomSearchService');
       const result = await fandomSearchService.searchAllWikis(input.title, input.wikis);
-      if (isSuccess(result)) {
-        // FIX: Removed unnecessary optional chain after type assertion
-        const typedResults = (result.data as { results?: Array<{
-          title: string;
-          url: string;
-          snippet: string;
-          wiki: string;
-          pageId: number;
-          score?: number;
-          size?: number;
-          wordcount?: number;
-          timestamp?: string;
-          isRecommended?: boolean;
-        }> }).results ?? [];
-        return createSuccessResult(typedResults);
-      } else if (isError(result)) {
-        return createErrorResult(result.error as Error);
-      } else {
-        return createErrorResult(new Error('Unexpected result status'));
-      }
+      const data = unwrapResultOrThrow(result, 'Fandom wiki search failed');
+      return (data as { results?: FandomWikiSearchHit[] }).results ?? [];
     }
     catch (error: unknown) {
       logger.error(`Error searching Fandom wikis: ${error instanceof Error ? error.message : String(error)}`);
-      return createErrorResult(error instanceof Error ? error : new Error(`Search failed: ${String(error)}`));
+      throw toTRPCError(error instanceof Error ? error : new Error(`Search failed: ${String(error)}`));
     }
   }),
 });

@@ -14,7 +14,6 @@ import { trpc } from '@/utils/trpc-client/index';
 
 import { SettingsSwitch } from '../SettingsSwitch';
 
-import { getTestConnectionDisplay } from './connection-test-result';
 import { parseBaseURL } from './parse-base-url';
 /**
  * Transmission Settings Component with proper state management
@@ -64,9 +63,8 @@ export function TransmissionSettings(): JSX.Element {
         try {
             const { host, port, ssl } = parseBaseURL(baseURL);
             const result = await testConnectionMutation.mutateAsync({ host, port, ssl });
-            const display = getTestConnectionDisplay(result);
-            setTestSuccess(display.success);
-            setTestMessage(display.message);
+            setTestSuccess(true);
+            setTestMessage(result.message);
         }
         catch (error: unknown) {
             setTestSuccess(false);

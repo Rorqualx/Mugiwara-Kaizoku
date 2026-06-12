@@ -44,12 +44,10 @@ interface VolumeDetails {
 }
 
 interface ComicVineVolumeResult {
-  data?: {
-    volumeDetails?: VolumeDetails[];
-    metadata?: Record<string, unknown>;
-    chapters?: number;
-    totalChapters?: number;
-  };
+  volumeDetails?: VolumeDetails[];
+  metadata?: Record<string, unknown>;
+  chapters?: number;
+  totalChapters?: number;
 }
 
 /**
@@ -168,8 +166,8 @@ export function useChapterHandlers(params: ChapterHandlersParams): ChapterHandle
           volumeUrl: volume["url"] as string
         }) as ComicVineVolumeResult;
 
-        if (result.data?.volumeDetails?.[0]) {
-          const scrapedData = result.data.volumeDetails[0];
+        if (result.volumeDetails?.[0]) {
+          const scrapedData = result.volumeDetails[0];
 
           // Update volumesData
           setVolumesData(prev => ({

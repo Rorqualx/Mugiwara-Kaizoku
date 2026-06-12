@@ -32,7 +32,6 @@ import { SlackSettings } from '@/components/settings/notification/SlackSettings'
 import { TelegramSettingsPanel } from '@/components/settings/notification/TelegramSettingsPanel';
 import { WebhookSettings } from '@/components/settings/notification/WebhookSettings';
 import type { NotificationConfig } from '@/types/search.types';
-import { isSuccess } from '@/utils/async-result';
 import { trpc } from '@/utils/trpc-client/index';
 
 
@@ -44,15 +43,11 @@ import { trpc } from '@/utils/trpc-client/index';
 export default function NotificationSettings(): React.ReactElement {
   const [activeTab, setActiveTab] = useState<string | null>('preferences');
 
-  // Get current notification configuration
+  // Get current notification configuration (bare data; errors surface via tRPC)
   const { data: configData, refetch, isLoading } = trpc.notifications.getConfig.useQuery();
 
-  // Extract notification config from AsyncResult with proper type narrowing
-  let notificationConfig: NotificationConfig | undefined;
-  if (configData && isSuccess(configData)) {
-    // Type assertion is safe here because we know the backend returns NotificationConfig
-    notificationConfig = configData.data as NotificationConfig;
-  }
+  // Type assertion is safe here because we know the backend returns NotificationConfig
+  const notificationConfig = configData as NotificationConfig | undefined;
 
   // Initialize forms with current config
   const forms = useNotificationForms(notificationConfig);
