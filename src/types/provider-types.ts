@@ -6,7 +6,6 @@
  */
 
 /**
- * @deprecated This entire file is deprecated. Use types from domain/provider-types.ts instead
  * Interface for metadata provider objects returned from the API
  */
 export interface MetadataProvider {
