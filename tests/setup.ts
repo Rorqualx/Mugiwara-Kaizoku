@@ -8,9 +8,12 @@
  * Provides:
  * - Happy-DOM for browser environment (DOM, window, document, navigator)
  * - jest.mocked() polyfill
- * - jest.requireActual() polyfill
- * - jest.advanceTimersByTime() polyfill (stub)
+ * - jest.requireActual() guard (throws — no Bun equivalent)
  * - Global logger mock for test isolation
+ *
+ * Fake timers (useFakeTimers/advanceTimersByTime) are native in Bun >= 1.3;
+ * the old no-op stubs were removed. Note advanceTimersByTimeAsync is still
+ * absent — prefer real timers (project convention).
  */
 
 // Import and register Happy-DOM FIRST for browser environment
@@ -65,41 +68,18 @@ if (!('mocked' in jest)) {
   (jest as any).mocked = <T>(source: T): T => source;
 }
 
-// Add jest.requireActual polyfill
-// Used by tests to get the actual module implementation when mocking
+// jest.requireActual guard — there is no reliable Bun equivalent (mock.module
+// patches both import and require, so "actual" semantics can't be honored).
+// The old polyfill silently returned {} which made tests pass vacuously;
+// failing loudly is strictly better. Tests needing the real module should
+// import it directly.
 if (!('requireActual' in jest)) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Required for compatibility layer
-  (jest as any).requireActual = (moduleName: string): unknown => {
-    // In Bun, we can't dynamically require, so return empty object
-    // Tests using requireActual should be updated to not rely on it
-    console.warn(`jest.requireActual('${moduleName}') called - returning empty object in Bun`);
-    return {};
-  };
-}
-
-// Add jest.advanceTimersByTime polyfill (stub)
-// Bun doesn't support fake timers the same way Jest does
-if (!('advanceTimersByTime' in jest)) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Required for compatibility layer
-  (jest as any).advanceTimersByTime = (_ms: number): void => {
-    console.warn('jest.advanceTimersByTime() called - not supported in Bun, skipping');
-  };
-}
-
-// Add jest.useFakeTimers polyfill (stub)
-if (!('useFakeTimers' in jest)) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Required for compatibility layer
-  (jest as any).useFakeTimers = (): typeof jest => {
-    console.warn('jest.useFakeTimers() called - not supported in Bun');
-    return jest;
-  };
-}
-
-// Add jest.useRealTimers polyfill (stub)
-if (!('useRealTimers' in jest)) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Required for compatibility layer
-  (jest as any).useRealTimers = (): typeof jest => {
-    return jest;
+  (jest as any).requireActual = (moduleName: string): never => {
+    throw new Error(
+      `jest.requireActual('${moduleName}') is not supported under bun test - ` +
+      'import the module directly or restructure the mock.'
+    );
   };
 }
 

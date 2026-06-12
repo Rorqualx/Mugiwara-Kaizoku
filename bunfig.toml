@@ -85,7 +85,15 @@ format = "esm"
 # Preload Jest compatibility layer for bun test
 preload = ["./tests/setup.ts"]
 
-# Exclude Playwright e2e tests (run via `bunx playwright test` instead)
+# Exclude Playwright e2e tests (run via `bunx playwright test` instead).
+# WARNING: this exclude is NOT honored when bun test is given positional
+# filter args (e.g. `bun test tests/`) — the filter is a substring match
+# that sweeps in tests/e2e AND archive/*/tests/. On top of that, relative
+# filter args trigger a full-tree glob scan that breaks child-process
+# reaping (spawn exit codes report 1, piped stdout arrives empty — bun
+# 1.3.8), false-failing the lsar/unar-based packImport tests.
+# ALWAYS invoke bun test with ABSOLUTE paths: use `bun run test:bun`
+# (package.json passes "$PWD/tests/<dir>" for each suite directory).
 exclude = ["tests/e2e/**/*"]
 
 # Coverage configuration

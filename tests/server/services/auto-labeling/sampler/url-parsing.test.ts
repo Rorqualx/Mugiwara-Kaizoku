@@ -145,11 +145,14 @@ describe('parseDiscoveredUrls', () => {
   });
 
   describe('URL without type prefix', () => {
-    it('should return empty array for bare URL without type prefix', () => {
-      // Bare URLs without TYPE: prefix are skipped during parsing
+    it('should treat bare URL without type prefix as MANGA_PAGE', () => {
+      // Bare URLs are accepted and defaulted to MANGA_PAGE — main wiki URLs
+      // are often recorded without a TYPE: prefix.
       const urls = parseDiscoveredUrls('https://example.com/page');
 
-      expect(urls.length).toBe(0);
+      expect(urls.length).toBe(1);
+      expect(urls[0]?.type).toBe('MANGA_PAGE');
+      expect(urls[0]?.url).toBe('https://example.com/page');
     });
   });
 

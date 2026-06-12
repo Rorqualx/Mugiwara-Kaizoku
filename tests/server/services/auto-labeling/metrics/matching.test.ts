@@ -63,7 +63,9 @@ describe('exact matching', () => {
     const result = matchEntities(extracted, expected, DEFAULT_CONFIG);
 
     expect(result.matches.length).toBe(0);
-    expect(result.unmatchedExtracted.length).toBe(1);
+    // AUTHOR has no ground truth in `expected`, so the stray extraction is
+    // excluded from FP counting (only scoreable types are kept).
+    expect(result.unmatchedExtracted.length).toBe(0);
     expect(result.unmatchedExpected.length).toBe(1);
   });
 
@@ -236,8 +238,10 @@ describe('partial matching', () => {
 
 describe('match configuration', () => {
   it('should respect custom minSimilarity threshold', () => {
-    const extracted = [createExtracted('TITLE', 'One Piec', 'one piec')];
-    const expected = [createExpected('TITLE', 'One Piece', 'one piece')];
+    // GENRE has no RELAXED_SIMILARITY_TYPES override, so config.minSimilarity
+    // applies as-is (TITLE would use its relaxed 0.65 threshold instead).
+    const extracted = [createExtracted('GENRE', 'Adventur', 'adventur')];
+    const expected = [createExpected('GENRE', 'Adventure', 'adventure')];
 
     // Very high threshold that won't match
     const strictConfig: MatchConfig = {
@@ -355,7 +359,8 @@ describe('matching edge cases', () => {
     const result = matchEntities(extracted, expected, DEFAULT_CONFIG);
 
     expect(result.matches.length).toBe(0);
-    expect(result.unmatchedExtracted.length).toBe(1);
+    // No ground truth at all -> no types are scoreable -> no FPs reported.
+    expect(result.unmatchedExtracted.length).toBe(0);
     expect(result.unmatchedExpected.length).toBe(0);
   });
 
@@ -458,16 +463,21 @@ describe('match results structure', () => {
   });
 
   it('should preserve original entities in unmatched arrays', () => {
+    // AUTHOR appears in the ground truth, so the dissimilar extraction is
+    // kept as a false positive (unscored types are filtered out instead).
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('AUTHOR', 'Wrong Author'),
+      createExtracted('AUTHOR', 'Zzz Qqq'),
     ];
-    const expected = [createExpected('TITLE', 'One Piece')];
+    const expected = [
+      createExpected('TITLE', 'One Piece'),
+      createExpected('AUTHOR', 'Eiichiro Oda'),
+    ];
 
     const result = matchEntities(extracted, expected, DEFAULT_CONFIG);
 
     expect(result.unmatchedExtracted[0]?.type).toBe('AUTHOR');
-    expect(result.unmatchedExtracted[0]?.value).toBe('Wrong Author');
+    expect(result.unmatchedExtracted[0]?.value).toBe('Zzz Qqq');
   });
 });
 
@@ -477,8 +487,9 @@ describe('match results structure', () => {
 
 describe('integration with calculateMetrics', () => {
   it('should pass custom config to matchEntities', () => {
-    const extracted = [createExtracted('TITLE', 'One Piec', 'one piec')];
-    const expected = [createExpected('TITLE', 'One Piece', 'one piece')];
+    // GENRE is used because it has no per-type relaxed threshold override.
+    const extracted = [createExtracted('GENRE', 'Adventur', 'adventur')];
+    const expected = [createExpected('GENRE', 'Adventure', 'adventure')];
 
     // With high threshold and no partial matching, should not match
     const strictMetrics = calculateMetrics(extracted, expected, {
@@ -505,13 +516,15 @@ describe('integration with calculateMetrics', () => {
   });
 
   it('should include unmatched entities in metrics result', () => {
+    // The stray extraction must be a type with ground truth (AUTHOR) —
+    // extractions of unscored types (e.g. GENRE here) are filtered from FPs.
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('GENRE', 'Extra'),
+      createExtracted('AUTHOR', 'Zzz Qqq'),
     ];
     const expected = [
       createExpected('TITLE', 'One Piece'),
-      createExpected('AUTHOR', 'Missing'),
+      createExpected('AUTHOR', 'Missing Person'),
     ];
 
     const metrics = calculateMetrics(extracted, expected);

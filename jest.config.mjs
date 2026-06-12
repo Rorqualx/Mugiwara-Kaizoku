@@ -28,7 +28,7 @@ export default {
     '<rootDir>/build/',
     '<rootDir>/src/pages/',  // API routes are not test files
     '<rootDir>/tests/e2e/',  // Playwright E2E tests (run separately with npx playwright test)
-    '<rootDir>/tests/server/services/auto-labeling/',  // Auto-labeling tests need type fixes
+    '<rootDir>/tests/server/services/auto-labeling/',  // Bun-native suites (import bun:test) - run via `bun run test:bun`
     '<rootDir>/src/hooks/__tests__/useSuwayomiDownloads.test.tsx',  // Memory leak issue - TODO: fix
   ],
   moduleNameMapper: {

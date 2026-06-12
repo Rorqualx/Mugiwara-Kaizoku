@@ -95,22 +95,46 @@ expect(result).toMatchExpectedOutcome();
 
 ## Running Tests
 
+### Two Runners (by design)
+
+The project intentionally uses two test runners with disjoint territories:
+
+| Runner | Territory | Setup file | Invocation |
+|--------|-----------|------------|------------|
+| **Jest** (ts-jest, jsdom) | `src/**` component/UI tests — rely on `jest.mock()` module factories | `src/test/setup.ts` (17 mock modules) | `npm test` |
+| **Bun** (`bun:test`, happy-dom) | `tests/**` server/unit/integration suites | `tests/setup.ts` (Jest-compat shims) | `bun run test:bun` |
+| **Playwright** | `tests/e2e/**` | — | `npm run test:e2e` |
+
+The PreToolUse edit hook (`run-related-tests.py`) runs related tests with
+**bun**, so server-side tests must stay bun-compatible.
+
+### ⚠️ Bun invocation rules
+
+- **Always use `bun run test:bun`** (or pass absolute paths). Relative
+  filter args like `bun test tests/` trigger a full-tree glob scan that
+  breaks child-process reaping on bun 1.3.x — spawned tools (`lsar`,
+  `unar`) report exit 1 with empty stdout, false-failing the packImport
+  suites. The filter is also a substring match that sweeps in
+  `tests/e2e` (Playwright errors) and `archive/*/tests/` (deleted-module
+  errors); bunfig's `exclude` is not honored for positional filters.
+- `jest.requireActual()` is **not supported** under bun — it throws.
+  Import the module directly instead.
+- Fake timers (`jest.useFakeTimers`/`advanceTimersByTime`) are native in
+  bun ≥ 1.3, but `advanceTimersByTimeAsync` is still missing — prefer
+  real timers (project convention).
+
 ### Commands
 ```bash
-# Run all tests
+# Jest (src/ component tests)
 npm test
-
-# Run unit tests
-npm run test:unit
-
-# Run integration tests
-npm run test:integration
-
-# Run E2E tests
-npm run test:e2e
-
-# Run with coverage
 npm run test:coverage
+
+# Bun (tests/ server suites) — canonical invocation
+bun run test:bun
+bun run test:bun:watch
+
+# Playwright E2E
+npm run test:e2e
 ```
 
 ### CI/CD Integration

@@ -55,9 +55,11 @@ describe('precision calculation', () => {
   });
 
   it('should return 0.5 when half of extracted entities are false positives', () => {
+    // Both extractions are TITLE-typed so the garbage one counts as a FP
+    // (extractions of types absent from the ground truth are filtered out).
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('AUTHOR', 'Wrong Author'),
+      createExtracted('TITLE', 'Zzz Qqq'),
     ];
     const expected = [createExpected('TITLE', 'One Piece')];
 
@@ -224,9 +226,10 @@ describe('f1 score calculation', () => {
   it('should calculate harmonic mean correctly', () => {
     // Create scenario with P=0.5 and R=1.0
     // F1 = 2 * 0.5 * 1.0 / (0.5 + 1.0) = 1.0 / 1.5 = 0.6667
+    // The FP is TITLE-typed so it stays scoreable (see precision tests).
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('AUTHOR', 'Wrong Author'),
+      createExtracted('TITLE', 'Zzz Qqq'),
     ];
     const expected = [createExpected('TITLE', 'One Piece')];
 
@@ -240,9 +243,11 @@ describe('f1 score calculation', () => {
 
   it('should handle equal precision and recall', () => {
     // When P=R, F1=P=R
+    // FP must be TITLE-typed (scoreable); a GENRE extraction would be
+    // filtered out because GENRE has no ground truth here.
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('GENRE', 'Action'),
+      createExtracted('TITLE', 'Zzz Qqq'),
     ];
     const expected = [
       createExpected('TITLE', 'One Piece'),
@@ -369,10 +374,11 @@ describe('counts verification', () => {
   });
 
   it('should track false positives correctly', () => {
+    // All extractions are TITLE-typed so both garbage ones count as FPs.
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('AUTHOR', 'Wrong Author'),
-      createExtracted('GENRE', 'Random'),
+      createExtracted('TITLE', 'Zzz Qqq'),
+      createExtracted('TITLE', 'Xx Ww Yy'),
     ];
     const expected = [createExpected('TITLE', 'One Piece')];
 
@@ -397,9 +403,11 @@ describe('counts verification', () => {
   });
 
   it('should satisfy TP + FP = extracted count', () => {
+    // The invariant only holds when every extracted type has ground truth —
+    // extractions of unscored types are excluded from FP counting entirely.
     const extracted = [
       createExtracted('TITLE', 'One Piece'),
-      createExtracted('AUTHOR', 'Wrong Author'),
+      createExtracted('TITLE', 'Zzz Qqq'),
       createExtracted('GENRE', 'Action'),
     ];
     const expected = [
