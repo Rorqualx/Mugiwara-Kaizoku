@@ -6,100 +6,41 @@
  *
  * Also includes statistics and history procedures.
  *
+ * Queue state is persisted in the existing PackDownload + jobs tables (no
+ * separate Download model by design); live transfer state and pause/resume
+ * come from the configured download clients.
+ *
  * Procedures:
- * - add: Add download to queue
- * - list: List downloads in queue
- * - pause: Pause download
- * - resume: Resume download
- * - remove: Remove download
- * - clearCompleted: Clear completed downloads
- * - stats: Get download statistics
- * - history: Get download history
- *
- * Extracted from: downloads.ts (lines 295-586)
- *
- * ESLint fixes applied:
- * - no-await-in-loop: Use reduce() instead of filter().length for stats counting
+ * - add: Add download to client + create tracking job/PackDownload
+ * - list: List tracked downloads
+ * - pause/resume/remove: Operate on the owning download client
+ * - clearCompleted: Remove completed items from clients (files kept)
+ * - stats: Tracked-download counts + live client stats
+ * - history: Finished tracked downloads
  */
 
-import { DownloadStatus } from '@prisma/client';
+import { DownloadStatus, PackDownloadStatus } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { toTRPCError } from '@/server/trpc/errors';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { parseVolumeRange } from '@/server/utils/volumeRangeParser';
 import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
-
-import { getConfiguredClient, getEnabledClients } from './client-config';
+import { getConfiguredClient, getEnabledClients, getPrimaryEnabledClient } from './client-config';
+import {
+  QUEUE_STATUS_MAP,
+  clearCompletedFromClients,
+  createDownloadTrackingJob,
+  fetchWithTimeout,
+  protocolForClientType,
+  runClientOperation,
+} from './queue-operations';
 import { downloadRequestSchema, isRecord, queueFilterSchema } from './utils';
-
-// ============================================================================
-// Helper Types & Functions
-// ============================================================================
-
-interface ClientDownloadItem {
-  id: string;
-  name: string;
-  status: string;
-  progress: number;
-  clientType: string;
-  savePath: string;
-  size: number;
-}
-
-async function fetchDownloadsFromClient(
-  clientType: string
-): Promise<ClientDownloadItem[]> {
-  try {
-    const client = await getConfiguredClient(clientType);
-    if (!client) {
-      logger.debug(`[TrackDownload] No configured client for ${clientType}`);
-      return [];
-    }
-    const itemsResult = await client.getAllItems();
-    if (!isSuccess(itemsResult)) {
-      logger.warn(`[TrackDownload] Failed to get items from ${clientType}`, {
-        error: 'error' in itemsResult ? String(itemsResult.error) : 'unknown',
-      });
-      return [];
-    }
-    return itemsResult.data.map((item) => ({
-      id: String(item.id),
-      name: item.name,
-      status: item.status,
-      progress: item.progress,
-      clientType,
-      savePath: item.savePath,
-      size: item.size ?? 0,
-    }));
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    logger.warn(`[TrackDownload] Error fetching from ${clientType}: ${msg}`);
-    return [];
-  }
-}
-
-/** Fetch from a client with a 10s timeout to avoid blocking on unresponsive clients */
-async function fetchWithTimeout(clientType: string): Promise<ClientDownloadItem[]> {
-  const clientStart = Date.now();
-  const result = await Promise.race([
-    fetchDownloadsFromClient(clientType),
-    new Promise<ClientDownloadItem[]>((resolve) => {
-      setTimeout(() => {
-        logger.warn(`[TrackDownload] Timeout fetching from ${clientType} after 10s`);
-        resolve([]);
-      }, 10_000);
-    }),
-  ]);
-  logger.debug(`[TrackDownload] ${clientType}: ${result.length} items (${Date.now() - clientStart}ms)`);
-  return result;
-}
 
 // ============================================================================
 // Queue Operations Router
@@ -112,12 +53,14 @@ async function fetchWithTimeout(clientType: string): Promise<ClientDownloadItem[
  */
 export const downloadsQueueRouter = router({
   /**
-   * Add download to queue
+   * Add download to queue: hand the URL to the configured client and create
+   * the tracking job + PackDownload row the download monitor resolves.
    */
   add: protectedProcedure.input(downloadRequestSchema).mutation(async ({ input }) => {
     try {
-      const client = await getConfiguredClient();
-      if (!client) {
+      const primary = await getPrimaryEnabledClient();
+      const client = primary ? await getConfiguredClient(primary.type) : null;
+      if (!primary || !client) {
         throw new TRPCError({
           code: 'PRECONDITION_FAILED',
           message: 'No download client configured',
@@ -131,35 +74,39 @@ export const downloadsQueueRouter = router({
         paused: false,
       });
 
-      // Create download record data
-      const downloadData: {
-        downloadId: string;
-        mangaId: number;
-        chapterId?: number;
-        downloadUrl: string;
-        title: string;
-        status: string;
-        downloadClient: string;
-        priority: number;
-      } = {
-        downloadId: String(downloadId),
+      const jobId = await createDownloadTrackingJob({
         mangaId: input.mangaId,
-        downloadUrl: input.url,
-        title: input.filename,
-        status: 'DOWNLOADING',
-        downloadClient: 'transmission',
-        priority:
-          input.priority === 'HIGH' ? 1 : input.priority === 'LOW' ? -1 : 0,
-      };
+        payload: { mode: 'BULK', method: 'QUEUE_ADD' },
+        result: {
+          downloadId: String(downloadId),
+          clientType: primary.type,
+          releaseTitle: input.filename,
+          startTime: Date.now(),
+          mode: 'BULK',
+        },
+      });
 
-      if (input.chapterId !== undefined) {
-        downloadData['chapterId'] = input.chapterId;
-      }
+      const volumeRange = parseVolumeRange(input.filename);
+      await prisma.packDownload.create({
+        data: {
+          releaseTitle: input.filename,
+          mangaId: input.mangaId,
+          jobId,
+          downloadId: String(downloadId),
+          clientType: primary.type,
+          protocol: protocolForClientType(primary.type),
+          status: 'DOWNLOADING',
+          downloadUrl: input.url,
+          volumeStart: volumeRange?.start ?? null,
+          volumeEnd: volumeRange?.end ?? null,
+        },
+      });
 
-      // TODO: Add Download model (separate download tracking)
-      // Currently using Chapter.downloadStatus instead
-
-      logger.info(`Download added: ${input.filename}`);
+      logger.info(`Download added: ${input.filename}`, {
+        jobId: String(jobId),
+        downloadId: String(downloadId),
+        clientType: primary.type,
+      });
 
       // Emit WebSocket event for real-time sync
       void realtimeEmitter.emitSystemEvent({
@@ -177,6 +124,7 @@ export const downloadsQueueRouter = router({
         success: true,
         downloadId: String(downloadId),
         externalId: downloadId,
+        jobId: String(jobId),
       };
     } catch (error: unknown) {
       logger.error('Failed to add download', error);
@@ -188,18 +136,43 @@ export const downloadsQueueRouter = router({
   }),
 
   /**
-   * List downloads in queue
+   * List tracked downloads in the queue
    */
-  list: publicProcedure.input(queueFilterSchema.optional()).query(() => {
-    // TODO: Add Download model (separate download tracking)
-    // Currently using Chapter.downloadStatus instead
-    return [];
+  list: publicProcedure.input(queueFilterSchema.optional()).query(async ({ input }) => {
+    const statusFilter = input?.status !== undefined ? QUEUE_STATUS_MAP[input.status] ?? [] : null;
+    if (statusFilter !== null && statusFilter.length === 0) {
+      return []; // PAUSED has no persisted state — pause lives in the client only
+    }
+    const downloads = await prisma.packDownload.findMany({
+      where: {
+        ...(statusFilter !== null ? { status: { in: statusFilter } } : {}),
+        ...(input?.mangaId !== undefined ? { mangaId: input.mangaId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: input?.limit ?? 50,
+      skip: input?.offset ?? 0,
+      include: { manga: { select: { id: true, title: true } } },
+    });
+    return downloads.map((d) => ({
+      id: String(d.id),
+      downloadId: d.downloadId,
+      jobId: String(d.jobId),
+      title: d.releaseTitle,
+      mangaId: d.mangaId,
+      mangaTitle: d.manga.title,
+      status: d.status,
+      clientType: d.clientType,
+      protocol: d.protocol,
+      volumeStart: d.volumeStart,
+      volumeEnd: d.volumeEnd,
+      errorMessage: d.errorMessage,
+      createdAt: d.createdAt,
+      completedAt: d.completedAt,
+    }));
   }),
 
   /**
-   * Pause download
-   *
-   * @throws TRPCError - always; the Download model is not implemented yet
+   * Pause download on the owning client
    */
   pause: protectedProcedure
     .input(
@@ -207,20 +180,19 @@ export const downloadsQueueRouter = router({
         downloadId: z.string(),
       })
     )
-    .mutation(({ input: _input }): Promise<boolean> => {
-      // TODO: Add Download model (separate download tracking)
-      logger.warn(
-        'Pause download not implemented - Download model not yet created'
-      );
-      throw toTRPCError(
-        new Error('Download model not implemented - use Chapter.downloadStatus')
-      );
+    .mutation(async ({ input }): Promise<boolean> => {
+      const ok = await runClientOperation(input.downloadId, 'pause');
+      if (!ok) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `No client accepted pause for download ${input.downloadId}`,
+        });
+      }
+      return true;
     }),
 
   /**
-   * Resume download
-   *
-   * @throws TRPCError - always; the Download model is not implemented yet
+   * Resume download on the owning client
    */
   resume: protectedProcedure
     .input(
@@ -228,20 +200,19 @@ export const downloadsQueueRouter = router({
         downloadId: z.string(),
       })
     )
-    .mutation(({ input: _input }): Promise<boolean> => {
-      // TODO: Add Download model (separate download tracking)
-      logger.warn(
-        'Resume download not implemented - Download model not yet created'
-      );
-      throw toTRPCError(
-        new Error('Download model not implemented - use Chapter.downloadStatus')
-      );
+    .mutation(async ({ input }): Promise<boolean> => {
+      const ok = await runClientOperation(input.downloadId, 'resume');
+      if (!ok) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `No client accepted resume for download ${input.downloadId}`,
+        });
+      }
+      return true;
     }),
 
   /**
-   * Remove download
-   *
-   * @throws TRPCError - always; the Download model is not implemented yet
+   * Remove download from the owning client and cancel its tracking rows
    */
   remove: protectedProcedure
     .input(
@@ -250,14 +221,20 @@ export const downloadsQueueRouter = router({
         deleteFiles: z.boolean().optional(),
       })
     )
-    .mutation(({ input: _input }): Promise<boolean> => {
-      // TODO: Add Download model (separate download tracking)
-      logger.warn(
-        'Remove download not implemented - Download model not yet created'
-      );
-      throw toTRPCError(
-        new Error('Download model not implemented - use Chapter.downloadStatus')
-      );
+    .mutation(async ({ input }): Promise<boolean> => {
+      const ok = await runClientOperation(input.downloadId, 'remove', input.deleteFiles);
+      // Mark in-flight tracking rows cancelled even if the client no longer knows the item
+      await prisma.packDownload.updateMany({
+        where: { downloadId: input.downloadId, status: PackDownloadStatus.DOWNLOADING },
+        data: { status: PackDownloadStatus.CANCELLED },
+      });
+      if (!ok) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: `No client accepted remove for download ${input.downloadId}`,
+        });
+      }
+      return true;
     }),
 
   /**
@@ -292,44 +269,24 @@ export const downloadsQueueRouter = router({
       downloadUrl: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      // Use raw SQL with NOW() to avoid JS Date/PostgreSQL timezone mismatch
-      const resultJson = JSON.stringify({
-        downloadId: input.downloadId,
-        clientType: input.clientType,
-        releaseTitle: input.releaseName,
-        startTime: Date.now(),
-        mode: 'BULK',
+      const jobId = await createDownloadTrackingJob({
+        mangaId: input.mangaId,
+        payload: { mode: 'BULK', method: 'MANUAL_TRACK' },
+        result: {
+          downloadId: input.downloadId,
+          clientType: input.clientType,
+          releaseTitle: input.releaseName,
+          startTime: Date.now(),
+          mode: 'BULK',
+        },
       });
-      const payloadJson = JSON.stringify({ mode: 'BULK', method: 'MANUAL_TRACK' });
-
-      const jobRows = await prisma.$queryRaw<Array<{ id: bigint }>>`
-        INSERT INTO jobs (
-          queue_name, job_type, priority, status, progress,
-          started_at, scheduled_for, manga_id, partition_key,
-          payload, result
-        ) VALUES (
-          'default',
-          'chapter_download'::"JobType",
-          'high'::"JobPriority",
-          'active'::"JobStatus",
-          0,
-          NOW(), NOW(),
-          ${input.mangaId}::integer,
-          'active',
-          ${payloadJson}::jsonb,
-          ${resultJson}::jsonb
-        ) RETURNING id
-      `;
-
-      const job = jobRows[0];
-      if (!job) throw new Error('Failed to create tracking job');
 
       const volumeRange = parseVolumeRange(input.releaseName);
       await prisma.packDownload.create({
         data: {
           releaseTitle: input.releaseName,
           mangaId: input.mangaId,
-          jobId: job.id,
+          jobId,
           downloadId: input.downloadId,
           clientType: input.clientType,
           protocol: 'torrent',
@@ -341,7 +298,7 @@ export const downloadsQueueRouter = router({
       });
 
       logger.info(`Manual download tracking created for "${input.releaseName}"`, {
-        jobId: String(job.id),
+        jobId: String(jobId),
         downloadId: input.downloadId,
         mangaId: input.mangaId,
       });
@@ -351,26 +308,24 @@ export const downloadsQueueRouter = router({
       // appears after the next 2s poll cycle — the user perceives the click
       // as "failed" because the modal closes with nothing visible in the table.
       void realtimeEmitter.emitJobCreated({
-        jobId: String(job.id),
+        jobId: String(jobId),
         status: 'running',
         jobType: 'chapter_download',
         metadata: { mangaId: input.mangaId, source: 'manual-track', releaseTitle: input.releaseName },
       });
 
-      return { success: true, jobId: String(job.id) };
+      return { success: true, jobId: String(jobId) };
     }),
 
   /**
-   * Clear completed downloads
+   * Clear completed downloads from the clients (downloaded files are kept)
    */
-  clearCompleted: protectedProcedure.mutation(() => {
-    // TODO: Add Download model (separate download tracking)
-    logger.warn(
-      'Clear completed downloads not implemented - Download model not yet created'
-    );
+  clearCompleted: protectedProcedure.mutation(async () => {
+    const count = await clearCompletedFromClients();
+    logger.info(`Cleared ${count} completed downloads from clients`);
     return {
-      success: false,
-      count: 0,
+      success: true,
+      count,
     };
   }),
 });
@@ -384,11 +339,27 @@ export const downloadsQueueRouter = router({
  */
 export const downloadsStatsRouter = router({
   /**
-   * Get download statistics
+   * Get download statistics (tracked downloads + live client state)
    */
   stats: publicProcedure.query(async () => {
-    // Temporary zeros until Download model is implemented
-    const [total, downloading, completed, failed, paused] = [0, 0, 0, 0, 0];
+    const grouped = await prisma.packDownload.groupBy({
+      by: ['status'],
+      _count: true,
+    });
+    const countFor = (statuses: PackDownloadStatus[]): number =>
+      grouped
+        .filter((g) => statuses.includes(g.status))
+        .reduce((sum, g) => sum + g._count, 0);
+
+    const total = grouped.reduce((sum, g) => sum + g._count, 0);
+    const downloading = countFor([PackDownloadStatus.DOWNLOADING]);
+    const completed = countFor([
+      PackDownloadStatus.COMPLETED,
+      PackDownloadStatus.IMPORTING,
+      PackDownloadStatus.IMPORTED,
+    ]);
+    const failed = countFor([PackDownloadStatus.FAILED]);
+    const paused = 0; // Pause state lives in the clients, surfaced via clientStats
 
     // Get client stats if available
     let clientStats: {
@@ -464,13 +435,13 @@ export const downloadsStatsRouter = router({
       completed,
       failed,
       paused,
-      pending: total - downloading - completed - failed - paused,
+      pending: Math.max(0, total - downloading - completed - failed - paused),
       client: clientStats,
     };
   }),
 
   /**
-   * Get download history
+   * Get download history (finished tracked downloads, newest first)
    */
   history: publicProcedure
     .input(
@@ -479,9 +450,38 @@ export const downloadsStatsRouter = router({
         offset: z.number().min(0).optional(),
       })
     )
-    .query(() => {
-      // TODO: Add Download model (separate download tracking)
-      return [];
+    .query(async ({ input }) => {
+      const downloads = await prisma.packDownload.findMany({
+        where: {
+          status: {
+            in: [
+              PackDownloadStatus.COMPLETED,
+              PackDownloadStatus.IMPORTING,
+              PackDownloadStatus.IMPORTED,
+              PackDownloadStatus.FAILED,
+              PackDownloadStatus.CANCELLED,
+            ],
+          },
+        },
+        orderBy: [{ completedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+        take: input.limit ?? 50,
+        skip: input.offset ?? 0,
+        include: { manga: { select: { id: true, title: true } } },
+      });
+      return downloads.map((d) => ({
+        id: String(d.id),
+        downloadId: d.downloadId,
+        title: d.releaseTitle,
+        mangaId: d.mangaId,
+        mangaTitle: d.manga.title,
+        status: d.status,
+        clientType: d.clientType,
+        protocol: d.protocol,
+        fileSize: d.fileSize !== null ? String(d.fileSize) : null,
+        errorMessage: d.errorMessage,
+        createdAt: d.createdAt,
+        completedAt: d.completedAt,
+      }));
     }),
 });
 

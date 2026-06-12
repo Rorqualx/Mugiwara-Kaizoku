@@ -862,16 +862,61 @@ model ApiKey {
   id         String    @id @default(dbgenerated("gen_random_uuid()"))
   userId     String
   name       String
-  key        String    @unique
+  key        String    @unique // SHA-256 hex digest of the raw key (raw key is shown once at creation)
   enabled    Boolean   @default(true)
+  rateLimit  Int       @default(120) // Requests per minute
   createdAt  DateTime  @default(now())
   expiresAt  DateTime?
   lastUsedAt DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions Permission[]
+  metrics     ApiMetric[]
 
   @@index([userId])
   @@index([key])
+}
+
+model Permission {
+  id       String   @id @default(dbgenerated("gen_random_uuid()"))
+  apiKeyId String
+  resource String // e.g. "manga", "chapters", "downloads", "*"
+  actions  String[] // e.g. ["read", "write", "delete", "*"]
+  scope    String?
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId])
+}
+
+model ApiMetric {
+  id           String   @id @default(dbgenerated("gen_random_uuid()"))
+  apiKeyId     String
+  endpoint     String
+  method       String
+  statusCode   Int
+  responseTime Int // Milliseconds
+  userAgent    String?
+  ipAddress    String? // SHA-256 prefix hash, never the raw address
+  timestamp    DateTime @default(now())
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@index([apiKeyId])
+  @@index([timestamp])
+  @@index([endpoint])
+}
+
+model ApiEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()"))
+  type       String // WebhookEventType, e.g. "chapter.downloaded"
+  entityId   String
+  entityType String // e.g. "manga", "chapter"
+  data       Json
+  createdAt  DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
 }
 
 model Webhook {

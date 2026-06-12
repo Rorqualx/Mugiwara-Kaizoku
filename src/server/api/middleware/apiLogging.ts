@@ -1,9 +1,8 @@
-// TODO: Disabled until WantedItem and ApiMetric Prisma models are implemented in schema.prisma
-
 /**
  * API Logging Middleware
  *
- * Logs API requests and responses
+ * Logs API requests and responses, and persists per-key request metrics
+ * to ApiMetric for the /api/v1/metrics endpoints.
  */
 
 import crypto from 'crypto';
@@ -108,33 +107,19 @@ async function storeApiMetrics(metrics: {
   userAgent?: string;
   ipAddress?: string;
 }): Promise<void> {
-  // TODO: Re-enable when ApiMetric model is added to schema.prisma
-  const { prisma: _prisma } = await import('@/server/db');
+  const { prisma } = await import('@/server/db');
 
-  const data: {
-    apiKeyId: string;
-    endpoint: string;
-    method: string;
-    statusCode: number;
-    responseTime: number;
-    userAgent?: string;
-    ipAddress?: string;
-  } = {
-    apiKeyId: metrics.apiKeyId,
-    endpoint: metrics.endpoint,
-    method: metrics.method,
-    statusCode: metrics.statusCode,
-    responseTime: metrics.responseTime,
-  };
-
-  if (metrics.userAgent !== undefined) data.userAgent = metrics.userAgent;
-  if (metrics.ipAddress !== undefined) data.ipAddress = metrics.ipAddress;
-
-  // Note: Type assertion needed because ApiMetric model doesn't exist yet in schema
-  // This entire file is marked as TODO until the model is implemented
-  // await (prisma.apiMetric as unknown as { create: (args: { data: typeof data }) => Promise<void> }).create({
-  //   data,
-  // });
+  await prisma.apiMetric.create({
+    data: {
+      apiKeyId: metrics.apiKeyId,
+      endpoint: metrics.endpoint,
+      method: metrics.method,
+      statusCode: metrics.statusCode,
+      responseTime: metrics.responseTime,
+      ...(metrics.userAgent !== undefined ? { userAgent: metrics.userAgent } : {}),
+      ...(metrics.ipAddress !== undefined ? { ipAddress: metrics.ipAddress } : {})
+    }
+  });
 }
 
 /**

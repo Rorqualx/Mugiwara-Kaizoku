@@ -28,10 +28,11 @@ interface ApiKey {
   name: string;
   keyPrefix: string;
   permissions: Array<{
-    id: string;
     resource: string;
+    actions: string[];
+    scope?: string;
   }>;
-  lastUsedAt?: Date | string;
+  lastUsedAt?: Date | string | null | undefined;
   createdAt: Date | string;
 }
 
@@ -131,7 +132,7 @@ export function ApiKeysTab({
                 <Table.Td>
                   <Group gap="xs">
                     {key.permissions.map((perm) => (
-                      <Badge key={perm.id} size="sm">
+                      <Badge key={perm.resource} size="sm">
                         {perm.resource}
                       </Badge>
                     ))}

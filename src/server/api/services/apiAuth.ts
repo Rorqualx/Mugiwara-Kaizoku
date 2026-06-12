@@ -1,16 +1,29 @@
 /**
  * API Authentication Service
- * 
- * Handles API key generation, validation, and permission management
+ *
+ * Handles API key generation, validation, and permission management.
+ *
+ * Key design: raw keys are `mk_<64 hex chars>` (256 bits of entropy) and only
+ * the SHA-256 digest is persisted. High-entropy keys don't need a slow hash —
+ * a deterministic digest allows O(1) `findUnique` lookup instead of scanning
+ * every key with bcrypt.compare on each request.
  */
+import crypto from 'crypto';
+
+import { prisma } from '@/server/db';
 import type { ApiAuth } from '@/types/api/common';
-import type { AsyncResult} from '@/utils/async-result';
-import { createErrorResult} from '@/utils/async-result';
+import type { AsyncResult } from '@/utils/async-result';
+import { createSuccessResult, createErrorResult } from '@/utils/async-result';
+import { logger } from '@/utils/logger';
+
+import type { Prisma } from '@prisma/client';
+
 export interface Permission {
   resource: string;
   actions: string[];
   scope?: string;
 }
+
 export interface GeneratedApiKey {
   id: string;
   key: string; // Raw key, only returned on creation
@@ -18,245 +31,234 @@ export interface GeneratedApiKey {
   expiresAt?: Date | null;
   createdAt: Date;
 }
+
+export interface ApiKeySummary {
+  id: string;
+  name: string;
+  permissions: Permission[];
+  rateLimit: number;
+  enabled: boolean;
+  expiresAt?: Date | null;
+  lastUsedAt?: Date | null;
+  createdAt: Date;
+}
+
+/** Compute the stored digest for a raw API key */
+export function hashApiKey(rawKey: string): string {
+  return crypto.createHash('sha256').update(rawKey).digest('hex');
+}
+
+function toPermission(p: { resource: string; actions: string[]; scope: string | null }): Permission {
+  return {
+    resource: p.resource,
+    actions: p.actions,
+    ...(p.scope !== null ? { scope: p.scope } : {})
+  };
+}
+
+function toPermissionCreateData(p: Permission): { resource: string; actions: string[]; scope?: string } {
+  return {
+    resource: p.resource,
+    actions: p.actions,
+    ...(p.scope !== undefined ? { scope: p.scope } : {})
+  };
+}
+
+function buildApiKeyCreateData(
+  userId: string,
+  name: string,
+  hashedKey: string,
+  permissions: Permission[],
+  expiresAt?: Date
+): Prisma.ApiKeyCreateInput {
+  return {
+    key: hashedKey,
+    name,
+    user: { connect: { id: userId } },
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
+    permissions: { create: permissions.map(toPermissionCreateData) }
+  };
+}
+
+function asError(error: unknown, fallback: string): Error {
+  return error instanceof Error ? error : new Error(fallback);
+}
+
+function logServiceError(message: string, error: unknown): void {
+  logger.error(message, { error: error instanceof Error ? error.message : String(error) });
+}
+
 /**
  * API Authentication Service
- * 
+ *
  * Manages API keys and permissions
  */
 export class ApiAuthService {
   /**
    * Generate a new API key
    */
-  generateApiKey(
-  _userId: string,
-  _name: string,
-  _permissions: Permission[],
-  _expiresAt?: Date)
-  : Promise<AsyncResult<GeneratedApiKey, Error>> {
+  async generateApiKey(
+    userId: string,
+    name: string,
+    permissions: Permission[],
+    expiresAt?: Date
+  ): Promise<AsyncResult<GeneratedApiKey, Error>> {
     try {
-      // TODO: Add ApiKey model to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.resolve(createErrorResult(new Error('ApiKey model not yet implemented. Please add to schema.')));
-      /* COMMENTED OUT - ApiKey model not in schema
-      // Generate secure random key
-      const rawKey = crypto.randomBytes(32).toString('base64url');
-      const hashedKey = await bcrypt.hash(rawKey, 10);
-      // Create API key in database
+      const rawKey = `mk_${crypto.randomBytes(32).toString('hex')}`;
       const apiKey = await prisma.apiKey.create({
-        data: {
-          key: hashedKey,
-          name,
-          userId,
-          permissions: {
-            create: permissions.map((p) => ({
-              resource: p.resource,
-              actions: p.actions,
-              ...(p.scope !== null && { scope: p.scope })
-            }))
-          },
-          ...(expiresAt !== null && { expiresAt })
-        }
+        data: buildApiKeyCreateData(userId, name, hashApiKey(rawKey), permissions, expiresAt)
       });
+      logger.info(`API key "${name}" created for user ${userId}`);
       return createSuccessResult({
-        id: apiKey["id"],
+        id: apiKey.id,
         key: rawKey, // Return raw key only once
-        name: apiKey["name"],
+        name: apiKey.name,
         expiresAt: apiKey.expiresAt,
         createdAt: apiKey.createdAt
       });
-      */
     } catch (error: unknown) {
-      return Promise.resolve(createErrorResult(
-        error instanceof Error ? error : new Error('Failed to generate API key')
-      ));
+      logServiceError('Failed to generate API key', error);
+      return createErrorResult(asError(error, 'Failed to generate API key'));
     }
   }
+
   /**
    * Validate an API key
    */
-  validateApiKey(_rawKey: string): Promise<AsyncResult<ApiAuth, Error>> {
+  async validateApiKey(rawKey: string): Promise<AsyncResult<ApiAuth, Error>> {
     try {
-      // TODO: Add ApiKey model to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.resolve(createErrorResult(new Error('ApiKey model not yet implemented. Please add to schema.')));
-      /* COMMENTED OUT - ApiKey model not in schema
-      // Find all non-expired API keys
-      const apiKeys = await prisma.apiKey.findMany({
-        where: {
-          OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } }]
-        },
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { key: hashApiKey(rawKey) },
         include: {
-          user: true,
+          user: { select: { id: true, email: true, role: true } },
           permissions: true
         }
       });
-      // Check each key
-      for (const apiKey of apiKeys) {
-        const isValid = await bcrypt.compare(rawKey, apiKey.key);
-        if (isValid) {
-          // Update last used
-          await prisma.apiKey.update({
-            where: { id: apiKey["id"] },
-            data: { lastUsedAt: new Date() }
-          });
-          return createSuccessResult({
-            apiKey: apiKey["id"],
-            userId: apiKey.userId,
-            user: {
-              id: apiKey.user["id"],
-              email: apiKey.user.email,
-              role: apiKey.user.role as UserRole
-            },
-            permissions: apiKey.permissions.map((p: ApiKeyPermission) => ({
-              resource: p.resource,
-              actions: p.actions,
-              scope: p.scope
-            }))
-          });
-        }
+      if (!apiKey || !apiKey.enabled) {
+        return createErrorResult(new Error('Invalid API key'));
       }
-      return createErrorResult(new Error('Invalid API key'));
-      */
+      if (apiKey.expiresAt !== null && apiKey.expiresAt <= new Date()) {
+        return createErrorResult(new Error('API key expired'));
+      }
+      this.touchLastUsed(apiKey.id);
+      return createSuccessResult({
+        apiKey: apiKey.id,
+        userId: apiKey.userId,
+        user: {
+          id: apiKey.user.id,
+          email: apiKey.user.email,
+          role: apiKey.user.role
+        },
+        permissions: apiKey.permissions.map(toPermission)
+      });
     } catch (error: unknown) {
-      return Promise.resolve(createErrorResult(
-        error instanceof Error ? error : new Error('Failed to validate API key')
-      ));
+      logServiceError('Failed to validate API key', error);
+      return createErrorResult(asError(error, 'Failed to validate API key'));
     }
   }
+
+  /** Update last-used without blocking the request path */
+  private touchLastUsed(keyId: string): void {
+    prisma.apiKey
+      .update({ where: { id: keyId }, data: { lastUsedAt: new Date() } })
+      .catch((error: unknown) => {
+        logServiceError('Failed to update API key lastUsedAt', error);
+      });
+  }
+
   /**
    * Check if auth has required permission
    */
   hasPermission(
-  auth: ApiAuth,
-  resource: string,
-  action: string,
-  scope?: string)
-  : boolean {
+    auth: ApiAuth,
+    resource: string,
+    action: string,
+    scope?: string
+  ): boolean {
     return auth.permissions?.some((p: Permission) => {
-      if (p.resource !== resource) return false;
-      if (!p.actions.includes(action)) return false;
+      if (p.resource !== resource && p.resource !== '*') return false;
+      if (!p.actions.includes(action) && !p.actions.includes('*')) return false;
       if (scope && p.scope && p.scope !== scope) return false;
       return true;
     }) ?? false;
   }
+
   /**
    * Revoke an API key
    */
-  revokeApiKey(_keyId: string, _userId: string): Promise<AsyncResult<boolean, Error>> {
+  async revokeApiKey(keyId: string, userId: string): Promise<AsyncResult<boolean, Error>> {
     try {
-      // TODO: Add ApiKey model to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.resolve(createErrorResult(new Error('ApiKey model not yet implemented. Please add to schema.')));
-      /* COMMENTED OUT - ApiKey model not in schema
       // Verify ownership
       const apiKey = await prisma.apiKey.findFirst({
-        where: {
-          id: keyId,
-          userId
-        }
+        where: { id: keyId, userId }
       });
       if (!apiKey) {
         return createErrorResult(new Error('API key not found'));
       }
-      // Delete the key
-      await prisma.apiKey.delete({
-        where: { id: keyId }
-      });
+      await prisma.apiKey.delete({ where: { id: keyId } });
+      logger.info(`API key ${keyId} revoked`);
       return createSuccessResult(true);
-      */
     } catch (error: unknown) {
-      return Promise.resolve(createErrorResult(
-        error instanceof Error ? error : new Error('Failed to revoke API key')
-      ));
+      logServiceError(`Failed to revoke API key ${keyId}`, error);
+      return createErrorResult(asError(error, 'Failed to revoke API key'));
     }
   }
+
   /**
    * List API keys for a user
    */
-  listApiKeys(_userId: string): Promise<AsyncResult<Array<{
-    id: string;
-    name: string;
-    permissions: Permission[];
-    expiresAt?: Date | null;
-    lastUsedAt?: Date | null;
-    createdAt: Date;
-  }>, Error>> {
+  async listApiKeys(userId: string): Promise<AsyncResult<ApiKeySummary[], Error>> {
     try {
-      // TODO: Add ApiKey model to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.resolve(createErrorResult(new Error('ApiKey model not yet implemented. Please add to schema.')));
-      /* COMMENTED OUT - ApiKey model not in schema
       const apiKeys = await prisma.apiKey.findMany({
         where: { userId },
         include: { permissions: true },
         orderBy: { createdAt: 'desc' }
       });
-      const keys = apiKeys.map((key: typeof apiKeys[number]) => ({
-        id: key["id"],
-        name: key["name"],
-        permissions: key.permissions.map((p: ApiKeyPermission) => ({
-          resource: p.resource,
-          actions: p.actions,
-          ...(p.scope !== null && { scope: p.scope })
-        })),
-        ...(key.expiresAt !== null && { expiresAt: key.expiresAt }),
-        ...(key.lastUsedAt !== null && { lastUsedAt: key.lastUsedAt }),
+      const keys = apiKeys.map((key) => ({
+        id: key.id,
+        name: key.name,
+        permissions: key.permissions.map(toPermission),
+        rateLimit: key.rateLimit,
+        enabled: key.enabled,
+        expiresAt: key.expiresAt,
+        lastUsedAt: key.lastUsedAt,
         createdAt: key.createdAt
       }));
       return createSuccessResult(keys);
-      */
     } catch (error: unknown) {
-      return Promise.resolve(createErrorResult(
-        error instanceof Error ? error : new Error('Failed to list API keys')
-      ));
+      logServiceError('Failed to list API keys', error);
+      return createErrorResult(asError(error, 'Failed to list API keys'));
     }
   }
+
   /**
    * Update API key permissions
    */
-  updateApiKeyPermissions(
-  _keyId: string,
-  _userId: string,
-  _permissions: Permission[])
-  : Promise<AsyncResult<boolean, Error>> {
+  async updateApiKeyPermissions(
+    keyId: string,
+    userId: string,
+    permissions: Permission[]
+  ): Promise<AsyncResult<boolean, Error>> {
     try {
-      // TODO: Add ApiKey and Permission models to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.resolve(createErrorResult(new Error('ApiKey and Permission models not yet implemented. Please add to schema.')));
-      /* COMMENTED OUT - ApiKey and Permission models not in schema
       // Verify ownership
       const apiKey = await prisma.apiKey.findFirst({
-        where: {
-          id: keyId,
-          userId
-        }
+        where: { id: keyId, userId }
       });
       if (!apiKey) {
         return createErrorResult(new Error('API key not found'));
       }
-      // Delete existing permissions
-      await prisma.permission.deleteMany({
-        where: { apiKeyId: keyId }
-      });
-      // Create new permissions
-      await prisma.permission.createMany({
-        data: permissions.map((p) => ({
-          apiKeyId: keyId,
-          resource: p.resource,
-          actions: p.actions,
-          ...(p.scope !== null && { scope: p.scope })
-        }))
-      });
+      const permissionRows = permissions.map((p) => ({ apiKeyId: keyId, ...toPermissionCreateData(p) }));
+      await prisma.$transaction([
+        prisma.permission.deleteMany({ where: { apiKeyId: keyId } }),
+        prisma.permission.createMany({ data: permissionRows })
+      ]);
       return createSuccessResult(true);
-      */
     } catch (error: unknown) {
-      return Promise.resolve(createErrorResult(
-        error instanceof Error ? error : new Error('Failed to update API key permissions')
-      ));
+      logServiceError(`Failed to update permissions for API key ${keyId}`, error);
+      return createErrorResult(asError(error, 'Failed to update API key permissions'));
     }
   }
 }
+
 // Export singleton instance
 export const apiAuthService = new ApiAuthService();

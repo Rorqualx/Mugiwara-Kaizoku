@@ -1,9 +1,11 @@
-// @ts-nocheck
-// TODO: Disabled until WantedItem and ApiMetric Prisma models are implemented in schema.prisma
 /**
  * Metrics API Adapter
  *
- * Handles metrics and analytics operations
+ * Handles metrics and analytics operations.
+ *
+ * Download metrics are intentionally derived from Chapter.downloadStatus —
+ * downloads are tracked by the existing Chapter/PackDownload/jobs systems,
+ * not a separate Download model.
  */
 import { prisma } from '@/server/db';
 import type { ApiAuth } from '@/types/api/common';
@@ -23,12 +25,6 @@ interface ApiMetricRecord {
   method: string;
   statusCode: number;
   responseTime: number;
-}
-
-interface AggregateResult {
-  _avg: {
-    responseTime: number | null;
-  };
 }
 
 // Metrics types
@@ -109,11 +105,10 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
         };
       }
       // Get metrics
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      const metrics = await prisma.apiMetric.findMany({
+      const metrics: ApiMetricRecord[] = await prisma.apiMetric.findMany({
         where,
         orderBy: { timestamp: 'asc' }
-      }) as ApiMetricRecord[];
+      });
       // Group by interval if specified
       const dataPoints = this.groupByInterval(metrics as unknown as Record<string, unknown>[], query.interval ?? 'hour');
       return createSuccessResult(dataPoints);
@@ -181,36 +176,7 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
         where: { downloadStatus: 'PENDING' }
       })]
       );
-      // Download metrics
-      // TODO: Add Download model (separate download tracking)
-      // Currently using Chapter.downloadStatus instead
-      // const [
-      // downloadTotal,
-      // downloadActive,
-      // downloadQueued,
-      // downloadCompleted,
-      // downloadFailed,
-      // downloadTotalSize] =
-      // await Promise.all([
-      // prisma.download.count(),
-      // prisma.download.count({
-      //   where: { status: 'DOWNLOADING' }
-      // }),
-      // prisma.download.count({
-      //   where: { status: 'PENDING' }
-      // }),
-      // prisma.download.count({
-      //   where: { status: 'COMPLETED' }
-      // }),
-      // prisma.download.count({
-      //   where: { status: 'FAILED' }
-      // }),
-      // prisma.download.aggregate({
-      //   where: { status: 'COMPLETED' },
-      //   _sum: { size: true }
-      // })]
-      // );
-      // Temporary: Use Chapter.downloadStatus instead until Download model is implemented
+      // Download metrics, derived from Chapter.downloadStatus (see module doc)
       const [
       downloadTotal,
       downloadActive,
@@ -219,7 +185,7 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
       downloadFailed,
       _downloadTotalSize] =
       await Promise.all([
-      prisma.chapter.count({ where: { downloadStatus: { not: null } } }),
+      prisma.chapter.count(),
       prisma.chapter.count({ where: { downloadStatus: 'DOWNLOADING' } }),
       prisma.chapter.count({ where: { downloadStatus: 'PENDING' } }),
       prisma.chapter.count({ where: { downloadStatus: 'COMPLETED' } }),
@@ -235,35 +201,27 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
       })]
       );
       // API metrics
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const [
       apiTotalRequests,
       apiSuccessCount,
       apiAvgResponseTime,
-      apiTopEndpoints,
-      _apiTopUsers] =
+      apiTopEndpoints] =
       await Promise.all([
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       prisma.apiMetric.count(),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       prisma.apiMetric.count({
         where: {
           statusCode: { gte: 200, lt: 400 }
         }
       }),
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       prisma.apiMetric.aggregate({
         _avg: { responseTime: true }
-      }) as AggregateResult,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      }),
       prisma.apiMetric.groupBy({
         by: ['endpoint'],
         _count: true,
-        orderBy: { endpoint: 'desc' },
+        orderBy: { _count: { endpoint: 'desc' } },
         take: 5
-      }) as Array<{ endpoint: string; _count: number }>,
-      // Note: userId is not a field on ApiMetric, skipping this query
-      Promise.resolve([]) as Promise<Array<{ userId: string; _count: number }>>]
+      })]
       );
       const metrics: SystemMetrics = {
         manga: {
@@ -300,18 +258,16 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
           ...(lastScan?.createdAt && { lastScanTime: lastScan.createdAt.toISOString() })
         },
         api: {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           totalRequests: apiTotalRequests,
           successRate: apiTotalRequests > 0 ?
           apiSuccessCount / apiTotalRequests * 100 :
           0,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
           averageResponseTime: apiAvgResponseTime._avg.responseTime ?? 0,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-          topEndpoints: apiTopEndpoints.map((e: { endpoint: string; _count: number }) => ({
+          topEndpoints: apiTopEndpoints.map((e) => ({
             endpoint: e.endpoint,
             count: e._count
           })),
+          // ApiMetric has no userId column (keys are per-user already); kept for response-shape compatibility
           topUsers: []
         }
       };
@@ -341,14 +297,13 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       // Get user's API activity
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const apiActivity = await prisma.apiMetric.groupBy({
         by: ['endpoint', 'method'],
         where: {
           timestamp: { gte: startDate }
         },
         _count: true
-      }) as Array<{ endpoint: string; method: string; _count: number }>;
+      });
       // Get user's manga activity
       const mangaCount = await prisma.manga.count({
         where: {
@@ -356,19 +311,10 @@ export class MetricsApiAdapter extends BaseApiAdapter<ApiConfig> {
           // Assuming we track who created manga
         }
       });
-      // Get user's download activity
-      // TODO: Add Download model (separate download tracking)
-      // Currently using Chapter.downloadStatus instead
-      // const downloadCount = await prisma.download.count({
-      //   where: {
-      //     createdAt: { gte: startDate }
-      //     // Assuming we track who initiated downloads
-      //   }
-      // });
-      // Temporary: Use Chapter.downloadStatus instead until Download model is implemented
+      // Download activity, derived from Chapter.downloadStatus (see module doc)
       const downloadCount = await prisma.chapter.count({
         where: {
-          downloadStatus: { not: null },
+          downloadStatus: 'COMPLETED',
           createdAt: { gte: startDate }
         }
       });

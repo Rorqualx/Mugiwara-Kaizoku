@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 
 import { TRPCError } from '@trpc/server';
-import bcrypt from 'bcryptjs';
 /**
  * API Router
  *
@@ -12,8 +11,10 @@ import bcrypt from 'bcryptjs';
  */
 import { z } from 'zod';
 
+import { apiAuthService } from '@/server/api/services/apiAuth';
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { isSuccess, isError } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -21,26 +22,6 @@ import { logger } from '@/utils/logger';
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
-
-
-
-/**
- * Generate a secure API key
- * Reserved for future use when ApiKey Prisma model is implemented
- * @see Line 127 for planned usage (currently commented out)
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function generateApiKey(): {
-  key: string;
-  hashedKey: string;
-} {
-  const key = `mk_${crypto.randomBytes(32).toString('hex')}`;
-  const hashedKey = bcrypt.hashSync(key, 10);
-  return {
-    key,
-    hashedKey
-  };
-}
 /**
  * Generate webhook secret
  */
@@ -54,50 +35,28 @@ export const apiRouter = router({
   /**
    * Get all API keys for the current user
    */
-  getApiKeys: protectedProcedure.query(() => {
-    // TODO: Add ApiKey model to Prisma schema
-    // See: docs/missing-models.md for schema definition
-    throw new TRPCError({
-      code: 'NOT_IMPLEMENTED',
-      message: 'ApiKey model not yet implemented. Please add to schema.'
-    });
-
-    /* COMMENTED OUT - ApiKey model not in schema
-    try {
-      const userId = toStringId(ctx.user["id"]);
-      const apiKeys = await prisma.apiKey.findMany({
-        where: {
-          userId
-        },
-        include: {
-          permissions: true
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
-      // Don't return the actual hashed keys
-      return apiKeys.map((key: typeof apiKeys[number]) => ({
-        id: key["id"],
-        name: key["name"],
-        keyPrefix: `mk_${key["id"].substring(0, 8)}...`,
-        permissions: key.permissions,
-        rateLimit: key.rateLimit,
-        expiresAt: key.expiresAt,
-        lastUsedAt: key.lastUsedAt,
-        createdAt: key.createdAt
-      }));
-    }
-    catch (error: unknown) {
-      if (error instanceof TRPCError)
-      throw error;
-      logger.error('Failed to fetch API keys', error);
+  getApiKeys: protectedProcedure.query(async ({ ctx }) => {
+    const userId = toStringId(ctx.user["id"]);
+    const result = await apiAuthService.listApiKeys(userId);
+    if (!isSuccess(result)) {
+      logger.error('Failed to fetch API keys', { error: isError(result) ? result.error.message : 'unknown' });
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to fetch API keys'
       });
     }
-    */
+    // Never return the stored key digests — only an id-based display prefix
+    return result.data.map((key) => ({
+      id: key.id,
+      name: key.name,
+      keyPrefix: `mk_${key.id.substring(0, 8)}...`,
+      permissions: key.permissions,
+      rateLimit: key.rateLimit,
+      enabled: key.enabled,
+      expiresAt: key.expiresAt,
+      lastUsedAt: key.lastUsedAt,
+      createdAt: key.createdAt
+    }));
   }),
   /**
    * Create a new API key
@@ -110,116 +69,53 @@ export const apiRouter = router({
       scope: z.string().optional()
     })),
     expiresIn: z.number().optional() // Days until expiration
-  })).mutation(() => {
-    // TODO: Add ApiKey model to Prisma schema
-    // See: docs/missing-models.md for schema definition
-    throw new TRPCError({
-      code: 'NOT_IMPLEMENTED',
-      message: 'ApiKey model not yet implemented. Please add to schema.'
-    });
-
-    /* COMMENTED OUT - ApiKey model not in schema
-    try {
-      const userId = toStringId(ctx.user["id"]);
-      if (!userId) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You must be logged in to create API keys'
-        });
-      }
-      const { key, hashedKey } = generateApiKey();
-      const expiresAt = input.expiresIn ? new Date(Date.now() + input.expiresIn * 24 * 60 * 60 * 1000) : null;
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          key: hashedKey,
-          name: input["name"],
-          userId: userId,
-          expiresAt,
-          permissions: {
-            create: input.permissions.map(p => ({
-              resource: p.resource,
-              actions: p.actions,
-              ...(p.scope !== null && { scope: p.scope })
-            }))
-          }
-        },
-        include: {
-          permissions: true
-        }
+  })).mutation(async ({ ctx, input }) => {
+    const userId = toStringId(ctx.user["id"]);
+    if (!userId) {
+      throw new TRPCError({
+        code: 'UNAUTHORIZED',
+        message: 'You must be logged in to create API keys'
       });
-      logger.info(`API key created for user ${userId}`);
-      // Return the actual key only on creation
-      return {
-        ...apiKey,
-        key // This is the only time we return the actual key
-      };
     }
-    catch (error: unknown) {
-      if (error instanceof TRPCError)
-      throw error;
-      logger.error('Failed to create API key', error);
+    const expiresAt = input.expiresIn !== undefined
+      ? new Date(Date.now() + input.expiresIn * 24 * 60 * 60 * 1000)
+      : undefined;
+    const permissions = input.permissions.map((p) => ({
+      resource: p.resource,
+      actions: p.actions,
+      ...(p.scope !== undefined ? { scope: p.scope } : {})
+    }));
+    const result = await apiAuthService.generateApiKey(userId, input.name, permissions, expiresAt);
+    if (!isSuccess(result)) {
+      logger.error('Failed to create API key', { error: isError(result) ? result.error.message : 'unknown' });
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to create API key'
       });
     }
-    */
+    // result.data.key is the raw key — this is the only time it is returned
+    return result.data;
   }),
   /**
    * Delete an API key
    */
   deleteApiKey: protectedProcedure.input(z.object({
     id: z.string()
-  })).mutation(() => {
-    // TODO: Add ApiKey model to Prisma schema
-    // See: docs/missing-models.md for schema definition
-    throw new TRPCError({
-      code: 'NOT_IMPLEMENTED',
-      message: 'ApiKey model not yet implemented. Please add to schema.'
-    });
-
-    /* COMMENTED OUT - ApiKey model not in schema
-    try {
-      const userId = toStringId(ctx.user["id"]);
-      if (!userId) {
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'You must be logged in to delete API keys'
-        });
+  })).mutation(async ({ ctx, input }) => {
+    const userId = toStringId(ctx.user["id"]);
+    const result = await apiAuthService.revokeApiKey(input.id, userId);
+    if (!isSuccess(result)) {
+      const message = isError(result) ? result.error.message : 'Failed to delete API key';
+      if (message === 'API key not found') {
+        throw new TRPCError({ code: 'NOT_FOUND', message });
       }
-      // Ensure the key belongs to the user
-      const apiKey = await prisma.apiKey.findFirst({
-        where: {
-          id: input["id"],
-          userId: userId
-        }
-      });
-      if (!apiKey) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'API key not found'
-        });
-      }
-      await prisma.apiKey.delete({
-        where: {
-          id: input.id
-        }
-      });
-      logger.info(`API key ${input["id"]} deleted`);
-      return {
-        success: true
-      };
-    }
-    catch (error: unknown) {
-      if (error instanceof TRPCError)
-      throw error;
-      logger.error(`Failed to delete API key ${input["id"]}`, error);
+      logger.error(`Failed to delete API key ${input.id}`, { error: message });
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Failed to delete API key'
       });
     }
-    */
+    return { success: true };
   }),
   /**
    * Get all webhooks for the current user

@@ -1,25 +1,21 @@
-// @ts-nocheck
-// TODO: This file is disabled until the Webhook Prisma model is implemented
-// The Webhook model needs to be added to schema.prisma before this service can be used
-// Related files that also need the Webhook model:
-// - src/pages/api/v1/webhooks/*.ts
-// - src/server/trpc/routers/api.ts (webhook routes)
-// - src/server/api/__tests__/integration/webhooks.test.ts
-
 /**
  * Webhook Service
  *
- * Handles webhook event delivery and management
+ * Handles webhook event delivery and management. Deliveries are recorded in
+ * WebhookDelivery; webhooks that fail 5 times in a row are skipped until a
+ * successful delivery (or retry) resets their failure count.
  */
 
 import crypto from 'crypto';
 import { EventEmitter } from 'events';
 
 import { prisma } from '@/server/db';
-import type { AsyncResult} from '@/utils/async-result';
-import { createErrorResult} from '@/utils/async-result';
+import type { AsyncResult } from '@/utils/async-result';
+import { createSuccessResult, createErrorResult, isSuccess } from '@/utils/async-result';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
+
+import type { Prisma, Webhook } from '@prisma/client';
 
 export interface WebhookEvent {
   id: string;
@@ -27,6 +23,7 @@ export interface WebhookEvent {
   timestamp: string;
   data: Record<string, unknown>;
 }
+
 export enum WebhookEventType {
   // Manga events
   MANGA_CREATED = 'manga.created',
@@ -48,51 +45,59 @@ export enum WebhookEventType {
   DOWNLOAD_COMPLETED = 'download.completed',
   DOWNLOAD_FAILED = 'download.failed',
 }
-interface Webhook {
-  id: string;
-  url: string;
-  secret: string;
-  events: string[];
-  enabled: boolean;
-  userId: string;
-  failureCount: number;
+
+/** Consecutive failures after which a webhook stops receiving events */
+const MAX_FAILURE_COUNT = 5;
+
+/** Record a delivery attempt; logging must never break the delivery path */
+async function recordDelivery(
+  webhookId: string,
+  event: WebhookEvent,
+  outcome: { success: boolean; statusCode?: number; error?: string }
+): Promise<void> {
+  try {
+    await prisma.webhookDelivery.create({
+      data: {
+        webhookId,
+        event: event.type,
+        payload: event as unknown as Prisma.InputJsonValue,
+        success: outcome.success,
+        ...(outcome.statusCode !== undefined ? { statusCode: outcome.statusCode } : {}),
+        ...(outcome.error !== undefined ? { error: outcome.error } : {})
+      }
+    });
+  } catch (error: unknown) {
+    logger.error('Failed to record webhook delivery', {
+      webhookId,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 
 /**
  * Webhook Service class
- * 
+ *
  * Manages webhook event delivery
  */
 export class WebhookService extends EventEmitter {
   /**
-   * Trigger webhook for an event
+   * Trigger webhooks subscribed to an event
    */
-  trigger(event: WebhookEvent & {
+  async trigger(event: WebhookEvent & {
     userId?: string;
   }): Promise<void> {
     try {
       // Emit event for SSE
       this.emit('event:triggered', event);
 
-      // TODO: Add Webhook model to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.reject(new Error('Webhook model not yet implemented. Please add to schema.'));
-
-      /* COMMENTED OUT - Webhook model not in schema
       // Get all webhooks subscribed to this event
-      const where: Prisma.WebhookWhereInput = {
-        enabled: true,
-        events: {
-          has: event.type
-        },
-        failureCount: {
-          lt: 5 // Skip webhooks that have failed too many times
-        },
-        ...(event.userId !== null && { userId: event.userId })
-      };
-
       const webhooks = await prisma.webhook.findMany({
-        where
+        where: {
+          enabled: true,
+          events: { has: event.type },
+          failureCount: { lt: MAX_FAILURE_COUNT },
+          ...(event.userId !== undefined ? { userId: event.userId } : {})
+        }
       });
       if (webhooks.length === 0) {
         return;
@@ -100,15 +105,15 @@ export class WebhookService extends EventEmitter {
       logger.info(`Triggering ${webhooks.length} webhooks for event ${event.type}`);
 
       // Send to each webhook in parallel
-      await Promise.all(webhooks.map((webhook: typeof webhooks[number]) => this.sendWebhook(webhook as Webhook, event)));
-      */
-    } catch (error: unknown) {const errorMessage = error instanceof Error ? error.message : String(error);
-logger.error('Failed to trigger webhooks', errorMessage);
+      await Promise.all(webhooks.map((webhook) => this.sendWebhook(webhook, event)));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to trigger webhooks', errorMessage);
     }
   }
 
   /**
-   * Send webhook event
+   * Send webhook event and record the delivery
    */
   private async sendWebhook(webhook: Webhook, event: WebhookEvent): Promise<AsyncResult<void, Error>> {
     try {
@@ -120,75 +125,40 @@ logger.error('Failed to trigger webhooks', errorMessage);
           'Content-Type': 'application/json',
           'X-Kaizoku-Signature': signature,
           'X-Kaizoku-Event': event.type,
-          'X-Kaizoku-Delivery': event["id"],
+          'X-Kaizoku-Delivery': event.id,
           'User-Agent': 'Kaizoku-Webhook/1.0'
         },
         body: payload,
         signal: AbortSignal.timeout(10000) // 10 second timeout
       });
       if (!response.ok) {
-        throw new Error(`Webhook delivery failed: ${response["status"]} ${response.statusText}`);
+        throw new Error(`Webhook delivery failed: ${response.status} ${response.statusText}`);
       }
 
-      // TODO: Add WebhookDelivery and Webhook models to Prisma schema
-      throw new Error('WebhookDelivery and Webhook models not yet implemented.');
-
-      /* COMMENTED OUT - WebhookDelivery and Webhook models not in schema
-      // Log successful delivery
-      await prisma.webhookDelivery.create({
-        data: {
-          webhookId: webhook["id"],
-          eventId: event["id"],
-          eventType: event.type,
-          payload: event as Record<string, unknown>,
-          status: 'SUCCESS',
-          statusCode: response["status"],
-          attempts: 1
-        }
-      });
+      await recordDelivery(webhook.id, event, { success: true, statusCode: response.status });
 
       // Reset failure count on success
       if (webhook.failureCount > 0) {
         await prisma.webhook.update({
-          where: {
-            id: webhook.id
-          },
-          data: {
-            failureCount: 0
-          }
+          where: { id: webhook.id },
+          data: { failureCount: 0 }
         });
       }
-      */
-      // Note: unreachable until models are implemented (throw above)
+      return createSuccessResult(undefined);
     } catch (error: unknown) {
-      // TODO: Add WebhookDelivery and Webhook models to Prisma schema
-      /* COMMENTED OUT - WebhookDelivery and Webhook models not in schema
-      // Log failed delivery
-      const errorMessage = error instanceof Error ? (error instanceof Error ? error.message : String(error)) : 'Unknown error';
-      await prisma.webhookDelivery.create({
-        data: {
-          webhookId: webhook["id"],
-          eventId: event["id"],
-          eventType: event.type,
-          payload: event as Record<string, unknown>,
-          status: 'FAILED',
-          error: errorMessage,
-          attempts: 1
-        }
-      });
-
-      // Increment failure count
-      await prisma.webhook.update({
-        where: {
-          id: webhook.id
-        },
-        data: {
-          failureCount: {
-            increment: 1
-          }
-        }
-      });
-      */
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await recordDelivery(webhook.id, event, { success: false, error: errorMessage });
+      await prisma.webhook
+        .update({
+          where: { id: webhook.id },
+          data: { failureCount: { increment: 1 } }
+        })
+        .catch((updateError: unknown) => {
+          logger.error('Failed to increment webhook failure count', {
+            webhookId: webhook.id,
+            error: updateError instanceof Error ? updateError.message : String(updateError)
+          });
+        });
       logger.error(`Webhook delivery failed for ${webhook.url}`, error);
       return createErrorResult(error instanceof Error ? error : new Error('Webhook delivery failed'));
     }
@@ -210,7 +180,7 @@ logger.error('Failed to trigger webhooks', errorMessage);
   }
 
   /**
-   * Create a webhook event
+   * Create a webhook event, persist it, and trigger deliveries asynchronously
    */
   async createEvent(type: WebhookEventType, data: Record<string, unknown>): Promise<WebhookEvent> {
     const event: WebhookEvent = {
@@ -221,35 +191,18 @@ logger.error('Failed to trigger webhooks', errorMessage);
     };
 
     // Store event in database
-    const entityType = type.split('.')[0];
-
-    // Prisma model access - apiEvent model exists in schema
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Prisma type system limitation
-    const apiEventModel = prisma.apiEvent;
-
-    // Type guard to ensure the model is available
-    if (!apiEventModel || typeof (apiEventModel as { create?: unknown }).create !== 'function') {
-      throw new Error('prisma.apiEvent model is not available');
-    }
-
-    // Create event in database
-    await (apiEventModel as { create: (args: { data: { type: string; entityId: string; entityType: string; data: Record<string, unknown> } }) => Promise<unknown> }).create({
+    const entityType = type.split('.')[0] ?? '';
+    await prisma.apiEvent.create({
       data: {
         type,
         entityId: toStringId(data["id"] ?? ''),
-        entityType: entityType ?? '',
-        // Extract entity type from event type
-        data: data as Record<string, unknown>
+        entityType,
+        data: data as Prisma.InputJsonValue
       }
     });
 
-    // Trigger webhooks asynchronously using globalThis.queueMicrotask (Node.js 11+)
-    // Fallback to setTimeout if queueMicrotask is not available
-    const scheduleTask = typeof globalThis.queueMicrotask === 'function'
-      ? globalThis.queueMicrotask
-      : (fn: () => void) => setTimeout(fn, 0);
-
-    scheduleTask(() => {
+    // Trigger webhooks asynchronously so callers are not blocked on delivery
+    globalThis.queueMicrotask(() => {
       this.trigger(event).catch((triggerError: unknown) => {
         logger.error('Failed to trigger webhooks for event', {
           type,
@@ -261,19 +214,12 @@ logger.error('Failed to trigger webhooks', errorMessage);
   }
 
   /**
-   * Test a webhook
+   * Test a webhook by sending a synthetic event
    */
-  testWebhook(_webhookId: string): Promise<AsyncResult<boolean, Error>> {
+  async testWebhook(webhookId: string): Promise<AsyncResult<boolean, Error>> {
     try {
-      // TODO: Add Webhook model to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.reject(new Error('Webhook model not yet implemented. Please add to schema.'));
-
-      /* COMMENTED OUT - Webhook model not in schema
       const webhook = await prisma.webhook.findUnique({
-        where: {
-          id: webhookId
-        }
+        where: { id: webhookId }
       });
       if (!webhook) {
         return createErrorResult(new Error('Webhook not found'));
@@ -287,63 +233,54 @@ logger.error('Failed to trigger webhooks', errorMessage);
           webhookId: webhook.id
         }
       };
-      const result = await this.sendWebhook(webhook as Webhook, testEvent);
-      return isSuccess(result) ? createSuccessResult(true) : createErrorResult(
-        (isError(result) ? result.error : null) || new Error('Webhook test failed')
-      );
-      */
+      const result = await this.sendWebhook(webhook, testEvent);
+      return isSuccess(result)
+        ? createSuccessResult(true)
+        : createErrorResult(new Error('Webhook test failed'));
     } catch (error: unknown) {
       return createErrorResult(error instanceof Error ? error : new Error('Webhook test failed'));
     }
   }
 
   /**
-   * Retry failed webhook deliveries
+   * Retry failed webhook deliveries from the last 24 hours
    */
-  retryFailedDeliveries(_webhookId: string): Promise<AsyncResult<number, Error>> {
+  async retryFailedDeliveries(webhookId: string): Promise<AsyncResult<number, Error>> {
     try {
-      // TODO: Add WebhookDelivery and Webhook models to Prisma schema
-      // See: docs/missing-models.md for schema definition
-      return Promise.reject(new Error('WebhookDelivery and Webhook models not yet implemented. Please add to schema.'));
-
-      /* COMMENTED OUT - WebhookDelivery and Webhook models not in schema
-      // Get recent failed deliveries
-      const failedDeliveries = await prisma.webhookDelivery.findMany({
-        where: {
-          webhookId,
-          status: 'FAILED',
-          deliveredAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
-          }
-        },
-        orderBy: {
-          deliveredAt: 'desc'
-        },
-        take: 10 // Limit retries
-      });
       const webhook = await prisma.webhook.findUnique({
-        where: {
-          id: webhookId
-        }
+        where: { id: webhookId }
       });
       if (!webhook) {
         return createErrorResult(new Error('Webhook not found'));
       }
+      // Get recent failed deliveries
+      const failedDeliveries = await prisma.webhookDelivery.findMany({
+        where: {
+          webhookId,
+          success: false,
+          attemptedAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
+          }
+        },
+        orderBy: { attemptedAt: 'desc' },
+        take: 10 // Limit retries
+      });
       let successCount = 0;
       for (const delivery of failedDeliveries) {
+        const storedEvent = delivery.payload as unknown as Partial<WebhookEvent>;
         const event: WebhookEvent = {
-          id: delivery.eventId,
-          type: delivery.eventType,
+          id: storedEvent.id ?? crypto.randomUUID(),
+          type: delivery.event,
           timestamp: new Date().toISOString(),
-          data: delivery.payload as Record<string, unknown>
+          data: storedEvent.data ?? {}
         };
-        const result = await this.sendWebhook(webhook as Webhook, event);
+        // eslint-disable-next-line no-await-in-loop -- retries are intentionally sequential to avoid hammering a recovering endpoint
+        const result = await this.sendWebhook(webhook, event);
         if (isSuccess(result)) {
           successCount++;
         }
       }
       return createSuccessResult(successCount);
-      */
     } catch (error: unknown) {
       return createErrorResult(error instanceof Error ? error : new Error('Failed to retry deliveries'));
     }
