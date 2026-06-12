@@ -20,7 +20,7 @@ interface LibraryContentProps {
   manga: MangaWithRelations[];
   libraryId: number;
   onRefresh: () => void;
-  /** ScrollArea viewport ref — forwarded to PosterView for row virtualization. */
+  /** ScrollArea viewport ref — forwarded to PosterView and the detailed view for row virtualization. */
   scrollParentRef?: React.RefObject<HTMLElement | null>;
 }
 
@@ -32,7 +32,9 @@ export function LibraryContent(props: LibraryContentProps): React.ReactElement {
     case 'table':
       return <ResponsiveTableView {...rest} />;
     case 'details':
-      return <ResponsiveDetailedView {...rest} />;
+      return scrollParentRef
+        ? <ResponsiveDetailedView {...rest} scrollParentRef={scrollParentRef} />
+        : <ResponsiveDetailedView {...rest} />;
     case 'posters':
     default:
       return scrollParentRef

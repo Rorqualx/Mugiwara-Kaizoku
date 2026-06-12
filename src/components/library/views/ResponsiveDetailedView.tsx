@@ -14,6 +14,7 @@ import React, { useMemo, useState } from 'react';
 import { Stack, Card, Group, Text, Badge, ActionIcon, Progress, ScrollArea, Checkbox, Button, Collapse, Box, Menu } from '@mantine/core';
 import { MangaPublicationStatus } from '@prisma/client';
 import { IconRefresh, IconEye, IconDots, IconChevronDown, IconChevronUp, IconUser, IconTags } from '@tabler/icons-react';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
 import { MangaCover } from '@/components/manga/MangaCover';
 import { useBreakpoint } from '@/hooks/mobile';
@@ -41,6 +42,8 @@ interface DetailedViewProps {
   libraryId?: number;
   onRefresh: () => void;
   searchedManga?: MangaEntity[];
+  /** ScrollArea viewport ref — enables row virtualization when provided. */
+  scrollParentRef?: React.RefObject<HTMLElement | null>;
 }
 
 // Helper component for card content
@@ -387,7 +390,8 @@ export function ResponsiveDetailedView({
   manga,
   libraryId: _libraryId,
   onRefresh,
-  searchedManga
+  searchedManga,
+  scrollParentRef
 }: DetailedViewProps): React.ReactElement | null {
   const { navigateTo } = useNavigation();
   const {
@@ -460,39 +464,78 @@ export function ResponsiveDetailedView({
     void navigateTo(`/manga/${id}`);
   };
 
+  // Always constructed (hooks can't be conditional); inert when no scroll
+  // container ref is provided — the render below falls back to a plain stack.
+  const virtualizer = useVirtualizer({
+    count: displayedManga.length,
+    getScrollElement: () => scrollParentRef?.current ?? null,
+    estimateSize: () => (isMobile ? 190 : 230),
+    overscan: 5,
+  });
+
+  const renderCard = (m: MangaEntity): React.ReactElement => (
+    <Card shadow="sm" padding={isMobile ? 'sm' : 'md'} radius="md" withBorder>
+      <MangaCardContent
+        manga={m}
+        isMobile={isMobile}
+        isTablet={isTablet}
+        isSelected={selectedItems.includes(toStringId(m.id))}
+        isExpanded={expandedCards.has(toStringId(m.id))}
+        progress={calculateProgress(m)}
+        availableChapters={getAvailableChapters(m)}
+        readChapters={getReadChapters(m)}
+        showCovers={showCovers}
+        showProgress={showProgress}
+        coverDimensions={coverDimensions}
+        iconSize={iconSize}
+        actionIconSize={actionIconSize}
+        onToggleSelection={toggleItemSelection}
+        onToggleExpanded={toggleExpanded}
+        onNavigate={handleNavigate}
+        onRefresh={onRefresh}
+      />
+    </Card>
+  );
+
+  const renderVirtualRow = (vi: VirtualItem): React.ReactElement | null => {
+    const m = displayedManga[vi.index];
+    if (!m) return null;
+    return (
+      <div
+        key={m.id}
+        data-index={vi.index}
+        ref={virtualizer.measureElement}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          transform: `translateY(${vi.start}px)`,
+          paddingBottom: 'var(--mantine-spacing-md)',
+        }}
+      >
+        {renderCard(m)}
+      </div>
+    );
+  };
+
+  // Virtualized path: only ~viewport-height worth of cards stay mounted.
+  // Rows are dynamically measured (measureElement + ResizeObserver) because
+  // expand/collapse changes card heights. Falls back to the plain stack when
+  // no scroll container ref is provided.
+  if (scrollParentRef && displayedManga.length > 0) {
+    return (
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
+        {virtualizer.getVirtualItems().map(renderVirtualRow)}
+      </div>
+    );
+  }
+
   return (
     <Stack gap="md">
-      {displayedManga.map(m => {
-        const isExpanded = expandedCards.has(toStringId(m.id));
-        const isSelected = selectedItems.includes(toStringId(m.id));
-        const progress = calculateProgress(m);
-        const availableChapters = getAvailableChapters(m);
-        const readChapters = getReadChapters(m);
-
-        return (
-          <Card key={m.id} shadow="sm" padding={isMobile ? 'sm' : 'md'} radius="md" withBorder>
-            <MangaCardContent
-              manga={m}
-              isMobile={isMobile}
-              isTablet={isTablet}
-              isSelected={isSelected}
-              isExpanded={isExpanded}
-              progress={progress}
-              availableChapters={availableChapters}
-              readChapters={readChapters}
-              showCovers={showCovers}
-              showProgress={showProgress}
-              coverDimensions={coverDimensions}
-              iconSize={iconSize}
-              actionIconSize={actionIconSize}
-              onToggleSelection={toggleItemSelection}
-              onToggleExpanded={toggleExpanded}
-              onNavigate={handleNavigate}
-              onRefresh={onRefresh}
-            />
-          </Card>
-        );
-      })}
+      {displayedManga.map(m => (
+        <React.Fragment key={m.id}>{renderCard(m)}</React.Fragment>
+      ))}
 
       {displayedManga.length === 0 && (
         <Text c="dimmed" ta="center" py="xl">
