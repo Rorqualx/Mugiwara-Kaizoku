@@ -180,18 +180,23 @@ export const chapterReassignmentRouter = router({
 
       // Allow Volume 0 for prequels (e.g., JJK 0), only treat negative as null
       const effectiveVolNum = volumeNumber === null || volumeNumber < 0 ? null : volumeNumber;
-      let volumeId: number | null = null;
 
-      if (effectiveVolNum !== null) {
-        const volume = await prisma.volume.findUnique({
-          where: { mangaId_number: { mangaId, number: effectiveVolNum } }
+      // Volume lookup + chapter write in one transaction so a concurrent
+      // writer (e.g. enrichment re-homing chapters mid-refresh) can't slip
+      // between the volumeId resolution and the update and leave the
+      // volume/volumeId pair pointing at different volumes.
+      const result = await prisma.$transaction(async (tx) => {
+        let volumeId: number | null = null;
+        if (effectiveVolNum !== null) {
+          const volume = await tx.volume.findUnique({
+            where: { mangaId_number: { mangaId, number: effectiveVolNum } }
+          });
+          volumeId = volume?.id ?? null;
+        }
+        return tx.chapter.updateMany({
+          where: { id: { in: chapterIds }, mangaId },
+          data: { volume: effectiveVolNum, volumeId }
         });
-        volumeId = volume?.id ?? null;
-      }
-
-      const result = await prisma.chapter.updateMany({
-        where: { id: { in: chapterIds }, mangaId },
-        data: { volume: effectiveVolNum, volumeId }
       });
 
       logger.info(`Reassigned ${result.count} chapters to volume ${effectiveVolNum ?? 'unassigned'} for: ${manga.title}`);
@@ -371,56 +376,61 @@ export const chapterReassignmentRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Chapter not found' });
       }
 
-      // Find or create Volume record
-      let volume = await prisma.volume.findUnique({
-        where: { mangaId_number: { mangaId, number: volumeNumber } }
-      });
+      // The whole convert sequence (find-or-create volume → re-home source
+      // chapter → bulk-link siblings → delete the placeholder) runs in one
+      // transaction. A mid-sequence failure previously stranded a
+      // half-converted state: volume created and source chapter re-homed,
+      // but sibling chapters never linked and the placeholder never deleted.
+      const { volume, updateResult } = await prisma.$transaction(async (tx) => {
+        // Find or create Volume record
+        let vol = await tx.volume.findUnique({
+          where: { mangaId_number: { mangaId, number: volumeNumber } }
+        });
 
-      if (!volume) {
-        volume = await prisma.volume.create({
-          data: {
+        if (!vol) {
+          vol = await tx.volume.create({
+            data: {
+              mangaId,
+              number: volumeNumber,
+              title: `Volume ${volumeNumber}`,
+              pageCount: chapter.pageCount
+            }
+          });
+          logger.info(`Created Volume ${volumeNumber} for manga ${mangaId}`);
+        }
+
+        // Update the source chapter to be associated with this volume (as volume file)
+        await tx.chapter.update({
+          where: { id: chapterId },
+          data: { volume: volumeNumber, volumeId: vol.id, chapterNumber: null }
+        });
+
+        // Build match conditions from the volume's chapter range
+        const orConditions = buildVolumeChapterMatchConditions(
+          volumeNumber, vol.id, vol.chapterStart ?? null, vol.chapterEnd ?? null
+        );
+
+        // Update all other chapters in this volume to use the volume file
+        // Note: Do NOT update fileName or title - preserve chapter metadata, only set file location
+        // Force-update ALL chapters in this volume - user is explicitly saying "use this file"
+        const updated = await tx.chapter.updateMany({
+          where: {
             mangaId,
-            number: volumeNumber,
-            title: `Volume ${volumeNumber}`,
-            pageCount: chapter.pageCount
+            id: { not: chapterId },
+            OR: orConditions
+          },
+          data: {
+            filePath: chapter.filePath, fileFormat: chapter.fileFormat,
+            size: chapter.size, mimeType: chapter.mimeType, downloadStatus: 'COMPLETED',
+            volumeId: vol.id, volume: volumeNumber
           }
         });
-        logger.info(`Created Volume ${volumeNumber} for manga ${mangaId}`);
-      }
 
-      // Update the source chapter to be associated with this volume (as volume file)
-      await prisma.chapter.update({
-        where: { id: chapterId },
-        data: { volume: volumeNumber, volumeId: volume.id, chapterNumber: null }
+        // Delete the source chapter - it was just a file placeholder, now linked to volume
+        await tx.chapter.delete({ where: { id: chapterId } });
+
+        return { volume: vol, updateResult: updated };
       });
-
-      // Get the volume's chapter range and build match conditions
-      const volumeForRange = await prisma.volume.findUnique({
-        where: { id: volume.id },
-        select: { chapterStart: true, chapterEnd: true }
-      });
-      const orConditions = buildVolumeChapterMatchConditions(
-        volumeNumber, volume.id, volumeForRange?.chapterStart ?? null, volumeForRange?.chapterEnd ?? null
-      );
-
-      // Update all other chapters in this volume to use the volume file
-      // Note: Do NOT update fileName or title - preserve chapter metadata, only set file location
-      // Force-update ALL chapters in this volume - user is explicitly saying "use this file"
-      const updateResult = await prisma.chapter.updateMany({
-        where: {
-          mangaId,
-          id: { not: chapterId },
-          OR: orConditions
-        },
-        data: {
-          filePath: chapter.filePath, fileFormat: chapter.fileFormat,
-          size: chapter.size, mimeType: chapter.mimeType, downloadStatus: 'COMPLETED',
-          volumeId: volume.id, volume: volumeNumber
-        }
-      });
-
-      // Delete the source chapter - it was just a file placeholder, now linked to volume
-      await prisma.chapter.delete({ where: { id: chapterId } });
 
       logger.info(`Converted file "${chapter.fileName}" to Volume ${volumeNumber}, updated ${updateResult.count} chapters`);
 

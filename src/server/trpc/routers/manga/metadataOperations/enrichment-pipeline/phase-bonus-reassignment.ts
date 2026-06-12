@@ -286,7 +286,11 @@ export async function reassignBonusChaptersToParentVolumes(
   }
 
   if (reassignments.size > 0) {
-    await Promise.all(
+    // One transaction instead of unsynchronized parallel updateMany calls:
+    // a failure partway through previously left some volumes re-homed and
+    // others not, and a concurrent manual reassignment could interleave
+    // between batches.
+    await prisma.$transaction(
       [...reassignments.entries()].map(([volNum, { volId, chapterIds }]) =>
         prisma.chapter.updateMany({
           where: { id: { in: chapterIds } },
