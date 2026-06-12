@@ -23,28 +23,6 @@ export function delay(ms: number): Promise<void> {
 }
 
 /**
- * Get the current FlareSolverr process ID
- * @deprecated Use processManager.getState() instead
- */
-export function getPid(): number | null {
-  const state = processManager.getState();
-  return state.pid;
-}
-
-/**
- * Check if FlareSolverr process is running by PID
- * @deprecated Use processManager.isRunning() instead
- */
-export function isProcessRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Check if the internal FlareSolverr instance is currently running
  */
 export function checkIsRunning(): boolean {

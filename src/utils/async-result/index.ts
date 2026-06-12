@@ -67,7 +67,6 @@ export {
 export {
   unwrapOr,
   getDataOr,
-  getDataOrDefault,
   getArrayData,
   getProperty,
   getNestedProperty,

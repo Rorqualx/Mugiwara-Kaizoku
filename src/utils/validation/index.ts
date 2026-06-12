@@ -96,8 +96,9 @@ export {
 // export * from './metadata-typeguards';
 
 // Import modules for namespace exports (backward compatibility)
+import * as TypeGuards from '@/utils/type-guards';
+
 import * as ArrayUtils from './array-utils';
-import * as TypeGuards from './guards/general';
 import * as SafeJson from './safe-json';
 import * as SchemaValidation from './schema-validation';
 import * as DataValidators from './validators/data';

@@ -94,7 +94,7 @@ export class ParserMigrationScript {
       await migrateConfigurations(this.config, this.log);
 
       // Step 6: Run validation tests
-      const testResults = await runValidationTests(this.config, this.log);
+      const testResults = runValidationTests(this.config, this.log);
 
       // Step 7: Generate migration recommendations
       const recommendations = generateRecommendations(analysis as unknown as Record<string, unknown>, testResults);

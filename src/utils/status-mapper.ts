@@ -306,24 +306,3 @@ export function anilistToDomainStatus(status: string): MangaPublicationStatus {
     logger.warn('anilistToDomainStatus is deprecated. Use mapToMangaStatus(status, "anilist") instead.');
     return mapToMangaStatus(status, 'anilist');
 }
-/**
- * @deprecated Use mapToMangaStatus(status, 'comicvine') instead
- */
-export function comicvineToDomainStatus(status: string): MangaPublicationStatus {
-    logger.warn('comicvineToDomainStatus is deprecated. Use mapToMangaStatus(status, "comicvine") instead.');
-    return mapToMangaStatus(status, 'comicvine');
-}
-/**
- * @deprecated Use mapToMangaStatus(status, 'fandom') instead
- */
-export function fandomToDomainStatus(status: string): MangaPublicationStatus {
-    logger.warn('fandomToDomainStatus is deprecated. Use mapToMangaStatus(status, "fandom") instead.');
-    return mapToMangaStatus(status, 'fandom');
-}
-/**
- * @deprecated Use mapFromMangaStatus() instead
- */
-export function domainToProviderStatus(status: MangaPublicationStatus, provider: string): string {
-    logger.warn('domainToProviderStatus is deprecated. Use mapFromMangaStatus() instead.');
-    return mapFromMangaStatus(status, provider);
-}

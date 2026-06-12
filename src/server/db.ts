@@ -376,16 +376,6 @@ logger.error('Database cleanup failed:', errorMessage);
   },
 
   /**
-   * Execute a callback within a database transaction (compatibility method)
-   * @deprecated Use transaction() instead
-   */
-  async withTransaction<T>(
-    callback: (prisma: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">) => Promise<T>
-  ): Promise<T> {
-    return prisma.$transaction(callback);
-  },
-
-  /**
    * Enqueue a background job for execution
    */
   async enqueueJob(

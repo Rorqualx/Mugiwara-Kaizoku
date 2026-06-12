@@ -97,55 +97,5 @@ export const activityRouter = router({
     queryCache.set(cacheKey, counts, 5000);
 
     return counts;
-  }),
-
-  /**
-   * Original query procedure (DEPRECATED - kept for backwards compatibility)
-   * 
-   * This is the old implementation with performance issues.
-   * Use the optimized 'query' procedure above instead.
-   * 
-   * @deprecated Use 'query' procedure instead
-   */
-  queryLegacy: protectedProcedure.
-  query(async () => {
-    const [
-    active,
-    queued,
-    scheduled,
-    failed,
-    completed] =
-    await Promise.all([
-    prisma.jobs.count({
-      where: {
-        status: PrismaJobStatus.active
-      }
-    }),
-    prisma.jobs.count({
-      where: { status: PrismaJobStatus.pending }
-    }),
-    prisma.jobs.count({
-      where: {
-        status: PrismaJobStatus.pending,
-        scheduled_for: { gt: new Date() }
-      }
-    }),
-    prisma.jobs.count({
-      where: { status: PrismaJobStatus.failed }
-    }),
-    prisma.jobs.count({
-      where: { status: PrismaJobStatus.completed }
-    })]
-    );
-    const outOfSync = 0; // OutOfSyncChapter model was removed in the migration
-
-    return {
-      active,
-      queued,
-      scheduled,
-      failed,
-      completed,
-      outOfSync
-    };
   })
 });

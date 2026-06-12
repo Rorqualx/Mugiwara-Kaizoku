@@ -31,7 +31,6 @@ import {
 import {
   isManga as domainIsManga,
   isMangaSearchResult as domainIsMangaSearchResult,
-  isMangaMetadata as domainIsMangaMetadata,
   isMangaStatus as domainIsMangaStatus,
   isMangaProvider as domainIsMangaProvider
 } from './manga-guards';
@@ -43,7 +42,6 @@ import {
   isProviderType as domainIsProviderType
 } from './provider-guards';
 import {
-  isSearchResult as domainIsSearchResult,
   isSearchQuery as domainIsSearchQuery,
   isSearchFilter as domainIsSearchFilter,
   isSearchResponse as domainIsSearchResponse,
@@ -172,27 +170,3 @@ export const isSearchResponse = domainIsSearchResponse;
  * Unified search suggestion type guard
  */
 export const isSearchSuggestion = domainIsSearchSuggestion;
-
-// ============================================================================
-// Compatibility Aliases
-// ============================================================================
-
-/**
- * @deprecated Use isMangaMetadata instead
- */
-export const isDomainMangaMetadata = domainIsMangaMetadata;
-
-/**
- * @deprecated Use isSearchResult instead
- */
-export const isDomainSearchResult = domainIsSearchResult;
-
-/**
- * @deprecated Use isMangaMetadata instead
- */
-export const isAdapterMangaMetadata = adapterIsMangaMetadata;
-
-/**
- * @deprecated Use isSearchResult instead
- */
-export const isAdapterSearchResult = adapterIsSearchResult;

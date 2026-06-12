@@ -34,18 +34,6 @@ export function getDataOr<T, E = Error, D = T>(result: AsyncResult<T, E>, defaul
 }
 
 /**
- * Safely extracts data from an AsyncResult, providing a default value if not successful
- *
- * @param result - The AsyncResult to extract data from
- * @param defaultValue - Default value to return if result is not in success state
- * @returns The data or default value
- * @deprecated Use unwrapOr instead
- */
-export function getDataOrDefault<T, E = Error>(result: AsyncResult<T, E>, defaultValue: T): T {
-  return unwrapOr(result, defaultValue);
-}
-
-/**
  * Safely extracts array data from an AsyncResult, ensuring it's valid
  *
  * @param result - The AsyncResult potentially containing an array

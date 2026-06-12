@@ -1,4 +1,3 @@
-import { ValidationError } from '../utils/errors';
 
 /**
  * Path Resolver Utility
@@ -46,19 +45,4 @@ export function resolvePath(path: string): string {
     }
     return path;
 }
-/**
- * Utility function to help with dynamic imports
- *
- * NOTE: This function is deprecated due to webpack bundling issues.
- * Dynamic imports with variables cause webpack to attempt to bundle
- * all possible modules, leading to build errors.
- *
- * Use static imports or specific dynamic imports instead.
- *
- * @deprecated
- * @param path - The module path to import
- * @returns A Promise resolving to the imported module
- */
-export function dynamicImport<T>(__path: string): Promise<T> {
-    return Promise.reject(new ValidationError('dynamicImport is deprecated. Use static imports instead.'));
-}
+

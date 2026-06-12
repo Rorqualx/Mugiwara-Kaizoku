@@ -12,15 +12,7 @@ import {
   ChapterStatus} from '@prisma/client';
 
 import type { ID, DateLike, Nullable, Optional } from '@/types/common';
-
-
-// Import entities from Prisma
-
-// Import common types
-
-// Import basic type guards from guards directory
-import { isValidId } from '../id-converters';
-
+// Import basic type guards from the canonical type-guards module
 import {
   isObject,
   isArray,
@@ -33,7 +25,10 @@ import {
   isPresent,
   hasProperty,
   isArrayOf
-} from './guards/general';
+} from '@/utils/type-guards';
+
+import { isValidId } from '../id-converters';
+
 
 import type {
   Manga as MangaEntity,

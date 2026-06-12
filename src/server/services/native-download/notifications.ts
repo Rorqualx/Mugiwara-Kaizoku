@@ -130,6 +130,3 @@ export const nativeDownloadNotifications = {
     }
 } as const;
 
-// Backward compatibility alias
-/** @deprecated Use nativeDownloadNotifications instead */
-export const nativeDownloadNotificationsAlias = nativeDownloadNotifications;

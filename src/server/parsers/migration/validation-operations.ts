@@ -45,10 +45,10 @@ export interface ValidationTestResults {
  *
  * FIXED: Line 356 - Removed unnecessary optional chain on result["title"]
  */
-export async function runValidationTests(
+export function runValidationTests(
   config: MigrationConfig,
   log: string[]
-): Promise<ValidationTestResults> {
+): ValidationTestResults {
   if (!config.testMode) {
     return { passed: 0, failed: 0, skipped: 0 };
   }
@@ -59,29 +59,10 @@ export async function runValidationTests(
     skipped: 0,
   };
 
-  // Test compatibility wrappers
-  try {
-    const { FandomParser } = await import('../compat/FandomParser');
-    const parser = new FandomParser();
-
-    // Test basic parsing
-    const testHtml = '<html><body><h1>Test</h1></body></html>';
-    const result = await parser.parse(testHtml);
-
-    // FIXED: Removed unnecessary optional chain (was result?.["title"])
-    if (result['title']) {
-      testResults.passed++;
-      log.push('✓ FandomParser compatibility test passed');
-    } else {
-      testResults.failed++;
-      log.push('✗ FandomParser compatibility test failed');
-    }
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    testResults.failed++;
-    log.push(`✗ FandomParser test error: ${errorMessage}`);
-  }
+  // Compatibility wrappers were removed in the 2026-06-12 dead-code sweep
+  // (src/server/parsers/compat/ had no live importers). Nothing to test.
+  testResults.skipped++;
+  log.push('- FandomParser compatibility test skipped (compat wrappers removed)');
 
   return testResults;
 }
