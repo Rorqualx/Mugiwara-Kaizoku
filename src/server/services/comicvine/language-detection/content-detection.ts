@@ -3,39 +3,68 @@
  * Detects language from publisher lists, script patterns, and title indicators
  */
 
+import { NON_ENGLISH_PUBLISHERS } from '../constants';
+
 import { LANGUAGE_CONFIGS } from './publisher-data';
 
 import type { ContentDetectionResult, DetectionMethodResult, SupportedLanguage } from './types';
 
 /**
- * Normalize publisher name for comparison
+ * Fold diacritics, collapse punctuation, and pad with spaces so publisher
+ * comparisons behave as whole-word matches: "Glénat Manga" → " glenat manga ".
+ * Plain `includes()` over short list entries produced authoritative (0.8)
+ * misdetections — "Viking Press" matched the Chinese entry 'king', "Shueisha"
+ * matched the German entry 'eis', and any publisher containing "Comics" not
+ * already in the English list matched the Japanese entry 'comi'.
  */
-function normalizePublisher(publisher: string): string {
-  return publisher.trim().toLowerCase();
+export function normalizeForWordMatch(value: string): string {
+  const folded = value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return ` ${folded.replace(/[^\p{L}\p{N}]+/gu, ' ').trim()} `;
 }
 
 /**
- * Check if publisher matches a language config
+ * Whole-word containment check between a pre-normalized publisher name and a
+ * raw list entry (the entry is normalized here).
  */
-function checkPublisherMatch(publisher: string, config: typeof LANGUAGE_CONFIGS[0]): boolean {
-  const normalized = normalizePublisher(publisher);
-  return config.publishers.some((p) => normalized.includes(p));
+function publisherContainsEntry(normalizedPublisher: string, entry: string): boolean {
+  return normalizedPublisher.includes(normalizeForWordMatch(entry));
 }
 
 /**
  * Detect language from publisher name
  */
 export function detectFromPublisher(publisher: string): DetectionMethodResult {
-  const normalized = normalizePublisher(publisher);
+  const normalized = normalizeForWordMatch(publisher);
 
   // Check each language config
   for (const config of LANGUAGE_CONFIGS) {
-    if (checkPublisherMatch(normalized, config)) {
+    if (config.publishers.some((p) => publisherContainsEntry(normalized, p))) {
       return {
         match: true,
         language: config.code,
         confidence: 0.8,
         reason: `Publisher "${publisher}" is known ${config.code.toUpperCase()} publisher`,
+      };
+    }
+  }
+
+  // Bridge to the wider catalog in constants.ts: publishers we know are
+  // non-English but whose language isn't modeled in LANGUAGE_CONFIGS (Polish
+  // Waneko/JPF/Studio JG, Russian, Turkish, Thai, ...). Returning 'unknown'
+  // at authoritative confidence makes the matcher's `=== preferredLanguage`
+  // gate reject the candidate — without this, the ASCII-script fallback votes
+  // English for any Polish edition that keeps the romaji title and the volume
+  // sails through the English gate (e.g. Waneko's "Kaiju No. 8").
+  for (const pub of NON_ENGLISH_PUBLISHERS) {
+    if (publisherContainsEntry(normalized, pub)) {
+      return {
+        match: true,
+        language: 'unknown',
+        confidence: 0.8,
+        reason: `Publisher "${publisher}" is a known non-English publisher ("${pub}") without a modeled language`,
       };
     }
   }
@@ -229,7 +258,7 @@ function detectFromDescriptionEditionClause(description: string): DetectionMetho
  * Higher confidence (0.97) than `titleIndicators` because these patterns appear
  * almost exclusively on translated editions, not on original-language entries.
  */
-const VOLUME_NAME_EDITION_MARKERS: Array<{ pattern: RegExp; language: 'en' | 'ja' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ko' | 'zh' }> = [
+const VOLUME_NAME_EDITION_MARKERS: Array<{ pattern: RegExp; language: 'en' | 'ja' | 'fr' | 'de' | 'es' | 'it' | 'pt' | 'ko' | 'zh' | 'unknown' }> = [
   // English
   { pattern: /\benglish\s+(?:edition|version|reprint)\b/i, language: 'en' },
   { pattern: /\bus\s+edition\b/i, language: 'en' },
@@ -240,7 +269,7 @@ const VOLUME_NAME_EDITION_MARKERS: Array<{ pattern: RegExp; language: 'en' | 'ja
   // French
   { pattern: /\bfrench\s+(?:edition|version)\b/i, language: 'fr' },
   { pattern: /\bedition\s+française\b/i, language: 'fr' },
-  { pattern: /\bvf\b/, language: 'fr' }, // "Version Française"
+  { pattern: /\bvf\b/i, language: 'fr' }, // "Version Française"
   // German
   { pattern: /\bgerman\s+(?:edition|version)\b/i, language: 'de' },
   { pattern: /\bdeutsche\s+(?:ausgabe|version)\b/i, language: 'de' },
@@ -258,6 +287,13 @@ const VOLUME_NAME_EDITION_MARKERS: Array<{ pattern: RegExp; language: 'en' | 'ja
   { pattern: /\bkorean\s+(?:edition|version)\b/i, language: 'ko' },
   // Chinese
   { pattern: /\bchinese\s+(?:edition|version)\b/i, language: 'zh' },
+  // Unmodeled languages — 'unknown' fails the `=== preferredLanguage` gate,
+  // which is the correct outcome (don't bind unrecognized foreign editions).
+  { pattern: /\bpolish\s+(?:edition|version)\b/i, language: 'unknown' },
+  { pattern: /\bwydanie\s+polskie\b/i, language: 'unknown' }, // "Polish edition"
+  { pattern: /\bedycja\s+polska\b/i, language: 'unknown' },
+  { pattern: /\brussian\s+(?:edition|version)\b/i, language: 'unknown' },
+  { pattern: /\bturkish\s+(?:edition|version)\b/i, language: 'unknown' },
   // Bracketed language tags (e.g., "[FR]", "[JP]")
   { pattern: /\[FR\]|\(FR\)/i, language: 'fr' },
   { pattern: /\[JP\]|\(JP\)/i, language: 'ja' },

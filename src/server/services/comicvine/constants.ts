@@ -247,6 +247,7 @@ export const NON_ENGLISH_PUBLISHERS: readonly string[] = [
   // Polish
   'jpf', 'waneko', 'studio jg', 'kotori',
   'hanami', 'japonica polonica fantastica',
+  'j.p.fantastica', // ComicVine's styling of JPF — normalizes to "j p fantastica"
   // Thai
   'siam inter comics', 'vibulkij',
   'nation edutainment', 'bongkoch',

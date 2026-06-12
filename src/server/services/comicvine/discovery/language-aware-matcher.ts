@@ -55,7 +55,12 @@ export interface CandidateScore {
   languageReasons: string[];
   /** True if `detectedLanguage` matches the requested preferred language */
   matchesPreferredLanguage: boolean;
-  /** Combined ranking score: titleSimilarity * (1 + languageConfidence * 0.3) */
+  /**
+   * Combined ranking score: titleSimilarity * (1 + languageConfidence * 0.3)
+   * * issueCountBoost. The language-confidence boost only applies when the
+   * candidate matches the preferred language — confidently-detected WRONG
+   * languages must not outrank ambiguous candidates in the fallback pool.
+   */
   finalScore: number;
 }
 
@@ -234,11 +239,16 @@ function scoreCandidate(
   const detection = detectFromContent(publisherName, volume.name ?? '', description, volume.name);
   const detectedLanguage = detection.detectedLanguage;
   const languageConfidence = detection.confidence;
-  const matchesPreferredLanguage = detectedLanguage === preferredLanguage;
+  // 'any' disables the guard entirely (the doc always promised this; the
+  // strict equality alone meant 'any' matched nothing and every bind went
+  // through the language-fallback path by accident).
+  const matchesPreferredLanguage =
+    preferredLanguage === 'any' || detectedLanguage === preferredLanguage;
 
   const countOfIssues = volume.count_of_issues ?? 0;
+  const languageBoost = matchesPreferredLanguage ? languageConfidence * 0.3 : 0;
   const finalScore =
-    titleSimilarity * (1 + languageConfidence * 0.3) * issueCountBoost(countOfIssues);
+    titleSimilarity * (1 + languageBoost) * issueCountBoost(countOfIssues);
 
   return {
     volumeId: volume.id,
@@ -286,6 +296,27 @@ function pickBestLanguageCorrect(candidates: CandidateScore[]): CandidateScore |
   });
 
   return eligible[0] ?? null;
+}
+
+/**
+ * Map AniList countryOfOrigin to the original-publication language. Used to
+ * constrain the language-fallback path: when no preferred-language edition
+ * exists on ComicVine, falling back to the ORIGINAL edition (e.g. Shueisha's
+ * Japanese volume) is acceptable, but falling back to a third-language
+ * translation (Polish, French, ...) is exactly the misbinding users report.
+ */
+function originLanguageFor(anilist: AniListMangaDetails): SupportedLanguage | null {
+  switch (anilist.countryOfOrigin) {
+    case 'JP':
+      return 'ja';
+    case 'KR':
+      return 'ko';
+    case 'CN':
+    case 'TW':
+      return 'zh';
+    default:
+      return null;
+  }
 }
 
 /** Build an empty MatchResult for the no-match early-return paths. */
@@ -410,15 +441,32 @@ export async function findComicVineMatchForAniList(
       anilistRomaji: anilist.title.romaji,
     });
 
-    // English-preferred fallback: if no preferred-language candidate met the
-    // 0.55 sim floor but a language-rejected candidate did, accept it.
-    // Cold-import audit caught Sayonara Zetsubou Sensei being missed because
-    // its only ComicVine entry is Japanese-published; the strict English-only
-    // gate threw away a high-similarity match. The 0.55 floor (already applied
-    // to `rejectedForLanguage`) plus the AL year/title scoring in finalScore
-    // remain the guardrails.
-    if (rejectedForLanguage.length > 0) {
-      const sorted = [...rejectedForLanguage].sort((a, b) => {
+    // Origin-language fallback: if no preferred-language candidate met the
+    // 0.55 sim floor but the ORIGINAL edition did, accept it. Cold-import
+    // audit caught Sayonara Zetsubou Sensei being missed because its only
+    // ComicVine entry is Japanese-published; the strict English-only gate
+    // threw away a high-similarity match. The pool is restricted to the
+    // origin language (ja for JP manga) — third-language translations
+    // (Polish, French, ...) and 'unknown'-detected candidates are excluded,
+    // because binding those is worse than binding nothing. The 0.55 floor
+    // (already applied to `rejectedForLanguage`) remains the other guardrail.
+    const originLanguage = originLanguageFor(anilist);
+    const fallbackPool = rejectedForLanguage.filter(
+      (c) => originLanguage !== null && c.detectedLanguage === originLanguage,
+    );
+    if (fallbackPool.length < rejectedForLanguage.length) {
+      log.info('ComicVine: excluded non-origin-language candidates from fallback', {
+        originLanguage,
+        excluded: rejectedForLanguage.length - fallbackPool.length,
+        excludedLanguages: [...new Set(
+          rejectedForLanguage
+            .filter((c) => !fallbackPool.includes(c))
+            .map((c) => c.detectedLanguage),
+        )],
+      });
+    }
+    if (fallbackPool.length > 0) {
+      const sorted = [...fallbackPool].sort((a, b) => {
         if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
         return b.countOfIssues - a.countOfIssues;
       });

@@ -8,6 +8,7 @@
  */
 
 import { NON_ENGLISH_PUBLISHERS } from '@/server/services/comicvine/constants';
+import { normalizeForWordMatch } from '@/server/services/comicvine/language-detection/content-detection';
 import { logger } from '@/utils/logger';
 
 /**
@@ -49,8 +50,10 @@ export function detectNonEnglishVariant(
   publisher?: string
 ): LanguageDetectionResult {
   const normalizedTitle = title.toLowerCase();
-  // Strip diacritical marks so "Glénat" and "Glenat" both match "glénat"
-  const normalizedPublisher = (publisher?.toLowerCase() ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Word-boundary normalization: folds diacritics ("Glenat" matches the accented
+  // list entry) AND prevents short list entries from substring-matching inside
+  // longer names ("Viking Press" must not hit 'king', "Shueisha" must not hit 'eis').
+  const normalizedPublisher = normalizeForWordMatch(publisher ?? '');
 
   // Check for Japanese/Chinese/Korean characters in title
   const hasAsianChars = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf\uac00-\ud7af]/.test(title);
@@ -80,14 +83,13 @@ export function detectNonEnglishVariant(
   // Some English publishers contain non-English publisher substrings
   // (e.g., "Kodansha Comics USA" contains "kodansha" which is a Japanese publisher).
   for (const eng of ENGLISH_PUBLISHER_ALLOWLIST) {
-    if (normalizedPublisher.includes(eng)) {
+    if (normalizedPublisher.includes(normalizeForWordMatch(eng))) {
       return { isNonEnglish: false, languageHint: null };
     }
   }
 
   for (const pub of NON_ENGLISH_PUBLISHERS) {
-    const normalizedPub = pub.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (normalizedPublisher.includes(normalizedPub)) {
+    if (normalizedPublisher.includes(normalizeForWordMatch(pub))) {
       return { isNonEnglish: true, languageHint: `publisher:${pub}` };
     }
   }
