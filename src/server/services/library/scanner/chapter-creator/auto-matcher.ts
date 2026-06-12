@@ -81,33 +81,51 @@ export function parseFileInfo(file: string, index: number, fileSizeMap: Map<stri
 // ============================================================================
 
 /**
+ * Remove a matched chapter from the by-volume map so a later volume archive
+ * in the same batch can't re-link (and clobber) a chapter that already got
+ * its own per-chapter file.
+ */
+function removeFromVolumeMap(chapter: ChapterInfo, byVolume: Map<number, ChapterInfo[]>): void {
+  if (chapter.volume === null) return;
+  const list = byVolume.get(chapter.volume);
+  if (!list) return;
+  const remaining = list.filter((c) => c !== chapter);
+  if (remaining.length === 0) {
+    byVolume.delete(chapter.volume);
+  } else {
+    byVolume.set(chapter.volume, remaining);
+  }
+}
+
+/**
  * Try to match a file to an existing chapter by volume+number or just number
  */
 export function matchFileToChapter(
   fileInfo: ParsedFileInfo,
-  chaptersByNumber: Map<number, ChapterInfo>,
-  chaptersByVolumeAndNumber: Map<string, ChapterInfo>
+  maps: ChapterMaps
 ): ChapterInfo | null {
   if (fileInfo.chapterNumber === null) return null;
 
   // Try volume + chapter number first (more specific)
   if (fileInfo.volumeNumber !== null) {
     const key = `${fileInfo.volumeNumber}-${fileInfo.chapterNumber}`;
-    const chapter = chaptersByVolumeAndNumber.get(key);
+    const chapter = maps.byVolumeAndNumber.get(key);
     if (chapter) {
-      chaptersByVolumeAndNumber.delete(key);
-      chaptersByNumber.delete(fileInfo.chapterNumber);
+      maps.byVolumeAndNumber.delete(key);
+      maps.byNumber.delete(fileInfo.chapterNumber);
+      removeFromVolumeMap(chapter, maps.byVolume);
       return chapter;
     }
   }
 
   // Try chapter number only
-  const chapter = chaptersByNumber.get(fileInfo.chapterNumber);
+  const chapter = maps.byNumber.get(fileInfo.chapterNumber);
   if (chapter) {
-    chaptersByNumber.delete(fileInfo.chapterNumber);
+    maps.byNumber.delete(fileInfo.chapterNumber);
     if (chapter.volume !== null) {
-      chaptersByVolumeAndNumber.delete(`${chapter.volume}-${fileInfo.chapterNumber}`);
+      maps.byVolumeAndNumber.delete(`${chapter.volume}-${fileInfo.chapterNumber}`);
     }
+    removeFromVolumeMap(chapter, maps.byVolume);
     return chapter;
   }
 
@@ -146,14 +164,19 @@ export interface ChapterMaps {
  * Build chapter lookup maps from existing chapters
  */
 export function buildChapterMaps(
-  chapters: Array<{ id: number; number: number | null; index: number; volume: number | null }>
+  chapters: Array<{ id: number; number: number | null; chapterNumber: number | null; index: number; volume: number | null }>
 ): ChapterMaps {
   const byNumber = new Map<number, ChapterInfo>();
   const byVolumeAndNumber = new Map<string, ChapterInfo>();
   const byVolume = new Map<number, ChapterInfo[]>();
 
   for (const ch of chapters) {
-    const num = ch.number ?? ch.index;
+    // chapterNumber is the canonical display number; `number` is a legacy
+    // column that is NULL library-wide. Falling straight to `index` mismatched
+    // files whenever index drifted from chapterNumber (index is ordinal —
+    // e.g. a stub for chapter 200 parked at index 191 swallowed the c191
+    // file, see project_chapter_index_semantics).
+    const num = ch.chapterNumber ?? ch.number ?? ch.index;
     const info: ChapterInfo = { id: ch.id, volume: ch.volume };
 
     byNumber.set(num, info);
@@ -220,7 +243,7 @@ export function processFileForLinking(
   }
 
   // Handle chapter files - link to specific chapter
-  const match = matchFileToChapter(fileInfo, maps.byNumber, maps.byVolumeAndNumber);
+  const match = matchFileToChapter(fileInfo, maps);
   if (match) {
     updates.push({ id: match.id, fileName: fileInfo.fileName, filePath: fileInfo.file, size: fileInfo.size });
     return;

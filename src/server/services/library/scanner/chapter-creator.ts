@@ -390,7 +390,7 @@ export async function linkFilesToExistingChapters(
   // Get ALL chapters so we can update them with new file paths
   const allChapters = await prisma.chapter.findMany({
     where: { mangaId },
-    select: { id: true, number: true, index: true, volume: true, downloadStatus: true }
+    select: { id: true, number: true, chapterNumber: true, index: true, volume: true, downloadStatus: true }
   });
 
   // Build maps: pending for linking, completed by volume for re-import updates
