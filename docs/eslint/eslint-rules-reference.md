@@ -79,13 +79,13 @@ npx eslint --fix src/path/to/file.ts
 import { prisma } from '../../server/db';
 import { logger } from '../../../utils/logger';
 import { Something } from '../../../../lib/something';
-import { Manga } from '../../../types/domain/manga-types';
+import { MangaWithMetadata } from '../../../types/manga';
 
 // ✅ CORRECT - Use @/ aliases
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 import { Something } from '@/lib/something';
-import { Manga } from '@/types/domain/manga-types';
+import type { MangaWithMetadata } from '@/types/manga';
 ```
 
 #### Import Order (Enforced)
@@ -101,7 +101,7 @@ import { useSession } from 'next-auth/react';
 // 3. Internal imports (@/)
 import { trpc } from '@/utils/trpc-client';
 import { logger } from '@/utils/logger';
-import { Manga } from '@/types/domain/manga-types';
+import type { MangaWithMetadata } from '@/types/manga';
 
 // 4. Parent imports (../)
 import { ParentComponent } from '../ParentComponent';

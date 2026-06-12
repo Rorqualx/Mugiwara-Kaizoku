@@ -276,9 +276,8 @@ import type { UseQueryResult, UseMutationResult } from '@tanstack/react-query';
 // Prisma
 import type { Prisma, Manga, Chapter } from '@prisma/client';
 
-// Domain types (preferred)
-import type { Manga, MangaStatus } from '@/types/domain/manga-types';
-import type { Chapter, ChapterStatus } from '@/types/domain/chapter-types';
+// Derived/view types (entities themselves come from @prisma/client above)
+import type { MangaWithMetadata, MangaSearchResult } from '@/types/manga';
 ```
 
 ---

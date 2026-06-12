@@ -332,7 +332,7 @@ Action: Full stop, rollback if possible, escalate to human
 
 ## Files Modified
 - `prisma/schema.prisma`
-- `src/types/domain/manga-types.ts`
+- `src/types/manga/index.ts`
 - `src/server/routers/manga.router.ts`
 - `src/components/manga/MangaSearchBar.tsx`
 - `docs/api/manga-api.md`
@@ -608,7 +608,7 @@ src/types/
 
 ## Critical Rules
 1. **NO `any` types** - Use `unknown` if type is truly unknown
-2. **Import from domain** - `@/types/domain/manga-types` (specific path)
+2. **Entity types from `@prisma/client`; derived/view types from `@/types/manga`**
 3. **Never use barrel imports** - No `@/types`
 4. **Export types explicitly** - No `export *`
 5. **Create Zod schemas** alongside TypeScript types
@@ -630,7 +630,7 @@ src/types/
 
 ### 2. Implement Types
 ```typescript
-// src/types/domain/manga-types.ts
+// src/types/manga/index.ts
 
 import { z } from 'zod';
 
@@ -673,7 +673,7 @@ export type MangaSearchResult = z.infer<typeof MangaSearchResultSchema>;
   "taskId": "T2",
   "status": "success",
   "outputs": {
-    "filesModified": ["src/types/domain/manga-types.ts"],
+    "filesModified": ["src/types/manga/index.ts"],
     "typesCreated": ["MangaSearchInput", "MangaSearchResult"],
     "schemasCreated": ["MangaSearchInputSchema", "MangaSearchResultSchema"]
   },
@@ -796,7 +796,7 @@ src/server/
 
 import { z } from 'zod';
 import { publicProcedure, router } from '../trpc';
-import { MangaSearchInputSchema, MangaSearchResultSchema } from '@/types/domain/manga-types';
+import { MangaSearchInputSchema, MangaSearchResultSchema } from '@/types/manga';
 import { AsyncResult, Ok, Err } from '@/lib/async-result';
 import { withEnhancedErrorHandling } from '@/server/middleware/error-handling';
 
@@ -1094,7 +1094,7 @@ Savings: 40 min (35%)
 
 ### Files Changed
 1. `prisma/schema.prisma` (+3 lines)
-2. `src/types/domain/manga-types.ts` (+45 lines)
+2. `src/types/manga/index.ts` (+45 lines)
 3. `src/server/routers/manga.router.ts` (+65 lines)
 4. `src/components/manga/MangaSearchBar.tsx` (+120 lines)
 5. `docs/api/manga-api.md` (+30 lines)

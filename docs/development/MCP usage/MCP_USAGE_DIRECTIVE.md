@@ -398,7 +398,7 @@ async function queryWithMCP(query: string): MCPResult<QueryResult> {
 // Query: "SELECT * FROM Manga WHERE title ILIKE '%search%'"
 
 // Step 3: Write code following project standards
-// - Use domain types from @/types/domain/manga-types
+// - Entity types from @prisma/client; derived/view types from @/types/manga
 // - Implement AsyncResult pattern
 // - Add withEnhancedErrorHandling
 // - Follow tRPC v11 patterns

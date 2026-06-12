@@ -140,7 +140,7 @@ ast-grep --pattern 'type $NAME = $$$<Manga>' src/
 
 ```bash
 # Find all imports from a module
-ast-grep --pattern 'import { $$$ } from "@/types/domain/manga-types"' src/
+ast-grep --pattern 'import { $$$ } from "@/types/manga"' src/
 
 # Find specific import
 ast-grep --pattern 'import { $$$, MangaStatus, $$$ } from $PATH' src/
@@ -237,7 +237,7 @@ ast-grep --pattern 'const $VAR = $VALUE || $DEFAULT' \
 
 # Update import paths
 ast-grep --pattern 'import { $$$ } from "@/types"' \
-         --rewrite 'import { $$$ } from "@/types/domain/manga-types"' \
+         --rewrite 'import { $$$ } from "@/types/manga"' \
          src/
 ```
 

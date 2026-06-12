@@ -651,7 +651,7 @@ const handoff: TaskHandoff = {
       newTypes: ['MangaSearchInput', 'MangaSearchResult'],
       schemaUpdates: ['Added fullTextSearch index on Manga.title']
     },
-    filesModified: ['prisma/schema.prisma', 'src/types/domain/manga-types.ts']
+    filesModified: ['prisma/schema.prisma', 'src/types/manga/index.ts']
   },
   task: {
     description: 'Implement tRPC endpoint for manga title search',
@@ -668,7 +668,7 @@ const handoff: TaskHandoff = {
   constraints: {
     projectRules: ['DEVELOPMENT_RULES.md', 'api-documentation-standardized.md'],
     mustNotModify: ['prisma/schema.prisma'], // Already updated in T1
-    mustUse: ['@/types/domain/manga-types', 'AsyncResult', 'withEnhancedErrorHandling']
+    mustUse: ['@/types/manga', 'AsyncResult', 'withEnhancedErrorHandling']
   }
 };
 ```
@@ -932,11 +932,11 @@ const tasks: Task[] = [
     agent: 'type-specialist',
     estimatedDuration: 10,
     dependencies: ['T1'],
-    outputs: ['src/types/domain/manga-types.ts'],
+    outputs: ['src/types/manga/index.ts'],
     acceptanceCriteria: [
       'Types follow domain conventions',
       'Zod schemas included',
-      'Exported from manga-types.ts'
+      'Exported from types/manga barrel'
     ]
   },
   {

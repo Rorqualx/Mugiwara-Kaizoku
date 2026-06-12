@@ -157,7 +157,7 @@ console.log(result.manga); // OK
 
 **Error:**
 ```
-Cannot find module '@/types/domain/manga-types'
+Cannot find module '@/types/manga'
 ```
 
 **Solutions:**
@@ -177,7 +177,7 @@ Cannot find module '@/types/domain/manga-types'
 # Cmd+Shift+P → "TypeScript: Restart TS Server"
 
 # 3. Check file exists
-ls src/types/domain/manga-types.ts
+ls src/types/manga/index.ts
 
 # 4. Rebuild
 rm -rf .next

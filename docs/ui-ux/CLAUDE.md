@@ -245,7 +245,7 @@ export enum TaskStatus {
      import { trpc } from '../utils/trpc-client/index';
      
      // Other project imports, organized by type
-     import { MangaEntity } from '../types/domain/manga-types';
+     import { MangaEntity } from '../types/manga';
      import { useNotification } from './useNotification';
      
      // Types and interfaces last
@@ -337,8 +337,8 @@ The project has gone through a complete file consolidation effort to rename and 
 ## Type Safety Guidelines
 
 1. **Domain Types**: 
-   - Always use proper TypeScript types from `src/types/domain/` for domain entities
-   - Example: `import { MangaEntity, MangaSearchResult } from '../types/domain/manga-types';`
+   - Entity types come from `@prisma/client`; derived/view types from `src/types/manga/`
+   - Example: `import { MangaEntity, MangaSearchResult } from '../types/manga';`
    - Never use raw object types for domain entities
 
 2. **AsyncResult Pattern**:
@@ -1303,11 +1303,11 @@ When addressing TypeScript errors, use these established patterns (see `/docs/ty
    ```typescript
    // INCORRECT - Using alias imports
    import { trpc } from '@/utils/trpcClient';
-   import { MangaEntity } from '@/types/domain/manga-types';
+   import { MangaEntity } from '@/types/manga';
 
    // CORRECT - Using relative path imports
    import { trpc } from '../utils/trpcClient';
-   import { MangaEntity } from '../types/domain/manga-types';
+   import { MangaEntity } from '../types/manga';
    ```
 
 20. **Auth Type Compatibility**:
