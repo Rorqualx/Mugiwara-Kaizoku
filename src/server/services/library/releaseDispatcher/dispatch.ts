@@ -92,6 +92,15 @@ export interface RunOptions {
   scope?: ReleaseScope;
   bypassRuleCheck?: boolean;
   criteria?: Partial<QuickDownloadCriteria>;
+  /**
+   * Native-only fallback mode. Fills every in-scope chapter that a native
+   * source (mangadex/suwayomi/getcomics) can serve and skips ALL Prowlarr
+   * dispatch — no pack trigger, no coverage suppression. Used by the
+   * coverage-failure resolver to fill chapters a Prowlarr pack claimed but
+   * never delivered, WITHOUT re-claiming the same failing pack (which would
+   * orphan again and loop). Chapters native can't serve are left untouched.
+   */
+  nativeOnly?: boolean;
 }
 
 /** Per-chapter outcome surfaced from manual Prowlarr dispatch back to the caller. */
@@ -814,6 +823,78 @@ async function iterateProwlarrManualDispatch(
 }
 
 /**
+ * Decide and execute the dispatch for a built {@link DispatchContext}: native-
+ * first for manual scope, Prowlarr-pack-first for the ALL_MISSING auto path,
+ * with a trailing native fill. Extracted from {@link runUnifiedReleaseSearch}
+ * to keep that function's cyclomatic complexity in budget. Mutates `summary`.
+ *
+ * iter-N native-first ordering (2026-05-10, manual-scope only): native sources
+ * (mangadex/suwayomi/getcomics) ran in parallel during phase search; enqueue
+ * every chapter they can cover BEFORE Prowlarr's manual dispatch so Prowlarr
+ * only handles the residual. The iter-11 per-source breakdown showed mangadex
+ * 100% reliable (2/2 readable) vs Prowlarr 13% (2/15) on the same sample. The
+ * legacy ALL_MISSING path keeps Prowlarr-pack-first (per user decision) and is
+ * delivery-checked by the coverage resolver's native fallback instead.
+ */
+/** Prowlarr-dispatch fields the caller merges into its DispatchSummary. */
+type ProwlarrDispatchPatch = Pick<
+  DispatchSummary,
+  'triggeredProwlarr' | 'prowlarrCoveredChapters' | 'prowlarrSelected'
+>;
+
+/** Project the selected pack's optional fields into the UI summary shape. */
+function buildProwlarrSelected(
+  sel: ProwlarrDispatchOutcome,
+): NonNullable<DispatchSummary['prowlarrSelected']> {
+  return {
+    ...(sel.releaseTitle !== undefined ? { releaseTitle: sel.releaseTitle } : {}),
+    ...(sel.indexer !== undefined ? { indexer: sel.indexer } : {}),
+    ...(sel.score !== undefined ? { score: sel.score } : {}),
+  };
+}
+
+async function dispatchCandidates(
+  ctx: DispatchContext,
+  summary: DispatchSummary,
+  options: RunOptions,
+  prowlarrCands: ReleaseCandidate[],
+  missing: ChapterStub[],
+): Promise<ProwlarrDispatchPatch | null> {
+  const isManualScope = options.scope !== undefined && options.scope.mode !== 'ALL_MISSING';
+  if (isManualScope) {
+    // fillNativeGaps pushes into summary.nativeEnqueued / uncoveredChapters.
+    await fillNativeGaps(ctx, summary);
+    // Mark native-covered chapters in prowlarrCoverage so the subsequent
+    // Prowlarr dispatch's filter naturally skips them.
+    for (const enq of summary.nativeEnqueued) ctx.prowlarrCoverage.add(enq.chapterNumber);
+  }
+
+  let patch: ProwlarrDispatchPatch | null = null;
+  if (!isManualScope) {
+    patch = {
+      triggeredProwlarr: maybeTriggerProwlarr(ctx, prowlarrCands),
+      prowlarrCoveredChapters: [...ctx.prowlarrCoverage],
+    };
+  } else if (prowlarrCands.length > 0) {
+    const result = await iterateProwlarrManualDispatch(
+      ctx, prowlarrCands, missing, summary.nativeEnqueued, options.criteria,
+    );
+    if (result.selected !== null) {
+      patch = {
+        triggeredProwlarr: true,
+        prowlarrCoveredChapters: result.coveredChapters,
+        prowlarrSelected: buildProwlarrSelected(result.selected),
+      };
+    }
+  }
+
+  // Trailing fill is defensive only (ALL_MISSING auto-trigger where native
+  // didn't run first). For manual scope the pre-Prowlarr fill already ran.
+  if (!isManualScope) await fillNativeGaps(ctx, summary);
+  return patch;
+}
+
+/**
  * Run the unified release search for one manga. Returns a {@link DispatchSummary}
  * describing what was triggered. Callers (post-enrichment hook, manual UI,
  * scheduler) treat the summary as advisory and never gate on it.
@@ -874,7 +955,11 @@ export async function runUnifiedReleaseSearch(
   });
 
   const prowlarrCands = candidates.filter(c => c.source === 'prowlarr');
-  const prowlarrCoverage = estimateProwlarrCoverage(prowlarrCands);
+  // nativeOnly fallback never yields to (or triggers) Prowlarr, so start from
+  // an empty coverage set — fillNativeForChapter must not suppress anything.
+  const prowlarrCoverage = options.nativeOnly
+    ? new Set<number>()
+    : estimateProwlarrCoverage(prowlarrCands);
   const [inFlight, failedSourcesByChapterId, mediaType, preferredLanguage, downloadMode] = await Promise.all([
     readInFlightChapterNumbers(mangaId),
     loadFailedSourcesForManga(mangaId),
@@ -887,52 +972,21 @@ export async function runUnifiedReleaseSearch(
     preferredLanguage, downloadMode,
   };
 
-  // iter-N native-first ordering (2026-05-10, manual-scope only): native
-  // sources (mangadex/suwayomi/getcomics) ran in parallel during phase
-  // search; enqueue every chapter they can cover BEFORE Prowlarr's manual
-  // dispatch so Prowlarr only handles the residual.
-  // Why: the iter-11 per-source breakdown showed mangadex 100% reliable
-  // (2/2 readable) vs Prowlarr 13% (2/15) on the same sample. The legacy
-  // ordering had Prowlarr claim coverage first and fillNativeGaps just
-  // backfilled, which throws away the native-source reliability for any
-  // chapter Prowlarr nominally covered. The legacy ALL_MISSING path is
-  // unchanged — that path runs the Prowlarr scheduler anyway and doesn't
-  // surface a per-chapter dispatch summary.
-  const isManualScope = options.scope !== undefined && options.scope.mode !== 'ALL_MISSING';
-  if (isManualScope) {
+  // Native-only fallback: enqueue every native candidate we can and return
+  // WITHOUT touching Prowlarr. The coverage resolver routes here for chapters
+  // a pack claimed-but-never-delivered, so re-triggering Prowlarr would just
+  // re-claim the same failing pack and orphan again (an infinite loop).
+  if (options.nativeOnly) {
     await fillNativeGaps(ctx, summary);
-    // Mark native-covered chapters in prowlarrCoverage so the subsequent
-    // Prowlarr dispatch's filter naturally skips them (cleanest reuse of
-    // the existing in-scope helpers without changing their signature).
-    for (const enq of summary.nativeEnqueued) ctx.prowlarrCoverage.add(enq.chapterNumber);
+    log.info('Native-only fallback dispatch complete', {
+      ...summary,
+      scope: options.scope?.mode ?? 'ALL_MISSING',
+    });
+    return summary;
   }
 
-  if (!isManualScope) {
-    summary.triggeredProwlarr = maybeTriggerProwlarr(ctx, prowlarrCands);
-    summary.prowlarrCoveredChapters = [...prowlarrCoverage];
-  } else if (prowlarrCands.length > 0) {
-    const result = await iterateProwlarrManualDispatch(
-      ctx, prowlarrCands, missing, summary.nativeEnqueued, options.criteria,
-    );
-    if (result.selected !== null) {
-      summary.triggeredProwlarr = true;
-      summary.prowlarrCoveredChapters = result.coveredChapters;
-      // prowlarrSelected mirrors the first (highest-scoring) pack — gives the
-      // UI a single representative title to render even when many packs were
-      // dispatched in this call.
-      summary.prowlarrSelected = {
-        ...(result.selected.releaseTitle !== undefined ? { releaseTitle: result.selected.releaseTitle } : {}),
-        ...(result.selected.indexer !== undefined ? { indexer: result.selected.indexer } : {}),
-        ...(result.selected.score !== undefined ? { score: result.selected.score } : {}),
-      };
-    }
-  }
-
-  // Trailing fill is now defensive only (covers ALL_MISSING auto-trigger
-  // semantics where native didn't run first). For manual scope, the
-  // pre-Prowlarr fillNativeGaps above already enqueued everything native
-  // could cover, so this is a noop.
-  if (!isManualScope) await fillNativeGaps(ctx, summary);
+  const patch = await dispatchCandidates(ctx, summary, options, prowlarrCands, missing);
+  if (patch) Object.assign(summary, patch);
 
   log.info('Unified release search complete', { ...summary, scope: options.scope?.mode ?? 'ALL_MISSING' });
   return summary;

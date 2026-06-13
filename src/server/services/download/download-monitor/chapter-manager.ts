@@ -497,10 +497,62 @@ export interface CoverageResolveStats {
 
 const COVERAGE_RESOLVE_GRACE_MS = 10 * 60 * 1000; // 10 min
 const COVERAGE_ORPHAN_MS = 24 * 60 * 60 * 1000;    // 24h
+/**
+ * How long a pack may deliver *nothing* before we declare the claim empty and
+ * fall back to native. Long enough for a healthy pack to extract at least one
+ * chapter, short enough that a dead/blocked pack (the common Prowlarr failure)
+ * doesn't strand its chapters for the full 24h orphan window. Native fill-in is
+ * non-destructive, so racing a still-downloading pack only risks dedup, not
+ * data loss.
+ */
+const COVERAGE_NO_DELIVERY_MS = 30 * 60 * 1000;    // 30 min
 
 function intToNumberArray(value: unknown): number[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+}
+
+/**
+ * Chapter ids a Prowlarr pack claimed (was dispatched to cover) but never
+ * delivered — the scoped set minus whatever actually completed. These are the
+ * chapters that should fall back to a native source.
+ */
+export function unfulfilledChapterIds(scopedIds: number[], fulfilledIds: number[]): number[] {
+  if (scopedIds.length === 0) return [];
+  const fulfilled = new Set(fulfilledIds);
+  return scopedIds.filter(id => !fulfilled.has(id));
+}
+
+/**
+ * Fire native-only re-dispatch for chapters a pack claimed but didn't deliver.
+ * One run per manga (the search re-evaluates all its missing chapters anyway),
+ * fire-and-forget. `nativeOnly` ensures we never re-trigger the failing pack —
+ * chapters a native source can serve get enqueued; the rest are left for the
+ * next monitored cycle. Lazy import breaks the
+ * download-monitor → releaseDispatcher → scheduler require cycle.
+ */
+function triggerNativeFallbacks(byManga: Map<number, Set<number>>): void {
+  for (const [mangaId, ids] of byManga) {
+    const chapterIds = [...ids];
+    if (chapterIds.length === 0) continue;
+    logger.info(
+      `[DownloadMonitor] Pack claim unfulfilled; native fallback for manga ${mangaId} ` +
+      `(${chapterIds.length} chapter(s))`,
+    );
+    void import('@/server/services/library/releaseDispatcher/dispatch')
+      .then(({ runUnifiedReleaseSearch }) =>
+        runUnifiedReleaseSearch(mangaId, {
+          scope: { mode: 'BULK', chapterIds },
+          nativeOnly: true,
+          bypassRuleCheck: true,
+        }),
+      )
+      .catch((err: unknown) => {
+        logger.warn(`[DownloadMonitor] Native fallback dispatch failed for manga ${mangaId}`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+  }
 }
 
 /**
@@ -527,6 +579,16 @@ export async function resolveCoverageAttempts(
   const now = Date.now();
   const graceCutoff = new Date(now - COVERAGE_RESOLVE_GRACE_MS);
   const orphanCutoff = new Date(now - COVERAGE_ORPHAN_MS);
+  const noDeliveryCutoff = new Date(now - COVERAGE_NO_DELIVERY_MS);
+  // mangaId -> chapter ids a pack claimed but never delivered, accumulated
+  // across this cycle's resolutions and re-dispatched native-only at the end.
+  const nativeFallbackByManga = new Map<number, Set<number>>();
+  const recordUnfulfilled = (mangaId: number, ids: number[]): void => {
+    if (ids.length === 0) return;
+    const set = nativeFallbackByManga.get(mangaId) ?? new Set<number>();
+    for (const id of ids) set.add(id);
+    nativeFallbackByManga.set(mangaId, set);
+  };
 
   const pending = await prisma.prowlarrCoverageAttempt.findMany({
     where: { status: 'claimed', createdAt: { lt: graceCutoff } },
@@ -564,13 +626,17 @@ export async function resolveCoverageAttempts(
     });
 
     if (completed.length === 0) {
-      if (attempt.createdAt < orphanCutoff) {
+      // Pack delivered nothing past the no-delivery window — declare the claim
+      // empty and fall back to native for every scoped chapter. (The 24h
+      // `orphan` status is reserved for claims we can't even scope, below.)
+      if (attempt.createdAt < noDeliveryCutoff) {
         // eslint-disable-next-line no-await-in-loop -- per-row resolve by design
         await prisma.prowlarrCoverageAttempt.update({
           where: { id: attempt.id },
-          data: { status: 'orphan', resolvedAt: new Date() },
+          data: { status: 'empty', claimAccuracy: 0, resolvedAt: new Date() },
         });
-        stats.orphaned++;
+        stats.resolved++;
+        recordUnfulfilled(attempt.mangaId, scopedIds);
       }
       continue;
     }
@@ -604,7 +670,12 @@ export async function resolveCoverageAttempts(
       },
     });
     stats.resolved++;
+    if (newStatus !== 'fulfilled') {
+      recordUnfulfilled(attempt.mangaId, unfulfilledChapterIds(scopedIds, fulfilledIds));
+    }
   }
+
+  if (nativeFallbackByManga.size > 0) triggerNativeFallbacks(nativeFallbackByManga);
 
   if (stats.resolved > 0 || stats.orphaned > 0) {
     logger.info(
