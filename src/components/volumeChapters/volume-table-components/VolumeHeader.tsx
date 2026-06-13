@@ -56,6 +56,8 @@ export const VolumeHeader = memo(({
   headerActionsProps
 }: VolumeHeaderProps): JSX.Element => {
   const isUnassigned = volumeNumber === -1;
+  const downloadedCount = chapters.filter(c => c.downloadStatus === ChapterStatus.COMPLETED).length;
+  const isComplete = chapters.length > 0 && downloadedCount === chapters.length;
 
   return (
     <Box className={classes['volumeHeader']} style={{
@@ -116,9 +118,11 @@ export const VolumeHeader = memo(({
           </Title>
         </Group>
         <Group gap="xs">
-          <Badge color="blue">{chapters.length} {isUnassigned ? 'Files' : 'Chapters'}</Badge>
+          <Badge color={isComplete ? 'green' : 'red'}>
+            {downloadedCount}/{chapters.length} {isUnassigned ? 'Files' : 'Chapters'}
+          </Badge>
           {volumePageCount > 0 &&
-            <Badge color="teal">{volumePageCount} Pages</Badge>}
+            <Badge color="blue">{volumePageCount} Pages</Badge>}
           <Badge color="grape">{prettyBytes(volumeSize)}</Badge>
           <VolumeFailedHint chapters={chapters} />
         </Group>
