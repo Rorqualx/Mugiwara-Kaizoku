@@ -16,6 +16,7 @@ import { assertChapterFilePathOwned } from '@/server/services/library/chapter-pa
 import { logger } from '@/utils/logger';
 
 import { maybeConvertFile } from './archive-converter';
+import { isChapterAlreadySatisfied } from './import-dedup';
 import {
   loadPackImportConfig, formatChapterFileName, buildChapterDestDir, buildMangaPaths
 } from './library-path-resolver';
@@ -34,9 +35,21 @@ interface ChapterFile {
 }
 
 interface LinkResult {
+  /** Ids of existing rows the pack filled (were PENDING/ERROR or missing file). */
   linkedIds: number[];
+  /** Ids of new rows created for bonus/omake chapters the DB didn't have. */
+  createdIds: number[];
+  /** Chapter numbers skipped because another source already satisfied them. */
+  dedupedNums: number[];
   errors: string[];
 }
+
+/** Outcome of importing one pack file. */
+type LinkOutcome =
+  | { kind: 'linked'; id: number }
+  | { kind: 'created'; id: number }
+  | { kind: 'deduped'; chapterNumber: number }
+  | { kind: 'error'; error: string };
 
 interface LinkFileContext {
   prismaClient: PrismaClient;
@@ -48,57 +61,96 @@ interface LinkFileContext {
   conversionConfig: ConversionConfig;
 }
 
-/**
- * Move a single chapter file into the Chapters/ directory and update the DB record.
- */
-async function linkSingleFile(
-  ctx: LinkFileContext, file: ChapterFile
-): Promise<{ id: number } | { error: string }> {
-  const chapterNum = file.chapterNumber as number;
-
-  const existingChapter = await ctx.prismaClient.chapter.findUnique({
-    where: { mangaId_index: { mangaId: ctx.mangaId, index: chapterNum } }
-  });
-
-  if (!existingChapter) {
-    const msg = `Chapter ${chapterNum} not found in DB for manga #${ctx.mangaId} — skipping ${file.fileName}`;
-    logger.warn(`[PackImport] ${msg}`);
-    return { error: msg };
-  }
-
-  // Convert RAR→CBZ if enabled
+/** Convert (if needed) and move a pack file into the library, returning the
+ * final placement. Shared by the link-existing and create-new paths. */
+async function placeChapterFile(
+  ctx: LinkFileContext, file: ChapterFile, chapterNum: number, volume: number | null,
+): Promise<{ destPath: string; newName: string; fileFormat: string }> {
   const converted = await maybeConvertFile(file.filePath, file.fileName, ctx.conversionConfig);
-
   const ext = path.extname(converted.fileName);
-  const newName = formatChapterFileName(ctx.template, ctx.mangaTitle, chapterNum, existingChapter.volume, ext);
-  const destDir = buildChapterDestDir(ctx.chaptersDir, existingChapter.volume);
+  const newName = formatChapterFileName(ctx.template, ctx.mangaTitle, chapterNum, volume, ext);
+  const destDir = buildChapterDestDir(ctx.chaptersDir, volume);
   const destPath = path.join(destDir, newName);
 
   await assertChapterFilePathOwned(ctx.prismaClient, ctx.mangaId, destPath, 'linkSingleFile');
   await fs.mkdir(destDir, { recursive: true });
   await moveFile(converted.filePath, destPath);
 
-  const fileFormat = normalizeFileFormat(ext) ?? 'cbz';
-  await ctx.prismaClient.chapter.update({
-    where: { id: existingChapter.id },
-    data: {
-      filePath: destPath, fileName: newName, size: file.size,
-      downloadStatus: 'COMPLETED', packDownloadId: BigInt(ctx.packDownloadId), fileFormat
-    }
-  });
+  return { destPath, newName, fileFormat: normalizeFileFormat(ext) ?? 'cbz' };
+}
 
-  logger.info(`[PackImport] Linked ${file.fileName} → ${newName} (ch ${chapterNum}, id: ${existingChapter.id})`);
-
-  // iter-IC4: pack-import landed a non-cbz file — enqueue conversion.
-  // Idempotent + novel-skip aware inside the helper; failure is
-  // logged but doesn't fail the link.
+/** iter-IC4: a non-cbz pack file landed — enqueue conversion (idempotent). */
+function maybeEnqueueChapterConversion(
+  ctx: LinkFileContext, chapterId: number, destPath: string, fileFormat: string,
+): void {
   if (fileFormat !== 'cbz') {
     void maybeEnqueueConversion({
-      chapterId: existingChapter.id, mangaId: ctx.mangaId,
-      sourceFile: destPath, sourceFormat: fileFormat,
+      chapterId, mangaId: ctx.mangaId, sourceFile: destPath, sourceFormat: fileFormat,
     });
   }
-  return { id: existingChapter.id };
+}
+
+/**
+ * Import one pack file. Three outcomes:
+ *  - `deduped`: an existing row is already COMPLETED with its file on disk
+ *    (another source — e.g. Suwayomi — beat the torrent), so skip rather than
+ *    clobber it with the pack's version.
+ *  - `linked`: an existing PENDING/ERROR/file-missing row gets the pack file.
+ *  - `created`: no DB row exists and the file is a valid integer chapter — a
+ *    bonus/omake the metadata list never had; import it as a new row instead
+ *    of dropping it.
+ */
+async function linkSingleFile(
+  ctx: LinkFileContext, file: ChapterFile
+): Promise<LinkOutcome> {
+  const chapterNum = file.chapterNumber as number;
+
+  const existingChapter = await ctx.prismaClient.chapter.findUnique({
+    where: { mangaId_index: { mangaId: ctx.mangaId, index: chapterNum } }
+  });
+
+  if (existingChapter) {
+    if (await isChapterAlreadySatisfied(existingChapter)) {
+      logger.info(
+        `[PackImport] Chapter ${chapterNum} already satisfied (id ${existingChapter.id}, ` +
+        `${existingChapter.downloadStatus}); skipping redundant pack file ${file.fileName}`,
+      );
+      return { kind: 'deduped', chapterNumber: chapterNum };
+    }
+    const placed = await placeChapterFile(ctx, file, chapterNum, existingChapter.volume);
+    await ctx.prismaClient.chapter.update({
+      where: { id: existingChapter.id },
+      data: {
+        filePath: placed.destPath, fileName: placed.newName, size: file.size,
+        downloadStatus: 'COMPLETED', packDownloadId: BigInt(ctx.packDownloadId), fileFormat: placed.fileFormat,
+      }
+    });
+    logger.info(`[PackImport] Linked ${file.fileName} → ${placed.newName} (ch ${chapterNum}, id: ${existingChapter.id})`);
+    maybeEnqueueChapterConversion(ctx, existingChapter.id, placed.destPath, placed.fileFormat);
+    return { kind: 'linked', id: existingChapter.id };
+  }
+
+  // Bonus/omake the canonical metadata list never had. `index` is an Int
+  // column, so only integer chapter numbers can be keyed here — decimals
+  // (e.g. 686.5) are left for the metadata/decimal-aware path.
+  if (file.isValidChapter && Number.isInteger(chapterNum)) {
+    const placed = await placeChapterFile(ctx, file, chapterNum, null);
+    const created = await ctx.prismaClient.chapter.create({
+      data: {
+        mangaId: ctx.mangaId, index: chapterNum, chapterNumber: chapterNum,
+        title: `Chapter ${chapterNum}`, fileName: placed.newName, filePath: placed.destPath,
+        size: file.size, downloadStatus: 'COMPLETED', packDownloadId: BigInt(ctx.packDownloadId),
+        fileFormat: placed.fileFormat, monitored: true, updatedAt: new Date(),
+      }
+    });
+    logger.info(`[PackImport] Imported bonus chapter ${chapterNum} (new id ${created.id}) from ${file.fileName}`);
+    maybeEnqueueChapterConversion(ctx, created.id, placed.destPath, placed.fileFormat);
+    return { kind: 'created', id: created.id };
+  }
+
+  const msg = `Chapter ${chapterNum} not in DB and not an importable bonus chapter — skipping ${file.fileName}`;
+  logger.warn(`[PackImport] ${msg}`);
+  return { kind: 'error', error: msg };
 }
 
 /**
@@ -111,12 +163,14 @@ export async function linkIndividualChapterFiles(
   conversionConfig: ConversionConfig
 ): Promise<LinkResult> {
   const linkedIds: number[] = [];
+  const createdIds: number[] = [];
+  const dedupedNums: number[] = [];
   const errors: string[] = [];
 
   const matchableFiles = files.filter((f) => f.chapterNumber !== null);
   if (matchableFiles.length === 0) {
     logger.warn(`[PackImport] No matchable individual chapter files (all have null chapterNumber)`);
-    return { linkedIds, errors };
+    return { linkedIds, createdIds, dedupedNums, errors };
   }
 
   const manga = await prismaClient.manga.findUnique({
@@ -124,7 +178,7 @@ export async function linkIndividualChapterFiles(
   });
   if (!manga) {
     errors.push(`Manga not found: ${mangaId}`);
-    return { linkedIds, errors };
+    return { linkedIds, createdIds, dedupedNums, errors };
   }
 
   const config = await loadPackImportConfig(prismaClient);
@@ -142,8 +196,13 @@ export async function linkIndividualChapterFiles(
     try {
       // eslint-disable-next-line no-await-in-loop
       const result = await linkSingleFile(ctx, file);
-      if ('id' in result) { linkedIds.push(result.id); }
-      else { errors.push(result.error); }
+      switch (result.kind) {
+        case 'linked': linkedIds.push(result.id); break;
+        case 'created': createdIds.push(result.id); break;
+        case 'deduped': dedupedNums.push(result.chapterNumber); break;
+        case 'error': errors.push(result.error); break;
+        default: break;
+      }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       logger.error(`[PackImport] Failed to link ${file.fileName}:`, error);
@@ -151,8 +210,11 @@ export async function linkIndividualChapterFiles(
     }
   }
 
-  logger.info(`[PackImport] Linked ${linkedIds.length}/${matchableFiles.length} individual chapter files`);
-  return { linkedIds, errors };
+  logger.info(
+    `[PackImport] Individual files: linked ${linkedIds.length}, created ${createdIds.length} bonus, ` +
+    `deduped ${dedupedNums.length} (already satisfied), errored ${errors.length} / ${matchableFiles.length}`,
+  );
+  return { linkedIds, createdIds, dedupedNums, errors };
 }
 
 export interface LinkVolumeChaptersParams {

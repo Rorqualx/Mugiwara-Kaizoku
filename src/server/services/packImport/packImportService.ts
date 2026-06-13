@@ -224,8 +224,14 @@ export class PackImportService {
         const linkResult = await linkIndividualChapterFiles(
           this.prismaClient, packDownload.mangaId, individualChapterFiles, packDownloadId, conversionConfig
         );
-        createdChapterIds.push(...linkResult.linkedIds);
+        createdChapterIds.push(...linkResult.linkedIds, ...linkResult.createdIds);
         errors.push(...linkResult.errors);
+        if (linkResult.dedupedNums.length > 0) {
+          logger.info(
+            `[PackImport] Pack #${packDownloadId}: skipped ${linkResult.dedupedNums.length} ` +
+            `chapter(s) already satisfied by another source (no duplicate import)`,
+          );
+        }
       }
 
       // 2. Process volume groups (existing logic)
