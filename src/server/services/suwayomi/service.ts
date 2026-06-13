@@ -23,6 +23,10 @@ import { logger } from '@/utils/logger';
 
 import { suwayomiConfigService } from './configService';
 import { getSuwayomiGraphQLClient } from './graphql/client';
+import {
+  SuwayomiHealthMonitor,
+  type Eligibility,
+} from './health-monitor';
 import { suwayomiSecurityService } from './security.service';
 import { KEIYOUSHI_REPO_URL, patchServerConfFile, type ServerConfPatch } from './server-conf-patcher';
 import { downloadServerIfNeeded } from './suwayomi-service/installer';
@@ -66,6 +70,16 @@ function createGraphQLHealthClient(getPort: () => number): HealthCheckClient {
 }
 
 /**
+ * Grace window after a (re)start during which the health monitor won't probe.
+ * A cold-starting JVM accepts connections before it can answer GraphQL; without
+ * this it could be killed mid-boot and never converge.
+ */
+const SERVER_WARMUP_GRACE_MS = 60_000;
+
+/** How long to wait after SIGTERM before escalating a wedged JVM to SIGKILL. */
+const WEDGE_SIGKILL_GRACE_MS = 8_000;
+
+/**
  * Service for managing Suwayomi Server lifecycle and operations
  *
  * This service handles:
@@ -86,11 +100,19 @@ class SuwayomiService {
   private javaState: JavaManagerState;
   private healthClient: HealthCheckClient;
   private supervisor: SuwayomiSupervisor;
+  private healthMonitor: SuwayomiHealthMonitor;
   /**
    * Set when a start is mid-flight; concurrent callers (manual + supervised
    * restart) wait on this promise instead of double-spawning the JVM.
    */
   private startInFlight: Promise<boolean> | null = null;
+  /**
+   * ms-epoch of the last successful (re)start. The health monitor skips its
+   * probe inside {@link SERVER_WARMUP_GRACE_MS} of this so a freshly-spawned
+   * JVM (cold start can take 20-40s to answer GraphQL) isn't mistaken for a
+   * wedge and killed mid-boot.
+   */
+  private lastStartAt = 0;
 
   constructor() {
     const appDataPath = path.join(process.cwd(), 'data');
@@ -102,6 +124,14 @@ class SuwayomiService {
       startServer: () => this.startServerInternal(),
       isEnabled: async () => (await suwayomiConfigService.loadConfig()).enabled,
       emitEvent: (event) => this.emitSupervisorEvent(event),
+    });
+    this.healthMonitor = new SuwayomiHealthMonitor({
+      probe: async () => {
+        const { probeSuwayomiResponsive } = await import('./server-reachable');
+        return probeSuwayomiResponsive();
+      },
+      isEligible: () => this.healthCheckEligibility(),
+      recover: (reason) => this.recoverUnresponsiveServer(reason),
     });
 
     // Ensure directories exist
@@ -118,9 +148,13 @@ class SuwayomiService {
     // Disable the supervisor on Node-process shutdown so the lifecycle's
     // own SIGTERM cleanup doesn't get treated as a crash and trigger a
     // spurious restart attempt.
-    process.once('exit', () => this.supervisor.notifyShutdown());
-    process.once('SIGINT', () => this.supervisor.notifyShutdown());
-    process.once('SIGTERM', () => this.supervisor.notifyShutdown());
+    const onShutdown = (): void => {
+      this.supervisor.notifyShutdown();
+      this.healthMonitor.stop();
+    };
+    process.once('exit', onShutdown);
+    process.once('SIGINT', onShutdown);
+    process.once('SIGTERM', onShutdown);
   }
 
   /**
@@ -388,6 +422,10 @@ class SuwayomiService {
 
     if (result.success) {
       this.supervisor.notifyServerStarted();
+      this.lastStartAt = Date.now();
+      // Arm the wedge detector. start() is idempotent, so a supervised restart
+      // that re-enters this path just refreshes the warmup window.
+      this.healthMonitor.start();
     }
 
     // Reachability cache (server-reachable.ts) holds the last probe result
@@ -417,6 +455,8 @@ class SuwayomiService {
     // Signal the supervisor BEFORE the kill so the resulting close event
     // is treated as expected and doesn't trigger an auto-restart.
     this.supervisor.notifyIntentionalStop();
+    // Stop probing so an intentional shutdown isn't read as a wedge.
+    this.healthMonitor.stop();
 
     if (!this.isRunning || !this.serverProcess) {
       logger.info('Suwayomi-Server is not running');
@@ -486,6 +526,95 @@ class SuwayomiService {
   /** Snapshot of supervisor state for diagnostics / UI. */
   getSupervisorStatus(): SupervisorStatus {
     return this.supervisor.getStatus();
+  }
+
+  /** Health-monitor metrics for diagnostics / UI. */
+  getHealthMonitorMetrics(): ReturnType<SuwayomiHealthMonitor['getMetrics']> {
+    return this.healthMonitor.getMetrics();
+  }
+
+  /**
+   * Eligibility gate for the health monitor. Returns `{ run: false }` whenever
+   * an unreachable probe wouldn't indicate a wedge — integration off, server
+   * not believed up, a (re)start in flight or scheduled, the supervisor has
+   * given up, or we're inside the post-start warmup window.
+   */
+  private async healthCheckEligibility(): Promise<Eligibility> {
+    if (this.startInFlight !== null) return { run: false, reason: 'start-in-flight' };
+    if (!this.isRunning || this.serverProcess === null) {
+      return { run: false, reason: 'not-running' };
+    }
+    const supervisorStatus = this.supervisor.getStatus();
+    if (supervisorStatus.crashLooping) return { run: false, reason: 'crash-looping' };
+    if (supervisorStatus.restartScheduled) return { run: false, reason: 'restart-scheduled' };
+    if (Date.now() - this.lastStartAt < SERVER_WARMUP_GRACE_MS) {
+      return { run: false, reason: 'warmup-grace' };
+    }
+    const config = await suwayomiConfigService.loadConfig();
+    if (!config.enabled) return { run: false, reason: 'disabled' };
+    return { run: true };
+  }
+
+  /**
+   * Self-heal a server that's alive but no longer answering queries (wedged
+   * JVM). Kills the child WITHOUT marking the stop intentional, so the close
+   * event flows through {@link onProcessClose} → the supervisor's crash-restart
+   * path (backoff + 5-failure circuit breaker). Invoked by the health monitor.
+   */
+  async recoverUnresponsiveServer(reason: string): Promise<void> {
+    const proc = this.serverProcess;
+    if (proc === null || !this.isRunning) {
+      // Already down — the close handler / supervisor owns recovery.
+      logger.info('[suwayomi-health] Recovery skipped: server not running', { reason });
+      return;
+    }
+
+    logger.warn('[suwayomi-health] Recovering unresponsive Suwayomi server', {
+      reason,
+      pid: proc.pid ?? null,
+    });
+    void realtimeEmitter.emitSystemEvent({
+      eventType: 'suwayomi:server:unresponsive',
+      source: 'SuwayomiHealthMonitor',
+      message: `Suwayomi stopped responding (${reason}); restarting`,
+      data: { pid: proc.pid ?? null, reason },
+    });
+
+    // Drop the stale "reachable" verdict so hot paths re-probe after the heal.
+    const { invalidateSuwayomiReachabilityCache } = await import('./server-reachable');
+    invalidateSuwayomiReachabilityCache();
+
+    this.killWedgedProcess(proc);
+  }
+
+  /**
+   * SIGTERM the wedged JVM, escalating to SIGKILL after a grace period if it
+   * doesn't exit (a deadlocked JVM can ignore SIGTERM). The start path's port
+   * sanitizer mops up if the socket is briefly held after SIGKILL.
+   */
+  private killWedgedProcess(proc: ChildProcess): void {
+    const pid = proc.pid;
+    try {
+      proc.kill('SIGTERM');
+    } catch (err: unknown) {
+      logger.info('[suwayomi-health] SIGTERM on wedged process failed (already gone?)', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    if (pid === undefined) return;
+
+    const killTimer = setTimeout(() => {
+      // Only escalate if this is still our live process — onProcessClose nulls
+      // serverProcess once the JVM actually exits.
+      if (this.serverProcess !== proc) return;
+      try {
+        process.kill(pid, 'SIGKILL');
+        logger.warn('[suwayomi-health] Escalated wedged JVM to SIGKILL', { pid });
+      } catch {
+        // ESRCH — it died between the check and the signal; nothing to do.
+      }
+    }, WEDGE_SIGKILL_GRACE_MS);
+    killTimer.unref();
   }
 
   /**

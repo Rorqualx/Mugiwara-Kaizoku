@@ -64,6 +64,18 @@ export function invalidateSuwayomiReachabilityCache(): void {
   cache = null;
 }
 
+/**
+ * Uncached, bounded single probe. Unlike {@link isSuwayomiReachable} this
+ * never reads or writes the TTL cache — every call hits the wire. The health
+ * monitor uses it so each tick reflects the server's *current* responsiveness
+ * (a wedged JVM that answers the TCP connect but hangs the GraphQL POST shows
+ * up as `false` here within {@link PROBE_TIMEOUT_MS}), rather than a value
+ * cached up to 60s ago.
+ */
+export async function probeSuwayomiResponsive(): Promise<boolean> {
+  return probeOnce();
+}
+
 async function probeOnce(): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
