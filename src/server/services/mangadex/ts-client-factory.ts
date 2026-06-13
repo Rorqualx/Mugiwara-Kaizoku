@@ -13,6 +13,7 @@ import { MangaDexClient, MangaDexApiError } from 'mangadex-ts-client';
 
 
 
+import { atHomeRateLimiter } from './at-home-rate-limiter';
 import { mangadexConfigService } from './configService';
 
 import type { MangaDexScanlationGroup } from './types';
@@ -30,6 +31,24 @@ const log = logger.child('MangaDexClientFactory');
  * Also re-exports helper functions as instance methods for compatibility.
  */
 export class KaizokuMangaDexClient extends MangaDexClient {
+  /**
+   * Fetch chapter image references from the at-home endpoint, paced through
+   * the process-global {@link atHomeRateLimiter}.
+   *
+   * `getChapterImages` resolves to `GET /at-home/server/{id}`, which MangaDex
+   * caps at 40 req/min per IP — much lower than the client's global 5 req/s
+   * limiter. Without this gate, a monitored-search burst blows past the cap
+   * and chapters fail with 429 "Rate Limit Exceeded". Overriding here (rather
+   * than at each call site) ensures every consumer of the shared client —
+   * the native downloader and the manual tRPC op — is paced uniformly.
+   */
+  override async getChapterImages(
+    chapterId: string,
+  ): ReturnType<MangaDexClient['getChapterImages']> {
+    await atHomeRateLimiter.acquire();
+    return super.getChapterImages(chapterId);
+  }
+
   /**
    * Get scanlation group details by ID.
    * MangaDex API: GET /group/{id}

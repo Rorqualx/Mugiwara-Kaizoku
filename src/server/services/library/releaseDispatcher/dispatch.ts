@@ -298,7 +298,19 @@ async function enqueueMangaDexCandidate(
       },
       // Surface manga/chapter on the FK columns so the Jobs page can join
       // and show the manga title + chapter row instead of "System Task".
-      { mangaId, chapterId: p.chapterRowId },
+      //
+      // Bump the retry budget above the default 3/60s: the at-home rate
+      // limiter sheds jobs back to the queue under burst (a monitored search
+      // enqueues thousands at once), so stragglers need more attempts spread
+      // over a wider backoff window to recover instead of hard-failing. With
+      // exponential backoff this spans ~11min (45,90,180,360s + jitter),
+      // comfortably covering a paced drain.
+      {
+        mangaId,
+        chapterId: p.chapterRowId,
+        maxAttempts: 5,
+        retryDelaySeconds: 45,
+      },
     );
   } catch (err) {
     // queueManager.enqueue runs against the singleton prisma client, so it
