@@ -43,7 +43,7 @@ import { applyModeBias, loadDownloadMode } from '@/server/services/library/relea
 import type { DownloadModePreference } from '@/server/services/library/releaseDispatcher/download-mode';
 import { enqueueGetComicsCandidate } from '@/server/services/library/releaseDispatcher/getcomics-enqueue';
 import { createActiveNativeDownload } from '@/server/services/library/releaseDispatcher/native-download-guard';
-import { filterProwlarrCandidatesToScope } from '@/server/services/library/releaseDispatcher/scope-filtering';
+import { filterProwlarrCandidatesToScope, filterProwlarrToTitleAndOpaque } from '@/server/services/library/releaseDispatcher/scope-filtering';
 import { mangadexConfigService } from '@/server/services/mangadex/configService';
 import { isPreferredLanguage } from '@/server/services/mangadex/language-match';
 import { scoreAndSortResults, selectBestResult } from '@/server/services/quickDownload/scoringAlgorithm';
@@ -521,12 +521,18 @@ async function dispatchProwlarrManual(
   criteria: QuickDownloadCriteria,
 ): Promise<ProwlarrDispatchOutcome | null> {
   const { chapters: inScopeChapters, volumes: inScopeVolumes, chapterIds: scopedChapterIds, titles } = scope;
-  const filtered = filterProwlarrCandidatesToScope(prowlarrCandidates, titles, inScopeChapters, inScopeVolumes);
+  let filtered = filterProwlarrCandidatesToScope(prowlarrCandidates, titles, inScopeChapters, inScopeVolumes);
   if (filtered.length === 0) {
-    log.info('Manual Prowlarr: no candidates cover the requested scope', {
-      mangaId: ctx.mangaId,
-      candidates: prowlarrCandidates.length,
-    });
+    // No pack advertised an overlapping range. Fall back to title-matched
+    // opaque packs (whole-series mirrors with no vN/cNNN marker) — credited
+    // the full scope downstream and reconciled post-import. Without this, short
+    // titles like "Akira" whose only survivors are opaque complete packs
+    // dispatch nothing at all.
+    filtered = filterProwlarrToTitleAndOpaque(prowlarrCandidates, titles);
+    if (filtered.length > 0) log.info('Manual Prowlarr: opaque whole-series fallback', { mangaId: ctx.mangaId, candidates: filtered.length });
+  }
+  if (filtered.length === 0) {
+    log.info('Manual Prowlarr: no candidates cover the requested scope', { mangaId: ctx.mangaId, candidates: prowlarrCandidates.length });
     return null;
   }
 
@@ -544,23 +550,15 @@ async function dispatchProwlarrManual(
     return null;
   }
 
-  // Coverage MUST be computed BEFORE dispatch so we can pass only the
-  // chapters this pack actually covers to processDownloadRequest. The
-  // downloader otherwise (1) flips every passed chapterId to DOWNLOADING
-  // and (2) tags every one to this packDownloadId — which hides the
-  // uncovered chapters from the next loadMissingChapters poll and
-  // prevents the next dispatcher cycle from picking a complementary
-  // pack for them.
-  //
-  // Coverage derivation:
-  //   - Explicit chapter list (e.g. "Ch.1-60") → intersect with scope.
-  //   - Volume-only pack (e.g. "Vol. 08") → look up which chapter numbers
-  //     belong to those volumes in the DB, intersect with scope.
-  //   - Both empty → unparseable. Credit the full scope (legacy behavior)
-  //     and rely on the post-import reconciliation pass in
-  //     pack-import-handler.ts to free any chapter the archive didn't
-  //     actually deliver. Crediting zero here would just create duplicate
-  //     downloads via parallel dispatchers in the unparseable case.
+  // Coverage MUST be computed BEFORE dispatch so we pass only the chapters this
+  // pack actually covers: the downloader flips every passed chapterId to
+  // DOWNLOADING and tags it to this packDownloadId, which would hide uncovered
+  // chapters from the next loadMissingChapters poll and block a complementary
+  // pack. Derivation: explicit chapter list → intersect scope; volume-only pack
+  // → DB-lookup the volumes' chapter numbers, intersect scope; both empty
+  // (unparseable / opaque fallback) → credit full scope (post-import
+  // reconciliation in pack-import-handler.ts frees undelivered chapters;
+  // crediting zero would spawn duplicate downloads via parallel dispatchers).
   const selectedCandidate = selected.result.title
     ? filtered.find(c => (c.payload as ProwlarrSearchResult).title === selected.result.title)
     : undefined;

@@ -39,10 +39,7 @@ export function filterProwlarrCandidatesToScope(
   const normalizedTitles = titles.map(normalizeForMatching).filter(t => t.length > 0);
   const skipTitleCheck = normalizedTitles.length === 0;
   return candidates.filter(c => {
-    if (!skipTitleCheck) {
-      const releaseNorm = normalizeForMatching((c.payload as ProwlarrSearchResult).title);
-      if (!normalizedTitles.some(t => releaseNorm.includes(t))) return false;
-    }
+    if (!passesTitleRelevance(c, normalizedTitles, skipTitleCheck)) return false;
     if (c.coverage.chapters.length > 0) {
       return c.coverage.chapters.some(n => inScopeChapters.has(n));
     }
@@ -51,6 +48,48 @@ export function filterProwlarrCandidatesToScope(
       return volumes.some(v => inScopeVolumes.has(v));
     }
     return false;
+  });
+}
+
+/** Shared title-relevance gate: at least one known title is a substring of the
+ *  (whitespace-stripped, lowercased) release title. Skipped when the title
+ *  vocabulary is empty. */
+function passesTitleRelevance(
+  c: ReleaseCandidate,
+  normalizedTitles: string[],
+  skipTitleCheck: boolean,
+): boolean {
+  if (skipTitleCheck) return true;
+  const releaseNorm = normalizeForMatching((c.payload as ProwlarrSearchResult).title);
+  return normalizedTitles.some(t => releaseNorm.includes(t));
+}
+
+/**
+ * Second-tier manual-scope fallback: accept title-matched candidates whose
+ * coverage is *opaque* (no parseable chapter or volume range in the title).
+ *
+ * Used by `dispatchProwlarrManual` ONLY when {@link filterProwlarrCandidatesToScope}
+ * returns nothing — i.e. no pack advertised a range that overlaps the request.
+ * Opaque releases are usually whole-series / complete mirrors (e.g.
+ * "Akira (Manga, Color, Completed)", "Akira (35th Anniversary Edition)") that
+ * Prowlarr exposes without a vN/cNNN marker; the dispatcher credits them the
+ * full scope (`full-scope-fallback`) and post-import reconciliation frees any
+ * chapter the archive didn't actually deliver. Gating this behind the empty
+ * strict-filter result means a precise ranged pack always wins when one exists.
+ *
+ * Candidates that DID parse a range but simply don't overlap scope are NOT
+ * resurrected here — a non-overlapping range is a real miss, not an unknown.
+ */
+export function filterProwlarrToTitleAndOpaque(
+  candidates: ReleaseCandidate[],
+  titles: string[],
+): ReleaseCandidate[] {
+  const normalizedTitles = titles.map(normalizeForMatching).filter(t => t.length > 0);
+  const skipTitleCheck = normalizedTitles.length === 0;
+  return candidates.filter(c => {
+    if (!passesTitleRelevance(c, normalizedTitles, skipTitleCheck)) return false;
+    const isOpaque = c.coverage.chapters.length === 0 && (c.coverage.volumes?.length ?? 0) === 0;
+    return isOpaque;
   });
 }
 
