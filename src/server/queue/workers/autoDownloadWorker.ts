@@ -22,6 +22,7 @@ import { ChapterStatus } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { DownloadManager } from '@/server/services/download/downloadManager';
 import { ProwlarrMangaSearch } from '@/server/services/prowlarr/mangaSearch';
+import type { SearchMangaResult } from '@/server/services/prowlarr/mangaSearch';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { createErrorResult, createSuccessResult, isError } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
@@ -141,9 +142,12 @@ async function searchViaProwlarr(manga: Record<string, unknown>, chapters: Chapt
     if (isError(searchResults)) {
       return createErrorResult(searchResults.error instanceof Error ? searchResults.error : new Error(String(searchResults.error)));
     }
-    // After isError check passes, searchResults is guaranteed to be success
-    const successData = searchResults.data as unknown[] | undefined;
-    if (!successData || successData.length === 0) {
+    // After isError check passes, searchResults is guaranteed to be success.
+    // `data` is a SearchMangaResult ({ results, queryFailures }) — the release
+    // array lives on `.results`. Reading `.data` directly here handed an object
+    // to filterResults() and blew up with "d.filter is not a function".
+    const successData = (searchResults.data as SearchMangaResult | undefined)?.results ?? [];
+    if (successData.length === 0) {
       logger.info(`[AutoDownload] No results found via Prowlarr`);
       return createSuccessResult(undefined);
     }

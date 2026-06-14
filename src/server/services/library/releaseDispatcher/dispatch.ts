@@ -52,6 +52,7 @@ import type { ProwlarrSearchResult } from '@/types/prowlarr';
 import type { QuickDownloadCriteria } from '@/types/quickDownload.types';
 import { DEFAULT_QUICK_DOWNLOAD_CRITERIA } from '@/types/quickDownload.types';
 import { isError } from '@/utils/async-result';
+import { getErrorMessage } from '@/utils/errors/helpers';
 import { logger } from '@/utils/logger';
 
 const log = logger.child('UnifiedReleaseSearch');
@@ -672,7 +673,7 @@ function maybeTriggerProwlarr(
   void import('@/server/queue/autoDownloadScheduler')
     .then(({ autoDownloadScheduler }) => autoDownloadScheduler.triggerManga(ctx.mangaId))
     .catch((err: unknown) => log.error('Prowlarr dispatch failed; native fill-in still applies', {
-      mangaId: ctx.mangaId, error: err instanceof Error ? err.message : String(err),
+      mangaId: ctx.mangaId, error: getErrorMessage(err),
     }));
   return true;
 }
