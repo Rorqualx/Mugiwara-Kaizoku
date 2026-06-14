@@ -522,12 +522,15 @@ async function dispatchProwlarrManual(
 ): Promise<ProwlarrDispatchOutcome | null> {
   const { chapters: inScopeChapters, volumes: inScopeVolumes, chapterIds: scopedChapterIds, titles } = scope;
   let filtered = filterProwlarrCandidatesToScope(prowlarrCandidates, titles, inScopeChapters, inScopeVolumes);
-  if (filtered.length === 0) {
+  if (filtered.length === 0 && inScopeChapters.size > 0) {
     // No pack advertised an overlapping range. Fall back to title-matched
-    // opaque packs (whole-series mirrors with no vN/cNNN marker) — credited
-    // the full scope downstream and reconciled post-import. Without this, short
-    // titles like "Akira" whose only survivors are opaque complete packs
-    // dispatch nothing at all.
+    // opaque packs (whole-series mirrors with no vN/cNNN marker) — credited the
+    // full scope downstream and reconciled post-import. Gated on inScopeChapters
+    // > 0 because the iteration loop never clears NULL-chapterNumber stubs
+    // (volume-file rows): a leftover stub would otherwise re-enter every
+    // iteration and dispatch EVERY opaque candidate in turn (the 1988 film
+    // included). With the guard the stub-only iteration matches nothing and the
+    // loop terminates — the first opaque pack already credited the full scope.
     filtered = filterProwlarrToTitleAndOpaque(prowlarrCandidates, titles);
     if (filtered.length > 0) log.info('Manual Prowlarr: opaque whole-series fallback', { mangaId: ctx.mangaId, candidates: filtered.length });
   }
