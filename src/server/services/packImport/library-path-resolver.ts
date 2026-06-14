@@ -4,6 +4,8 @@
 
 import path from 'path';
 
+import { logger } from '@/utils/logger';
+
 import type { PrismaClient } from '@prisma/client';
 
 export interface PackImportConfig {
@@ -30,8 +32,7 @@ const DEFAULTS: PackImportConfig = {
 export async function loadPackImportConfig(prismaClient: PrismaClient): Promise<PackImportConfig> {
   const config = await prismaClient.config.findUnique({ where: { key: 'fileOrganization' } });
   if (!config?.value) {
-    const library = await prismaClient.library.findFirst({ select: { path: true } });
-    return { ...DEFAULTS, libraryBasePath: library?.path ?? DEFAULTS.libraryBasePath };
+    return { ...DEFAULTS, libraryBasePath: await resolveBasePath(prismaClient, undefined) };
   }
 
   try {
@@ -41,15 +42,41 @@ export async function loadPackImportConfig(prismaClient: PrismaClient): Promise<
     const volTpl = parsed['volumeNamingTemplate'];
     const organize = parsed['organizeOnImport'];
     return {
-      libraryBasePath: typeof basePath === 'string' && basePath.length > 0
-        ? basePath : DEFAULTS.libraryBasePath,
+      libraryBasePath: await resolveBasePath(prismaClient, typeof basePath === 'string' ? basePath : undefined),
       chapterNamingTemplate: typeof chTpl === 'string' ? chTpl : DEFAULTS.chapterNamingTemplate,
       volumeNamingTemplate: typeof volTpl === 'string' ? volTpl : DEFAULTS.volumeNamingTemplate,
       organizeOnImport: typeof organize === 'boolean' ? organize : DEFAULTS.organizeOnImport
     };
   } catch {
-    return DEFAULTS;
+    return { ...DEFAULTS, libraryBasePath: await resolveBasePath(prismaClient, undefined) };
   }
+}
+
+/**
+ * Resolve the library base path with a single fallback chain shared by every
+ * caller: configured non-empty value → first Library row's `path` → hardcoded
+ * default. A present-but-blank `libraryBasePath` previously skipped the Library
+ * fallback and dropped straight to `/data/libraries`, which isn't a mount in
+ * container deployments — so every import died with "EACCES: mkdir '/data'"
+ * (the Akira incident, 2026-06-14). Falling back to the real Library path keeps
+ * imports landing where the rest of the library already lives; the warn makes a
+ * blanked-out setting visible instead of silently mis-routing to an unwritable
+ * default.
+ */
+async function resolveBasePath(
+  prismaClient: PrismaClient,
+  configured: string | undefined,
+): Promise<string> {
+  if (typeof configured === 'string' && configured.length > 0) return configured;
+  const library = await prismaClient.library.findFirst({ select: { path: true } });
+  if (library?.path !== undefined && library.path.length > 0) {
+    logger.warn('[PackImport] libraryBasePath is blank; falling back to Library.path', { path: library.path });
+    return library.path;
+  }
+  logger.warn('[PackImport] libraryBasePath is blank and no Library row found; using hardcoded default', {
+    path: DEFAULTS.libraryBasePath,
+  });
+  return DEFAULTS.libraryBasePath;
 }
 
 /** Kept for backward compatibility with packImportService */
