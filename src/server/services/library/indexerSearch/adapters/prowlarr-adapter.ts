@@ -128,19 +128,30 @@ export async function searchProwlarr(
   const primaryQuery = title.trim();
   if (primaryQuery.length === 0) return [];
   const altQueries = Array.from(new Set(altTitles.map((q) => q.trim()).filter((q) => q.length > 0 && q !== primaryQuery)));
+
+  // Relevance-gate inputs. Without these, `searchManga` skips the gate and
+  // wrong-target releases that merely share a leading token leak into the
+  // candidate pool — the "Akira" incident: a search for "Akira" returning
+  // "Akira Failing in Love" / "Momose Akira no Hatsukoi". The canonical set
+  // is the manga title + all alt-titles; `mangaId` scopes the post-search
+  // blocklist check and partitions the search cache per manga.
+  const acceptedTitles = [primaryQuery, ...altQueries];
+  const searchOptions = mangaId !== undefined
+    ? { acceptedTitles, mangaId }
+    : { acceptedTitles };
   try {
     const seenGuids = new Set<string>();
     const allReleases: ProwlarrSearchResult[] = [];
 
     // Phase 1: primary query.
-    const primarySettled = await Promise.allSettled([prowlarrMangaSearch.searchManga(primaryQuery)]);
+    const primarySettled = await Promise.allSettled([prowlarrMangaSearch.searchManga(primaryQuery, searchOptions)]);
     mergeSettledIntoPool(title, [primaryQuery], primarySettled, allReleases, seenGuids);
     const primaryHits = allReleases.length;
 
     // Phase 2: fan out to alt-titles ONLY when primary was sparse.
     const altsRan = primaryHits < PRIMARY_SUFFICIENT_COUNT && altQueries.length > 0;
     if (altsRan) {
-      const altSettled = await Promise.allSettled(altQueries.map((q) => prowlarrMangaSearch.searchManga(q)));
+      const altSettled = await Promise.allSettled(altQueries.map((q) => prowlarrMangaSearch.searchManga(q, searchOptions)));
       mergeSettledIntoPool(title, altQueries, altSettled, allReleases, seenGuids);
     }
 
