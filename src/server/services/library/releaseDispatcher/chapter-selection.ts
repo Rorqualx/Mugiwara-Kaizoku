@@ -11,6 +11,7 @@ import type { ReleaseScope } from '@/server/services/library/indexerSearch/types
 import {
   volumesWithFileBackedArchive, filterUncoveredCandidates, type CoverageRow,
 } from '@/server/services/library/volume-archive-coverage';
+import { nullifyMissingArchives } from '@/server/services/library/volume-archive-coverage-fs';
 import { logger } from '@/utils/logger';
 
 const log = logger.child('UnifiedReleaseSearch');
@@ -65,7 +66,11 @@ export async function loadMissingChapters(
     where: { mangaId, chapterNumber: null, downloadStatus: 'COMPLETED', filePath: { not: null } },
     select: { id: true, chapterNumber: true, volume: true, filePath: true, downloadStatus: true },
   });
-  const covered = volumesWithFileBackedArchive(archiveRows as CoverageRow[]);
+  // Only treat a volume as covered if its archive file actually exists on disk —
+  // a phantom archive row (e.g. pointing at an empty scaffold folder) must not
+  // block its chapters from being downloaded.
+  const verifiedArchives = await nullifyMissingArchives(archiveRows as CoverageRow[]);
+  const covered = volumesWithFileBackedArchive(verifiedArchives);
   if (covered.size === 0) return candidates;
   return filterUncoveredCandidates(candidates, covered);
 }

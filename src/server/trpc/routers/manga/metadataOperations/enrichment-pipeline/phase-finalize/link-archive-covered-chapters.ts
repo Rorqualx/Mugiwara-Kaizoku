@@ -19,6 +19,7 @@ import { ChapterStatus } from '@prisma/client';
 
 import { prisma } from '@/server/db';
 import { selectChaptersToLink, type ChapterLink, type CoverageRow } from '@/server/services/library/volume-archive-coverage';
+import { nullifyMissingArchives } from '@/server/services/library/volume-archive-coverage-fs';
 import { logger } from '@/utils/logger';
 
 /** Apply one volume's archive payload to all its covered chapters. */
@@ -51,7 +52,8 @@ export async function linkArchiveCoveredChapters(mangaId: number): Promise<numbe
       },
     });
 
-    const links = selectChaptersToLink(rows as CoverageRow[]);
+    const verified = await nullifyMissingArchives(rows as CoverageRow[]);
+    const links = selectChaptersToLink(verified);
     if (links.length === 0) return 0;
 
     // Chapters in the same volume share one archive payload — batch by filePath.

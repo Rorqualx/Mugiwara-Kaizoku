@@ -70,12 +70,30 @@ export function volumesWithFileBackedArchive(rows: CoverageRow[]): Set<number> {
   return out;
 }
 
+/** Build the link payload for one chapter — keep an individual per-chapter file
+ *  when the chapter has its own (different from the archive), otherwise point it
+ *  at the volume archive. */
+function buildLink(chapter: CoverageRow, archive: CoverageRow & { filePath: string }): ChapterLink {
+  const ownsFile = hasFile(chapter) && chapter.filePath !== archive.filePath;
+  const src = ownsFile ? chapter : archive;
+  return {
+    chapterId: chapter.id,
+    filePath: src.filePath as string,
+    fileName: src.fileName ?? '',
+    fileFormat: src.fileFormat ?? null,
+    size: src.size ?? 0,
+    pageCount: src.pageCount ?? null,
+  };
+}
+
 /**
  * For each real volume that has a file-backed archive, produce link ops for the
- * numbered chapters that have no file of their own. Chapters that already carry
- * an individual file (e.g. per-chapter imports) are left untouched, and chapters
- * already pointing at the archive are skipped (idempotent — re-running is a
- * no-op). The archive row itself is never linked.
+ * numbered chapters that are NOT yet COMPLETED — both chapters with no file (link
+ * to the archive) and chapters already pointing at the archive but stuck PENDING
+ * (re-complete them; this is the Kaiju case a download-reset leaves behind).
+ * Chapters that are already COMPLETED are skipped (idempotent), and a chapter
+ * carrying its own individual file keeps that file rather than the archive. The
+ * archive row itself is never linked.
  */
 export function selectChaptersToLink(rows: CoverageRow[]): ChapterLink[] {
   const byVolume = new Map<number, CoverageRow[]>();
@@ -90,16 +108,10 @@ export function selectChaptersToLink(rows: CoverageRow[]): ChapterLink[] {
   for (const group of byVolume.values()) {
     const archive = fileBackedArchive(group);
     if (!archive?.filePath) continue;
+    const fileBacked = archive as CoverageRow & { filePath: string };
     for (const r of group) {
-      if (!isNumbered(r) || hasFile(r)) continue; // skip archive row + chapters with their own file
-      links.push({
-        chapterId: r.id,
-        filePath: archive.filePath,
-        fileName: archive.fileName ?? '',
-        fileFormat: archive.fileFormat ?? null,
-        size: archive.size ?? 0,
-        pageCount: archive.pageCount ?? null,
-      });
+      if (!isNumbered(r) || isDone(r)) continue; // skip archive row + already-complete chapters
+      links.push(buildLink(r, fileBacked));
     }
   }
   return links;

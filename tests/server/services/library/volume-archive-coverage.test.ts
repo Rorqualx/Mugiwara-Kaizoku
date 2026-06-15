@@ -80,9 +80,26 @@ describe('selectChaptersToLink', () => {
     expect(selectChaptersToLink([chap(7, 70), chap(7, 71)])).toEqual([]);
   });
 
-  it('is idempotent: chapters already pointing at the archive are not re-linked', () => {
+  it('is idempotent: chapters already COMPLETED on the archive are not re-linked', () => {
     const linked = chap(2, 19, { downloadStatus: 'COMPLETED', filePath: '/lib/V02.cbr' });
     expect(selectChaptersToLink([archive(2), linked])).toEqual([]);
+  });
+
+  it('re-completes a PENDING chapter already pointing at the archive (Kaiju download-reset case)', () => {
+    // ch 13-17 of Kaiju vol 2: filePath already = the volume archive, but stuck PENDING.
+    const stuck = chap(2, 13, { downloadStatus: 'PENDING', filePath: '/lib/V02.cbr', pageCount: 195 });
+    const links = selectChaptersToLink([archive(2), stuck]);
+    expect(links).toHaveLength(1);
+    expect(links[0]?.chapterId).toBe(stuck.id);
+    expect(links[0]?.filePath).toBe('/lib/V02.cbr');
+  });
+
+  it('completes a PENDING chapter that has its own individual file, keeping that file', () => {
+    const ownPending = chap(2, 20, { downloadStatus: 'PENDING', filePath: '/lib/Chapter 0020.cbz', pageCount: 40 });
+    const links = selectChaptersToLink([archive(2), ownPending]);
+    expect(links).toHaveLength(1);
+    expect(links[0]?.filePath).toBe('/lib/Chapter 0020.cbz'); // keeps its own file, not the archive
+    expect(links[0]?.pageCount).toBe(40);
   });
 
   it('never links the archive row itself', () => {
