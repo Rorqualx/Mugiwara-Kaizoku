@@ -41,6 +41,34 @@ function VolumeFailedHint({ chapters }: { chapters: ChapterEntity[] }): JSX.Elem
 }
 
 /**
+ * Compute the chapter-count badge tally for a volume.
+ *
+ * A whole-volume archive (e.g. `v02.cbr`) is stored as a single
+ * NULL-chapterNumber "volume-file" row that contains every chapter in the
+ * volume. When one is present and COMPLETED, the volume's entire content is on
+ * disk even if the individual numbered chapter rows were never linked — so the
+ * volume counts as fully available rather than 1/N. The volume-file row itself
+ * is excluded from the tally (it's the container, not a chapter); the
+ * unassigned bucket (volumeNumber -1) has no volume-file semantics and falls
+ * back to a flat completed-count.
+ */
+function computeChapterTally(
+  chapters: ChapterEntity[],
+  isUnassigned: boolean,
+): { downloadedCount: number; totalCount: number; isComplete: boolean } {
+  const numberedChapters = chapters.filter(c => c.chapterNumber !== null);
+  const hasWholeVolumeArchive = !isUnassigned && chapters.some(
+    c => c.chapterNumber === null && c.downloadStatus === ChapterStatus.COMPLETED
+  );
+  const tally = (!isUnassigned && numberedChapters.length > 0) ? numberedChapters : chapters;
+  const totalCount = tally.length;
+  const downloadedCount = hasWholeVolumeArchive
+    ? totalCount
+    : tally.filter(c => c.downloadStatus === ChapterStatus.COMPLETED).length;
+  return { downloadedCount, totalCount, isComplete: totalCount > 0 && downloadedCount === totalCount };
+}
+
+/**
  * Volume header with expansion controls, title, and statistics badges
  */
 export const VolumeHeader = memo(({
@@ -56,8 +84,7 @@ export const VolumeHeader = memo(({
   headerActionsProps
 }: VolumeHeaderProps): JSX.Element => {
   const isUnassigned = volumeNumber === -1;
-  const downloadedCount = chapters.filter(c => c.downloadStatus === ChapterStatus.COMPLETED).length;
-  const isComplete = chapters.length > 0 && downloadedCount === chapters.length;
+  const { downloadedCount, totalCount, isComplete } = computeChapterTally(chapters, isUnassigned);
 
   return (
     <Box className={classes['volumeHeader']} style={{
@@ -119,7 +146,7 @@ export const VolumeHeader = memo(({
         </Group>
         <Group gap="xs">
           <Badge color={isComplete ? 'green' : 'red'}>
-            {downloadedCount}/{chapters.length} {isUnassigned ? 'Files' : 'Chapters'}
+            {downloadedCount}/{totalCount} {isUnassigned ? 'Files' : 'Chapters'}
           </Badge>
           {volumePageCount > 0 &&
             <Badge color="blue">{volumePageCount} Pages</Badge>}
