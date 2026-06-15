@@ -392,6 +392,46 @@ export async function cleanupGhostCompletedChapters(
   return stats;
 }
 
+/**
+ * Bounded sweep: heal chapters that are on disk inside a file-backed volume
+ * archive but stuck non-COMPLETED (the Kaiju case a download-reset leaves
+ * behind). Finds up to `maxMangaPerCycle` manga that have at least one such
+ * chapter and runs linkArchiveCoveredChapters on each — making the fix
+ * self-healing library-wide without a refresh/reset/re-enrichment. Each per-
+ * manga call fs-verifies the archive and is a no-op when nothing needs linking.
+ */
+export async function healArchiveCoveredChaptersSweep(
+  prisma: PrismaClient,
+  maxMangaPerCycle = 25,
+): Promise<{ mangaScanned: number; chaptersHealed: number }> {
+  const candidates = await prisma.$queryRaw<Array<{ mangaId: number }>>`
+    SELECT DISTINCT c."mangaId"
+    FROM "Chapter" c
+    WHERE c."chapterNumber" IS NOT NULL AND c."downloadStatus" <> 'COMPLETED'
+      AND EXISTS (
+        SELECT 1 FROM "Chapter" a
+        WHERE a."mangaId" = c."mangaId" AND a."chapterNumber" IS NULL
+          AND a."downloadStatus" = 'COMPLETED' AND a."filePath" IS NOT NULL
+          AND a."volume" = c."volume"
+      )
+    LIMIT ${maxMangaPerCycle}
+  `;
+  if (candidates.length === 0) return { mangaScanned: 0, chaptersHealed: 0 };
+
+  const { linkArchiveCoveredChapters } = await import(
+    '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/link-archive-covered-chapters'
+  );
+  let chaptersHealed = 0;
+  for (const { mangaId } of candidates) {
+    // eslint-disable-next-line no-await-in-loop -- bounded (maxMangaPerCycle), sequential keeps DB pressure low
+    chaptersHealed += await linkArchiveCoveredChapters(mangaId);
+  }
+  if (chaptersHealed > 0) {
+    logger.info(`[DownloadMonitor] Archive-coverage heal: linked ${chaptersHealed} chapter(s) across ${candidates.length} manga`);
+  }
+  return { mangaScanned: candidates.length, chaptersHealed };
+}
+
 /** Result of one vanished-file ghost downgrade cycle. */
 export interface VanishedFileStats {
   scanned: number;

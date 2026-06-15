@@ -1,6 +1,6 @@
 import { prisma } from '@/server/db';
 import { resolveChapterDispatchAttempts } from '@/server/services/download/download-monitor/chapter-dispatch-resolver';
-import { cleanupGhostCompletedChapters, cleanupOrphanedDownloadingChapters, cleanupVanishedFileChapters, resolveCoverageAttempts } from '@/server/services/download/download-monitor/chapter-manager';
+import { cleanupGhostCompletedChapters, cleanupOrphanedDownloadingChapters, cleanupVanishedFileChapters, healArchiveCoveredChaptersSweep, resolveCoverageAttempts } from '@/server/services/download/download-monitor/chapter-manager';
 import { DownloadMonitor } from '@/server/services/download/downloadMonitor';
 import { FileImporter } from '@/server/services/download/fileImporter';
 import { hydrateFromDatabase } from '@/server/services/download/tracked-download/db-sync';
@@ -94,6 +94,13 @@ async function runMaintenanceSweeps(): Promise<void> {
   // iter-IM: downgrade ghost-completed chapters whose file is GONE and whose
   // parent dir IS reachable (so we're sure it's not a mount outage).
   await cleanupVanishedFileChapters(prisma);
+
+  // Heal chapters on disk inside a file-backed volume archive but stuck
+  // non-COMPLETED (the Kaiju case). Bounded per cycle; makes the archive-
+  // coverage fix self-healing library-wide with no user action. Runs after
+  // cleanupVanishedFileChapters so phantom archive rows are downgraded first
+  // and never counted as coverage.
+  await healArchiveCoveredChaptersSweep(prisma);
 
   // iter-D1: resolve pending ProwlarrCoverageAttempt rows (observation-only
   // telemetry that drives the coverage-parser improvement loop).
