@@ -105,6 +105,16 @@ function buildJvmArgs(config: JvmArgsConfig): string[] {
         // Additional headless mode settings
         '-Djava.awt.headless=true',
         '-Dfile.encoding=UTF-8',
+        // WebView/Cloudflare sources (e.g. mangafire) drive Suwayomi's bundled
+        // KCEF off-screen browser, which loads JOGL's libgluegen_rt.so for its GL
+        // canvas. KCEF downloads that native into <rootDir>/bin/kcef, which is NOT
+        // on the JVM's default java.library.path — so the canvas init throws
+        // UnsatisfiedLinkError and the source silently returns zero results.
+        // Add the kcef dir to the path (alongside the standard Linux JRE dirs so
+        // other native loads are unaffected). Only the path LIST is fixed at JVM
+        // init, so the .so resolves at loadLibrary time even if KCEF downloads it
+        // after startup.
+        `-Djava.library.path=${path.join(configPath, 'bin', 'kcef')}:/usr/java/packages/lib:/usr/lib64:/usr/lib`,
         '-jar',
         jarPath,
     ];
