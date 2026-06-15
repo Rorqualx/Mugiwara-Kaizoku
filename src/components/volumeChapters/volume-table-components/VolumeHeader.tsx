@@ -45,12 +45,16 @@ function VolumeFailedHint({ chapters }: { chapters: ChapterEntity[] }): JSX.Elem
  *
  * A whole-volume archive (e.g. `v02.cbr`) is stored as a single
  * NULL-chapterNumber "volume-file" row that contains every chapter in the
- * volume. When one is present and COMPLETED, the volume's entire content is on
- * disk even if the individual numbered chapter rows were never linked — so the
- * volume counts as fully available rather than 1/N. The volume-file row itself
- * is excluded from the tally (it's the container, not a chapter); the
- * unassigned bucket (volumeNumber -1) has no volume-file semantics and falls
- * back to a flat completed-count.
+ * volume. When one is present, COMPLETED **and file-backed**, the volume's
+ * entire content is on disk even if the individual numbered chapter rows were
+ * never linked — so the volume counts as fully available rather than 1/N. The
+ * volume-file row itself is excluded from the tally (it's the container, not a
+ * chapter). The file-backed requirement matters because `ensureVolumeFileRows`
+ * also creates filePath-less container rows for per-chapter imports (real
+ * coverage is then carried by the numbered chapters' own COMPLETED status); a
+ * file-less container is not whole-volume coverage. The unassigned bucket
+ * (volumeNumber -1) has no volume-file semantics and falls back to a flat
+ * completed-count.
  */
 function computeChapterTally(
   chapters: ChapterEntity[],
@@ -59,6 +63,7 @@ function computeChapterTally(
   const numberedChapters = chapters.filter(c => c.chapterNumber !== null);
   const hasWholeVolumeArchive = !isUnassigned && chapters.some(
     c => c.chapterNumber === null && c.downloadStatus === ChapterStatus.COMPLETED
+      && c.filePath !== null && c.filePath !== ''
   );
   const tally = (!isUnassigned && numberedChapters.length > 0) ? numberedChapters : chapters;
   const totalCount = tally.length;

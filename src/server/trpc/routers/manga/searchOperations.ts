@@ -334,7 +334,7 @@ export const searchRouter = router({
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
         Chapter: input?.include?.chapters
-          ? { select: { id: true, downloadStatus: true, volumeId: true, volume: true, chapterNumber: true } }
+          ? { select: { id: true, downloadStatus: true, volumeId: true, volume: true, chapterNumber: true, filePath: true } }
           : false,
         Volume: input?.include?.volumes
           ? { select: { id: true } }

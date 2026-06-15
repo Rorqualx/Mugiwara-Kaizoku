@@ -160,6 +160,37 @@ async function ensureRowForVolume(
 }
 
 /**
+ * Delete file-less volume-file rows stranded in a volume that no longer holds
+ * any numbered chapters. These orphans appear when reconciliation rewrites
+ * `Chapter.volume` for the numbered rows but leaves their companion volume-file
+ * row behind in the old volume — the row then represents nothing on disk yet
+ * still reads as a COMPLETED "whole-volume archive", inflating coverage. Only
+ * file-LESS rows are removed; a row with a real `filePath` points at an actual
+ * archive on disk and is preserved even when its volume has no numbered rows.
+ *
+ * @param volumesWithChapters volume numbers that currently have numbered chapters.
+ */
+async function removeOrphanedVolumeFileRows(
+  mangaId: number,
+  volumesWithChapters: Set<number>,
+): Promise<number> {
+  const containers = await prisma.chapter.findMany({
+    where: {
+      mangaId,
+      chapterNumber: null,
+      OR: [{ filePath: null }, { filePath: '' }],
+    },
+    select: { id: true, volume: true },
+  });
+  const orphanIds = containers
+    .filter(c => c.volume !== null && !volumesWithChapters.has(c.volume))
+    .map(c => c.id);
+  if (orphanIds.length === 0) return 0;
+  const result = await prisma.chapter.deleteMany({ where: { id: { in: orphanIds } } });
+  return result.count;
+}
+
+/**
  * Phase-finalize entry point. Walks every volume that has at least one
  * chapter row for the manga and ensures a volume-file (NULL-chapterNumber)
  * companion row exists with aggregated stats.
@@ -196,8 +227,10 @@ export async function ensureVolumeFileRows(mangaId: number): Promise<void> {
       else skipped++;
     }
 
-    if (created > 0 || updated > 0) {
-      logger.info(`[ensureVolumeFileRows] mangaId=${mangaId} created=${created} updated=${updated} skipped=${skipped} (${byVolume.size} volumes)`);
+    const orphansRemoved = await removeOrphanedVolumeFileRows(mangaId, new Set(byVolume.keys()));
+
+    if (created > 0 || updated > 0 || orphansRemoved > 0) {
+      logger.info(`[ensureVolumeFileRows] mangaId=${mangaId} created=${created} updated=${updated} skipped=${skipped} orphansRemoved=${orphansRemoved} (${byVolume.size} volumes)`);
     }
   } catch (err) {
     logger.warn(`[ensureVolumeFileRows] failed for manga ${mangaId} (non-critical)`, err);

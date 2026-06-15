@@ -45,6 +45,7 @@ interface CardChapter {
   downloadStatus?: string | null;
   chapterNumber?: number | null;
   volume?: number | null;
+  filePath?: string | null;
 }
 
 interface CardTally {
@@ -61,12 +62,18 @@ interface CardTally {
  * A whole-volume archive (e.g. `Akira V02.cbr`) imports as a single
  * NULL-chapterNumber "volume-file" row that holds every chapter in the volume,
  * sitting alongside numbered placeholder rows that were never individually
- * linked. When such a row is COMPLETED, the volume's full content is on disk —
- * so every numbered chapter in that volume counts as downloaded and the volume
- * counts as complete, even though only the container row carries a file. The
- * container row itself is excluded from the tally (it's not a chapter). The
- * unassigned bucket (no real volume) has no whole-volume semantics and falls
- * back to a flat completed-count over its numbered chapters.
+ * linked. When such a row is COMPLETED **and file-backed**, the volume's full
+ * content is on disk — so every numbered chapter in that volume counts as
+ * downloaded and the volume counts as complete, even though only the container
+ * row carries a file. The container row itself is excluded from the tally.
+ *
+ * The file-backed requirement matters: `ensureVolumeFileRows` also creates
+ * filePath-less container rows for per-chapter imports, and reconciliation can
+ * strand these as orphans in volumes that no longer hold any numbered chapters.
+ * A file-less container is NOT real coverage, so it never marks chapters as
+ * downloaded and an orphaned one (no numbered chapters) is ignored entirely.
+ * The unassigned bucket (no real volume) has no whole-volume semantics and
+ * falls back to a flat completed-count over its numbered chapters.
  */
 function computeCardTally(chapters: CardChapter[]): CardTally {
   const byVolume = new Map<number, CardChapter[]>();
@@ -79,6 +86,7 @@ function computeCardTally(chapters: CardChapter[]): CardTally {
 
   const isNumbered = (c: CardChapter): boolean => c.chapterNumber !== null && c.chapterNumber !== undefined;
   const isDone = (c: CardChapter): boolean => c.downloadStatus === 'COMPLETED';
+  const hasFile = (c: CardChapter): boolean => c.filePath !== null && c.filePath !== undefined && c.filePath !== '';
 
   const tally: CardTally = { downloadedChapters: 0, totalChapters: 0, downloadedVolumes: 0, totalVolumes: 0 };
 
@@ -92,16 +100,23 @@ function computeCardTally(chapters: CardChapter[]): CardTally {
       continue;
     }
 
-    const hasWholeVolumeArchive = group.some((c) => !isNumbered(c) && isDone(c));
-    // Fall back to the container row only when the volume has no numbered rows.
-    const counted = numbered.length > 0 ? numbered : group;
-    const volTotal = counted.length;
-    const volDone = hasWholeVolumeArchive ? volTotal : counted.filter(isDone).length;
+    // Only a real, file-backed archive grants whole-volume coverage.
+    const hasFileArchive = group.some((c) => !isNumbered(c) && isDone(c) && hasFile(c));
 
-    tally.totalChapters += volTotal;
-    tally.downloadedChapters += volDone;
-    tally.totalVolumes += 1;
-    if (volTotal > 0 && volDone === volTotal) tally.downloadedVolumes += 1;
+    if (numbered.length > 0) {
+      const volDone = hasFileArchive ? numbered.length : numbered.filter(isDone).length;
+      tally.totalChapters += numbered.length;
+      tally.downloadedChapters += volDone;
+      tally.totalVolumes += 1;
+      if (volDone === numbered.length) tally.downloadedVolumes += 1;
+    } else if (hasFileArchive) {
+      // A file-backed archive with no numbered placeholders = one complete unit.
+      tally.totalChapters += 1;
+      tally.downloadedChapters += 1;
+      tally.totalVolumes += 1;
+      tally.downloadedVolumes += 1;
+    }
+    // else: orphaned file-less container — contributes nothing.
   }
 
   return tally;
