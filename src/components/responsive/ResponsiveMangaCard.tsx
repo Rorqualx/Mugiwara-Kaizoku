@@ -40,6 +40,73 @@ interface ResponsiveMangaCardProps {
   showMobileActions?: boolean;
 }
 
+/** Minimal chapter shape the card needs for its download tally. */
+interface CardChapter {
+  downloadStatus?: string | null;
+  chapterNumber?: number | null;
+  volume?: number | null;
+}
+
+interface CardTally {
+  downloadedChapters: number;
+  totalChapters: number;
+  downloadedVolumes: number;
+  totalVolumes: number;
+}
+
+/**
+ * Compute the card's chapter/volume download tally, honoring whole-volume
+ * archives the same way the volume detail header does.
+ *
+ * A whole-volume archive (e.g. `Akira V02.cbr`) imports as a single
+ * NULL-chapterNumber "volume-file" row that holds every chapter in the volume,
+ * sitting alongside numbered placeholder rows that were never individually
+ * linked. When such a row is COMPLETED, the volume's full content is on disk —
+ * so every numbered chapter in that volume counts as downloaded and the volume
+ * counts as complete, even though only the container row carries a file. The
+ * container row itself is excluded from the tally (it's not a chapter). The
+ * unassigned bucket (no real volume) has no whole-volume semantics and falls
+ * back to a flat completed-count over its numbered chapters.
+ */
+function computeCardTally(chapters: CardChapter[]): CardTally {
+  const byVolume = new Map<number, CardChapter[]>();
+  for (const ch of chapters) {
+    const vol = typeof ch.volume === 'number' && ch.volume >= 0 ? ch.volume : -1;
+    const bucket = byVolume.get(vol) ?? [];
+    bucket.push(ch);
+    byVolume.set(vol, bucket);
+  }
+
+  const isNumbered = (c: CardChapter): boolean => c.chapterNumber !== null && c.chapterNumber !== undefined;
+  const isDone = (c: CardChapter): boolean => c.downloadStatus === 'COMPLETED';
+
+  const tally: CardTally = { downloadedChapters: 0, totalChapters: 0, downloadedVolumes: 0, totalVolumes: 0 };
+
+  for (const [vol, group] of byVolume) {
+    const numbered = group.filter(isNumbered);
+
+    if (vol === -1) {
+      // Unassigned: flat completed-count, no whole-volume coverage.
+      tally.totalChapters += numbered.length;
+      tally.downloadedChapters += numbered.filter(isDone).length;
+      continue;
+    }
+
+    const hasWholeVolumeArchive = group.some((c) => !isNumbered(c) && isDone(c));
+    // Fall back to the container row only when the volume has no numbered rows.
+    const counted = numbered.length > 0 ? numbered : group;
+    const volTotal = counted.length;
+    const volDone = hasWholeVolumeArchive ? volTotal : counted.filter(isDone).length;
+
+    tally.totalChapters += volTotal;
+    tally.downloadedChapters += volDone;
+    tally.totalVolumes += 1;
+    if (volTotal > 0 && volDone === volTotal) tally.downloadedVolumes += 1;
+  }
+
+  return tally;
+}
+
 /**
  * Returns the best available cover URL, routed through the image proxy
  */
@@ -74,38 +141,9 @@ export function ResponsiveMangaCard({
   const mangaIdNum = typeof manga.id === 'number' ? manga.id : Number(manga.id);
   const coverManifest = useCoverLayerManifest(Number.isFinite(mangaIdNum) ? mangaIdNum : undefined);
 
-  const { downloadedChapters, totalChapters, downloadedVolumes, totalVolumes } = useMemo(() => {
-    const chapters = (manga as {
-      Chapter?: Array<{ downloadStatus?: string | null; volumeId?: number | null }>;
-    }).Chapter ?? [];
-    const volumes = (manga as { Volume?: Array<{ id: number }> }).Volume ?? [];
-
-    const chTotal = chapters.length;
-    const chDone = chapters.filter((c) => c.downloadStatus === 'COMPLETED').length;
-
-    // Volume is "downloaded" only if it has at least one chapter and every
-    // chapter tied to it is COMPLETED.
-    const byVolume = new Map<number, { done: number; total: number }>();
-    for (const ch of chapters) {
-      if (ch.volumeId === null || ch.volumeId === undefined) continue;
-      const bucket = byVolume.get(ch.volumeId) ?? { done: 0, total: 0 };
-      bucket.total += 1;
-      if (ch.downloadStatus === 'COMPLETED') bucket.done += 1;
-      byVolume.set(ch.volumeId, bucket);
-    }
-    let volDone = 0;
-    for (const v of volumes) {
-      const bucket = byVolume.get(v.id);
-      if (bucket && bucket.total > 0 && bucket.done === bucket.total) volDone += 1;
-    }
-
-    return {
-      totalChapters: chTotal,
-      downloadedChapters: chDone,
-      totalVolumes: volumes.length,
-      downloadedVolumes: volDone,
-    };
-  }, [manga]);
+  const { downloadedChapters, totalChapters, downloadedVolumes, totalVolumes } = useMemo(() =>
+    computeCardTally((manga as { Chapter?: CardChapter[] }).Chapter ?? []),
+    [manga]);
 
   // Cover load-failure handling now lives inside <MangaCover>, which swaps to
   // its fallback image on error — no separate Image() probe needed.
