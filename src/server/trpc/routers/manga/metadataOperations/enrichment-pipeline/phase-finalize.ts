@@ -23,6 +23,7 @@ import { fillGenericChapterTitlesFromProviders } from './phase-finalize/chapter-
 import { ensureVolumeFileRows } from './phase-finalize/ensure-volume-file-rows';
 import { appendComicVineGalleryImages } from './phase-finalize/gallery-from-comicvine';
 import { unionVolumeChapterCoversIntoGallery } from './phase-finalize/gallery-union';
+import { linkArchiveCoveredChapters } from './phase-finalize/link-archive-covered-chapters';
 import { persistAniListRelationsForManga } from './phase-finalize/manga-relation-resolver';
 import { syncMangaStatusFromMetadata } from './phase-finalize/manga-status-sync';
 import { persistMergedSynonyms } from './phase-finalize/merged-synonyms';
@@ -95,6 +96,11 @@ export async function phaseFinalize(
   // "1-N" row in the chapter table so the UI can render the volume as a
   // unit alongside the per-chapter rows.
   await ensureVolumeFileRows(mangaId);
+  // Link numbered chapters covered by a file-backed whole-volume archive to that
+  // archive (COMPLETED + filePath), so a range/manifest fix never leaves them
+  // PENDING for the download monitor to re-fetch. Runs after ensureVolumeFileRows
+  // (heals the archive rows) and reapplyManualManifestToDb (re-homes chapters).
+  await linkArchiveCoveredChapters(mangaId);
   // Catch special chapters (Ch <= 0, decimals) orphaned by non-Fandom paths
   // like the adaptive bridge (0.1-0.4 JJK prequel chapters). Idempotent with
   // the earlier call inside applyEnrichmentData.

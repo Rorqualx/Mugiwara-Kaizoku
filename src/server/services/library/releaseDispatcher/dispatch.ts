@@ -35,6 +35,7 @@ import type { MangaDexCandidatePayload } from '@/server/services/library/indexer
 import type { SuwayomiCandidatePayload } from '@/server/services/library/indexerSearch/adapters/suwayomi-adapter';
 import { phaseIndexerSearch } from '@/server/services/library/indexerSearch/phase-indexer-search';
 import type { ReleaseCandidate, ReleaseScope } from '@/server/services/library/indexerSearch/types';
+import { loadMissingChapters, type ChapterStub } from '@/server/services/library/releaseDispatcher/chapter-selection';
 import {
   emitChapterExhausted, loadDispatchMediaType, loadFailedSourcesForManga, recordDispatchSkip,
   recordDispatchAttempt, recordProwlarrDispatch,
@@ -116,16 +117,6 @@ export interface ProwlarrDispatchOutcome {
   coveredChapters: number[];
 }
 
-interface ChapterStub {
-  id: number;
-  chapterNumber: number | null;
-  volume: number | null;
-  mangadexId: string | null;
-  suwayomiChapterId: string | null;
-  /** MangaDex `translatedLanguage` of the bound UUID; gates the Phase 2b
-   * language skip. Null on rows pre-backfill. */
-  language: string | null;
-}
 
 /** Build the set of chapter numbers Prowlarr packs would deliver, based on
  * coverage parsed from each release title. Volume coverage is left for a
@@ -206,35 +197,6 @@ async function readInFlightChapterNumbers(mangaId: number): Promise<Set<number>>
   return new Set(rows.map(r => r.chapterNumber));
 }
 
-/**
- * Build the Prisma `where` for the chapters this run should consider, given
- * an optional scope. Mirrors the same logic used by `phaseIndexerSearch` so
- * the two functions agree on which chapters are "in scope".
- */
-function buildChapterWhere(mangaId: number, scope?: ReleaseScope): Record<string, unknown> {
-  const base = { mangaId, downloadStatus: { not: 'COMPLETED' as const } };
-  if (!scope || scope.mode === 'ALL_MISSING') {
-    return { ...base, monitored: true };
-  }
-  if ((scope.mode === 'SINGLE' || scope.mode === 'BULK') && scope.chapterIds && scope.chapterIds.length > 0) {
-    return { ...base, id: { in: scope.chapterIds } };
-  }
-  if (scope.mode === 'VOLUME' && scope.volumeNumber !== undefined) {
-    return { ...base, volume: scope.volumeNumber };
-  }
-  log.warn('Invalid scope in dispatcher; falling back to ALL_MISSING semantics', { scope });
-  return { ...base, monitored: true };
-}
-
-async function loadMissingChapters(
-  mangaId: number,
-  scope?: ReleaseScope,
-): Promise<ChapterStub[]> {
-  return prisma.chapter.findMany({
-    where: buildChapterWhere(mangaId, scope),
-    select: { id: true, chapterNumber: true, volume: true, mangadexId: true, suwayomiChapterId: true, language: true },
-  });
-}
 
 /**
  * Resolve the absolute on-disk destination for a chapter download, mirroring
