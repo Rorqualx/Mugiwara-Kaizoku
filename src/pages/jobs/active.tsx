@@ -472,7 +472,7 @@ function ActiveJobsContent(): React.ReactElement {
     : renderMixedTabRows(paginatedJobs, actions);
 
   return (
-    <Container size="xl" style={{ paddingTop: '80px', paddingBottom: '20px' }}>
+    <Container fluid style={{ paddingTop: '80px', paddingBottom: '20px', paddingLeft: '32px', paddingRight: '32px' }}>
       <Stack gap="xl">
         <JobsHeader totalCount={totalCount} completedCount={completedCount} failedCount={failedCount}
           activeTab={activeTab} deleteAllCompleted={mutations.deleteAllCompleted} deleteAllFailed={mutations.deleteAllFailed}
