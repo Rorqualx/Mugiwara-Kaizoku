@@ -12,6 +12,7 @@ import { z } from 'zod';
 
 import type { WebSocketService } from '@/server/api/services/websocket-service';
 import { prisma } from '@/server/db';
+import { healArchiveCoveredChaptersSweep } from '@/server/services/download/download-monitor/chapter-manager';
 import { EnhancedScanner } from '@/server/services/library/scanner';
 import { isSuccess, isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -381,6 +382,16 @@ export async function handleLibraryScan(job: jobs): Promise<void> {
       }
     }
     /* eslint-enable no-await-in-loop */
+  }
+
+  // A library scan skips existing manga (duplicate detection), so it wouldn't
+  // otherwise heal an already-drifted title. Run a full archive-coverage heal
+  // pass at completion so "refresh library" immediately completes any chapters
+  // on disk inside a volume archive but stuck non-COMPLETED — no per-manga limit
+  // (the candidate set is small; each call fs-verifies and no-ops when clean).
+  const { chaptersHealed } = await healArchiveCoveredChaptersSweep(prisma, 100_000);
+  if (chaptersHealed > 0) {
+    logger.info(`Library scan: archive-coverage heal completed ${chaptersHealed} chapter(s)`);
   }
 
   logger.info(`Library scan completed`);
