@@ -47,6 +47,29 @@ function buildChapterWhere(mangaId: number, scope?: ReleaseScope): Record<string
   return { ...base, monitored: true };
 }
 
+/**
+ * Chapter numbers that were neither natively enqueued, actually dispatched by
+ * Prowlarr, nor already marked uncovered — i.e. native yielded them to the
+ * *estimated* Prowlarr coverage but the Prowlarr dispatch never took them, so a
+ * trailing native fill should reclaim them. Pure for testability.
+ */
+export function selectReclaimableChapters(
+  missing: ReadonlyArray<{ chapterNumber: number | null }>,
+  nativeEnqueuedNums: ReadonlySet<number>,
+  prowlarrDispatchedNums: ReadonlySet<number>,
+  uncoveredNums: ReadonlySet<number>,
+): number[] {
+  const out: number[] = [];
+  for (const m of missing) {
+    if (m.chapterNumber === null) continue;
+    if (nativeEnqueuedNums.has(m.chapterNumber)) continue;
+    if (prowlarrDispatchedNums.has(m.chapterNumber)) continue;
+    if (uncoveredNums.has(m.chapterNumber)) continue;
+    out.push(m.chapterNumber);
+  }
+  return out;
+}
+
 export async function loadMissingChapters(
   mangaId: number,
   scope?: ReleaseScope,

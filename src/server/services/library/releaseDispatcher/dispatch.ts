@@ -35,7 +35,7 @@ import type { MangaDexCandidatePayload } from '@/server/services/library/indexer
 import type { SuwayomiCandidatePayload } from '@/server/services/library/indexerSearch/adapters/suwayomi-adapter';
 import { phaseIndexerSearch } from '@/server/services/library/indexerSearch/phase-indexer-search';
 import type { ReleaseCandidate, ReleaseScope } from '@/server/services/library/indexerSearch/types';
-import { loadMissingChapters, type ChapterStub } from '@/server/services/library/releaseDispatcher/chapter-selection';
+import { loadMissingChapters, selectReclaimableChapters, type ChapterStub } from '@/server/services/library/releaseDispatcher/chapter-selection';
 import {
   emitChapterExhausted, loadDispatchMediaType, loadFailedSourcesForManga, recordDispatchSkip,
   recordDispatchAttempt, recordProwlarrDispatch,
@@ -710,6 +710,35 @@ async function fillNativeGaps(ctx: DispatchContext, summary: DispatchSummary): P
 }
 
 /**
+ * Manual-scope reclaim pass. The pre-Prowlarr native fill yields chapters to the
+ * *estimated* Prowlarr coverage; if the Prowlarr dispatch then rejects those
+ * packs (scope/scoring), the yielded chapters are orphaned. Reset coverage to
+ * what Prowlarr *actually* dispatched and run native fill over the leftovers so
+ * a source that could serve them (e.g. MangaDex) gets a second chance.
+ */
+async function reclaimYieldedNativeChapters(
+  ctx: DispatchContext, summary: DispatchSummary, prowlarrDispatched: number[],
+): Promise<void> {
+  const dispatched = new Set(prowlarrDispatched);
+  const reclaimable = new Set(selectReclaimableChapters(
+    ctx.missing,
+    new Set(summary.nativeEnqueued.map(n => n.chapterNumber)),
+    dispatched,
+    new Set(summary.uncoveredChapters),
+  ));
+  if (reclaimable.size === 0) return;
+  // Coverage now reflects only what Prowlarr actually took, so previously-
+  // yielded chapters no longer suppress native in fillNativeForChapter.
+  ctx.prowlarrCoverage.clear();
+  for (const n of dispatched) ctx.prowlarrCoverage.add(n);
+  for (const ch of ctx.missing) {
+    if (ch.chapterNumber === null || !reclaimable.has(ch.chapterNumber)) continue;
+    // eslint-disable-next-line no-await-in-loop -- sequential enqueue honors unique constraint
+    await fillNativeForChapter(ctx, ch, summary);
+  }
+}
+
+/**
  * Iterate the Prowlarr pack picker until the missing-chapter pool is empty,
  * no candidate fits, or we hit the safety cap. Extracted from
  * {@link runUnifiedReleaseSearch} to keep that function's complexity in budget.
@@ -852,8 +881,14 @@ async function dispatchCandidates(
     }
   }
 
+  // Manual scope: native yielded chapters to the *estimated* Prowlarr coverage
+  // before Prowlarr ran. Reclaim any the dispatch didn't actually take so they
+  // aren't orphaned between both sources (e.g. MangaDex-servable chapters that
+  // were deferred to a pack Prowlarr then rejected at scope/scoring).
+  if (isManualScope) await reclaimYieldedNativeChapters(ctx, summary, patch?.prowlarrCoveredChapters ?? []);
+
   // Trailing fill is defensive only (ALL_MISSING auto-trigger where native
-  // didn't run first). For manual scope the pre-Prowlarr fill already ran.
+  // didn't run first). For manual scope the pre-Prowlarr fill + reclaim ran.
   if (!isManualScope) await fillNativeGaps(ctx, summary);
   return patch;
 }
