@@ -295,6 +295,103 @@ function buildNewChapterData(
   };
 }
 
+/**
+ * Compute the highest plausible chapter number for a series, used to reject
+ * phantom Fandom chapters before they're created. The Fandom adaptive parser
+ * occasionally emits an isolated far-outlier number — a year misread as a
+ * chapter (`chapter-2008.cbz` on a 123-chapter series), a footnote/reference
+ * number, etc. These sit alone far above the dense body of real chapters after
+ * a large gap.
+ *
+ * Walk the sorted numbers; the bound is the last value before the first gap
+ * that is both large (> max(100, 50% of the running max)) AND followed only by
+ * a small minority tail. A substantial run after a gap is treated as real and
+ * kept, so legitimately long/offset-numbered series are never truncated. Only
+ * the creation of NEW chapters is gated, so a false drop merely skips an
+ * auto-placeholder — the real chapter still imports when downloaded.
+ */
+export function plausibleMaxChapter(allNumbers: number[]): number {
+  const sorted = [...new Set(allNumbers)].filter(n => Number.isFinite(n)).sort((a, b) => a - b);
+  if (sorted.length === 0) return Infinity;
+  let lastKept = sorted[0] as number;
+  for (let i = 1; i < sorted.length; i++) {
+    const n = sorted[i] as number;
+    const gapLimit = Math.max(100, lastKept * 0.5);
+    if (n - lastKept > gapLimit) {
+      const tailCount = sorted.length - i;
+      // Small minority after a big gap → phantom outlier tail. Drop it.
+      if (tailCount <= Math.max(20, sorted.length * 0.1)) return lastKept;
+      // Otherwise it's a substantial run (real, just offset) — keep going.
+    }
+    lastKept = n;
+  }
+  return lastKept;
+}
+
+interface ClassifyContext {
+  existingNumbers: Set<number | null>;
+  fileBackedNumbers: Set<number>;
+  chaptersWithoutVolume: Set<number>;
+  hasBadFandomVolumes: boolean;
+  phantomBound: number;
+  startIndex: number;
+}
+
+interface ClassifyResult {
+  chaptersToCreate: NewChapterData[];
+  updatedCount: number;
+  createdCount: number;
+  coversApplied: number;
+  descsApplied: number;
+  skippedPhantom: number;
+}
+
+/**
+ * Walk the Fandom title map: update existing chapters in place, collect new ones
+ * to create, and skip phantom far-outliers (number above `phantomBound`).
+ * Extracted from applyFandomDataToDb to keep that function within budget.
+ */
+async function classifyFandomChapters(
+  mangaId: number,
+  maps: ChapterEnrichmentMaps,
+  ctx: ClassifyContext,
+): Promise<ClassifyResult> {
+  let nextIndex = ctx.startIndex;
+  let updatedCount = 0, createdCount = 0, coversApplied = 0, descsApplied = 0, skippedPhantom = 0;
+  const chaptersToCreate: NewChapterData[] = [];
+
+  for (const [chapterNumStr, chTitle] of Object.entries(maps.chapterTitleMap)) {
+    const chapterNum = Number(chapterNumStr);
+    // Accept chapter 0 (canonical "Chapter 0" prequel like Dragon Ball / FMA) and
+    // decimal specials (0.1, 0.2 prologues, 1.5 interludes). Reject only negatives.
+    if (isNaN(chapterNum) || chapterNum < 0) continue;
+
+    if (ctx.existingNumbers.has(chapterNum)) {
+      const isFileBacked = ctx.fileBackedNumbers.has(chapterNum);
+      const canAssignVolume = ctx.chaptersWithoutVolume.has(chapterNum) && !ctx.hasBadFandomVolumes && !isFileBacked;
+      const updateData = buildChapterUpdateData(chapterNum, chTitle, maps, !canAssignVolume);
+      if (Object.keys(updateData).length === 0) continue;
+      // eslint-disable-next-line no-await-in-loop -- Sequential DB updates for chapter enrichment
+      const updated = await prisma.chapter.updateMany({
+        where: { mangaId, chapterNumber: chapterNum },
+        data: updateData,
+      });
+      if (updated.count > 0) updatedCount++;
+    } else if (chapterNum > ctx.phantomBound) {
+      // Phantom far-outlier (e.g. a year misparsed as a chapter number) — skip.
+      skippedPhantom++;
+    } else {
+      // New chapter: apply Fandom volume unless the map itself is corrupt
+      chaptersToCreate.push(buildNewChapterData({ mangaId, chapterNum, title: chTitle, index: nextIndex++, maps, skipVolume: ctx.hasBadFandomVolumes }));
+      createdCount++;
+    }
+    if (maps.chapterCoverMap[chapterNum]) coversApplied++;
+    if (maps.chapterDescriptionMap[chapterNum]) descsApplied++;
+  }
+
+  return { chaptersToCreate, updatedCount, createdCount, coversApplied, descsApplied, skippedPhantom };
+}
+
 /** Update existing DB chapters with Fandom data AND create missing chapters */
 export async function applyFandomDataToDb(
   mangaId: number,
@@ -302,8 +399,6 @@ export async function applyFandomDataToDb(
   expectedVolumeCount?: number | undefined,
   extraGalleryUrls?: string[],
 ): Promise<void> {
-  let updatedCount = 0;
-  let createdCount = 0;
   let coversApplied = 0;
   let descsApplied = 0;
 
@@ -328,40 +423,28 @@ export async function applyFandomDataToDb(
     where: { mangaId },
     _max: { index: true },
   });
-  let nextIndex = (maxIndexResult._max.index ?? 0) + 1;
+  const nextIndex = (maxIndexResult._max.index ?? 0) + 1;
 
   const hasBadFandomVolumes = isUnreliableVolumeMap(maps.chapterVolumeMap);
   // Previously: wholesale-skip when providers covered >50% of volumes. Now we
   // gap-fill per-chapter: only apply Fandom's volume assignment when the chapter
   // has no existing volume. `hasBadFandomVolumes` still forces a global skip.
 
-  const chaptersToCreate: NewChapterData[] = [];
+  // Upper bound for NEW chapter creation, derived from existing file-backed
+  // chapters + the Fandom-discovered numbers. Blocks phantom far-outliers
+  // (misparsed years/footnotes) from being created as PENDING placeholders.
+  const phantomBound = plausibleMaxChapter([
+    ...fileBackedNumbers,
+    ...Object.keys(maps.chapterTitleMap).map(Number).filter(n => !isNaN(n)),
+  ]);
 
-  for (const [chapterNumStr, chTitle] of Object.entries(maps.chapterTitleMap)) {
-    const chapterNum = Number(chapterNumStr);
-    // Accept chapter 0 (canonical "Chapter 0" prequel like Dragon Ball / FMA) and
-    // decimal specials (0.1, 0.2 prologues, 1.5 interludes). Reject only negatives.
-    if (isNaN(chapterNum) || chapterNum < 0) continue;
-
-    if (existingNumbers.has(chapterNum)) {
-      const isFileBacked = fileBackedNumbers.has(chapterNum);
-      const canAssignVolume = chaptersWithoutVolume.has(chapterNum) && !hasBadFandomVolumes && !isFileBacked;
-      const updateData = buildChapterUpdateData(chapterNum, chTitle, maps, !canAssignVolume);
-      if (Object.keys(updateData).length === 0) continue;
-      // eslint-disable-next-line no-await-in-loop -- Sequential DB updates for chapter enrichment
-      const updated = await prisma.chapter.updateMany({
-        where: { mangaId, chapterNumber: chapterNum },
-        data: updateData,
-      });
-      if (updated.count > 0) updatedCount++;
-    } else {
-      // New chapter: apply Fandom volume unless the map itself is corrupt
-      chaptersToCreate.push(buildNewChapterData({ mangaId, chapterNum, title: chTitle, index: nextIndex++, maps, skipVolume: hasBadFandomVolumes }));
-      createdCount++;
-    }
-    if (maps.chapterCoverMap[chapterNum]) coversApplied++;
-    if (maps.chapterDescriptionMap[chapterNum]) descsApplied++;
-  }
+  const classified = await classifyFandomChapters(mangaId, maps, {
+    existingNumbers, fileBackedNumbers, chaptersWithoutVolume,
+    hasBadFandomVolumes, phantomBound, startIndex: nextIndex,
+  });
+  const { chaptersToCreate, updatedCount, createdCount, skippedPhantom } = classified;
+  coversApplied += classified.coversApplied;
+  descsApplied += classified.descsApplied;
 
   if (chaptersToCreate.length > 0) {
     const BATCH_SIZE = 50;
@@ -377,6 +460,10 @@ export async function applyFandomDataToDb(
   const orphanResult = await applyOrphanedCoverDescriptions(mangaId, maps, existingNumbers);
   coversApplied += orphanResult.covers;
   descsApplied += orphanResult.descs;
+
+  if (skippedPhantom > 0) {
+    logger.warn(`[enrichmentPipeline] Skipped ${skippedPhantom} phantom Fandom chapter(s) above plausible max ${phantomBound} for manga ${mangaId}`);
+  }
 
   logger.info(`[enrichmentPipeline] Updated ${updatedCount} chapters, created ${createdCount} new: ${coversApplied} covers, ${descsApplied} descriptions (${orphanResult.covers} orphaned covers, ${orphanResult.descs} orphaned descs)`);
 
