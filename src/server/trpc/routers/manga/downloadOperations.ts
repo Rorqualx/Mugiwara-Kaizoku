@@ -31,6 +31,7 @@ import { logInfo, logError, EventType, EventSource } from '@/utils/system-event-
 
 import {
   buildResetResult,
+  healArchiveCoveredBeforeReset, healChapterIfCovered,
   invalidateMangaCacheFor,
   runDispatchForReset,
   type ResetFailedDownloadsResult,
@@ -708,6 +709,7 @@ export const downloadRouter = router({
   resetFailedDownloads: protectedProcedure
     .input(z.object({ id: z.number(), volumeNumber: z.number().optional() }))
     .mutation(async ({ input }): Promise<ResetFailedDownloadsResult> => {
+      await healArchiveCoveredBeforeReset(input.id);
       const { clearFailedAttemptsForManga } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
       const clearedChapterIds = await clearFailedAttemptsForManga(input.id, input.volumeNumber);
       if (clearedChapterIds.length === 0) {
@@ -744,6 +746,7 @@ export const downloadRouter = router({
   resetAllFailedDownloads: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }): Promise<ResetFailedDownloadsResult> => {
+      await healArchiveCoveredBeforeReset(input.id);
       const { clearFailedAttemptsForManga } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
       const clearedChapterIds = await clearFailedAttemptsForManga(input.id);
       if (clearedChapterIds.length === 0) {
@@ -767,6 +770,8 @@ export const downloadRouter = router({
   resetFailedDownloadForChapter: protectedProcedure
     .input(z.object({ chapterId: z.number() }))
     .mutation(async ({ input }): Promise<{ success: boolean; message: string }> => {
+      const { mangaId, covered } = await healChapterIfCovered(input.chapterId);
+      if (mangaId === null || covered) return { success: covered, message: covered ? 'Chapter already on disk in its volume archive' : 'Chapter not found' };
       const { clearFailedAttemptsForChapter } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
       const cleared = await clearFailedAttemptsForChapter(input.chapterId);
       if (!cleared) {

@@ -32,6 +32,38 @@ export async function invalidateMangaCacheFor(mangaId: number): Promise<void> {
   await invalidateMangaCache(mangaId);
 }
 
+/**
+ * Self-heal archive-covered chapters before a reset/redownload. Any chapter
+ * already on disk inside a file-backed volume archive is flipped to COMPLETED
+ * (and pointed at the archive) so the reset never resets or re-downloads
+ * content that's actually present — the Kaiju/Akira case — without needing a
+ * full re-enrichment. Cheap and idempotent (a no-op when nothing needs linking).
+ * Returns how many chapters were healed and busts the manga cache when > 0.
+ */
+export async function healArchiveCoveredBeforeReset(mangaId: number): Promise<number> {
+  const { linkArchiveCoveredChapters } = await import('@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/link-archive-covered-chapters');
+  const healed = await linkArchiveCoveredChapters(mangaId);
+  if (healed > 0) await invalidateMangaCacheFor(mangaId);
+  return healed;
+}
+
+/**
+ * Single-chapter variant: heal the chapter's manga, then report whether this
+ * chapter is now COMPLETED (covered by a volume archive — nothing to retry).
+ * `mangaId` is null when the chapter doesn't exist.
+ */
+export async function healChapterIfCovered(
+  chapterId: number,
+): Promise<{ mangaId: number | null; covered: boolean }> {
+  const { prisma } = await import('@/server/db');
+  const target = await prisma.chapter.findUnique({ where: { id: chapterId }, select: { mangaId: true } });
+  if (!target) return { mangaId: null, covered: false };
+  const healed = await healArchiveCoveredBeforeReset(target.mangaId);
+  if (healed === 0) return { mangaId: target.mangaId, covered: false };
+  const after = await prisma.chapter.findUnique({ where: { id: chapterId }, select: { downloadStatus: true } });
+  return { mangaId: target.mangaId, covered: after?.downloadStatus === 'COMPLETED' };
+}
+
 /** Run the unified dispatcher for a reset, swallow + log any error so the
  *  reset itself still reports success. Caller maps the summary into a
  *  user-facing message. */
