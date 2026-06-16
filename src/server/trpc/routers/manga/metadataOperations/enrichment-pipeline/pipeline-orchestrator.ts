@@ -37,6 +37,7 @@ import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { assignOverflowChapters } from './phase-volume-overflow';
+import { pruneOutOfRangeVolumes } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
@@ -626,6 +627,12 @@ async function executeEnrichmentPhases(
 
   // Phase 6.25: Create overflow volumes for chapters beyond last volume range
   await assignOverflowChapters(mangaId, expectedVolumeCount);
+
+  // Phase 6.27: Backstop for the cross-validation discontinuity guard — delete
+  // finished-series volumes whose declared range sits entirely beyond the real
+  // chapters and hold zero chapters (ComicVine phantom vols 11-13 = ch 91-117
+  // for a 48-chapter series). Cleans rows persisted by an earlier run.
+  await pruneOutOfRangeVolumes(mangaId);
 
   // Phase 6.5: Reassign bonus/extra/special chapters to their parent volumes
   const bonusTitleMap = extractBonusTitleMap(comicvineVolumes, validatedRanges);

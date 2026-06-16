@@ -12,6 +12,18 @@ import type { ValidatedVolumeRange } from '../phase-volume-cross-validation';
 const log = logger.child('VolumeCrossValidation');
 
 /**
+ * A volume whose chapterStart sits this far past the previous volume's end (or
+ * `median * GAP_MEDIAN_MULTIPLIER`, whichever is larger) marks a provider
+ * numbering discontinuity — e.g. ComicVine's vol 10 ends at ch 45 and vol 11
+ * starts at ch 91. No real inter-volume gap is this wide, so the volume (and the
+ * broken tail after it) is dropped rather than just confidence-penalized.
+ */
+const MAX_VOLUME_GAP = 15;
+const GAP_MEDIAN_MULTIPLIER = 4;
+/** Margin above `expectedChapterCount` past which a volume start is implausible. */
+const CHAPTER_CEILING_MARGIN = 1.1;
+
+/**
  * Validate constraints on the full set of resolved ranges:
  * 1. Sequential: vol N end + 1 approx vol N+1 start (tolerance: 2)
  * 2. No anomalies: no volume has > 3x the median chapter count
@@ -31,7 +43,7 @@ export function validateConstraints(
   const validated: ValidatedVolumeRange[] = [];
 
   for (const range of ranges) {
-    const adjusted = validateSingleRange(range, validated, median, ranges.length);
+    const adjusted = validateSingleRange(range, validated, median, ranges.length, expectedChapterCount);
     if (adjusted) validated.push(adjusted);
   }
 
@@ -74,8 +86,24 @@ function validateSingleRange(
   validated: ValidatedVolumeRange[],
   median: number,
   totalCount: number,
+  expectedChapterCount: number | null,
 ): ValidatedVolumeRange | null {
   const count = range.chapterEnd - range.chapterStart + 1;
+
+  // Discontinuity guard: a volume that starts beyond the manga's total chapter
+  // count is a provider numbering artifact (ComicVine listing vol 11 as chapters
+  // 91-99 for a 48-chapter series). Drop it — and because each later volume is
+  // measured against the last KEPT volume, the whole broken tail cascades out.
+  if (
+    expectedChapterCount !== null &&
+    expectedChapterCount > 0 &&
+    range.chapterStart > expectedChapterCount * CHAPTER_CEILING_MARGIN
+  ) {
+    log.warn('Dropping volume range starting beyond expected chapter count', {
+      volumeNumber: range.volumeNumber, chapterStart: range.chapterStart, expectedChapterCount,
+    });
+    return null;
+  }
 
   // Anomaly: volume has > 3x the median chapter count -> likely misparse
   if (count > median * 3 && totalCount > 3) {
@@ -87,7 +115,7 @@ function validateSingleRange(
 
   // Sequential check against previous validated range
   if (validated.length > 0) {
-    return applySequentialConstraints(range, validated);
+    return applySequentialConstraints(range, validated, median);
   }
 
   // Coverage: vol 1 should start near chapter 1
@@ -102,10 +130,23 @@ function validateSingleRange(
 function applySequentialConstraints(
   range: ValidatedVolumeRange,
   validated: ValidatedVolumeRange[],
+  median: number,
 ): ValidatedVolumeRange | null {
   const prev = validated[validated.length - 1];
   if (!prev) return range;
   const gap = range.chapterStart - prev.chapterEnd - 1;
+
+  // Discontinuity guard (covers the no-expected-count case): a forward jump
+  // wider than any real inter-volume gap means the provider's chapter numbering
+  // broke (vol 10 ends ch 45, vol 11 starts ch 91). Drop the volume; later
+  // volumes measure against the last KEPT one, so the tail cascades out.
+  const maxGap = Math.max(MAX_VOLUME_GAP, median * GAP_MEDIAN_MULTIPLIER);
+  if (gap > maxGap) {
+    log.warn('Dropping volume range after numbering discontinuity', {
+      volumeNumber: range.volumeNumber, gap, maxGap, prevEnd: prev.chapterEnd, start: range.chapterStart,
+    });
+    return null;
+  }
 
   let adjusted = range;
 

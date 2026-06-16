@@ -288,3 +288,53 @@ describe('crossValidateVolumeRanges — membership consensus path', () => {
     expect(result[0]!.chapterEnd).toBe(7);
   });
 });
+
+// ============================================================================
+// Tests: numbering-discontinuity guard (phantom-volume prevention)
+// ============================================================================
+
+describe('crossValidateVolumeRanges — numbering discontinuity guard', () => {
+  // "Why Does Nobody Remember Me in this World?": ComicVine's description-parser
+  // returned vols 1-10 = ch 1-45, then jumped vol 11 → ch 91-99, vol 12 → 100-108,
+  // vol 13 → 109-117 for a 48-chapter series. The discontinuity tail must be dropped
+  // rather than persisted as phantom "0-chapter" volumes.
+  const cvWithBadTail: VolumeRangeProposal[] = [
+    { volumeNumber: 1, chapterStart: 1, chapterEnd: 7, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 2, chapterStart: 8, chapterEnd: 12, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 3, chapterStart: 13, chapterEnd: 15, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 4, chapterStart: 16, chapterEnd: 20, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 5, chapterStart: 21, chapterEnd: 26, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 6, chapterStart: 27, chapterEnd: 31, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 7, chapterStart: 32, chapterEnd: 39, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 8, chapterStart: 40, chapterEnd: 45, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 9, chapterStart: 91, chapterEnd: 99, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 10, chapterStart: 100, chapterEnd: 108, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    { volumeNumber: 11, chapterStart: 109, chapterEnd: 117, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+  ];
+
+  it('drops volumes starting beyond the expected chapter count', () => {
+    const result = crossValidateVolumeRanges(cvWithBadTail, 48);
+    // Vols 1-8 (ch 1-45) survive; the 91-117 tail is dropped.
+    expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(result.every(r => r.chapterStart <= 48)).toBe(true);
+  });
+
+  it('drops the discontinuity tail even without an expected-count signal', () => {
+    // No expectedChapterCount → the gap heuristic (vol 8 ends 45, next starts 91)
+    // must still catch the break.
+    const result = crossValidateVolumeRanges(cvWithBadTail, null);
+    expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('keeps a contiguous high-numbered volume within range', () => {
+    // Regression guard: a legitimate vol 9 that continues normally (ch 46-50) for a
+    // 50-chapter series must NOT be dropped.
+    const proposals: VolumeRangeProposal[] = [
+      ...cvWithBadTail.slice(0, 8),
+      { volumeNumber: 9, chapterStart: 46, chapterEnd: 50, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    ];
+    const result = crossValidateVolumeRanges(proposals, 50);
+    expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(result[8]!.chapterEnd).toBe(50);
+  });
+});
