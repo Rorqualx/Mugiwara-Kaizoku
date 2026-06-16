@@ -12,8 +12,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Box, Center, Stack, Text, Checkbox } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconCheck, IconX } from '@tabler/icons-react';
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 
 import { CardAddMangaButton } from '@/components/addManga/CardAddMangaButton';
@@ -24,7 +22,7 @@ import { useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations } from '@/types/search.types';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
-import { notify } from '@/utils/notify';
+import { withRemovalToast } from '@/utils/removalToast';
 import { trpc } from '@/utils/trpc-client/index';
 
 import { filterAndSortManga } from '../utils/libraryUtils';
@@ -293,55 +291,25 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
             logger.info(`Library: Removing manga ${id} with shouldRemoveFiles=${shouldRemoveFiles}`);
             const title = mangaRef.current.find(m => toNumberId(m.id) === id)?.title ?? 'manga';
             const filesSuffix = shouldRemoveFiles ? ' along with its files' : '';
-            const toastId = `remove-manga-${id}`;
-
-            // Processing indicator — stays until the list has actually refetched.
-            notifications.show({
-                id: toastId,
-                loading: true,
-                autoClose: false,
-                withCloseButton: false,
-                title: 'Removing manga',
-                message: `Removing “${title}”…`,
+            await withRemovalToast(
+                {
+                    id: `remove-manga-${id}`,
+                    processingTitle: 'Removing manga',
+                    processingMessage: `Removing “${title}”…`,
+                    successTitle: 'Manga Removed',
+                    successMessage: `“${title}” was removed${filesSuffix}`,
+                    errorTitle: 'Failed to Remove Manga',
+                    fallbackErrorMessage: 'An error occurred while removing the manga',
+                },
+                async () => {
+                    await removeMangaMutation.mutateAsync({ id, shouldRemoveFiles });
+                    // Wait for the library list to refetch so the card is gone BEFORE
+                    // success is reported — the fix for "notify, then UI updates".
+                    await onRefreshRef.current();
+                },
+            ).catch((error: unknown) => {
+                logger.error('Failed to remove manga:', error instanceof Error ? error.message : String(error));
             });
-
-            try {
-                await removeMangaMutation.mutateAsync({ id, shouldRemoveFiles });
-                // Wait for the library list to refetch so the card is gone BEFORE
-                // we report success — this is the fix for "notify, then UI updates".
-                await onRefreshRef.current();
-
-                const message = `“${title}” was removed${filesSuffix}`;
-                notifications.update({
-                    id: toastId,
-                    loading: false,
-                    color: 'green',
-                    icon: <IconCheck size={18} />,
-                    autoClose: 3000,
-                    title: 'Manga Removed',
-                    message,
-                });
-                // Durable bell row without a second toast.
-                notify({ severity: 'SUCCESS', title: 'Manga Removed', message, toast: false });
-            } catch (error: unknown) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.error('Failed to remove manga:', errorMessage);
-                notifications.update({
-                    id: toastId,
-                    loading: false,
-                    color: 'red',
-                    icon: <IconX size={18} />,
-                    autoClose: 5000,
-                    title: 'Failed to Remove Manga',
-                    message: errorMessage || 'An error occurred while removing the manga',
-                });
-                notify({
-                    severity: 'ERROR',
-                    title: 'Failed to Remove Manga',
-                    message: errorMessage || 'An error occurred while removing the manga',
-                    toast: false,
-                });
-            }
         })();
     }, [removeMangaMutation]);
 

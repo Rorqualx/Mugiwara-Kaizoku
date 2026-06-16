@@ -34,6 +34,7 @@ import { useNotification } from '@/hooks/useNotification';
 import { useLibraryStore, useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations } from '@/types/search.types';
 import { toNumberId } from '@/utils/id-converters';
+import { withRemovalToast } from '@/utils/removalToast';
 import { trpc } from '@/utils/trpc-client/index';
 
 /**
@@ -201,25 +202,27 @@ function LibraryPage(): React.ReactElement {
     };
 
     const handleBulkDelete = async (deleteFiles: boolean): Promise<void> => {
-        try {
-            await bulkDeleteMutation.mutateAsync({
-                mangaIds: selectedItems.map(id => Number(id)),
-                deleteFiles
-            });
-            showSuccess({
-                title: 'Bulk Delete Complete',
-                message: `Successfully deleted ${selectedItems.length} manga`
-            });
-            await refetchManga();
-            clearSelection();
-            setSelectionMode(false);
-        } catch (error: unknown) {
-            showError({
-                title: 'Bulk Delete Failed',
-                message: error instanceof Error ? error.message : 'Failed to delete manga'
-            });
-            throw error;
-        }
+        const count = selectedItems.length;
+        const mangaIds = selectedItems.map(id => Number(id));
+        await withRemovalToast(
+            {
+                id: 'bulk-remove-manga',
+                processingTitle: 'Removing manga',
+                processingMessage: `Removing ${count} manga…`,
+                successTitle: 'Bulk Delete Complete',
+                successMessage: `${count} manga removed${deleteFiles ? ' along with their files' : ''}`,
+                errorTitle: 'Bulk Delete Failed',
+                fallbackErrorMessage: 'Failed to delete manga',
+            },
+            async () => {
+                await bulkDeleteMutation.mutateAsync({ mangaIds, deleteFiles });
+                // refetchAll refreshes BOTH the paginated query and listTitlesByLibrary,
+                // so removed manga leave no ghost skeleton placeholders.
+                await refetchAll();
+                clearSelection();
+                setSelectionMode(false);
+            },
+        );
     };
 
     const handleBulkMonitor = async (monitored: boolean): Promise<void> => {
