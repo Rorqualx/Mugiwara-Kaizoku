@@ -15,6 +15,7 @@ import { IconCheck, IconX } from '@tabler/icons-react';
 
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
+import { withRemovalToast } from '@/utils/removalToast';
 import { trpc } from '@/utils/trpc-client';
 
 import type { FormValues } from '../types';
@@ -60,6 +61,7 @@ export function useUpdateFormMutations({
   // Direct tRPC mutation access - no unnecessary conditionals
   const updateMutation = trpc.manga.update.useMutation();
   const removeMutation = trpc.manga.remove.useMutation();
+  const utils = trpc.useUtils();
 
   // Derived states
   const isUpdating = updateMutation.isPending;
@@ -150,40 +152,41 @@ export function useUpdateFormMutations({
     }
 
     logger.info(`UpdateForm: Removing manga ID ${numericId}, shouldRemoveFiles: ${shouldRemoveFiles}`);
+    const filesSuffix = shouldRemoveFiles ? ' along with its files' : '';
 
     try {
-      await removeMutation.mutateAsync({
-        id: numericId,
-        shouldRemoveFiles,
-      });
-
-      showNotification({
-        icon: React.createElement(IconCheck, { size: 18 }) as JSX.Element,
-        color: 'teal',
-        title: 'Manga Removed',
-        message: `Manga has been successfully removed${shouldRemoveFiles ? ' along with its files' : ''}`,
-      });
+      // Loading toast → await removal AND the library refetch (so the card is
+      // gone and no ghost skeleton lingers) → success. Fixes the success toast
+      // firing seconds before the grid updated.
+      await withRemovalToast(
+        {
+          id: `remove-manga-${numericId}`,
+          processingTitle: 'Removing manga',
+          processingMessage: `Removing “${mangaTitle}”…`,
+          successTitle: 'Manga Removed',
+          successMessage: `“${mangaTitle}” was removed${filesSuffix}`,
+          errorTitle: 'Removal Failed',
+          fallbackErrorMessage: 'Failed to remove manga',
+        },
+        async () => {
+          await removeMutation.mutateAsync({ id: numericId, shouldRemoveFiles });
+          await Promise.all([
+            utils.manga.query.invalidate(),
+            utils.manga.listTitlesByLibrary.invalidate(),
+          ]);
+        },
+      );
 
       logger.info('UpdateForm: Successfully removed manga');
-
-      // Trigger refresh first, then close modal
-      // This ensures the refetch is triggered before component unmounts
+      // Rebuild from page 0 (covers multi-page libraries), then close the modal.
       onUpdate();
       onClose?.();
     } catch (err: unknown) {
       logger.error('UpdateForm: Error removing manga:', err);
-
-      const errorObj = err instanceof Error ? err : new Error(String(err ?? 'Unknown error removing manga'));
-      setRemoveError(errorObj);
-
-      showNotification({
-        icon: React.createElement(IconX, { size: 18 }) as JSX.Element,
-        color: 'red',
-        title: 'Removal Failed',
-        message: errorObj.message,
-      });
+      // Error toast already shown by withRemovalToast.
+      setRemoveError(err instanceof Error ? err : new Error(String(err ?? 'Unknown error removing manga')));
     }
-  }, [removeMutation, onClose, onUpdate]);
+  }, [removeMutation, onClose, onUpdate, mangaTitle, utils]);
 
   return {
     handleSubmit,
