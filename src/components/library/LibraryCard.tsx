@@ -1,226 +1,267 @@
 "use client";
 /**
- * Component for displaying a library as an interactive card
- * 
- * This component renders a library as a card with folder icon, basic information,
- * and action buttons. It provides visual feedback for selection state and
- * handles click events with proper propagation control.
- * 
+ * Component for displaying a library as an interactive cover-mosaic hero card.
+ *
+ * The card is filled edge-to-edge with a mosaic of the library's manga covers,
+ * topped by a dark gradient overlay that carries the library name, manga count,
+ * total size, and edit/delete actions. It replaces the previous layout where a
+ * single low-opacity cover floated in a mostly-empty 200px box.
+ *
  * @remarks
  * Visual States:
- * - Default: White background with shadow
- * - Selected: Blue border and light blue background
- * - Hover: Increased shadow depth
- * 
- * Layout:
- * - Fixed height (200px) for consistent grid appearance
- * - Folder icon in header
- * - Library name in center
- * - Manga cover art preview when available
- * - Action buttons and manga count badge at bottom
- * - Library name repeated below card for clarity
- * 
+ * - Default: cover mosaic + gradient footer, elevation shadow
+ * - Selected: blue border
+ * - Hover: deeper shadow + subtle mosaic zoom
+ *
+ * Degradation by cover count:
+ * - 0 covers → centered folder placeholder over a muted backdrop
+ * - 1 cover  → single full-bleed cover
+ * - 2-6      → 2x1 / 3x1 / 2x2 / 3x2 tiled mosaic
+ *
  * Event Handling:
- * - Card click navigates to library
- * - Action buttons stop event propagation
- * - Edit and delete actions handled separately
- * 
- * TypeScript Migration:
- * - Updated to use domain types from @/types/domain
- * - Changed from Library to LibraryWithRelations
- * - Updated property access for manga covers (coverUrl instead of coverLarge)
- * 
+ * - Card click / Enter / Space navigates to the library
+ * - Edit and delete buttons stop propagation and call their handlers
+ *
  * @example
  * ```tsx
- * // Basic usage in a library grid
  * <LibraryCard
- *   library={{
- *     id: 1,
- *     name: "Manga Collection",
- *     mangas: [],
- *     mangaCount: 0,
- *     path: "/manga",
- *     createdAt: new Date(),
- *     updatedAt: new Date()
- *   }}
- *   onEdit={() => handleEdit(1)}
- *   onDelete={() => handleDelete(1)}
- *   onClick={() => handleSelect(1)}
+ *   library={library}
+ *   onEdit={() => handleEdit(library.id)}
+ *   onDelete={() => handleDelete(library.id)}
+ *   onClick={() => handleSelect(library.id)}
  * />
  * ```
  */
-import React from "react";
+import React, { useMemo, useState } from "react";
 
-import { Paper, Badge, Text, Group, ActionIcon, Box, Image } from '@mantine/core';
+import { Paper, Badge, Text, Group, Stack, ActionIcon, Box, Center } from '@mantine/core';
 import { IconEdit, IconTrash, IconFolder, IconPhoto } from '@tabler/icons-react';
 
 import { useLibraryStore } from '@/store/librarySlice';
 import type { LibraryWithRelations } from '@/types/search.types';
+import { formatFileSize } from '@/utils/formatters';
 import { toNumberId } from '@/utils/id-converters';
 
 /**
- * Extended type to handle runtime cases where Manga relation may not be loaded
- * This accounts for data passed without eager loading the Manga relation
+ * Extended type to handle runtime cases where the Manga relation may not be
+ * eagerly loaded.
  */
 type LibraryCardData = Omit<LibraryWithRelations, 'Manga'> & {
   Manga?: LibraryWithRelations['Manga'];
 };
 
-/**
- * Props for the LibraryCard component
- */
+type MangaList = NonNullable<LibraryCardData['Manga']>;
+
 interface LibraryCardProps {
-  /**
-   * The library data to display
-   * Includes name, ID, path, manga collection (optional), and mangaCount
-   */
+  /** The library data to display (name, id, path, optional Manga relation). */
   library: LibraryCardData;
-  /** 
-   * Handler for library edit action
-   * Called when edit button is clicked, with event propagation stopped
-   */
+  /** Handler for the edit action (event propagation already stopped). */
   onEdit: () => void;
-  /** 
-   * Handler for library delete action
-   * Called when delete button is clicked, with event propagation stopped
-   */
+  /** Handler for the delete action (event propagation already stopped). */
   onDelete: () => void;
-  /** 
-   * Handler for card click
-   * Called when the card itself is clicked (not the action buttons)
-   */
+  /** Handler for selecting/opening the library. */
   onClick: () => void;
 }
 
+/** Max covers shown in the mosaic — capped to keep a clean 3x2 grid. */
+const MAX_COVERS = 6;
+const CARD_HEIGHT = 200;
+const PLACEHOLDER_COVER = '/cover-not-found.jpg';
+const OVERLAY_GRADIENT =
+  'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.78) 28%, rgba(0,0,0,0.25) 58%, rgba(0,0,0,0) 100%)';
+
+/** Grid shape (columns x rows) for a given number of mosaic tiles. */
+function mosaicGrid(count: number): { cols: number; rows: number; cells: number } {
+  if (count >= 6) return { cols: 3, rows: 2, cells: 6 };
+  if (count >= 4) return { cols: 2, rows: 2, cells: 4 };
+  if (count === 3) return { cols: 3, rows: 1, cells: 3 };
+  if (count === 2) return { cols: 2, rows: 1, cells: 2 };
+  return { cols: 1, rows: 1, cells: 1 };
+}
+
+/** Collect up to MAX_COVERS distinct, real cover URLs from the library's manga. */
+function collectCoverUrls(mangaList: MangaList): string[] {
+  const seen = new Set<string>();
+  for (const manga of mangaList) {
+    const meta = manga.Metadata;
+    const url = (meta?.coverLarge ?? meta?.coverMedium ?? meta?.cover) ?? '';
+    if (url.length > 0 && url !== PLACEHOLDER_COVER && !seen.has(url)) {
+      seen.add(url);
+      if (seen.size >= MAX_COVERS) break;
+    }
+  }
+  return [...seen];
+}
+
+/** Sum chapter sizes defensively — Chapter may be absent on a lightly-loaded relation. */
+function computeLibrarySize(mangaList: MangaList): number {
+  return mangaList.reduce((sum, manga) => {
+    const chapters = (manga as { Chapter?: Array<{ size?: number | null }> }).Chapter ?? [];
+    const mangaSize = chapters.reduce((chSum, ch) => chSum + (typeof ch.size === 'number' ? ch.size : 0), 0);
+    return sum + mangaSize;
+  }, 0);
+}
+
+/** Edge-to-edge tiled mosaic of cover images. */
+function CoverMosaic({ covers, hovered }: { covers: string[]; hovered: boolean }): React.ReactElement {
+  const grid = mosaicGrid(covers.length);
+  return (
+    <Box
+      aria-hidden
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'grid',
+        gridTemplateColumns: `repeat(${grid.cols}, 1fr)`,
+        gridTemplateRows: `repeat(${grid.rows}, 1fr)`,
+        transform: hovered ? 'scale(1.04)' : 'scale(1)',
+        transition: 'transform 300ms ease',
+      }}
+    >
+      {Array.from({ length: grid.cells }, (_, i) => (
+        <Box
+          key={i}
+          style={{
+            backgroundImage: `url("${covers[i % covers.length]}")`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center top',
+          }}
+        />
+      ))}
+    </Box>
+  );
+}
+
+/** Muted backdrop with a folder/photo glyph when the library has no covers. */
+function MosaicPlaceholder({ hasManga }: { hasManga: boolean }): React.ReactElement {
+  return (
+    <Center aria-hidden style={{ position: 'absolute', inset: 0, backgroundColor: 'var(--mantine-color-dark-6)' }}>
+      {hasManga
+        ? <IconFolder size={56} color="var(--mantine-color-dark-2)" />
+        : <IconPhoto size={56} color="var(--mantine-color-dark-3)" />}
+    </Center>
+  );
+}
+
+/** Gradient footer carrying the name, count/size, and edit/delete actions. */
+function LibraryOverlay({
+  name, mangaCount, totalSize, onEdit, onDelete,
+}: {
+  name: string;
+  mangaCount: number;
+  totalSize: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}): React.ReactElement {
+  return (
+    <Box
+      style={{
+        position: 'absolute',
+        inset: 0,
+        background: OVERLAY_GRADIENT,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        padding: 'var(--mantine-spacing-sm)',
+      }}
+    >
+      <Group justify="space-between" align="flex-end" wrap="nowrap" gap="xs">
+        <Stack gap={4} style={{ minWidth: 0, flex: 1 }}>
+          <Group gap={6} wrap="nowrap" align="center">
+            <IconFolder size={18} color="var(--mantine-color-blue-4)" style={{ flexShrink: 0 }} />
+            <Text fw={700} c="white" lineClamp={1} style={{ textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>
+              {name}
+            </Text>
+          </Group>
+          <Group gap={6} wrap="nowrap">
+            <Badge size="sm" color="blue" variant="filled" style={{ flexShrink: 0 }}>
+              {mangaCount} manga
+            </Badge>
+            {totalSize > 0 && (
+              <Text size="xs" c="gray.4" lineClamp={1}>
+                {formatFileSize(totalSize)}
+              </Text>
+            )}
+          </Group>
+        </Stack>
+
+        <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
+          <ActionIcon
+            variant="filled"
+            color="dark"
+            size="md"
+            aria-label={`Edit library ${name}`}
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          >
+            <IconEdit size={16} />
+          </ActionIcon>
+          <ActionIcon
+            variant="filled"
+            color="red"
+            size="md"
+            aria-label={`Delete library ${name}`}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            <IconTrash size={16} />
+          </ActionIcon>
+        </Group>
+      </Group>
+    </Box>
+  );
+}
+
 /**
- * Displays a card representation of a library with folder icon and basic information
- * 
- * This component renders a library as a card with edit and delete actions.
- * It highlights the currently selected library with a blue border and background.
- * The card maintains a consistent height and provides visual feedback for
- * interaction states. If the library contains manga, a preview of the first manga's
- * cover art is displayed.
- * 
- * Visual Hierarchy:
- * 1. Header with folder icon
- * 2. Center content with manga cover preview and library name
- * 3. Footer with manga count badge and action buttons
- * 4. Library name below card for additional context
- * 
- * @param library - The library data to display
- * @param onEdit - Handler for library edit action
- * @param onDelete - Handler for library delete action
- * @param onClick - Handler for card click
- * @returns A Box component containing the library card and name label
+ * Renders a library as a cover-mosaic hero card with edit/delete actions and a
+ * blue border when it is the currently-selected library.
  */
 export function LibraryCard({ library, onEdit, onDelete, onClick }: LibraryCardProps): React.ReactElement {
-  /** Get selected library ID from store for highlighting */
   const { selectedLibraryId } = useLibraryStore();
-  /** Whether this card represents the currently selected library */
   const isSelected = selectedLibraryId === toNumberId(library["id"]);
+  const [hovered, setHovered] = useState(false);
 
-  // Get the first manga with a cover for preview
-  const mangaList = library.Manga ?? [];
-  const hasManga = mangaList.length > 0;
-  const firstMangaWithCover = hasManga ?
-    mangaList.find(manga => {
-      // Check for cover property in metadata if it's included
-      return manga.Metadata && (manga.Metadata.cover || manga.Metadata.coverMedium || manga.Metadata.coverLarge);
-    }) : undefined;
+  const mangaList = useMemo(() => library.Manga ?? [], [library.Manga]);
+  const mangaCount = mangaList.length;
+  const name = library["name"];
 
-  // Extract cover URL if available - checking multiple cover properties
-  const coverUrl = (firstMangaWithCover?.Metadata?.coverLarge ??
-                   firstMangaWithCover?.Metadata?.coverMedium ??
-                   firstMangaWithCover?.Metadata?.cover) ?? '';
-  
+  const covers = useMemo(() => collectCoverUrls(mangaList), [mangaList]);
+  const totalSize = useMemo(() => computeLibrarySize(mangaList), [mangaList]);
+
   return (
-    <Box>
-      <Paper
-        shadow="lg"
-        p="md"
-        radius="md"
-        pos="relative"
-        h={200}
-        w="100%"
-        style={{
-          cursor: 'pointer',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          border: isSelected ? '2px solid var(--mantine-color-blue-6)' : undefined,
-          backgroundColor: isSelected ? 'var(--mantine-color-blue-light)' : 'var(--mantine-color-default)',
-          overflow: 'hidden'
-        }}
-        onClick={onClick}
-      >
-        {/* Header with folder icon */}
-        <Group justify="flex-start" align="flex-start" w="100%">
-          <IconFolder size={32} color="var(--mantine-color-blue-6)" />
-        </Group>
-          
-        {/* Center content with manga cover art or folder icon */}
-        <Box style={{ 
-          flex: 1, 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          width: '100%',
-          position: 'relative'
-        }}>
-          {coverUrl ? (
-            <Image
-              src={coverUrl}
-              alt={`${library["name"]} preview`}
-              height={100}
-              fit="contain"
-              style={{ opacity: 0.7 }}
-            />
-          ) : (
-            <Group gap="sm" align="center">
-              <IconFolder size={48} color="var(--mantine-color-gray-5)" />
-              {!hasManga && <IconPhoto size={48} color="var(--mantine-color-gray-3)" />}
-            </Group>
-          )}
-        </Box>
+    <Paper
+      shadow={hovered ? 'xl' : 'md'}
+      radius="md"
+      pos="relative"
+      h={CARD_HEIGHT}
+      w="100%"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open library ${name} (${mangaCount} manga)`}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        cursor: 'pointer',
+        overflow: 'hidden',
+        border: isSelected ? '2px solid var(--mantine-color-blue-6)' : '1px solid var(--mantine-color-dark-4)',
+      }}
+    >
+      {covers.length > 0
+        ? <CoverMosaic covers={covers} hovered={hovered} />
+        : <MosaicPlaceholder hasManga={mangaCount > 0} />}
 
-        {/* Footer with manga count and action buttons */}
-        <Group w="100%" justify="space-between" mt="md">
-          <Badge size="sm" color="blue">
-            {mangaList.length} manga
-          </Badge>
-          
-          <Group gap="xs">
-            <ActionIcon 
-              variant="filled" 
-              color="gray" 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent card click
-                onEdit();
-              }}
-            >
-              <IconEdit size={16} />
-            </ActionIcon>
-            <ActionIcon 
-              variant="filled" 
-              color="red" 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent card click
-                onDelete();
-              }}
-            >
-              <IconTrash size={16} />
-            </ActionIcon>
-          </Group>
-        </Group>
-      </Paper>
-      
-      {/* Library name below the card */}
-      <Text ta="center" fw={500} mt="xs">
-        {library["name"]}
-      </Text>
-    </Box>
+      <LibraryOverlay
+        name={name}
+        mangaCount={mangaCount}
+        totalSize={totalSize}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    </Paper>
   );
 }
