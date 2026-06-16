@@ -468,7 +468,9 @@ function LibraryPage(): React.ReactElement {
                 {(() => {
                   const loadedIds = new Set(manga.map(m => m.id));
                   const titles = (pendingTitleRows ?? []).filter(r => !loadedIds.has(r.id)).map(r => r.title);
-                  const count = titles.length > 0 ? titles.length : (isFetching && hasMore ? 12 : 0);
+                  // Generic 12-skeleton fallback only on the initial empty load — not on
+                  // a refetch (e.g. after a removal), where it flashed ghost cards.
+                  const count = titles.length > 0 ? titles.length : (isFetching && hasMore && manga.length === 0 ? 12 : 0);
                   return count > 0 ? <MangaCardSkeletonGrid count={count} coverSize={coverSize} titles={titles} /> : null;
                 })()}
               </>

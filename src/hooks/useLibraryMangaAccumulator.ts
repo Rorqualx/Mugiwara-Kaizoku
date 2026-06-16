@@ -155,8 +155,14 @@ export function useLibraryMangaAccumulator(
     const refetchAll = useCallback(async () => {
         setOffset(0);
         setHasMore(true);
-        await refetchManga();
-    }, [refetchManga]);
+        // Also refresh the title list — otherwise a just-removed manga lingers as a
+        // grey skeleton placeholder: its title is still in the 5-min-cached
+        // listTitlesByLibrary even though it's gone from the paginated query.
+        await Promise.all([
+            refetchManga(),
+            utils.manga.listTitlesByLibrary.invalidate(),
+        ]);
+    }, [refetchManga, utils]);
 
     return {
         allManga,
