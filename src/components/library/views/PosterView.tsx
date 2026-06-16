@@ -12,17 +12,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Box, Center, Stack, Text, Checkbox } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconCheck, IconX } from '@tabler/icons-react';
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 
 import { CardAddMangaButton } from '@/components/addManga/CardAddMangaButton';
 import { ResponsiveMangaCard } from '@/components/responsive/ResponsiveMangaCard';
 import { useBreakpoint } from '@/hooks/mobile';
 import { useNavigation } from '@/hooks/useNavigation';
-import { useNotification } from '@/hooks/useNotification';
 import { useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations } from '@/types/search.types';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
+import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
 
 import { filterAndSortManga } from '../utils/libraryUtils';
@@ -30,7 +32,9 @@ import { filterAndSortManga } from '../utils/libraryUtils';
 interface PosterViewProps {
     manga: MangaWithRelations[];
     libraryId: number;
-    onRefresh: () => void;
+    /** Refreshes the library data. Returns a promise so callers (e.g. remove)
+     *  can await the list actually settling before reporting success. */
+    onRefresh: () => void | Promise<void>;
     /** ScrollArea viewport ref from parent page — required for virtualization. */
     scrollParentRef?: React.RefObject<HTMLElement | null>;
 }
@@ -213,7 +217,8 @@ const GUTTER_PX = 16;
 
 export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: PosterViewProps): React.ReactElement {
     const { navigateTo, prefetch } = useNavigation();
-    const { showSuccess, showError } = useNotification();
+    // Manga removal uses a Mantine loading→success toast plus a durable bell row;
+    // see handleMangaRemove below.
     const { isMobile, isTablet } = useBreakpoint();
     const sortBy = useLibraryViewStore(state => state.sortBy);
     const filterBy = useLibraryViewStore(state => state.filterBy);
@@ -226,18 +231,9 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
     const selectedItems = useLibraryViewStore(state => state.selectedItems);
     const toggleItemSelection = useLibraryViewStore(state => state.toggleItemSelection);
 
-    const removeMangaMutation = trpc.manga.remove.useMutation({
-        onSuccess: () => {
-            showSuccess({ title: 'Manga Removed', message: 'Successfully removed manga' });
-            onRefresh();
-        },
-        onError: (error) => {
-            showError({
-                title: 'Failed to Remove Manga',
-                message: (error instanceof Error ? error.message : String(error)) || 'An error occurred while removing the manga',
-            });
-        },
-    });
+    // Toasts + refetch are orchestrated in handleMangaRemove so the success
+    // notification fires only AFTER the list has actually refetched.
+    const removeMangaMutation = trpc.manga.remove.useMutation();
 
     const displayedManga = useMemo(() => {
         const filtered = filterAndSortManga(manga, {
@@ -267,7 +263,12 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
     // on MangaCell actually skip work.
     const onRefreshRef = useRef(onRefresh);
     onRefreshRef.current = onRefresh;
-    const stableOnRefresh = useCallback(() => { onRefreshRef.current(); }, []);
+    const stableOnRefresh = useCallback(() => { void onRefreshRef.current(); }, []);
+
+    // Latest manga list, read inside the (otherwise stable) remove handler to
+    // resolve the removed title for the notification without re-creating it.
+    const mangaRef = useRef(manga);
+    mangaRef.current = manga;
 
     const prefetchRef = useRef(prefetch);
     prefetchRef.current = prefetch;
@@ -290,11 +291,56 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
     const handleMangaRemove = useCallback((id: number, shouldRemoveFiles: boolean) => {
         void (async () => {
             logger.info(`Library: Removing manga ${id} with shouldRemoveFiles=${shouldRemoveFiles}`);
+            const title = mangaRef.current.find(m => toNumberId(m.id) === id)?.title ?? 'manga';
+            const filesSuffix = shouldRemoveFiles ? ' along with its files' : '';
+            const toastId = `remove-manga-${id}`;
+
+            // Processing indicator — stays until the list has actually refetched.
+            notifications.show({
+                id: toastId,
+                loading: true,
+                autoClose: false,
+                withCloseButton: false,
+                title: 'Removing manga',
+                message: `Removing “${title}”…`,
+            });
+
             try {
                 await removeMangaMutation.mutateAsync({ id, shouldRemoveFiles });
+                // Wait for the library list to refetch so the card is gone BEFORE
+                // we report success — this is the fix for "notify, then UI updates".
+                await onRefreshRef.current();
+
+                const message = `“${title}” was removed${filesSuffix}`;
+                notifications.update({
+                    id: toastId,
+                    loading: false,
+                    color: 'green',
+                    icon: <IconCheck size={18} />,
+                    autoClose: 3000,
+                    title: 'Manga Removed',
+                    message,
+                });
+                // Durable bell row without a second toast.
+                notify({ severity: 'SUCCESS', title: 'Manga Removed', message, toast: false });
             } catch (error: unknown) {
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 logger.error('Failed to remove manga:', errorMessage);
+                notifications.update({
+                    id: toastId,
+                    loading: false,
+                    color: 'red',
+                    icon: <IconX size={18} />,
+                    autoClose: 5000,
+                    title: 'Failed to Remove Manga',
+                    message: errorMessage || 'An error occurred while removing the manga',
+                });
+                notify({
+                    severity: 'ERROR',
+                    title: 'Failed to Remove Manga',
+                    message: errorMessage || 'An error occurred while removing the manga',
+                    toast: false,
+                });
             }
         })();
     }, [removeMangaMutation]);

@@ -19,7 +19,7 @@ import { ResponsiveTableView } from './views/ResponsiveTableView';
 interface LibraryContentProps {
   manga: MangaWithRelations[];
   libraryId: number;
-  onRefresh: () => void;
+  onRefresh: () => void | Promise<void>;
   /** ScrollArea viewport ref — forwarded to PosterView and the detailed view for row virtualization. */
   scrollParentRef?: React.RefObject<HTMLElement | null>;
 }

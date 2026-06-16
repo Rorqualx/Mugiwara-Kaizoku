@@ -459,7 +459,7 @@ function LibraryPage(): React.ReactElement {
                 <LibraryContent
                   manga={displayedManga as MangaWithRelations[]}
                   libraryId={libraryId ?? 0}
-                  onRefresh={() => { void refreshLibrary(); void refetchAll(); }}
+                  onRefresh={async () => { await Promise.all([refreshLibrary(), refetchAll()]); }}
                   scrollParentRef={scrollViewportRef}
                 />
                 {hasMore && (
