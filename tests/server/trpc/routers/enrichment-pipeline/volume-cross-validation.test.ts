@@ -337,4 +337,39 @@ describe('crossValidateVolumeRanges — numbering discontinuity guard', () => {
     expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(result[8]!.chapterEnd).toBe(50);
   });
+
+  it('keeps a volume from another source when ComicVine\'s proposal for it is the discontinuity', () => {
+    // Proposal-level refinement: ComicVine vol 11 = ch 91-99 (discontinuity) is
+    // dropped, but MangaDex's valid vol 11 = ch 46-48 must SURVIVE and win — the
+    // volume is no longer lost wholesale.
+    const proposals: VolumeRangeProposal[] = [
+      ...cvWithBadTail.slice(0, 8),
+      // ComicVine's broken tail for vol 9-11 (= ch 91-117).
+      { volumeNumber: 9, chapterStart: 91, chapterEnd: 99, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+      // MangaDex agrees on vols 1-8 and adds a valid contiguous vol 9.
+      { volumeNumber: 8, chapterStart: 40, chapterEnd: 45, source: 'mangadex', confidence: 0.85, extractionMethod: 'explicit-range' },
+      { volumeNumber: 9, chapterStart: 46, chapterEnd: 48, source: 'mangadex', confidence: 0.85, extractionMethod: 'explicit-range' },
+    ];
+    const result = crossValidateVolumeRanges(proposals, 48);
+    const vol9 = result.find(r => r.volumeNumber === 9);
+    expect(vol9).toBeDefined();
+    expect(vol9!.chapterStart).toBe(46);
+    expect(vol9!.chapterEnd).toBe(48);
+    expect(vol9!.sources).toEqual(['mangadex']);
+    // No volume retains the bogus 91-99 range.
+    expect(result.every(r => r.chapterEnd <= 48)).toBe(true);
+  });
+
+  it('does not truncate a genuinely sparse source with small gaps', () => {
+    // A source that skips a volume number but stays within a normal chapter cadence
+    // (gap < 20) must be left intact.
+    const proposals: VolumeRangeProposal[] = [
+      { volumeNumber: 1, chapterStart: 1, chapterEnd: 8, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+      { volumeNumber: 2, chapterStart: 9, chapterEnd: 16, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+      // Skips vol 3's number but continues with a normal ~8-chapter gap.
+      { volumeNumber: 4, chapterStart: 25, chapterEnd: 32, source: 'comicvine', confidence: 0.9, extractionMethod: 'explicit-range' },
+    ];
+    const result = crossValidateVolumeRanges(proposals, 32);
+    expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 4]);
+  });
 });

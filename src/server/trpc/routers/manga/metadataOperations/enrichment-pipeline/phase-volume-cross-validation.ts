@@ -152,10 +152,19 @@ function consensusToValidatedRanges(
  * sequential constraints, and returns a single validated set.
  */
 export function crossValidateVolumeRanges(
-  proposals: VolumeRangeProposal[],
+  rawProposals: VolumeRangeProposal[],
   expectedChapterCount: number | null,
   expectedVolumeCount?: number,
 ): ValidatedVolumeRange[] {
+  if (rawProposals.length === 0) return [];
+
+  // Refinement: truncate each source's own internal numbering discontinuity
+  // BEFORE conflict resolution. ComicVine's description-parser can emit a
+  // contiguous run (vols 1-10 = ch 1-45) then jump (vol 11 = ch 91-99); dropping
+  // that tail at the proposal level lets a volume that ALSO has a valid in-range
+  // proposal from another source (MangaDex vol 11 = ch 46-48) resolve to it
+  // instead of being dropped wholesale by the resolved-range guard downstream.
+  const proposals = truncateSourceDiscontinuities(rawProposals);
   if (proposals.length === 0) return [];
 
   // Group proposals by volume number (used by both consensus and legacy paths)
@@ -337,6 +346,66 @@ function detectOffsetCorrection(sourceStarts: Map<string, Map<number, number>>):
     if (vol1B !== undefined && vol1B <= 2) return srcB;
   }
   return null;
+}
+
+/**
+ * A forward jump between a source's own consecutive volumes (by volume number)
+ * larger than this many chapters marks an internal numbering discontinuity — no
+ * real tankōbon volume spans more than ~20 chapters, so a gap this wide means the
+ * provider's parser broke (ComicVine: vol 10 ends ch 45, vol 11 starts ch 91).
+ */
+const SOURCE_DISCONTINUITY_GAP = 20;
+/** Require a contiguous baseline of this many volumes before treating a jump as a
+ *  discontinuity, so a genuinely sparse listing isn't mistaken for a broken tail. */
+const MIN_CONTIGUOUS_PREFIX = 2;
+
+/**
+ * Truncate each source's proposal list at its own internal numbering
+ * discontinuity. Groups proposals by source, sorts each by volume number, and
+ * drops every volume from the first oversized forward gap onward (once a
+ * contiguous prefix has been established). Sources without a discontinuity
+ * (MangaDex's vols 1-11 run contiguously into ch 46) are returned untouched.
+ *
+ * Operates purely on each source's internal chapter sequence — no dependency on
+ * an external expected-chapter-count anchor, so it can't over-drop when the
+ * anchor undercounts the real chapter total.
+ */
+export function truncateSourceDiscontinuities(
+  proposals: VolumeRangeProposal[],
+): VolumeRangeProposal[] {
+  const bySource = new Map<string, VolumeRangeProposal[]>();
+  for (const p of proposals) {
+    const arr = bySource.get(p.source) ?? [];
+    arr.push(p);
+    bySource.set(p.source, arr);
+  }
+
+  const kept: VolumeRangeProposal[] = [];
+  for (const [source, ps] of bySource) {
+    const sorted = [...ps].sort((a, b) => a.volumeNumber - b.volumeNumber);
+    let cut = sorted.length;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      if (!prev || !cur) continue;
+      const gap = cur.chapterStart - prev.chapterEnd - 1;
+      if (i >= MIN_CONTIGUOUS_PREFIX && gap > SOURCE_DISCONTINUITY_GAP) {
+        cut = i;
+        break;
+      }
+    }
+    if (cut < sorted.length) {
+      log.info('Truncated source proposals after numbering discontinuity', {
+        source, kept: cut, dropped: sorted.length - cut,
+        lastKeptEnd: sorted[cut - 1]?.chapterEnd, firstDroppedStart: sorted[cut]?.chapterStart,
+      });
+    }
+    for (let i = 0; i < cut; i++) {
+      const p = sorted[i];
+      if (p) kept.push(p);
+    }
+  }
+  return kept;
 }
 
 /** Group proposals by volume number */
