@@ -1,5 +1,8 @@
-import { useMainSearch } from '../contexts/search/MainSearchContext';
-import { useModalSearch } from '../contexts/search/ModalSearchContext';
+// Consolidated onto UnifiedSearchContext (re-exported via the barrel). The former
+// per-context files (MainSearchContext.tsx / ModalSearchContext.tsx) were duplicate
+// implementations with their own React context objects — mounting the wrong one
+// silently left the header search on its no-op default. One context now backs both.
+import { useMainSearch, useModalSearch } from '../contexts/search';
 
 import type { SearchResult } from '../types/search.types';
 

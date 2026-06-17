@@ -60,6 +60,10 @@ const PWAManager = dynamic(
 
 import { AudioPlayerProvider } from '../components/audioPlayer/AudioPlayerProvider';
 import { IntegrationStatusProvider } from '../contexts/IntegrationStatusContext';
+// MainSearchProvider backs the header "Search your library..." box via useSearch ->
+// useMainSearch. Both come from the same UnifiedSearchContext (via the barrel), so the
+// provider and consumer can no longer drift onto mismatched context objects.
+import { MainSearchProvider } from '../contexts/search';
 import { UserProvider } from '../contexts/UserContext';
 import { useCustomTheme } from '../hooks/useCustomTheme';
 import { RootStoreProvider } from '../store/RootStoreProvider';
@@ -181,10 +185,12 @@ export function AppProviders({
                   <StoreProvider>
                     <RootStoreProvider>
                       <IntegrationStatusProvider>
-                        <AudioPlayerProvider>
-                          <PWAManager />
-                          {children}
-                        </AudioPlayerProvider>
+                        <MainSearchProvider>
+                          <AudioPlayerProvider>
+                            <PWAManager />
+                            {children}
+                          </AudioPlayerProvider>
+                        </MainSearchProvider>
                       </IntegrationStatusProvider>
                     </RootStoreProvider>
                   </StoreProvider>
