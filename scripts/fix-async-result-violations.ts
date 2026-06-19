@@ -173,7 +173,6 @@ async function migrate() {
     'src/components/suwayomi/DownloadButton.tsx',
     'src/components/settings/downloadClients/ClientSettings.tsx',
     'src/components/settings/downloadClients/TransmissionSettings.tsx',
-    'src/lib/auth/actions.ts',
     'src/types/task-unions.ts'
   ];
 

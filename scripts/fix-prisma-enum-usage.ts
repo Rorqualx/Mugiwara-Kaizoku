@@ -54,8 +54,6 @@ const filesWithErrors = [
   'src/hooks/useProviderConfig.ts',
   'src/hooks/useSuwayomiConfig.ts',
   'src/hooks/useTaskCounts.ts',
-  'src/lib/auth/actions.ts',
-  'src/lib/auth/credentials.ts',
   'src/lib/auth/validation.ts',
   'src/lib/prisma.ts',
   'src/pages/settings/release-blocklist.tsx',

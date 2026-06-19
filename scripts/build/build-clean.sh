@@ -749,81 +749,16 @@ fi
 # ============================================================================
 # STEP 13: AUTHENTICATION SETUP
 # ============================================================================
-log_info "Setting up authentication..."
+log_info "Verifying authentication configuration..."
 
-# Create auth configuration if it doesn't exist
-if [ ! -f "src/lib/auth/config.ts" ]; then
-    mkdir -p src/lib/auth
-    cat > src/lib/auth/config.ts << EOF
-import NextAuth from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma } from "../prisma";
-import bcrypt from "bcryptjs";
-
-export const authConfig = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
-          return null;
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { username: credentials.username }
-        });
-
-        if (!user) {
-          return null;
-        }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-
-        if (!isValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          role: user.role,
-        };
-      }
-    })
-  ],
-  session: {
-    strategy: "jwt" as const,
-  },
-  pages: {
-    signIn: "/login",
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.sub;
-        session.user.role = token.role;
-      }
-      return session;
-    },
-  },
-};
-
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
-EOF
-    log_success "Authentication configuration created"
+# The canonical NextAuth config lives in src/lib/auth/auth-options.ts and is
+# tracked in source control. Do NOT scaffold it here — a generated copy would
+# diverge from the real config (wrong schema fields, stale callbacks) and would
+# resurrect the deleted config.ts shim that the auth consolidation removed.
+if [ -f "src/lib/auth/auth-options.ts" ]; then
+    log_success "Authentication configuration present (src/lib/auth/auth-options.ts)"
+else
+    log_error "Missing src/lib/auth/auth-options.ts — auth config must be restored from source control"
 fi
 
 # ============================================================================
