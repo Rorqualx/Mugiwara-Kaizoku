@@ -27,7 +27,7 @@ import { logger } from '@/utils/logger';
 
 
 
-import { auth } from './config';
+import { auth } from './auth-options';
 
 import type { User } from '@prisma/client';
 import type { NextApiRequest } from 'next';

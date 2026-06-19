@@ -10,7 +10,6 @@ import {
   mockManga,
   mockChapter,
   mockLibrary,
-  mockUser,
   mockSettings,
   mockApiResponse,
   mockApiError } from
@@ -21,15 +20,6 @@ import {
  */
 export const restHandlers = [
 // Auth endpoints
-http.post('/api/auth/login', () => {
-  return HttpResponse.json(
-    mockApiResponse({
-      user: mockUser,
-      token: 'mock-jwt-token'
-    })
-  );
-}),
-
 http.post('/api/auth/logout', () => {
   return HttpResponse.json(mockApiResponse({ success: true }));
 }),

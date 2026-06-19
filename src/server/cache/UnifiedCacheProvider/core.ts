@@ -352,6 +352,30 @@ export class UnifiedCacheProvider {
     }
   }
 
+  /**
+   * EXPIRE operation - set a TTL on an existing key WITHOUT touching its value.
+   *
+   * This is the Redis `EXPIRE` companion to `incr`: it lets a counter created by
+   * INCR get a window TTL without the value-clobbering race that `set` would
+   * introduce (set rewrites cache_value, so a concurrent INCR between INCR and
+   * SET would be lost). Returns true if a row was updated.
+   */
+  async expire(key: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      const normalizedKey = this.normalizeKey(key);
+      const expiresAt = ttlSeconds > 0 ? new Date(Date.now() + ttlSeconds * 1000) : null;
+      const affected = await this.db.$executeRaw`
+        UPDATE cache_unified
+        SET expires_at = ${expiresAt}
+        WHERE cache_key = ${normalizedKey}
+      `;
+      return affected > 0;
+    } catch (error) {
+      logger.error('Cache EXPIRE error:', error);
+      return false;
+    }
+  }
+
   // ============================================================================
   // Hash & Sorted Set Operations (delegates to maintenance module)
   // ============================================================================

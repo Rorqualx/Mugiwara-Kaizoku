@@ -32,7 +32,7 @@ import { Box } from '@mantine/core';
 
 import { FirstTimeSetup } from '../components/auth/FirstTimeSetup';
 import { AuthLayout } from '../components/layouts/AuthLayout';
-import { auth } from '../lib/auth/config';
+import { auth } from '../lib/auth/auth-options';
 import { prisma } from "../server/db";
 
 import type { GetServerSidePropsContext } from 'next';

@@ -11,7 +11,7 @@
  *
  * @module pages/api/auth/check
  */
-import { auth } from '@/lib/auth/config';
+import { auth } from '@/lib/auth/auth-options';
 import { createApiRoute, successResponse } from '@/utils/api-route-factory';
 import { logger } from '@/utils/logger';
 

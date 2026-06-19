@@ -16,7 +16,7 @@
 
 import { logger } from '@/utils/logger';
 
-import { auth } from "./config";
+import { auth } from "./auth-options";
 
 import type { ExtendedSession } from "./types";
 import type { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from "next";

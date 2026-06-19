@@ -600,6 +600,11 @@ model User {
   createdAt        DateTime           @default(now())
   updatedAt        DateTime
   role             UserRole           @default(USER)
+  // Bumped whenever a user's credentials/role change (password reset, role
+  // update). JWTs embed the version at issue time; the NextAuth `jwt` callback
+  // rejects any token whose version is stale, so stolen/old tokens die on the
+  // next request instead of surviving until expiry (JWT-strategy invalidation).
+  tokenVersion     Int                @default(0)
   emailVerified    DateTime?
   image            String?
   name             String?

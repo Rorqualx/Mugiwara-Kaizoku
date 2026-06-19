@@ -13,6 +13,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { cache } from '@/server/cache/cache-adapter';
+import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { logSecurityEvent, SecurityEventType } from '@/server/utils/security-logger';
 import { logger } from '@/utils/logger';
 
@@ -135,11 +136,59 @@ export const errorHandlingMiddleware = middleware(async ({ path, type, next, ctx
 });
 
 /**
- * Rate limiting middleware
- * Prevents abuse by limiting requests per IP/user
+ * Postgres-backed fixed-window rate-limit check.
+ *
+ * Uses the Redis-like INCR on the UnifiedCacheProvider (`cache_unified` UNLOGGED
+ * table), so limits are shared across every server instance and survive a
+ * restart — unlike the previous in-memory Map. The TTL is stamped on the first
+ * hit of a window (later hits keep that expiry), so the counter auto-resets when
+ * the row expires. Mirrors the established pattern in `security-logger.ts`.
+ *
+ * Fails OPEN: if the cache errors, the request is allowed rather than letting a
+ * cache outage take down every endpoint. The miss is logged.
+ *
+ * @returns whether the request is allowed, the current count, and the window TTL
  */
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+export async function checkRateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+): Promise<{ allowed: boolean; count: number; retryAfterSec: number }> {
+  const windowSec = Math.max(1, Math.ceil(windowMs / 1000));
+  const now = Date.now();
+  // Fixed-window key: each window gets a fresh key so the counter starts at 0
+  // naturally. This is deliberate — the provider's INCR ignores `expires_at`
+  // (an expired row is still incremented), so a TTL alone would never reset a
+  // shared counter. Windowing makes correctness independent of expiry; the TTL
+  // below only garbage-collects stale window rows via the cache maintenance job.
+  const windowIndex = Math.floor(now / windowMs);
+  const cacheKey = `trpc_ratelimit:${key}:w${windowIndex}`;
+  // Seconds remaining until the next window starts (for the Retry-After hint).
+  const retryAfterSec = Math.max(1, Math.ceil((windowMs - (now % windowMs)) / 1000));
 
+  try {
+    const count = await cacheProvider.incr(cacheKey);
+    // Stamp a GC TTL on the first hit via EXPIRE (not SET — SET would rewrite the
+    // value and lose a concurrent INCR). A little past the window so a row never
+    // outlives the window it belongs to by much; the cache maintenance job then
+    // sweeps it. Later hits keep the same expiry.
+    if (count === 1) {
+      await cacheProvider.expire(cacheKey, windowSec * 2);
+    }
+    return { allowed: count <= maxRequests, count, retryAfterSec };
+  } catch (error) {
+    logger.error('Rate limit check failed; failing open', {
+      key: cacheKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { allowed: true, count: 0, retryAfterSec };
+  }
+}
+
+/**
+ * Rate limiting middleware
+ * Prevents abuse by limiting requests per IP/user (Postgres-backed, shared).
+ */
 export const rateLimitMiddleware = (options: {
   windowMs?: number;
   maxRequests?: number;
@@ -148,27 +197,18 @@ export const rateLimitMiddleware = (options: {
   const maxRequests = options.maxRequests ?? 100; // 100 requests default
 
   return middleware(async ({ ctx, next, path }) => {
-    // Get identifier (user ID or IP)
+    // Identity: authenticated user id, else client IP (set in createContext),
+    // else a shared 'anonymous' bucket as a last resort.
     const ctxWithUserAndIp = ctx as { user?: { id: string }; ip?: string };
     const identifier = ctxWithUserAndIp.user?.id ?? ctxWithUserAndIp.ip ?? 'anonymous';
-    const key = `${identifier}:${path}`;
-    const now = Date.now();
 
-    // Get or create rate limit entry
-    let entry = rateLimitStore.get(key);
+    const { allowed, retryAfterSec } = await checkRateLimit(`${identifier}:${path}`, maxRequests, windowMs);
 
-    if (!entry || entry.resetAt < now) {
-      entry = { count: 0, resetAt: now + windowMs };
-      rateLimitStore.set(key, entry);
-    }
-
-    // Check rate limit
-    if (entry.count >= maxRequests) {
-      // Log security event for rate limit violation
+    if (!allowed) {
       const ctxForLogging = ctx as { user?: { id: string; username?: string } };
       const userId = ctxForLogging.user?.id;
       const username = ctxForLogging.user?.username;
-      const ipAddressValue = identifier.toString().includes(':') ? identifier.toString().split(':')[0] : identifier.toString();
+      const ipAddressValue = identifier.includes(':') ? identifier.split(':')[0] : identifier;
 
       logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
         ...(userId !== undefined ? { userId: Number(userId) } : {}),
@@ -183,20 +223,8 @@ export const rateLimitMiddleware = (options: {
 
       throw new TRPCError({
         code: 'TOO_MANY_REQUESTS',
-        message: `Rate limit exceeded. Try again in ${Math.ceil((entry.resetAt - now) / 1000)} seconds.`,
+        message: `Rate limit exceeded. Try again in ${retryAfterSec} seconds.`,
       });
-    }
-
-    // Increment counter
-    entry.count++;
-
-    // Cleanup old entries periodically
-    if (Math.random() < 0.01) { // 1% chance to cleanup
-      for (const [k, v] of rateLimitStore.entries()) {
-        if (v.resetAt < now) {
-          rateLimitStore.delete(k);
-        }
-      }
     }
 
     return next();
@@ -297,66 +325,8 @@ export const cachingMiddleware = (ttlMs: number = 60000): ReturnType<typeof midd
   });
 };
 
-/**
- * Compose multiple middleware
- * Utility to combine middleware in order
- */
-export const composeMiddleware = (...middlewares: unknown[]): ReturnType<typeof middleware> => {
-  return middleware(async (opts) => {
-    let index = 0;
-
-    // Define next function with explicit return type to break circular reference
-    const next = async (): Promise<unknown> => {
-      if (index >= middlewares.length) {
-        return opts.next();
-      }
-
-      const currentMiddleware = middlewares[index++] as (opts: unknown) => Promise<unknown>;
-      return currentMiddleware({
-        ...opts,
-        next,
-      });
-    };
-
-    return next() as Promise<Awaited<ReturnType<typeof opts.next>>>;
-  });
-};
-
-/**
- * Default middleware stack
- * Applied to all procedures unless overridden
- */
-export const defaultMiddleware = composeMiddleware(
-  contextMiddleware,
-  loggingMiddleware,
-  performanceMiddleware,
-  errorHandlingMiddleware,
-  validationMiddleware,
-);
-
-/**
- * Protected middleware stack
- * Applied to protected procedures
- */
-export const protectedMiddleware = composeMiddleware(
-  defaultMiddleware,
-  rateLimitMiddleware({ maxRequests: 60, windowMs: 60000 }),
-);
-
-/**
- * Public middleware stack with aggressive rate limiting
- */
-export const publicMiddleware = composeMiddleware(
-  defaultMiddleware,
-  rateLimitMiddleware({ maxRequests: 30, windowMs: 60000 }),
-  cachingMiddleware(30000), // Cache for 30 seconds
-);
-
-/**
- * Admin middleware stack with minimal restrictions
- */
-export const adminMiddleware = composeMiddleware(
-  contextMiddleware,
-  loggingMiddleware,
-  errorHandlingMiddleware,
-);
+// NOTE: The composed middleware stacks (default/protected/public/admin) that
+// previously lived here were dead code — the real procedure builders in
+// `procedures.ts` apply the individual middleware directly. The `adminMiddleware`
+// stack in particular contained NO auth check despite its name, so it was a
+// latent bypass if ever wired up. Removed. Use the procedure builders instead.

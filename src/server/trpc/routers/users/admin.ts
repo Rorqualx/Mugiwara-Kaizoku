@@ -283,6 +283,13 @@ export const usersAdminRouter = router({
       ...(updateData.role ? { role: updateData.role } : {}),
     });
 
+    // Invalidate outstanding JWTs on role/password change (canonical jwt
+    // callback rejects stale tokenVersions, so a demotion takes effect at once).
+    const roleChanged = updateData.role !== undefined && updateData.role !== existingUser.role;
+    if (roleChanged || hashedPassword) {
+      updateDbData.tokenVersion = { increment: 1 };
+    }
+
     const updatedDbUser = await prisma.user.update({
       where: {
         id,

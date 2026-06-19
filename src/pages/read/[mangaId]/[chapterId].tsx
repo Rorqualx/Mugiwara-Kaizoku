@@ -6,7 +6,7 @@ import Head from 'next/head';
 import { getServerSession } from 'next-auth/next';
 
 import { NativeReader } from '@/components/reader/NativeReader';
-import { authOptions } from '@/lib/auth';
+import { authOptions } from '@/lib/auth/auth-options';
 import { useReaderStore } from '@/store/readerSlice';
 
 import type { GetServerSidePropsContext } from 'next';

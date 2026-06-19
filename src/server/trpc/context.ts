@@ -38,10 +38,31 @@ let conversionWorkerStarted = false;
  *   return data;
  * });
  */
+/**
+ * Resolve the client IP from proxy headers, falling back to the socket.
+ * Used as the rate-limit identity for unauthenticated requests so anonymous
+ * callers are bucketed per-IP instead of all sharing a single `anonymous` key.
+ */
+function resolveClientIp(req: CreateNextContextOptions['req']): string | undefined {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0]?.trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0];
+  }
+  const real = req.headers['x-real-ip'];
+  if (typeof real === 'string' && real.length > 0) {
+    return real;
+  }
+  return req.socket.remoteAddress ?? undefined;
+}
+
 export async function createContext(opts: CreateNextContextOptions): Promise<{
   prisma: typeof prisma;
   req: CreateNextContextOptions['req'];
   res?: CreateNextContextOptions['res'];
+  ip?: string;
 }> {
   // Initialize the config service on first request
   if (!configInitialized) {
@@ -96,10 +117,12 @@ logger.error('Failed to initialize ConfigService:', errorMessage);
   // Spinning up a second `default-worker` here only added load and, before
   // createWorker became idempotent, raced with the startup-path worker.)
 
+  const ip = resolveClientIp(opts.req);
   return {
     prisma,
     req: opts.req,
-    res: opts.res
+    res: opts.res,
+    ...(ip !== undefined ? { ip } : {})
   };
 }
 /**

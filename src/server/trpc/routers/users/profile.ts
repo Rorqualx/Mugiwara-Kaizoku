@@ -138,11 +138,13 @@ function buildProfileUpdateParams(updateData: {
 async function handlePasswordChange(
   updatedDbUser: { id: unknown; userName: unknown }
 ): Promise<void> {
-  // Delete all sessions for this user to force re-authentication
-  await prisma.session.deleteMany({
-    where: {
-      userId: toStringId(updatedDbUser.id)
-    }
+  // Force re-authentication by invalidating every outstanding JWT for this
+  // user. Sessions are JWT (not DB-backed), so `Session.deleteMany` is a no-op;
+  // bumping `tokenVersion` makes the canonical `jwt` callback reject any token
+  // issued before this change on its next request. (OWASP A07:2021)
+  await prisma.user.update({
+    where: { id: toStringId(updatedDbUser.id) },
+    data: { tokenVersion: { increment: 1 } }
   });
 
   // Emit password change notification

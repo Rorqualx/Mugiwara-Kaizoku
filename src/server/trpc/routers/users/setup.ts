@@ -7,7 +7,7 @@
  * - firstTimeSetup: Create first admin user (only when no users exist)
  */
 
-import { UserRole } from '@prisma/client';
+import { UserRole, Prisma } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
@@ -74,27 +74,42 @@ export const usersSetupRouter = router({
       }
       const hashedPassword = hashResult.data;
 
-      const dbUser = await prisma.user.create({
-        data: {
-          id: nanoid(),
-          userName: input.userName,
-          email: input.email,
-          hashedPassword,
-          role: UserRole.ADMIN,
-          updatedAt: new Date(),
-        },
-        select: {
-          id: true,
-          userName: true,
-          email: true,
-          role: true,
-          createdAt: true,
-          updatedAt: true,
-          lastLogin: true,
-          image: true,
-          avatar: true
+      // SECURITY: Re-check the user count and create the admin inside one
+      // serializable transaction. The cheap gate above is racy on its own —
+      // two concurrent setup calls with different usernames could both pass it
+      // and create two admins during the empty-install window. Serializable
+      // isolation forces one of the racing transactions to abort.
+      const dbUser = await prisma.$transaction(async (tx) => {
+        const racedCount = await tx.user.count();
+        if (racedCount > 0) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'First-time setup can only be used when no users exist'
+          });
         }
-      });
+
+        return tx.user.create({
+          data: {
+            id: nanoid(),
+            userName: input.userName,
+            email: input.email,
+            hashedPassword,
+            role: UserRole.ADMIN,
+            updatedAt: new Date(),
+          },
+          select: {
+            id: true,
+            userName: true,
+            email: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+            lastLogin: true,
+            image: true,
+            avatar: true
+          }
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
       logger.info(`First admin user created: ${dbUser.userName} (${dbUser.email})`);
 

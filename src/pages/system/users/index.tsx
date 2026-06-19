@@ -16,7 +16,7 @@ import { ResponsiveMainLayout } from '@/components/layouts/ResponsiveMainLayout'
 import SystemLayout from '@/components/layouts/SystemLayout';
 import { withSetupGuard } from '@/components/system/withSetupGuard';
 import { ResponsiveUserList } from '@/components/systems/ResponsiveUserList';
-import { auth } from '@/lib/auth/config';
+import { auth } from '@/lib/auth/auth-options';
 
 import type { GetServerSidePropsContext } from 'next';
 

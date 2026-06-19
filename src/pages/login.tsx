@@ -36,7 +36,7 @@ import { useSession } from 'next-auth/react';
 
 import { AuthLayout } from '../components/layouts/AuthLayout';
 import { useAuth } from '../hooks/useAuth';
-import { authOptions } from '../lib/auth/config';
+import { authOptions } from '../lib/auth/auth-options';
 import { logger } from '../utils/logger';
 
 import type { PrismaClient } from '@prisma/client';
@@ -233,7 +233,6 @@ export const getServerSideProps = async (context: GetServerSidePropsContext): Pr
       };
     }
     // Check if user is already authenticated using NextAuth
-    // @ts-expect-error NextAuth v4/v5 type compatibility issue
     const session = await getServerSession(context.req, context.res, authOptions);
     // If user is already logged in, redirect to home page
     if (session?.user) {

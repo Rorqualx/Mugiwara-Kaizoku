@@ -18,6 +18,7 @@ import {
   errorHandlingMiddleware,
   rateLimitMiddleware,
   cachingMiddleware,
+  checkRateLimit,
 } from './middleware';
 import { procedure } from './trpc';
 
@@ -263,51 +264,23 @@ export function rateLimitedProcedure<T extends typeof procedure>(
   limit: number,
   baseProcedure: T
 ): T {
-  // Simple in-memory rate limiting
-  // TODO: Replace with Redis-based rate limiting for production
-  const requests = new Map<string, number[]>();
+  const windowMs = 60 * 1000;
 
-  return baseProcedure.use(async ({ ctx, next }) => {
-    // Extract user ID if available (for authenticated requests)
-    const userId = (ctx as { user?: { id?: string } }).user?.id;
-
-    // Extract IP address from request context (Express contexts have req)
+  return baseProcedure.use(async ({ ctx, next, path }) => {
+    // Identity: authenticated user id, else client IP, else a shared anonymous
+    // bucket. `ctx.ip` is populated in createContext; fall back to the socket.
+    const ctxWithIp = ctx as { user?: { id?: string }; ip?: string };
     const req = 'req' in ctx ? (ctx as Context).req : undefined;
-    const ipAddress = req?.socket.remoteAddress;
+    const ipAddress = ctxWithIp.ip ?? req?.socket.remoteAddress;
+    const identifier = ctxWithIp.user?.id ?? (typeof ipAddress === 'string' ? ipAddress : undefined) ?? 'anonymous';
 
-    // Use user ID if available, otherwise IP, otherwise 'anonymous'
-    const identifier = userId ?? (typeof ipAddress === 'string' ? ipAddress : undefined) ?? 'anonymous';
-    const now = Date.now();
-    const minute = 60 * 1000;
-
-    // Get request timestamps for this identifier
-    const timestamps = requests.get(identifier) ?? [];
-
-    // Filter out old timestamps
-    const recentTimestamps = timestamps.filter(t => now - t < minute);
-
-    // Check rate limit
-    if (recentTimestamps.length >= limit) {
+    // Postgres-backed, shared across instances (see checkRateLimit).
+    const { allowed } = await checkRateLimit(`proc:${identifier}:${path}`, limit, windowMs);
+    if (!allowed) {
       throw new TRPCError({
         code: 'TOO_MANY_REQUESTS',
         message: `Rate limit exceeded. Maximum ${limit} requests per minute.`,
       });
-    }
-
-    // Add current timestamp
-    recentTimestamps.push(now);
-    requests.set(identifier, recentTimestamps);
-
-    // Clean up old entries periodically
-    if (Math.random() < 0.01) {
-      for (const [key, times] of requests.entries()) {
-        const recent = times.filter(t => now - t < minute);
-        if (recent.length === 0) {
-          requests.delete(key);
-        } else {
-          requests.set(key, recent);
-        }
-      }
     }
 
     return next();
