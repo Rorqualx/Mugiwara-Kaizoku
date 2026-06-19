@@ -21,7 +21,8 @@ import { z } from 'zod';
 import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { prisma } from '@/server/db';
-import { publicProcedure, protectedProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
+import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 import { isObject, hasProperty } from '@/utils/type-guards';
@@ -73,12 +74,14 @@ export const homeLocalQueriesRouter = router({
    *
    * @returns boolean - true if manga exists, false otherwise
    */
-  hasManga: publicProcedure
-    .query(async (): Promise<boolean> => {
+  hasManga: protectedProcedure
+    .query(async ({ ctx }): Promise<boolean> => {
       try {
+        const userId = requireUserId(ctx);
         const count = await prisma.manga.count({
           where: {
             libraryStatus: 'ACTIVE',
+            ...membershipWhere(userId),
           },
         });
 
@@ -99,10 +102,12 @@ export const homeLocalQueriesRouter = router({
    *
    * @returns Array of AniList IDs (numbers) for active library manga
    */
-  getLibraryAnilistIds: publicProcedure
-    .query(async (): Promise<number[]> => {
+  getLibraryAnilistIds: protectedProcedure
+    .query(async ({ ctx }): Promise<number[]> => {
       try {
-        const cacheKey = 'library-anilist-ids';
+        const userId = requireUserId(ctx);
+        // Cache key is per-user: the "In Library" set differs between users.
+        const cacheKey = `library-anilist-ids:${userId}`;
         const cached = await hotCacheProvider.getHot<number[]>('manga', cacheKey);
         if (cached) return cached;
 
@@ -111,6 +116,7 @@ export const homeLocalQueriesRouter = router({
             libraryStatus: 'ACTIVE',
             source: 'anilist',
             sourceId: { not: null },
+            ...membershipWhere(userId),
           },
           select: { sourceId: true },
         });
@@ -213,14 +219,15 @@ export const homeLocalQueriesRouter = router({
    * @input limit - Number of results (default 20)
    * @returns Array of manga sorted by creation date
    */
-  getRecentlyAdded: publicProcedure
+  getRecentlyAdded: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
     }).optional())
-    .query(async ({ input }): Promise<RecentlyAddedManga[]> => {
+    .query(async ({ input, ctx }): Promise<RecentlyAddedManga[]> => {
       try {
+        const userId = requireUserId(ctx);
         const limit = input?.limit ?? 20;
-        const cacheKey = `recently-added:${limit}`;
+        const cacheKey = `recently-added:${userId}:${limit}`;
 
         logger.info(`Fetching ${limit} recently added manga`);
 
@@ -246,6 +253,7 @@ export const homeLocalQueriesRouter = router({
         const manga = await prisma.manga.findMany({
           where: {
             libraryStatus: 'ACTIVE',
+            ...membershipWhere(userId),
           },
           include: {
             Metadata: true,
@@ -301,16 +309,17 @@ export const homeLocalQueriesRouter = router({
    * @input days - Number of days to look back (default 7)
    * @returns Array of manga with latest chapter info
    */
-  getRecentlyReleased: publicProcedure
+  getRecentlyReleased: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(50).default(20),
       days: z.number().min(1).max(90).default(7),
     }).optional())
-    .query(async ({ input }): Promise<RecentlyReleasedManga[]> => {
+    .query(async ({ input, ctx }): Promise<RecentlyReleasedManga[]> => {
       try {
+        const userId = requireUserId(ctx);
         const limit = input?.limit ?? 20;
         const days = input?.days ?? 7;
-        const cacheKey = `recently-released:${limit}:${days}`;
+        const cacheKey = `recently-released:${userId}:${limit}:${days}`;
 
         logger.info(`Fetching recently released manga (${days} days, limit ${limit})`);
 
@@ -340,6 +349,8 @@ export const homeLocalQueriesRouter = router({
               gte: cutoffDate,
             },
             downloadStatus: 'COMPLETED',
+            // Only surface releases for titles in the current user's library.
+            Manga: membershipWhere(userId),
           },
           include: {
             Manga: {

@@ -26,6 +26,7 @@ import { ValidationError } from '@/utils/errors';
 import { protectedProcedure } from '../procedures';
 import { router, } from '../trpc';
 
+import { assertMembership, getUserLibraryMangaIds, membershipWhere, requireUserId } from './_shared/library-access';
 import { exportCalendarData } from './calendar/export-handler';
 // Input schemas following project conventions
 const getEventsSchema = z.object({
@@ -118,13 +119,13 @@ interface MonitoredMangaRow {
     _count: { Chapter: number; CalendarEvent: number };
 }
 
-async function getMonitoredMangaForCalendar(): Promise<Array<{
+async function getMonitoredMangaForCalendar(userId: string): Promise<Array<{
     id: number; title: string; cover: string; status: string;
     schedule: { releaseType: string; dayOfWeek: number | null; confidence: number | null } | null;
     chapterCount: number; eventCount: number;
 }>> {
     const manga = await prisma.manga.findMany({
-        where: { Chapter: { some: {} }, Metadata: { status: { in: ACTIVE_STATUSES } } },
+        where: { Chapter: { some: {} }, Metadata: { status: { in: ACTIVE_STATUSES } }, ...membershipWhere(userId) },
         select: monitoredMangaSelect,
         orderBy: { title: 'asc' },
         take: 50,
@@ -140,15 +141,32 @@ async function getMonitoredMangaForCalendar(): Promise<Array<{
     }));
 }
 
+/**
+ * Restrict a calendar query's manga scope to the caller's library. Calendar
+ * events themselves are shared content, but a user should only SEE events for
+ * titles in their own library. Returns the effective `mangaIds` allow-list; an
+ * empty array means "nothing in scope" and callers must short-circuit to an
+ * empty result so no other user's events leak through.
+ */
+async function scopeMangaIdsToLibrary(userId: string, requested?: number[]): Promise<number[]> {
+    const libraryIds = await getUserLibraryMangaIds(prisma, userId);
+    if (!requested || requested.length === 0) return libraryIds;
+    const allowed = new Set(libraryIds);
+    return requested.filter(id => allowed.has(id));
+}
+
 export const calendarRouter = router({
     /**
      * Get calendar events for date range
      */
     getEvents: protectedProcedure
         .input(getEventsSchema)
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
+        const userId = requireUserId(ctx);
+        const mangaIds = await scopeMangaIdsToLibrary(userId, input.filters?.mangaIds);
+        if (mangaIds.length === 0) return [];
         const service = new CalendarEventService();
-        const result = await service.getEventsForDateRange(input.start, input.end, input.filters as CalendarFilters | undefined);
+        const result = await service.getEventsForDateRange(input.start, input.end, { ...(input.filters ?? {}), mangaIds } as CalendarFilters);
         if (isError(result)) {
             throw result.error;
         }
@@ -162,7 +180,8 @@ export const calendarRouter = router({
      */
     getSchedule: protectedProcedure
         .input(z.object({ mangaId: z.number() }))
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
+        await assertMembership(prisma, requireUserId(ctx), input.mangaId);
         const service = new ReleaseScheduleService();
         const result = await service.getSchedule(input.mangaId);
         if (isError(result)) {
@@ -178,7 +197,8 @@ export const calendarRouter = router({
      */
     updateSchedule: protectedProcedure
         .input(updateScheduleSchema)
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+        await assertMembership(prisma, requireUserId(ctx), input.mangaId);
         const service = new ReleaseScheduleService();
         const scheduleData = {
             ...(input.schedule.releaseType !== undefined ? { releaseType: input.schedule.releaseType } : {}),
@@ -214,11 +234,17 @@ export const calendarRouter = router({
         mangaId: z.number().optional(),
         days: z.number().min(1).max(90).default(30)
     }))
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
+        const userId = requireUserId(ctx);
+        if (input.mangaId !== undefined) {
+            await assertMembership(prisma, userId, input.mangaId);
+        }
+        const mangaIds = await scopeMangaIdsToLibrary(userId, input.mangaId ? [input.mangaId] : undefined);
+        if (mangaIds.length === 0) return [];
         const service = new CalendarEventService();
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + input.days);
-        const result = await service.getEventsForDateRange(new Date(), endDate, input.mangaId ? { mangaIds: [input.mangaId] } : undefined);
+        const result = await service.getEventsForDateRange(new Date(), endDate, { mangaIds } as CalendarFilters);
         if (isError(result)) {
             throw result.error;
         }
@@ -260,7 +286,8 @@ export const calendarRouter = router({
      */
     createEvent: protectedProcedure
         .input(createEventSchema)
-        .mutation(async ({ input }) => {
+        .mutation(async ({ input, ctx }) => {
+        await assertMembership(prisma, requireUserId(ctx), input.mangaId);
         const service = new CalendarEventService();
         const eventData = {
             mangaId: input.mangaId,
@@ -376,18 +403,22 @@ export const calendarRouter = router({
             end: z.date()
         }).optional()
     }))
-        .query(async ({ input }) => {
+        .query(async ({ input, ctx }) => {
+        const userId = requireUserId(ctx);
+        if (input.mangaId !== undefined) {
+            await assertMembership(prisma, userId, input.mangaId);
+        }
+        const mangaIds = await scopeMangaIdsToLibrary(userId, input.mangaId ? [input.mangaId] : undefined);
         const service = new CalendarEventService();
         const startDate = input.dateRange?.start ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
         const endDate = input.dateRange?.end ?? new Date();
-        const result = await service.getEventsForDateRange(startDate, endDate, input.mangaId ? { mangaIds: [input.mangaId] } : undefined);
-        if (isError(result)) {
+        const result = mangaIds.length > 0
+            ? await service.getEventsForDateRange(startDate, endDate, { mangaIds } as CalendarFilters)
+            : null;
+        if (result && isError(result)) {
             throw result.error;
         }
-        if (!isSuccess(result)) {
-            throw new ValidationError('Unknown state in getStatistics');
-        }
-        const events = result.data;
+        const events = result && isSuccess(result) ? result.data : [];
         // Calculate statistics
         const totalEvents = events.length;
         const confirmedEvents = events.filter(e => e["status"] === EventStatus.CONFIRMED).length;
@@ -428,11 +459,17 @@ export const calendarRouter = router({
             end: z.date().optional()
         }).optional()
     }))
-        .query(({ input }) => exportCalendarData(input)),
+        .query(async ({ input, ctx }) => {
+            const scoped = await scopeMangaIdsToLibrary(requireUserId(ctx), input.mangaIds);
+            // Force an empty result when nothing is in scope, so an empty array
+            // isn't misread as "no filter" (which would export every user's events).
+            const mangaIds = scoped.length > 0 ? scoped : [-1];
+            return exportCalendarData({ ...input, mangaIds });
+        }),
 
     /** Get all monitored manga with covers and schedule info for the calendar page */
-    getMonitoredManga: protectedProcedure.query(async () => {
-        return getMonitoredMangaForCalendar();
+    getMonitoredManga: protectedProcedure.query(async ({ ctx }) => {
+        return getMonitoredMangaForCalendar(requireUserId(ctx));
     }),
 
     /** Trigger a manual calendar sync for all monitored manga */

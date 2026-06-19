@@ -8,7 +8,8 @@ import { checkOutOfSyncChapters } from '@/server/queue/checkOutOfSyncChapters';
 import { enqueueFixOutOfSyncChaptersTask } from '@/server/queue/fixOutOfSyncChapters';
 import { runUnifiedReleaseSearch } from '@/server/services/library/releaseDispatcher/dispatch';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, getUserLibraryMangaIds, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -47,7 +48,7 @@ export const monitoringRouter = router({
   /**
    * Get auto-download configuration for a manga
    */
-  getAutoDownloadConfig: publicProcedure
+  getAutoDownloadConfig: protectedProcedure
     .input(mangaIdSchema)
     .query(async ({ input, ctx }): Promise<{
       enabled: boolean;
@@ -60,6 +61,7 @@ export const monitoringRouter = router({
       format?: string;
     }> => {
       const { mangaId } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Getting auto-download config for manga ${mangaId}`);
 
       const rule = await ctx.prisma.autoDownloadRule.findUnique({
@@ -114,6 +116,7 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; enabled: boolean }> => {
       const { mangaId, config } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Configuring auto-download for manga ${mangaId}`);
 
       const rule = await ctx.prisma.autoDownloadRule.upsert({
@@ -165,6 +168,7 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; enabled: boolean }> => {
       const { mangaId, enabled } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Toggling monitoring for manga ${mangaId} to ${enabled}`);
 
       const rule = await ctx.prisma.autoDownloadRule.upsert({
@@ -221,6 +225,7 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; monitored: boolean; updatedCount: number }> => {
       const { mangaId, monitored } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Toggling series monitoring for manga ${mangaId} to ${monitored}`);
 
       const result = await ctx.prisma.chapter.updateMany({
@@ -262,6 +267,7 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; monitored: boolean; updatedCount: number }> => {
       const { mangaId, volumeNumber, monitored } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Toggling volume ${volumeNumber} monitoring for manga ${mangaId} to ${monitored}`);
 
       const result = await ctx.prisma.chapter.updateMany({
@@ -330,7 +336,7 @@ export const monitoringRouter = router({
    *
    * Returns aggregate monitoring stats for series, volumes, and individual chapters
    */
-  getMonitoringStats: publicProcedure
+  getMonitoringStats: protectedProcedure
     .input(z.object({
       mangaId: z.number(),
       volumeNumber: z.number().optional()
@@ -353,6 +359,7 @@ export const monitoringRouter = router({
       }>;
     }> => {
       const { mangaId, volumeNumber } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
 
       if (volumeNumber !== undefined) {
         // Get stats for a specific volume
@@ -634,7 +641,7 @@ export const monitoringRouter = router({
   /**
    * Toggle monitoring for all chapters in multiple manga (bulk operation)
    */
-  bulkToggleMonitoring: publicProcedure
+  bulkToggleMonitoring: protectedProcedure
     .input(z.object({
       mangaIds: z.array(z.number()),
       monitored: z.boolean()
@@ -650,9 +657,13 @@ export const monitoringRouter = router({
       let totalUpdated = 0;
       let successfulMangaCount = 0;
 
-      logger.info(`Bulk toggling monitoring for ${mangaIds.length} manga to ${monitored}`);
+      // Scope to the caller's library — never toggle monitoring on titles they don't own.
+      const libraryIds = new Set(await getUserLibraryMangaIds(ctx.prisma, requireUserId(ctx)));
+      const scopedIds = mangaIds.filter(id => libraryIds.has(id));
 
-      const updatePromises = mangaIds.map(async (mangaId) => {
+      logger.info(`Bulk toggling monitoring for ${scopedIds.length} manga to ${monitored}`);
+
+      const updatePromises = scopedIds.map(async (mangaId) => {
         try {
           const result = await ctx.prisma.chapter.updateMany({
             where: { mangaId },

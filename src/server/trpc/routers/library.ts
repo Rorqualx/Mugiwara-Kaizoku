@@ -11,9 +11,11 @@ import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 import { isObject, hasProperty, isArray } from '@/utils/type-guards';
 
+
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
+import { membershipWhere, requireUserId } from './_shared/library-access';
 import { computeMissingChaptersProcedure } from './library/compute-missing-chapters';
 import { countFilePagesProcedure } from './library/count-file-pages';
 import { importFromPipelineProcedure } from './library/import-from-pipeline';
@@ -123,15 +125,19 @@ export const libraryRouter = router({
       return library;
     }),
 
-  list: protectedProcedure.query(async () => {
-    return prisma.library.findMany({ include: { _count: { select: { Manga: true } } } });
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const userId = requireUserId(ctx);
+    // Library rows are global, but each user only counts the titles in their library.
+    return prisma.library.findMany({ include: { _count: { select: { Manga: { where: membershipWhere(userId) } } } } });
   }),
 
-  query: protectedProcedure.query(async () => {
+  query: protectedProcedure.query(async ({ ctx }) => {
+    const userId = requireUserId(ctx);
+    const memberOnly = membershipWhere(userId);
     const libraries = await prisma.library.findMany({
       include: {
-        Manga: { include: { Metadata: true, Chapter: true } },
-        _count: { select: { Manga: true } }
+        Manga: { where: memberOnly, include: { Metadata: true, Chapter: true } },
+        _count: { select: { Manga: { where: memberOnly } } }
       }
     });
     return libraries.map((library) => {
@@ -185,12 +191,14 @@ export const libraryRouter = router({
 
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
+      const memberOnly = membershipWhere(userId);
       const library = await prisma.library.findUnique({
         where: { id: input.id },
         include: {
-          Manga: { include: { Metadata: true, Chapter: true } },
-          _count: { select: { Manga: true } }
+          Manga: { where: memberOnly, include: { Metadata: true, Chapter: true } },
+          _count: { select: { Manga: { where: memberOnly } } }
         }
       });
       if (!library) throw new ValidationError('Library not found');

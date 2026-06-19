@@ -16,9 +16,11 @@
 
 import * as path from 'path';
 
+import { Prisma } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 
 
+import { resolveExistingManga } from '@/server/services/library/manga-identity-resolver';
 import { createMetadata, type MetadataInput } from '@/server/services/manga/metadataBuilder';
 import { logger } from '@/utils/logger';
 
@@ -29,7 +31,7 @@ import {
   safeGetNumber
 } from '../shared';
 
-import type { PrismaClient, Prisma, Library } from '@prisma/client';
+import type { PrismaClient, Manga, Library } from '@prisma/client';
 
 /**
  * Input type for add manga validation functions
@@ -79,32 +81,40 @@ export async function validateLibrary(
 }
 
 /**
- * Check if a manga with the same title already exists (case-insensitive)
+ * Find an existing shared manga that represents the same incoming title, for
+ * deduplication. The catalog is a single shared content layer, so a title that
+ * another user already added should be LINKED into the caller's library rather
+ * than re-created + re-downloaded.
  *
- * @param prisma - Prisma client instance
- * @param title - Title to check for duplicates
- * @throws TRPCError if duplicate found
+ * Maps the add input onto the identity keys used by {@link resolveExistingManga}
+ * (Metadata source+sourceId → Manga.sourceId → case-insensitive title).
+ *
+ * @returns The existing shared Manga, or null when this is a genuinely new title.
  */
-export async function checkMangaDuplicate(
+export async function findExistingMangaForLink(
   prisma: PrismaClient,
-  title: string
-): Promise<void> {
-  // Case-insensitive search to catch variations like "Dorohedoro" vs "dorohedoro"
-  const existingManga = await prisma.manga.findFirst({
-    where: {
-      title: {
-        equals: title,
-        mode: 'insensitive'
-      }
-    }
-  });
+  input: AddMangaInput
+): Promise<Manga | null> {
+  const metadataSourceId =
+    (input.metadata as { sourceId?: string | null } | undefined)?.sourceId ??
+    input.mangaId ??
+    null;
 
-  if (existingManga) {
-    throw new TRPCError({
-      code: 'CONFLICT',
-      message: `A manga titled "${existingManga.title}" already exists in your library. Please check your library or use a different title.`
-    });
-  }
+  return resolveExistingManga(prisma, {
+    title: input.title,
+    sourceId: input.mangaId ?? null,
+    metadataSource: input.searchProvider ?? input.source,
+    metadataSourceId
+  });
+}
+
+/**
+ * True when an error is a Prisma unique-constraint violation (P2002). Used to
+ * recover from the add race where two users create the same shared title
+ * concurrently — the loser links the winner's row instead of failing.
+ */
+export function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
 /**

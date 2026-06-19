@@ -13,8 +13,11 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-import { publicProcedure } from '../procedures';
+
+import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
+
+import { assertMembership, membershipWhere, requireUserId } from './_shared/library-access';
 
 const log = logger.child('BrowseRouter');
 
@@ -119,7 +122,7 @@ interface RelatedWorksResult {
   recommendations: Array<RecommendationBucket & { localManga: LocalMangaCard | null }>;
 }
 
-async function fetchRelatedWorks(mangaId: number): Promise<RelatedWorksResult> {
+async function fetchRelatedWorks(mangaId: number, userId: string): Promise<RelatedWorksResult> {
   const [relations, recommendations] = await Promise.all([
     prisma.mangaRelation.findMany({
       where: { fromMangaId: mangaId },
@@ -145,7 +148,7 @@ async function fetchRelatedWorks(mangaId: number): Promise<RelatedWorksResult> {
     ...recommendations.map(r => r.toMangaId),
   ].filter((id): id is number => id !== null);
   const localRows = localIds.length > 0
-    ? await prisma.manga.findMany({ where: { id: { in: localIds } }, select: mangaCardSelect })
+    ? await prisma.manga.findMany({ where: { id: { in: localIds }, ...membershipWhere(userId) }, select: mangaCardSelect })
     : [];
   const byId = new Map(localRows.map(m => [m.id, m]));
 
@@ -173,19 +176,21 @@ export const browseRouter = router({
   /**
    * Get all manga in library by a specific author.
    */
-  getByAuthor: publicProcedure
+  getByAuthor: protectedProcedure
     .input(z.object({
       author: z.string().min(1),
       limit: z.number().min(1).max(50).default(20),
       cursor: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { author, limit, cursor } = input;
+      const userId = requireUserId(ctx);
       log.info('Browse by author', { author, limit });
 
       const manga = await prisma.manga.findMany({
         where: {
           Metadata: { authors: { has: author } },
+          ...membershipWhere(userId),
         },
         select: mangaCardSelect,
         take: limit + 1,
@@ -205,18 +210,20 @@ export const browseRouter = router({
   /**
    * Get all manga in library by a specific artist.
    */
-  getByArtist: publicProcedure
+  getByArtist: protectedProcedure
     .input(z.object({
       artist: z.string().min(1),
       limit: z.number().min(1).max(50).default(20),
       cursor: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { artist, limit, cursor } = input;
+      const userId = requireUserId(ctx);
 
       const manga = await prisma.manga.findMany({
         where: {
           Metadata: { artists: { has: artist } },
+          ...membershipWhere(userId),
         },
         select: mangaCardSelect,
         take: limit + 1,
@@ -236,19 +243,21 @@ export const browseRouter = router({
   /**
    * Get all manga in library by a specific publisher.
    */
-  getByPublisher: publicProcedure
+  getByPublisher: protectedProcedure
     .input(z.object({
       publisher: z.string().min(1),
       limit: z.number().min(1).max(50).default(20),
       cursor: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { publisher, limit, cursor } = input;
+      const userId = requireUserId(ctx);
 
       const manga = await prisma.manga.findMany({
         where: {
           // Phase 1: Metadata.publisher → Metadata.publishers[]. Match any element.
           Metadata: { publishers: { has: publisher } },
+          ...membershipWhere(userId),
         },
         select: mangaCardSelect,
         take: limit + 1,
@@ -268,18 +277,20 @@ export const browseRouter = router({
   /**
    * Get all manga in library filtered by genre.
    */
-  getByGenre: publicProcedure
+  getByGenre: protectedProcedure
     .input(z.object({
       genre: z.string().min(1),
       limit: z.number().min(1).max(50).default(20),
       cursor: z.number().optional(),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { genre, limit, cursor } = input;
+      const userId = requireUserId(ctx);
 
       const manga = await prisma.manga.findMany({
         where: {
           Metadata: { genres: { has: genre } },
+          ...membershipWhere(userId),
         },
         select: mangaCardSelect,
         take: limit + 1,
@@ -299,24 +310,32 @@ export const browseRouter = router({
   /**
    * Get all unique authors across the library.
    */
-  getAuthors: publicProcedure
+  getAuthors: protectedProcedure
     .input(z.object({
       search: z.string().optional(),
       limit: z.number().min(1).max(200).default(50),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { search, limit } = input;
+      const userId = requireUserId(ctx);
 
+      // Joined through LibraryMembership so counts reflect only the caller's library.
       const result = search
         ? await prisma.$queryRaw<Array<{ author: string; count: bigint }>>`
             SELECT a as author, COUNT(*) as count
-            FROM "Metadata", unnest(authors) as a
-            WHERE array_length(authors, 1) > 0 AND a ILIKE ${'%' + search + '%'}
+            FROM "Metadata" md
+            JOIN "Manga" m ON m."metadataId" = md.id
+            JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+            , unnest(md.authors) as a
+            WHERE lm."userId" = ${userId} AND array_length(md.authors, 1) > 0 AND a ILIKE ${'%' + search + '%'}
             GROUP BY a ORDER BY count DESC, a ASC LIMIT ${limit}`
         : await prisma.$queryRaw<Array<{ author: string; count: bigint }>>`
             SELECT a as author, COUNT(*) as count
-            FROM "Metadata", unnest(authors) as a
-            WHERE array_length(authors, 1) > 0
+            FROM "Metadata" md
+            JOIN "Manga" m ON m."metadataId" = md.id
+            JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+            , unnest(md.authors) as a
+            WHERE lm."userId" = ${userId} AND array_length(md.authors, 1) > 0
             GROUP BY a ORDER BY count DESC, a ASC LIMIT ${limit}`;
 
       return result.map(r => ({ name: r.author, mangaCount: Number(r.count) }));
@@ -325,25 +344,33 @@ export const browseRouter = router({
   /**
    * Get all unique publishers across the library.
    */
-  getPublishers: publicProcedure
+  getPublishers: protectedProcedure
     .input(z.object({
       search: z.string().optional(),
       limit: z.number().min(1).max(200).default(50),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const { search, limit } = input;
+      const userId = requireUserId(ctx);
 
       // Phase 1: publishers TEXT[] — unnest then group/count each distinct entry.
+      // Joined through LibraryMembership so counts reflect only the caller's library.
       const result = search
         ? await prisma.$queryRaw<Array<{ publisher: string; count: bigint }>>`
             SELECT p AS publisher, COUNT(*) as count
-            FROM "Metadata", unnest(publishers) AS p
-            WHERE array_length(publishers, 1) > 0 AND p ILIKE ${'%' + search + '%'}
+            FROM "Metadata" md
+            JOIN "Manga" m ON m."metadataId" = md.id
+            JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+            , unnest(md.publishers) AS p
+            WHERE lm."userId" = ${userId} AND array_length(md.publishers, 1) > 0 AND p ILIKE ${'%' + search + '%'}
             GROUP BY p ORDER BY count DESC, p ASC LIMIT ${limit}`
         : await prisma.$queryRaw<Array<{ publisher: string; count: bigint }>>`
             SELECT p AS publisher, COUNT(*) as count
-            FROM "Metadata", unnest(publishers) AS p
-            WHERE array_length(publishers, 1) > 0
+            FROM "Metadata" md
+            JOIN "Manga" m ON m."metadataId" = md.id
+            JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+            , unnest(md.publishers) AS p
+            WHERE lm."userId" = ${userId} AND array_length(md.publishers, 1) > 0
             GROUP BY p ORDER BY count DESC, p ASC LIMIT ${limit}`;
 
       return result.map(r => ({ name: r.publisher, mangaCount: Number(r.count) }));
@@ -352,12 +379,16 @@ export const browseRouter = router({
   /**
    * Get all unique genres across the library.
    */
-  getGenres: publicProcedure
-    .query(async () => {
+  getGenres: protectedProcedure
+    .query(async ({ ctx }) => {
+      const userId = requireUserId(ctx);
       const result = await prisma.$queryRaw<Array<{ genre: string; count: bigint }>>`
         SELECT g as genre, COUNT(*) as count
-        FROM "Metadata", unnest(genres) as g
-        WHERE array_length(genres, 1) > 0
+        FROM "Metadata" md
+        JOIN "Manga" m ON m."metadataId" = md.id
+        JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+        , unnest(md.genres) as g
+        WHERE lm."userId" = ${userId} AND array_length(md.genres, 1) > 0
         GROUP BY g ORDER BY count DESC, g ASC`;
 
       return result.map(r => ({ name: r.genre, mangaCount: Number(r.count) }));
@@ -376,17 +407,23 @@ export const browseRouter = router({
    * Distinct from `getRelatedAndRecommendations` which reads the legacy
    * `providerMetadata.mangaupdates` JSON blob — kept for the MU text card.
    */
-  getRelatedWorks: publicProcedure
+  getRelatedWorks: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .query(async ({ input }) => fetchRelatedWorks(input.mangaId)),
+    .query(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
+      await assertMembership(prisma, userId, input.mangaId);
+      return fetchRelatedWorks(input.mangaId, userId);
+    }),
 
   /**
    * Get related series and recommendations for a manga.
    * Reads from providerMetadata.mangaupdates stored during enrichment.
    */
-  getRelatedAndRecommendations: publicProcedure
+  getRelatedAndRecommendations: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
+      await assertMembership(prisma, userId, input.mangaId);
       const manga = await prisma.manga.findUnique({
         where: { id: input.mangaId },
         select: { providerMetadata: true },
@@ -417,7 +454,7 @@ export const browseRouter = router({
 
       const localManga = allTitles.length > 0
         ? await prisma.manga.findMany({
-            where: { title: { in: allTitles, mode: 'insensitive' } },
+            where: { title: { in: allTitles, mode: 'insensitive' }, ...membershipWhere(userId) },
             select: { id: true, title: true },
           })
         : [];
@@ -444,20 +481,29 @@ export const browseRouter = router({
    * Get personalized home sections (by author, by publisher) from library data.
    * Returns featured author + publisher with their manga for home screen rows.
    */
-  getPersonalizedSections: publicProcedure
-    .query(async () => {
-      // Pick the author with most titles in library
+  getPersonalizedSections: protectedProcedure
+    .query(async ({ ctx }) => {
+      const userId = requireUserId(ctx);
+      const memberOnly = membershipWhere(userId);
+
+      // Pick the author with most titles in the caller's library
       const topAuthor = await prisma.$queryRaw<Array<{ author: string; count: bigint }>>`
         SELECT a as author, COUNT(*) as count
-        FROM "Metadata", unnest(authors) as a
-        WHERE array_length(authors, 1) > 0
+        FROM "Metadata" md
+        JOIN "Manga" m ON m."metadataId" = md.id
+        JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+        , unnest(md.authors) as a
+        WHERE lm."userId" = ${userId} AND array_length(md.authors, 1) > 0
         GROUP BY a ORDER BY count DESC LIMIT 1`;
 
-      // Pick the publisher with most titles
+      // Pick the publisher with most titles in the caller's library
       const topPublisher = await prisma.$queryRaw<Array<{ publisher: string; count: bigint }>>`
-        SELECT publisher, COUNT(*) as count FROM "Metadata"
-        WHERE publisher IS NOT NULL AND publisher != ''
-        GROUP BY publisher ORDER BY count DESC LIMIT 1`;
+        SELECT md.publisher, COUNT(*) as count
+        FROM "Metadata" md
+        JOIN "Manga" m ON m."metadataId" = md.id
+        JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
+        WHERE lm."userId" = ${userId} AND md.publisher IS NOT NULL AND md.publisher != ''
+        GROUP BY md.publisher ORDER BY count DESC LIMIT 1`;
 
       const authorName = topAuthor[0]?.author ?? null;
       const publisherName = topPublisher[0]?.publisher ?? null;
@@ -465,14 +511,14 @@ export const browseRouter = router({
       const [authorManga, publisherManga] = await Promise.all([
         authorName
           ? prisma.manga.findMany({
-              where: { Metadata: { authors: { has: authorName } } },
+              where: { Metadata: { authors: { has: authorName } }, ...memberOnly },
               select: mangaCardSelect, take: 20, orderBy: { title: 'asc' },
             })
           : Promise.resolve([]),
         publisherName
           ? prisma.manga.findMany({
               // Phase 1: Metadata.publisher → Metadata.publishers[]. Match any element.
-              where: { Metadata: { publishers: { has: publisherName } } },
+              where: { Metadata: { publishers: { has: publisherName } }, ...memberOnly },
               select: mangaCardSelect, take: 20, orderBy: { title: 'asc' },
             })
           : Promise.resolve([]),

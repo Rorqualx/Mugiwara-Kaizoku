@@ -1,3 +1,4 @@
+// @file-size-justified: Core tRPC router — splitting procedures across files breaks router type inference
 import { ChapterStatus, MangaLibraryStatus, Chapter, JobType } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
@@ -15,6 +16,8 @@ import { serverLogger } from '@/utils/serverLogger';
 
 import { protectedProcedure, systemProcedure } from '../procedures';
 import { router } from '../trpc';
+
+import { filterMangaIdsToLibrary, removeMembership, requireUserId } from './_shared/library-access';
 
 /**
  * Input schema for bulk operations
@@ -137,18 +140,21 @@ async function handleBulkDownload(
 /**
  * Helper function to handle bulk removal
  */
-async function handleBulkRemove(mangaIds: number[]): Promise<BulkOperationResult> {
+async function handleBulkRemove(userId: string, mangaIds: number[]): Promise<BulkOperationResult> {
   const result: BulkOperationResult = {
     successCount: 0,
     errorCount: 0,
     errors: []
   };
 
+  // Reference-counted: drop the caller's membership; only physically delete the
+  // shared title once its last member is gone.
   const removePromises = mangaIds.map(async (mangaId) => {
     try {
-      await prisma.manga.delete({
-        where: { id: mangaId }
-      });
+      const { remainingMembers } = await removeMembership(prisma, userId, mangaId);
+      if (remainingMembers === 0) {
+        await prisma.manga.delete({ where: { id: mangaId } });
+      }
       result.successCount++;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -249,6 +255,27 @@ async function handleMarkReadUnread(
   return { successCount: mangaIds.length, errorCount: 0, errors: [] };
 }
 
+/** Delete the on-disk files for a set of manga, tallying successes and errors. */
+async function deleteFilesForMangaIds(mangaIds: number[]): Promise<{ filesDeleted: number; fileErrors: number }> {
+  let filesDeleted = 0;
+  let fileErrors = 0;
+  const fileResults = await Promise.all(
+    mangaIds.map(async (mangaId) => {
+      try {
+        return await deleteMangaFiles(mangaId);
+      } catch (error: unknown) {
+        serverLogger.error('Bulk file deletion failed for manga', { mangaId, error });
+        return null;
+      }
+    })
+  );
+  for (const r of fileResults) {
+    if (r === null) fileErrors++;
+    else { filesDeleted += r.filesDeleted; fileErrors += r.errors.length; }
+  }
+  return { filesDeleted, fileErrors };
+}
+
 /**
  * Bulk operations router
  *
@@ -260,8 +287,11 @@ export const bulkRouter = router({
    */
   performBulkAction: protectedProcedure
     .input(bulkOperationSchema)
-    .mutation(async ({ input }) => {
-      const { mangaIds, operation, additionalData } = input;
+    .mutation(async ({ input, ctx }) => {
+      const { operation, additionalData } = input;
+      const userId = requireUserId(ctx);
+      // Only ever act on titles in the caller's own library.
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, userId, input.mangaIds);
 
       try {
         let result: BulkOperationResult;
@@ -280,7 +310,7 @@ export const bulkRouter = router({
           }
 
           case 'remove': {
-            result = await handleBulkRemove(mangaIds);
+            result = await handleBulkRemove(userId, mangaIds);
             break;
           }
 
@@ -344,8 +374,9 @@ export const bulkRouter = router({
   /** Mark all chapters as read/unread across multiple manga. */
   markChapters: protectedProcedure
     .input(bulkMarkChaptersSchema)
-    .mutation(async ({ input }) => {
-      const { mangaIds, isRead } = input;
+    .mutation(async ({ input, ctx }) => {
+      const { isRead } = input;
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, requireUserId(ctx), input.mangaIds);
       try {
         const updated = await prisma.chapter.updateMany({
           where: { mangaId: { in: mangaIds }, isRead: !isRead },
@@ -416,8 +447,9 @@ export const bulkRouter = router({
    */
   queueDownloads: protectedProcedure
     .input(bulkDownloadSchema)
-    .mutation(async ({ input }) => {
-      const { mangaIds, chapterSelection } = input;
+    .mutation(async ({ input, ctx }) => {
+      const { chapterSelection } = input;
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, requireUserId(ctx), input.mangaIds);
 
       try {
         let totalQueued = 0;
@@ -510,57 +542,43 @@ export const bulkRouter = router({
       mangaIds: z.array(z.number()),
       deleteFiles: z.boolean().optional().default(false)
     }))
-    .mutation(async ({ input }) => {
-      const { mangaIds, deleteFiles } = input;
+    .mutation(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
+      const { deleteFiles } = input;
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, userId, input.mangaIds);
 
       try {
-        // Delete files BEFORE the DB rows (needs Chapter.filePath to find them)
-        let filesDeleted = 0;
-        let fileErrors = 0;
-        if (deleteFiles) {
-          const fileResults = await Promise.all(
-            mangaIds.map(async (mangaId) => {
-              try {
-                return await deleteMangaFiles(mangaId);
-              } catch (error: unknown) {
-                serverLogger.error('Bulk file deletion failed for manga', { mangaId, error });
-                return null;
-              }
-            })
-          );
-          for (const r of fileResults) {
-            if (r === null) {
-              fileErrors++;
-            } else {
-              filesDeleted += r.filesDeleted;
-              fileErrors += r.errors.length;
-            }
-          }
+        if (mangaIds.length === 0) {
+          return { success: true, count: 0, message: 'No matching manga in your library.' };
         }
 
-        const result = await prisma.manga.deleteMany({
-          where: {
-            id: { in: mangaIds as number[] }
-          }
-        });
+        // Reference-counted: drop each membership; a shared title is only
+        // physically deleted once it loses its last member.
+        const toDelete: number[] = [];
+        await Promise.all(mangaIds.map(async (mangaId) => {
+          const { remainingMembers } = await removeMembership(prisma, userId, mangaId);
+          if (remainingMembers === 0) toDelete.push(mangaId);
+        }));
+
+        // Delete files BEFORE the DB rows (needs Chapter.filePath to find them)
+        const { filesDeleted, fileErrors } = deleteFiles && toDelete.length > 0
+          ? await deleteFilesForMangaIds(toDelete)
+          : { filesDeleted: 0, fileErrors: 0 };
+
+        if (toDelete.length > 0) {
+          await prisma.manga.deleteMany({ where: { id: { in: toDelete } } });
+        }
 
         // Invalidate tRPC middleware cache so list views update immediately
-        if (result.count > 0) {
-          await cache.clear('trpc:manga.*');
-
-          // Emit WebSocket events for real-time sync
-          for (const mangaId of mangaIds) {
-            void realtimeEmitter.emitMangaUpdate({
-              mangaId,
-              action: 'deleted'
-            });
-          }
+        await cache.clear('trpc:manga.*');
+        for (const mangaId of toDelete) {
+          void realtimeEmitter.emitMangaUpdate({ mangaId, action: 'deleted' });
         }
 
         return {
           success: true,
-          count: result.count,
-          message: `Removed ${result.count} manga from library${deleteFiles ? ` (${filesDeleted} file(s) deleted${fileErrors > 0 ? `, ${fileErrors} file error(s)` : ''})` : ''}`
+          count: mangaIds.length,
+          message: `Removed ${mangaIds.length} manga from your library${deleteFiles ? ` (${filesDeleted} file(s) deleted${fileErrors > 0 ? `, ${fileErrors} file error(s)` : ''})` : ''}`
         };
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
@@ -580,8 +598,8 @@ export const bulkRouter = router({
     .input(z.object({
       mangaIds: z.array(z.number()).min(1, 'At least one manga ID is required')
     }))
-    .mutation(async ({ input }) => {
-      const { mangaIds } = input;
+    .mutation(async ({ input, ctx }) => {
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, requireUserId(ctx), input.mangaIds);
       const errors: string[] = [];
       let successCount = 0;
 

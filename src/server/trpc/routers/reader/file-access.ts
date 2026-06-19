@@ -82,7 +82,7 @@ export const readerFileAccessRouter = router({
       }
 
       // Validate user has access
-      const hasAccess = fileAccessService.validateAccess(getUserId(ctx), input.mangaId);
+      const hasAccess = await fileAccessService.validateAccess(getUserId(ctx), input.mangaId);
       if (!hasAccess) {
         throw new TRPCError({
           code: 'FORBIDDEN',
@@ -144,7 +144,7 @@ export const readerFileAccessRouter = router({
       if (!chapter) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Chapter not found' });
       }
-      const hasAccess = fileAccessService.validateAccess(getUserId(ctx), chapter.mangaId);
+      const hasAccess = await fileAccessService.validateAccess(getUserId(ctx), chapter.mangaId);
       if (!hasAccess) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }
@@ -184,7 +184,7 @@ export const readerFileAccessRouter = router({
       if (!chapter) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Chapter not found' });
       }
-      const hasAccess = fileAccessService.validateAccess(getUserId(ctx), chapter.mangaId);
+      const hasAccess = await fileAccessService.validateAccess(getUserId(ctx), chapter.mangaId);
       if (!hasAccess) {
         throw new TRPCError({ code: 'FORBIDDEN', message: 'Access denied' });
       }

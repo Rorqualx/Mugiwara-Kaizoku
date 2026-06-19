@@ -220,6 +220,9 @@ model Manga {
   mangaRelationsFrom MangaRelation[] @relation("MangaRelationFrom")
   mangaRelationsTo   MangaRelation[] @relation("MangaRelationTo")
 
+  // Per-user library membership (which users have this shared title in their library)
+  LibraryMembership LibraryMembership[]
+
   @@unique([libraryId, libraryPath])
   @@index([createdAt])
   @@index([lastChecked])
@@ -635,6 +638,7 @@ model User {
   AnnotationSession AnnotationSession[]
 
   NotificationPreference NotificationPreference[]
+  LibraryMembership      LibraryMembership[]
 }
 
 model VerificationToken {
@@ -2413,6 +2417,27 @@ model BookmarkedManga {
   userId    String
   mangaId   Int
   createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga Manga @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mangaId])
+  @@index([userId])
+  @@index([mangaId])
+}
+
+/// Per-user library membership over the shared manga catalog.
+///
+/// `Manga`/`Chapter`/files are a single shared, deduplicated content layer; this
+/// join is what makes a title "in a user's library". Visibility queries filter
+/// manga by `{ LibraryMembership: { some: { userId } } }`, and removal is
+/// reference-counted: the shared `Manga` (and its files) is only physically
+/// deleted once the final membership row is gone.
+model LibraryMembership {
+  id      Int      @id @default(autoincrement())
+  userId  String
+  mangaId Int
+  addedAt DateTime @default(now())
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   manga Manga @relation(fields: [mangaId], references: [id], onDelete: Cascade)

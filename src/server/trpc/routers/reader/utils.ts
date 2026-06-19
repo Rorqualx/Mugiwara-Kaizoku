@@ -13,6 +13,8 @@ import * as path from 'path';
 
 import { ChapterStatus } from '@prisma/client';
 
+import { prisma as defaultPrisma } from '@/server/db';
+import { hasMembership } from '@/server/trpc/routers/_shared/library-access';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { isObject, hasProperty } from '@/utils/type-guards';
@@ -85,17 +87,19 @@ export class FileAccessService {
   }
 
   /**
-   * Validates if a user has access to a manga
+   * Validates that a user has the given manga in their library.
+   *
+   * The catalog is a shared content layer; access is granted iff the user holds
+   * a `LibraryMembership` for the title. This is the gate that stops one user
+   * from reading another user's files via a guessed mangaId.
    *
    * @param userId - The user ID to check
-   * @param _mangaId - The manga ID (currently unused, reserved for future ACL)
-   * @returns True if the user has access, false otherwise
+   * @param mangaId - The manga ID being accessed
+   * @returns True if the user has the title in their library
    */
-  validateAccess(userId: string | undefined, _mangaId: number): boolean {
+  async validateAccess(userId: string | undefined, mangaId: number): Promise<boolean> {
     if (!userId) return false;
-    // For now, allow access to all authenticated users
-    // In the future, implement proper access control
-    return true;
+    return hasMembership(defaultPrisma, userId, mangaId);
   }
 
   /**
@@ -127,7 +131,7 @@ export class FileAccessService {
         return createErrorResult(new Error('Chapter file not found'));
       }
 
-      const hasAccess = this.validateAccess(userId, mangaId);
+      const hasAccess = await this.validateAccess(userId, mangaId);
       if (!hasAccess) {
         return createErrorResult(new Error('Access denied'));
       }

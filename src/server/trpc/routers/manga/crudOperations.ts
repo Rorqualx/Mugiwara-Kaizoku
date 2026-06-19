@@ -33,6 +33,7 @@ import {
 import type { SupportedProvider, VolumeForMatching } from '@/server/services/matching/types';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { addMembership, assertMembership, membershipWhere, removeMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { findMangaFiles } from '@/utils/file-utils';
 import { toStringId } from '@/utils/id-converters';
@@ -54,7 +55,8 @@ import {
 } from './crud-operations/add-manga-events';
 import {
   validateLibrary,
-  checkMangaDuplicate,
+  findExistingMangaForLink,
+  isUniqueConstraintError,
   createMangaMetadata,
   buildMangaCreateData,
   createAutoDownloadRule,
@@ -84,11 +86,35 @@ import {
 
 import type { ChapterMetadataInput } from './crud-operations/add-manga-chapter-details';
 import type { AddMangaInput } from './crud-operations/add-manga-validation';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 // ===================================
 // CRUD PROCEDURES
 // ===================================
+
+/**
+ * Link an already-present shared manga into a user's library (the dedup path):
+ * adds the membership row and returns the manga with relations + `linked: true`.
+ * No metadata/chapter creation and no download — the files already exist (or an
+ * in-flight shared download covers this user too via the `(mangaId, chapterNumber)`
+ * download guard).
+ */
+async function linkExistingMangaToUser(
+  prisma: PrismaClient,
+  userId: string,
+  mangaId: number,
+  title: string,
+  source: string
+): Promise<MangaWithRelations & { linked: true }> {
+  await addMembership(prisma, userId, mangaId);
+  const linked = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    include: includeMangaRelations
+  }) as MangaWithRelations;
+  logger.info(`Linked existing manga "${title}" (ID: ${mangaId}) into user ${userId} library — dedup, no download`);
+  void realtimeEmitter.emitMangaUpdate({ mangaId, action: 'updated', data: { title, source } });
+  return Object.assign(linked, { linked: true as const });
+}
 
 export const crudRouter = router({
   /**
@@ -101,8 +127,15 @@ export const crudRouter = router({
     try {
       logger.info(`Adding new manga: ${input.title} from source: ${input.source}`);
 
+      const userId = requireUserId(ctx);
       const library = await validateLibrary(ctx.prisma, input.libraryId);
-      await checkMangaDuplicate(ctx.prisma, input.title);
+
+      // Dedup: if the shared catalog already has this title, LINK it into the
+      // caller's library instead of re-creating + re-downloading.
+      const existing = await findExistingMangaForLink(ctx.prisma, input as AddMangaInput);
+      if (existing) {
+        return await linkExistingMangaToUser(ctx.prisma, userId, existing.id, existing.title, existing.source);
+      }
 
       // Create with compensating delete on failure
       let metadataId: number | undefined;
@@ -112,6 +145,9 @@ export const crudRouter = router({
         const createData = buildMangaCreateData(input as AddMangaInput, library.path, metadataId);
         manga = await createMangaSafe(ctx.prisma, { data: createData as Prisma.MangaCreateInput & { libraryPath: string }, include: includeMangaRelations }) as MangaWithRelations;
         logger.info(`Successfully added manga: ${manga.title} (ID: ${manga.id})`);
+
+        // Record the caller's library membership for the new shared title.
+        await addMembership(ctx.prisma, userId, manga.id);
 
         await createAutoDownloadRule(ctx.prisma, manga.id);
         logMangaMetadataCounts(manga, input.metadata as MetadataInput | undefined);
@@ -154,8 +190,18 @@ export const crudRouter = router({
       // and read zero Chapter rows. Triggering after Phase 6 guarantees rows exist.
       void realtimeEmitter.emitMangaUpdate({ mangaId: manga.id, action: 'created', data: { title: manga.title, source: manga.source } });
 
-      return manga;
+      return Object.assign(manga, { linked: false as const });
     } catch (error: unknown) {
+      // Race recovery: another user created this shared title between our dedup
+      // check and the create → link to the now-existing row instead of failing.
+      if (isUniqueConstraintError(error)) {
+        const raced = await findExistingMangaForLink(ctx.prisma, input as AddMangaInput).catch(() => null);
+        if (raced) {
+          const userId = requireUserId(ctx);
+          return linkExistingMangaToUser(ctx.prisma, userId, raced.id, raced.title, raced.source);
+        }
+      }
+
       logger.error(`Error adding manga: ${error instanceof Error ? error.message : String(error)}`);
       await logMangaAddError(input.title, input.source, input.libraryId, error);
 
@@ -234,8 +280,10 @@ export const crudRouter = router({
   }).optional()).query(async ({ input, ctx }) => {
     const limit = input?.limit ?? 200;
     const offset = input?.offset ?? 0;
+    const userId = requireUserId(ctx);
 
     const result = await ctx.prisma.manga.findMany({
+      where: membershipWhere(userId),
       include: {
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
@@ -279,8 +327,9 @@ export const crudRouter = router({
   listTitlesByLibrary: protectedProcedure
     .input(z.object({ libraryId: z.number() }))
     .query(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
       return ctx.prisma.manga.findMany({
-        where: { libraryId: input.libraryId },
+        where: { libraryId: input.libraryId, ...membershipWhere(userId) },
         select: { id: true, title: true, libraryId: true },
         orderBy: { title: 'asc' },
       });
@@ -303,6 +352,7 @@ export const crudRouter = router({
   ).query(async ({ input, ctx }) => {
     try {
       logger.info(`Fetching manga with ID ${input.id}, chapterLimit=${input.chapterLimit}`);
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
       const cacheKey = `manga:${input.id}:limit:${input.chapterLimit}`;
 
       // Check cache layers first
@@ -366,6 +416,7 @@ export const crudRouter = router({
       chapterLimit: z.number().optional().default(DEFAULT_CHAPTER_LIMIT)
     })
   ).query(async ({ input, ctx }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
     // Delegate to 'get' procedure
     return ctx.prisma.manga.findUnique({
       where: {
@@ -379,6 +430,7 @@ export const crudRouter = router({
    * Get all chapters for a specific manga
    */
   getAllChapters: protectedProcedure.input(idSchema).query(async ({ input, ctx }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
     const manga = await ctx.prisma.manga.findUnique({
       where: {
         id: input.id
@@ -433,6 +485,23 @@ export const crudRouter = router({
 
     const { title, metadataId } = manga;
 
+    // Per-user removal is reference-counted: drop the caller's membership first;
+    // the shared title + files are only physically deleted once the LAST member
+    // removes it. A non-member cannot delete shared content (FORBIDDEN).
+    const userId = requireUserId(ctx);
+    await assertMembership(ctx.prisma, userId, id);
+    const { remainingMembers } = await removeMembership(ctx.prisma, userId, id);
+    if (remainingMembers > 0) {
+      logger.info(`Removed manga ${id} from user ${userId} library; ${remainingMembers} member(s) remain — shared files kept`);
+      void invalidateMangaCache(id);
+      void realtimeEmitter.emitMangaUpdate({ mangaId: id, action: 'updated', data: { title, source: manga.source } });
+      return {
+        success: true,
+        message: `"${title}" removed from your library.`,
+        removedFromLibraryOnly: true
+      };
+    }
+
     try {
       // Delete files BEFORE the DB rows (needs Chapter.filePath to find them)
       let fileResult: MangaFileDeletionResult | null = null;
@@ -477,7 +546,8 @@ export const crudRouter = router({
 
       return {
         success: true,
-        message: `Manga "${title}" removed successfully.${fileResult ? ` ${fileResult.filesDeleted} file(s) deleted.` : ''}`
+        message: `Manga "${title}" removed successfully.${fileResult ? ` ${fileResult.filesDeleted} file(s) deleted.` : ''}`,
+        removedFromLibraryOnly: false
       };
     } catch (error: unknown) {
       logger.error(`Error removing manga ID ${id}: ${error instanceof Error ? error.message : String(error)}`);

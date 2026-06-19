@@ -11,6 +11,8 @@ import { logInfo, EventType, EventSource } from '@/utils/system-event-logger';
 
 import { protectedProcedure, publicProcedure } from '../procedures';
 import { router } from '../trpc';
+
+import { assertMembership, requireUserId } from './_shared/library-access';
 /**
  * Download Router - Manages download-related operations
  *
@@ -74,9 +76,10 @@ export const downloadRouter = router({
   input(z.object({
     mangaId: z.number()
   })).
-  mutation(async ({ input }): Promise<{ message: string }> => {
+  mutation(async ({ input, ctx }): Promise<{ message: string }> => {
     try {
       const { mangaId } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
 
       // Get manga with chapters
       const manga = await prisma.manga.findUnique({
@@ -167,9 +170,10 @@ export const downloadRouter = router({
   input(z.object({
     mangaId: z.number()
   })).
-  mutation(async ({ input }): Promise<{ message: string; chapterCount?: number }> => {
+  mutation(async ({ input, ctx }): Promise<{ message: string; chapterCount?: number }> => {
     try {
       const { mangaId } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
 
       // Get manga with missing chapters (not downloaded)
       const manga = await prisma.manga.findUnique({
@@ -261,9 +265,10 @@ export const downloadRouter = router({
     mangaId: z.number(),
     count: z.number().min(1).max(50).default(5)
   })).
-  mutation(async ({ input }): Promise<{ message: string; chapterCount?: number }> => {
+  mutation(async ({ input, ctx }): Promise<{ message: string; chapterCount?: number }> => {
     try {
       const { mangaId, count } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
 
       // Get manga with unread chapters (assuming next chapters are unread ones)
       const manga = await prisma.manga.findUnique({

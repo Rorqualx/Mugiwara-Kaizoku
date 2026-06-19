@@ -11,7 +11,8 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { detectErrorType } from '@/server/services/search/unified-registry/registry-utils';
-import { publicProcedure, uncachedPublicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure, uncachedPublicProcedure } from '@/server/trpc/procedures';
+import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import type { ProviderErrorInfo } from '@/types/search-types/provider.types';
 import { toStringId } from '@/utils/id-converters';
@@ -321,15 +322,17 @@ export const searchRouter = router({
    * @param input Object containing include options, limit, and offset
    * @returns Array of manga with optional relations
    */
-  query: publicProcedure.input(z.object({
+  query: protectedProcedure.input(z.object({
     include: includeSchema,
     limit: z.number().min(1).max(100).optional().default(50),
     offset: z.number().min(0).optional().default(0)
   }).optional()).query(async ({ input, ctx }) => {
     const limit = input?.limit ?? 50;
     const offset = input?.offset ?? 0;
+    const userId = requireUserId(ctx);
 
     return ctx.prisma.manga.findMany({
+      where: membershipWhere(userId),
       include: {
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
@@ -355,17 +358,18 @@ export const searchRouter = router({
    * @param input Search keyword and include options
    * @returns Array of manga matching the search criteria
    */
-  searchLibrary: publicProcedure.input(z.object({
+  searchLibrary: protectedProcedure.input(z.object({
     keyword: z.string().optional().default(''),
     include: includeSchema,
     /** Filter to only show manga without downloaded files */
     onlyWithoutFiles: z.boolean().optional().default(false),
   })).query(async ({ input, ctx }) => {
     try {
+      const userId = requireUserId(ctx);
       const whereClause = buildLibrarySearchWhereClause(input.keyword, input.onlyWithoutFiles);
 
       const result = await ctx.prisma.manga.findMany({
-        where: whereClause,
+        where: { ...whereClause, ...membershipWhere(userId) },
         include: {
           Library: input.include?.library ?? true,
           Metadata: input.include?.metadata ?? true,
