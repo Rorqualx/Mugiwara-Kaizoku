@@ -20,6 +20,8 @@
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
+import { resolveAuthSecret } from '@/lib/auth/secret';
+
 import type { NextRequest } from 'next/server';
 
 // NextAuth JWT decode reads cookies and verifies signatures. Stays on Node
@@ -70,8 +72,8 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
-  const secret = process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'];
-  const token = await getToken(secret ? { req, secret } : { req });
+  const secret = resolveAuthSecret();
+  const token = await getToken({ req, secret });
 
   if (!token) {
     const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);

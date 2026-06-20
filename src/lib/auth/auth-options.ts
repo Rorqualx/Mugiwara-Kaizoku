@@ -32,6 +32,8 @@ import { sanitizeError } from '@/server/utils/log-sanitizer';
 import { logSecurityEvent, SecurityEventType } from '@/server/utils/security-logger';
 import { logger } from '@/utils/logger';
 
+import { resolveAuthSecret } from './secret';
+
 import type { ExtendedSession } from './types';
 import type { GetServerSidePropsContext, NextApiRequest, NextApiResponse } from 'next';
 import type { NextAuthOptions } from 'next-auth';
@@ -410,11 +412,10 @@ export const authOptions: NextAuthOptions = {
   events: {
     signOut: signOutEvent as never,
   },
-  // Only set `secret` when one is configured; startup env-validation
-  // (`validateEnvironmentSecrets`) fails fast in production if it is missing.
-  ...(process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET
-    ? { secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET }
-    : {}),
+  // Always provide a stable secret. resolveAuthSecret() returns the configured
+  // AUTH_SECRET/NEXTAUTH_SECRET, or a persisted auto-generated one on the data
+  // volume, so sessions survive restarts/redeploys even with no secret env set.
+  secret: resolveAuthSecret(),
   // Never enable debug in production — it can leak sensitive data.
   debug: process.env['AUTH_DEBUG'] === 'true' && process.env.NODE_ENV !== 'production',
   logger: {

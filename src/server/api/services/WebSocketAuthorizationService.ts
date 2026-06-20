@@ -15,6 +15,7 @@ import { createHash } from 'crypto';
 
 import { decode } from 'next-auth/jwt';
 
+import { resolveAuthSecret } from '@/lib/auth/secret';
 import { prisma } from '@/server/db';
 import type { WebSocketClient } from '@/types/api/v1/websocket';
 import { logger } from '@/utils/logger';
@@ -118,12 +119,7 @@ export class WebSocketAuthorizationService {
         return undefined;
       }
 
-      // Get the secret from environment
-      const secret = process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'];
-      if (!secret) {
-        logger.error('AUTH_SECRET or NEXTAUTH_SECRET not configured');
-        return undefined;
-      }
+      const secret = resolveAuthSecret();
 
       // Decode the JWT token
       const decoded = await decode({
