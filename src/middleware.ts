@@ -20,12 +20,19 @@
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-import { resolveAuthSecret } from '@/lib/auth/secret';
-
 import type { NextRequest } from 'next/server';
 
-// NextAuth JWT decode reads cookies and verifies signatures. Stays on Node
-// runtime so the auth libraries (which depend on Node crypto) work.
+// NextAuth JWT decode reads cookies and verifies signatures.
+//
+// IMPORTANT: This module is bundled into Next.js middleware, which runs in the
+// **edge runtime** (the `runtime` export below is NOT honored for middleware in
+// Next 14). The edge runtime forbids Node built-ins, so this file must NEVER
+// import anything that pulls in `fs`/`crypto`/`path` — e.g. `resolveAuthSecret`
+// from `@/lib/auth/secret`. Doing so crashes the edge sandbox (`enhanceGlobals`)
+// on EVERY request and 500s the entire app. The JWT secret is therefore read
+// straight from `process.env` here; the Node side (auth-options, websocket auth)
+// may use the richer `resolveAuthSecret`. Keep both in sync by setting a real
+// `AUTH_SECRET` (or `NEXTAUTH_SECRET`) env var so every layer reads one value.
 export const runtime = 'nodejs';
 
 const ADMIN_PATH_PREFIXES = ['/admin', '/settings', '/system', '/api/protected'];
@@ -72,8 +79,10 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
-  const secret = resolveAuthSecret();
-  const token = await getToken({ req, secret });
+  // Edge-safe: read the secret from the environment only (no fs). Falls back to
+  // getToken's own NEXTAUTH_SECRET lookup when neither var is set.
+  const secret = process.env['AUTH_SECRET'] ?? process.env['NEXTAUTH_SECRET'];
+  const token = await getToken(secret ? { req, secret } : { req });
 
   if (!token) {
     const callbackUrl = encodeURIComponent(pathname + req.nextUrl.search);
