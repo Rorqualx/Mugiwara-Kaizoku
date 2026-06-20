@@ -76,10 +76,11 @@ export class AutoDownloadScheduler {
      * Extracted to reduce nesting depth and isolate sequential await operations
      */
     private async processSingleRule(rule: {
+        userId: string;
         mangaId: number;
         manga: { id: number; title: string };
     }): Promise<void> {
-        logger.info(`[AutoDownloadScheduler] Processing manga: ${rule.manga.title}`);
+        logger.info(`[AutoDownloadScheduler] Processing manga: ${rule.manga.title} (user ${rule.userId})`);
 
         // Cron now goes through the same unified pipeline as the
         // post-enrichment auto-trigger and the manual Quick-Download button:
@@ -88,14 +89,17 @@ export class AutoDownloadScheduler {
         // cover. Errors degrade to a logged warning — the schedule keeps
         // running for the rest of the rules.
         try {
-            await runUnifiedReleaseSearch(rule.mangaId);
+            // Attribute the dispatch (and every job/download/history row it
+            // creates) to the rule's owner so it shows up in that user's
+            // queue/history, not globally.
+            await runUnifiedReleaseSearch(rule.mangaId, { initiatedByUserId: rule.userId });
         } catch (err: unknown) {
             logger.error(`[AutoDownloadScheduler] Error processing manga ${rule.mangaId}:`, err);
         }
 
-        // Update last checked time
+        // Update last checked time (per-user rule: composite key)
         await prisma.autoDownloadRule.update({
-            where: { mangaId: rule.mangaId },
+            where: { userId_mangaId: { userId: rule.userId, mangaId: rule.mangaId } },
             data: { lastChecked: new Date() }
         });
 

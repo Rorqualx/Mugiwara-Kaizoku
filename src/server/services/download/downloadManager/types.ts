@@ -45,6 +45,8 @@ export interface PackDownloadParams {
     chapterIds: number[];
     fileSize?: number;
     downloadUrl?: string;
+    /** Owner of the download; defaults to the initiating job's owner when omitted. */
+    initiatedByUserId?: string;
 }
 
 /**

@@ -67,7 +67,8 @@ interface BulkOperationResult {
  */
 async function handleMangaDownload(
   mangaId: number,
-  chapterSelection: 'all' | 'unread' | 'latest'
+  chapterSelection: 'all' | 'unread' | 'latest',
+  initiatedByUserId: string
 ): Promise<void> {
   const manga = await prisma.manga.findUnique({
     where: { id: mangaId },
@@ -100,7 +101,8 @@ async function handleMangaDownload(
         chapterIndex: chapter.index,
         mangaTitle: manga.title,
         chapterTitle: chapter.title,
-        source: manga.source
+        source: manga.source,
+        initiatedByUserId
       };
       return enqueueDownloadTask(downloadData);
     });
@@ -113,7 +115,8 @@ async function handleMangaDownload(
  */
 async function handleBulkDownload(
   mangaIds: number[],
-  chapterSelection: 'all' | 'unread' | 'latest'
+  chapterSelection: 'all' | 'unread' | 'latest',
+  initiatedByUserId: string
 ): Promise<BulkOperationResult> {
   const result: BulkOperationResult = {
     successCount: 0,
@@ -123,7 +126,7 @@ async function handleBulkDownload(
 
   const downloadPromises = mangaIds.map(async (mangaId) => {
     try {
-      await handleMangaDownload(mangaId, chapterSelection);
+      await handleMangaDownload(mangaId, chapterSelection, initiatedByUserId);
       result.successCount++;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -305,7 +308,7 @@ export const bulkRouter = router({
 
           case 'download': {
             const chapterSelection = (additionalData?.['chapterSelection'] as 'all' | 'unread' | 'latest' | undefined) ?? 'unread';
-            result = await handleBulkDownload(mangaIds, chapterSelection);
+            result = await handleBulkDownload(mangaIds, chapterSelection, userId);
             break;
           }
 

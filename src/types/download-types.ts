@@ -28,6 +28,7 @@ export interface DownloadRequest {
   quality?: string;
   priority?: number;
   chapterId?: number; // Optional chapter ID for single-chapter downloads
+  initiatedByUserId?: string; // User who initiated — stamped on the job for per-user scoping
 }
 
 export function isValidDownloadRequest(request: unknown): request is DownloadRequest {

@@ -39,6 +39,23 @@ export class JobEnqueuer {
   }
 
   /**
+   * Coalesce the optional manga/chapter/owner references to explicit nulls for
+   * the raw INSERT. Extracted so the `??` fallbacks don't inflate `enqueue`'s
+   * cyclomatic complexity.
+   */
+  private entityRefs(options: EnqueueOptions): {
+    mangaId: number | null;
+    chapterId: number | null;
+    initiatedByUserId: string | null;
+  } {
+    return {
+      mangaId: options.mangaId ?? null,
+      chapterId: options.chapterId ?? null,
+      initiatedByUserId: options.initiatedByUserId ?? null,
+    };
+  }
+
+  /**
    * Enqueue a new job (routes to volatile or durable queue based on job type)
    */
   async enqueue(
@@ -87,8 +104,7 @@ export class JobEnqueuer {
       const retryDelay = options.retryDelaySeconds ?? queueConfig.default_retry_delay_seconds ?? 60;
       const payloadJson = JSON.stringify(payload ?? {});
       const metadataJson = JSON.stringify(options.metadata ?? {});
-      const mangaId = options.mangaId ?? null;
-      const chapterId = options.chapterId ?? null;
+      const { mangaId, chapterId, initiatedByUserId } = this.entityRefs(options);
 
       // For scheduled jobs, compute delay in seconds from now; otherwise use NOW()
       const delaySec = options.scheduledFor !== undefined
@@ -99,7 +115,7 @@ export class JobEnqueuer {
         INSERT INTO jobs (
           queue_name, job_type, priority, payload, metadata,
           scheduled_for, max_attempts, retry_delay_seconds,
-          partition_key, manga_id, chapter_id
+          partition_key, manga_id, chapter_id, initiated_by_user_id
         ) VALUES (
           ${queueName},
           ${jobType}::"JobType",
@@ -111,7 +127,8 @@ export class JobEnqueuer {
           ${retryDelay},
           'active',
           ${mangaId}::integer,
-          ${chapterId}::integer
+          ${chapterId}::integer,
+          ${initiatedByUserId}::text
         )
         RETURNING id
       `;

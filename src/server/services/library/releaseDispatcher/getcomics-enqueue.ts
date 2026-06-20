@@ -33,6 +33,7 @@ export async function enqueueGetComicsCandidate(
   mangaId: number,
   chapterRowId: number,
   chapterNumber: number,
+  initiatedByUserId?: string,
 ): Promise<boolean> {
   const payload = candidate.payload as GetComicsCandidatePayload;
   if (!payload.detailPageUrl) {
@@ -94,7 +95,7 @@ export async function enqueueGetComicsCandidate(
       },
       // Surface manga/chapter on FK columns so the Jobs page renders
       // the manga title + chapter row instead of "System Task".
-      { mangaId, chapterId: chapterRowId },
+      { mangaId, chapterId: chapterRowId, ...(initiatedByUserId !== undefined && { initiatedByUserId }) },
     );
   } catch (err: unknown) {
     await prisma.nativeDownload.update({

@@ -10,6 +10,7 @@ import { TrackedDownloadEvent } from '@/server/services/download/tracked-downloa
 import { createPackImportService } from '@/server/services/packImport/packImportService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, isAdmin, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { isError, isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -21,14 +22,33 @@ async function invalidateJobsAndActivity(): Promise<void> {
   await cache.clear('trpc:activity.*');
 }
 
+/**
+ * Throw FORBIDDEN unless the caller may act on this job. Admins may act on any
+ * job; everyone else only on jobs they initiated. Keeps a non-admin from
+ * retrying/cancelling/deleting another user's job by guessing its id.
+ */
+async function assertJobAccess(ctx: unknown, jobId: bigint): Promise<void> {
+  if (isAdmin(ctx)) return;
+  const userId = requireUserId(ctx);
+  const job = await prisma.jobs.findFirst({
+    where: { id: jobId, initiated_by_user_id: userId },
+    select: { id: true },
+  });
+  if (!job) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'This job is not in your account.' });
+  }
+}
+
 export const jobsMutationsRouter = router({
   /**
    * Reset a failed job to PENDING so it can be attempted again.
    */
   retry: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const jobId = BigInt(input.id);
+      await assertJobAccess(ctx, jobId);
+      const initiatedByUserId = requireUserId(ctx);
       const updateData: Prisma.jobsUpdateInput = {
         status: JobStatus.pending,
         attempt_count: 0,
@@ -52,7 +72,7 @@ export const jobsMutationsRouter = router({
       if (result.manga_id !== null) {
         const mangaId = result.manga_id;
         void import('@/server/services/library/releaseDispatcher/dispatch')
-          .then(({ runUnifiedReleaseSearch }) => runUnifiedReleaseSearch(mangaId, { bypassRuleCheck: true }))
+          .then(({ runUnifiedReleaseSearch }) => runUnifiedReleaseSearch(mangaId, { bypassRuleCheck: true, initiatedByUserId }))
           .catch((err: unknown) => {
             logger.error('Post-retry dispatch failed', {
               jobId: input.id,
@@ -70,8 +90,9 @@ export const jobsMutationsRouter = router({
    */
   cancel: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const jobId = BigInt(input.id);
+      await assertJobAccess(ctx, jobId);
 
       const job = await prisma.jobs.findFirst({
         where: { id: jobId },
@@ -105,8 +126,9 @@ export const jobsMutationsRouter = router({
    */
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const jobId = BigInt(input.id);
+      await assertJobAccess(ctx, jobId);
       const result = await prisma.jobs.deleteMany({ where: { id: jobId } });
       if (result.count === 0) {
         throw new Error(`Job with id ${input.id} not found`);
@@ -170,11 +192,15 @@ export const jobsMutationsRouter = router({
    */
   deleteByIds: protectedProcedure
     .input(z.object({ ids: z.array(z.string()).min(1).max(500) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const jobIds = input.ids.map(id => BigInt(id));
 
+      // Non-admins can only delete jobs they initiated; admins delete any.
       const result = await prisma.jobs.deleteMany({
-        where: { id: { in: jobIds } },
+        where: {
+          id: { in: jobIds },
+          ...(isAdmin(ctx) ? {} : { initiated_by_user_id: requireUserId(ctx) }),
+        },
       });
 
       await invalidateJobsAndActivity();
@@ -194,7 +220,8 @@ export const jobsMutationsRouter = router({
    */
   retryImport: protectedProcedure
     .input(z.object({ jobId: z.string() }))
-    .mutation(async ({ input }): Promise<{ success: boolean }> => {
+    .mutation(async ({ input, ctx }): Promise<{ success: boolean }> => {
+      await assertJobAccess(ctx, BigInt(input.jobId));
       const service = TrackedDownloadService.getInstance();
       const trackingId = `job:${input.jobId}`;
 
@@ -240,7 +267,9 @@ export const jobsMutationsRouter = router({
       jobId: z.string().optional(),
       volumeId: z.number().int().positive().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const initiatedByUserId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, initiatedByUserId, input.mangaId);
       const fsp = await import('fs/promises');
       try {
         await fsp.access(input.sourcePath);
@@ -281,6 +310,7 @@ export const jobsMutationsRouter = router({
         data: {
           releaseTitle: `Manual import: ${input.sourcePath}`,
           mangaId: input.mangaId,
+          initiatedByUserId,
           jobId: input.jobId !== undefined ? BigInt(input.jobId) : BigInt(0),
           downloadId: auditTag,
           clientType: 'manual',
@@ -312,7 +342,8 @@ export const jobsMutationsRouter = router({
 
   ignoreDownload: protectedProcedure
     .input(z.object({ jobId: z.string() }))
-    .mutation(async ({ input }): Promise<{ success: boolean }> => {
+    .mutation(async ({ input, ctx }): Promise<{ success: boolean }> => {
+      await assertJobAccess(ctx, BigInt(input.jobId));
       const service = TrackedDownloadService.getInstance();
       const trackingId = `job:${input.jobId}`;
 

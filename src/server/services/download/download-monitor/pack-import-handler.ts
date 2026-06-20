@@ -78,7 +78,7 @@ async function createPackDownloadFallback(
   try {
     const job = await prisma.jobs.findFirst({
       where: { id: jobId },
-      select: { result: true, payload: true }
+      select: { result: true, payload: true, initiated_by_user_id: true }
     });
 
     if (!job) {
@@ -116,6 +116,7 @@ async function createPackDownloadFallback(
         status: 'COMPLETED',
         filePath: savePath,
         downloadUrl: dlUrl,
+        initiatedByUserId: job.initiated_by_user_id,
       }
     });
 

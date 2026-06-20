@@ -1,4 +1,7 @@
-// @file-size-justified: pre-existing 607-line file; splitting download router is a separate refactor task
+// @file-size-justified: cohesive download router (splitting breaks tRPC
+// router type inference); grew past the limit when per-user attribution
+// threading was added. Splitting is a separate refactor task.
+/* eslint-disable max-lines -- see @file-size-justified above */
 /** Download Operations Router - handles all download-related manga operations */
 
 import { Chapter as ChapterEntity, ChapterStatus } from '@prisma/client';
@@ -13,6 +16,7 @@ import { loadAcceptedTitles } from '@/server/services/prowlarr/accepted-titles';
 import { ProwlarrMangaSearch } from '@/server/services/prowlarr/mangaSearch';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import type {
   DownloadJobPayload,
@@ -51,7 +55,8 @@ const downloadSchema = z.object({ mangaId: z.number(), chapterIndex: z.number().
 
 async function downloadSingleChapter(
   manga: { id: number; title: string; Chapter: unknown[] },
-  chapterIndex: number
+  chapterIndex: number,
+  initiatedByUserId: string
 ): Promise<{ success: boolean; message: string }> {
   const findChapterByIndex = (chapters: unknown[], targetIndex: number): unknown => {
     return chapters.find((c) => isRecord(c) && safeGet(c, 'index') === targetIndex);
@@ -68,7 +73,8 @@ async function downloadSingleChapter(
   const chapterRecord = isRecord(chapter) ? chapter : {};
   const downloadData: IDownloadWorkerData = {
     mangaId: manga.id,
-    chapterIndex: chapterRecord['index'] as number
+    chapterIndex: chapterRecord['index'] as number,
+    initiatedByUserId
   };
 
   await enqueueDownloadTask(downloadData);
@@ -91,13 +97,15 @@ async function downloadSingleChapter(
 }
 
 async function downloadAllChapters(
-  manga: { id: number; title: string; Chapter: Array<{ index: number }> }
+  manga: { id: number; title: string; Chapter: Array<{ index: number }> },
+  initiatedByUserId: string
 ): Promise<{ success: boolean; message: string }> {
   await Promise.all(
     manga.Chapter.map(async (chapter) => {
       const downloadData: IDownloadWorkerData = {
         mangaId: manga.id,
-        chapterIndex: chapter.index
+        chapterIndex: chapter.index,
+        initiatedByUserId
       };
       await enqueueDownloadTask(downloadData);
     })
@@ -123,6 +131,7 @@ async function downloadAllChapters(
 export const downloadRouter = router({
   download: protectedProcedure.input(downloadSchema).mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string }> => {
     const { mangaId, chapterIndex } = input;
+    const initiatedByUserId = requireUserId(ctx);
     logger.info(`Downloading manga ID ${mangaId}${chapterIndex !== undefined ? `, chapter index ${chapterIndex}` : ' (all chapters)'}`);
 
     const manga = await ctx.prisma.manga.findUnique({
@@ -141,9 +150,9 @@ export const downloadRouter = router({
     try {
       let result: { success: boolean; message: string };
       if (chapterIndex !== undefined) {
-        result = await downloadSingleChapter(manga, chapterIndex);
+        result = await downloadSingleChapter(manga, chapterIndex, initiatedByUserId);
       } else {
-        result = await downloadAllChapters(manga);
+        result = await downloadAllChapters(manga, initiatedByUserId);
       }
 
       // Emit WebSocket event for real-time sync
@@ -180,7 +189,7 @@ export const downloadRouter = router({
     method: z.enum(['PROWLARR', 'DIRECT_URL']),
     clientType: z.string().optional(),
     format: z.enum(['cbz', 'pdf', 'raw']).optional()
-  })).mutation(async ({ input }): Promise<{ success: boolean; message: string; downloadId?: string }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string; downloadId?: string }> => {
     const { mangaId, chapterIds, method, clientType, format } = input;
     logger.info(`Bulk download request: ${chapterIds.length} chapters, method=${method}`);
 
@@ -190,6 +199,7 @@ export const downloadRouter = router({
       chapterIds,
       method: method as DownloadMethod,
       mode: DownloadMode.BULK,
+      initiatedByUserId: requireUserId(ctx),
       ...(clientType !== undefined && { clientType }),
       ...(format !== undefined && { format })
     };
@@ -381,7 +391,7 @@ export const downloadRouter = router({
     clientType: z.string(),
     prowlarrResult: z.unknown().optional(),
     chapterId: z.number().optional() // Add optional chapterId
-  })).mutation(async ({ input }): Promise<{ success: boolean; message: string; downloadId?: string }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string; downloadId?: string }> => {
     const { mangaId, prowlarrId, clientType, prowlarrResult, chapterId } = input;
     logger.info(`Downloading from Prowlarr: ${prowlarrId} via ${clientType}${chapterId ? ` for chapter ${chapterId}` : ''}`);
 
@@ -398,6 +408,7 @@ export const downloadRouter = router({
       method: DownloadMethod.PROWLARR,
       mode: DownloadMode.PACK,
       clientType,
+      initiatedByUserId: requireUserId(ctx),
       prowlarrResult: isRecord(resultData) ? resultData : {},
       ...(chapterId && { chapterId }) // Only include chapterId when defined
     };
@@ -468,6 +479,7 @@ export const downloadRouter = router({
       mangaId,
       chapterIndex: chapter.index,
       chapterId: chapter.id,
+      initiatedByUserId: requireUserId(ctx),
     };
 
     await enqueueDownloadTask(downloadData);
@@ -563,7 +575,7 @@ export const downloadRouter = router({
     chapterIds: z.array(z.number()),
     url: z.string().url(),
     clientType: z.string()
-  })).mutation(async ({ input }): Promise<{ success: boolean; message: string; downloadId?: string }> => {
+  })).mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string; downloadId?: string }> => {
     const { mangaId, chapterIds, url, clientType } = input;
     logger.info(`Direct URL download for manga ${mangaId}: ${url}`);
 
@@ -592,7 +604,8 @@ export const downloadRouter = router({
       method: DownloadMethod.DIRECT_URL,
       mode: chapterIds.length > 1 ? DownloadMode.BULK : DownloadMode.MANUAL,
       clientType,
-      directUrl: url
+      directUrl: url,
+      initiatedByUserId: requireUserId(ctx)
     };
 
     const result = await downloadManager.processDownloadRequest(downloadRequest);
@@ -708,7 +721,7 @@ export const downloadRouter = router({
    */
   resetFailedDownloads: protectedProcedure
     .input(z.object({ id: z.number(), volumeNumber: z.number().optional() }))
-    .mutation(async ({ input }): Promise<ResetFailedDownloadsResult> => {
+    .mutation(async ({ input, ctx }): Promise<ResetFailedDownloadsResult> => {
       await healArchiveCoveredBeforeReset(input.id);
       const { clearFailedAttemptsForManga } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
       const clearedChapterIds = await clearFailedAttemptsForManga(input.id, input.volumeNumber);
@@ -732,7 +745,7 @@ export const downloadRouter = router({
       // The wait is bounded by Prowlarr / native search latency, typically
       // 5-15s; the mutation's isPending keeps the UI button in a loading
       // state for the duration.
-      const summary = await runDispatchForReset(input.id, input.volumeNumber);
+      const summary = await runDispatchForReset(input.id, input.volumeNumber, requireUserId(ctx));
       const scopeLabel = input.volumeNumber !== undefined ? ` in Vol. ${input.volumeNumber}` : '';
       return buildResetResult(clearedChapterIds.length, summary, scopeLabel);
     }),
@@ -745,7 +758,7 @@ export const downloadRouter = router({
    */
   resetAllFailedDownloads: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }): Promise<ResetFailedDownloadsResult> => {
+    .mutation(async ({ input, ctx }): Promise<ResetFailedDownloadsResult> => {
       await healArchiveCoveredBeforeReset(input.id);
       const { clearFailedAttemptsForManga } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
       const clearedChapterIds = await clearFailedAttemptsForManga(input.id);
@@ -759,7 +772,7 @@ export const downloadRouter = router({
       await invalidateMangaCacheFor(input.id);
       const { invalidateSuwayomiReachabilityCache } = await import('@/server/services/suwayomi/server-reachable');
       invalidateSuwayomiReachabilityCache();
-      const summary = await runDispatchForReset(input.id, undefined);
+      const summary = await runDispatchForReset(input.id, undefined, requireUserId(ctx));
       return buildResetResult(clearedChapterIds.length, summary, '');
     }),
 
@@ -769,7 +782,7 @@ export const downloadRouter = router({
    */
   resetFailedDownloadForChapter: protectedProcedure
     .input(z.object({ chapterId: z.number() }))
-    .mutation(async ({ input }): Promise<{ success: boolean; message: string }> => {
+    .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string }> => {
       const { mangaId, covered } = await healChapterIfCovered(input.chapterId);
       if (mangaId === null || covered) return { success: covered, message: covered ? 'Chapter already on disk in its volume archive' : 'Chapter not found' };
       const { clearFailedAttemptsForChapter } = await import('@/server/services/library/releaseDispatcher/dispatch-attempt');
@@ -787,6 +800,7 @@ export const downloadRouter = router({
       const { runUnifiedReleaseSearch } = await import('@/server/services/library/releaseDispatcher/dispatch');
       void runUnifiedReleaseSearch(chapter.mangaId, {
         bypassRuleCheck: true,
+        initiatedByUserId: requireUserId(ctx),
         scope: { mode: 'SINGLE', chapterIds: [chapter.id] },
       }).catch((err: unknown) => {
         logger.error('Post-reset single-chapter dispatch failed', {

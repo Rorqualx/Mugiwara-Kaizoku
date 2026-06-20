@@ -4,6 +4,7 @@
  * Detects and tracks multi-volume/chapter pack downloads.
  */
 
+import { getJobOwnerUserId } from '@/server/queue/job-owner';
 import { parseVolumeRange } from '@/server/utils/volumeRangeParser';
 import { logger } from '@/utils/logger';
 
@@ -77,6 +78,10 @@ export async function trackPackDownload(
         // Parse volume range from release title
         const volumeRange = parseVolumeRange(releaseTitle);
 
+        // Inherit ownership from the initiating job when not explicitly passed,
+        // so the row is scoped to the user who triggered the download.
+        const initiatedByUserId = params.initiatedByUserId ?? await getJobOwnerUserId(jobId);
+
         // Create PackDownload record
         const packDownloadResult = await prismaClient.packDownload.create({
             data: {
@@ -91,6 +96,7 @@ export async function trackPackDownload(
                 volumeEnd: volumeRange !== null ? volumeRange.end : null,
                 fileSize: fileSize !== undefined ? BigInt(fileSize) : null,
                 downloadUrl: downloadUrl ?? null,
+                initiatedByUserId,
                 status: 'DOWNLOADING'
             }
         });

@@ -18,7 +18,7 @@ import { getIntegrationConfigService } from '@/server/services/integration/confi
 import type { KomgaConfig, KavitaConfig, TelegramConfig, AppriseConfig } from '@/server/services/integration/configService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
@@ -168,7 +168,7 @@ export const settingsIntegrationRouter = router({
    * @param {Object} config - The integration configuration
    * @returns {Object} Whether the update was successful
    */
-  updateIntegration: protectedProcedure
+  updateIntegration: adminProcedure
     .input(integrationConfigSchema)
     .mutation(async ({ input }): Promise<boolean> => {
       try {

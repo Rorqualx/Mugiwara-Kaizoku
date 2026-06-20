@@ -32,6 +32,7 @@ import { TrackDownloadModal } from '@/components/jobs/TrackDownloadModal';
 import { MainLayout } from '@/components/layouts/MainLayout';
 import { ManualImportModal } from '@/components/manga/ManualImportModal';
 import { useJobQueries, useJobMutations, type JobMutationsReturn } from '@/hooks/jobs/useJobsPage';
+import { useAuth } from '@/hooks/useAuth';
 import { useTrackedDownloads } from '@/hooks/useTrackedDownloads';
 import { useRealTime } from '@/providers/RealTimeProvider';
 import { mapChaptersForImport, getSavePath } from '@/utils/jobs/completed-utils';
@@ -255,6 +256,9 @@ interface JobsHeaderProps {
 }
 
 function JobsHeader({ totalCount, completedCount, failedCount, activeTab, deleteAllCompleted, deleteAllFailed, onTrackDownload }: JobsHeaderProps): React.ReactElement {
+  // Tracking an existing client download reads the shared download-client queue
+  // (admin-only on the server), so only surface the control to admins.
+  const { isAdmin } = useAuth();
   return (
     <Group justify="space-between">
       <Title order={2} style={{ color: '#ffffff' }}>
@@ -264,11 +268,13 @@ function JobsHeader({ totalCount, completedCount, failedCount, activeTab, delete
         </Group>
       </Title>
       <Group gap="md">
-        <Tooltip label="Track download from client">
-          <ActionIcon color="blue" variant="light" size="lg" onClick={onTrackDownload}>
-            <IconLink size={18} />
-          </ActionIcon>
-        </Tooltip>
+        {isAdmin && (
+          <Tooltip label="Track download from client">
+            <ActionIcon color="blue" variant="light" size="lg" onClick={onTrackDownload}>
+              <IconLink size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         <Badge size="lg" color="blue" variant="filled">{totalCount} Total</Badge>
         {completedCount > 0 && activeTab !== 'failed' && (
           <Tooltip label={`Clear all ${completedCount} completed jobs`}>

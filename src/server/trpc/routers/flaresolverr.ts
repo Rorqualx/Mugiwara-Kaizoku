@@ -28,7 +28,7 @@ import { getLogFilePath } from '@/server/services/flaresolverr/goLauncher';
 import { flareSolverr } from '@/server/services/flaresolverr/singleton';
 import type { FlareSolverrApiResponse } from '@/server/services/flaresolverr/types';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -216,7 +216,7 @@ export const flareSolverrRouter = router({
   /**
    * Update FlareSolverr settings
    */
-  updateSettings: protectedProcedure
+  updateSettings: adminProcedure
     .input(updateSettingsSchema)
     .mutation(async ({ input }): Promise<{
       success: boolean;
@@ -558,7 +558,7 @@ export const flareSolverrRouter = router({
   /**
    * Update flaresolverr-go binary to latest version
    */
-  updateBinary: protectedProcedure.mutation(async (): Promise<{
+  updateBinary: adminProcedure.mutation(async (): Promise<{
     success: boolean;
     message: string;
     version?: string;

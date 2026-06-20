@@ -124,12 +124,13 @@ export class DownloadManager {
             const chapterId = (request.chapterId !== undefined && request.chapterId > 0)
                 ? request.chapterId
                 : null;
+            const initiatedByUserId = request.initiatedByUserId ?? null;
 
             // Use raw SQL with NOW() to avoid JS Date/PostgreSQL timezone mismatch
             const jobs = await this.prismaClient.$queryRaw<Array<{ id: bigint }>>`
                 INSERT INTO jobs (
                     queue_name, job_type, priority, payload, status,
-                    scheduled_for, manga_id, chapter_id, partition_key
+                    scheduled_for, manga_id, chapter_id, partition_key, initiated_by_user_id
                 ) VALUES (
                     'default',
                     ${`chapter_download`}::"JobType",
@@ -139,7 +140,8 @@ export class DownloadManager {
                     NOW(),
                     ${request.mangaId}::integer,
                     ${chapterId}::integer,
-                    'active'
+                    'active',
+                    ${initiatedByUserId}::text
                 ) RETURNING id
             `;
 

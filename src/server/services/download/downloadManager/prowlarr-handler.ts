@@ -152,6 +152,9 @@ async function recordDispatchHistory(prismaClient: PrismaClient, input: Dispatch
             status: 'PARTIAL',
             source: input.indexer,
             downloadClient: input.clientType,
+            // Inherit ownership from the initiating job so this row is scoped to
+            // the user who triggered the download (admins still see NULL/all).
+            initiatedByUserId: input.task.initiated_by_user_id,
             ...(firstChapterId !== undefined ? { chapterId: firstChapterId } : {}),
             ...(input.fileSize !== undefined ? { downloadSize: BigInt(Math.max(0, Math.floor(input.fileSize))) } : {}),
             metadata: {
@@ -348,6 +351,7 @@ export async function handleProwlarrDownload(
                     protocol,
                     chapterIds: payload.chapterIds,
                     ...(fileSize !== undefined ? { fileSize } : {}),
+                    ...(task.initiated_by_user_id !== null ? { initiatedByUserId: task.initiated_by_user_id } : {}),
                     downloadUrl
                 };
                 await trackPackDownload(prismaClient, packParams);

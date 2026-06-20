@@ -11,6 +11,7 @@ import { jobs } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
+import { getJobOwnerUserId } from '@/server/queue/job-owner';
 import { downloadFromHost } from '@/server/services/getcomics/hosts';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { isSuccess } from '@/utils/async-result';
@@ -173,7 +174,7 @@ export async function handleGetComicsDownload(job: jobs): Promise<void> {
   });
 
   // Record download in history
-  await recordDownloadHistory(payload, filePath, fileSize);
+  await recordDownloadHistory(payload, filePath, fileSize, job.id);
 
   // Emit completion event
   void emitProgress(jobId, payload.mangaId, 100, 'completed');
@@ -193,8 +194,12 @@ export async function handleGetComicsDownload(job: jobs): Promise<void> {
 async function recordDownloadHistory(
   payload: GetComicsDownloadPayload,
   _filePath: string,
-  fileSize: number
+  fileSize: number,
+  jobId: bigint
 ): Promise<void> {
+  // Inherit ownership from the initiating job so the history row is scoped to
+  // the user who triggered the download (admins still see NULL/all).
+  const initiatedByUserId = await getJobOwnerUserId(jobId);
   await prisma.downloadHistory.create({
     data: {
       mangaId: payload.mangaId,
@@ -203,6 +208,7 @@ async function recordDownloadHistory(
       downloadSize: BigInt(fileSize),
       status: 'COMPLETED',
       endTime: new Date(),
+      initiatedByUserId,
       metadata: {
         url: payload.downloadUrl,
         fileName: payload.fileName ?? null,

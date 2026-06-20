@@ -44,6 +44,35 @@ export function membershipWhere(userId: string): Prisma.MangaWhereInput {
   return { LibraryMembership: { some: { userId } } };
 }
 
+/** True if the session user is an ADMIN (mirrors `adminProcedure`). */
+export function isAdmin(ctx: unknown): boolean {
+  if (isObject(ctx) && hasProperty(ctx, 'user')) {
+    const user = ctx['user'];
+    if (isObject(user) && hasProperty(user, 'role')) {
+      return user['role'] === 'ADMIN';
+    }
+  }
+  return false;
+}
+
+/**
+ * Owner-scope `where` fragment for the per-user operational tables (jobs,
+ * pack_download, DownloadHistory). Admins see everything (`{}`); everyone else
+ * is restricted to rows they initiated. NULL-owned rows (system/background or
+ * pre-migration) therefore stay admin-only.
+ *
+ * `column` names the owner field on the target model — `initiated_by_user_id`
+ * for `jobs`, `initiatedByUserId` for `pack_download`/`DownloadHistory`. Spread
+ * into an existing filter: `where: { ...rest, ...ownerScopeWhere(ctx, 'initiatedByUserId') }`.
+ */
+export function ownerScopeWhere(
+  ctx: unknown,
+  column: 'initiated_by_user_id' | 'initiatedByUserId',
+): Record<string, string> {
+  if (isAdmin(ctx)) return {};
+  return { [column]: requireUserId(ctx) };
+}
+
 /**
  * Library row the caller owns. Libraries are per-user; this throws `FORBIDDEN`
  * if the library doesn't exist or belongs to another user, so lifecycle

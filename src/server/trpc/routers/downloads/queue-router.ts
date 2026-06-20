@@ -19,17 +19,19 @@
  * - history: Finished tracked downloads
  */
 
-import { DownloadStatus, PackDownloadStatus } from '@prisma/client';
+import { DownloadStatus, PackDownloadStatus, Prisma } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { parseVolumeRange } from '@/server/utils/volumeRangeParser';
 import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
+
+import { isAdmin, requireUserId } from '../_shared/library-access';
 
 import { getConfiguredClient, getEnabledClients, getPrimaryEnabledClient } from './client-config';
 import {
@@ -47,6 +49,32 @@ import { downloadRequestSchema, isRecord, queueFilterSchema } from './utils';
 // ============================================================================
 
 /**
+ * Owner-scope fragment for pack_download reads. Admins see every download;
+ * everyone else only the ones they initiated (NULL-owned/system rows stay
+ * admin-only). See _shared/library-access.ts.
+ */
+function packOwnerWhere(ctx: unknown): Prisma.PackDownloadWhereInput {
+  return isAdmin(ctx) ? {} : { initiatedByUserId: requireUserId(ctx) };
+}
+
+/**
+ * Guard pause/resume/remove by client `downloadId`: a non-admin may only act on
+ * a download they initiated. Admins are unrestricted. Throws FORBIDDEN when a
+ * non-admin targets a download that isn't theirs (or has no tracking row).
+ */
+async function assertDownloadAccess(ctx: unknown, downloadId: string): Promise<void> {
+  if (isAdmin(ctx)) return;
+  const userId = requireUserId(ctx);
+  const owned = await prisma.packDownload.findFirst({
+    where: { downloadId, initiatedByUserId: userId },
+    select: { id: true },
+  });
+  if (!owned) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'This download is not in your account.' });
+  }
+}
+
+/**
  * Queue operations router
  *
  * Handles all queue-related operations for downloads
@@ -56,8 +84,9 @@ export const downloadsQueueRouter = router({
    * Add download to queue: hand the URL to the configured client and create
    * the tracking job + PackDownload row the download monitor resolves.
    */
-  add: protectedProcedure.input(downloadRequestSchema).mutation(async ({ input }) => {
+  add: protectedProcedure.input(downloadRequestSchema).mutation(async ({ input, ctx }) => {
     try {
+      const initiatedByUserId = requireUserId(ctx);
       const primary = await getPrimaryEnabledClient();
       const client = primary ? await getConfiguredClient(primary.type) : null;
       if (!primary || !client) {
@@ -76,6 +105,7 @@ export const downloadsQueueRouter = router({
 
       const jobId = await createDownloadTrackingJob({
         mangaId: input.mangaId,
+        initiatedByUserId,
         payload: { mode: 'BULK', method: 'QUEUE_ADD' },
         result: {
           downloadId: String(downloadId),
@@ -92,6 +122,7 @@ export const downloadsQueueRouter = router({
           releaseTitle: input.filename,
           mangaId: input.mangaId,
           jobId,
+          initiatedByUserId,
           downloadId: String(downloadId),
           clientType: primary.type,
           protocol: protocolForClientType(primary.type),
@@ -138,13 +169,14 @@ export const downloadsQueueRouter = router({
   /**
    * List tracked downloads in the queue
    */
-  list: publicProcedure.input(queueFilterSchema.optional()).query(async ({ input }) => {
+  list: protectedProcedure.input(queueFilterSchema.optional()).query(async ({ input, ctx }) => {
     const statusFilter = input?.status !== undefined ? QUEUE_STATUS_MAP[input.status] ?? [] : null;
     if (statusFilter !== null && statusFilter.length === 0) {
       return []; // PAUSED has no persisted state — pause lives in the client only
     }
     const downloads = await prisma.packDownload.findMany({
       where: {
+        ...packOwnerWhere(ctx),
         ...(statusFilter !== null ? { status: { in: statusFilter } } : {}),
         ...(input?.mangaId !== undefined ? { mangaId: input.mangaId } : {}),
       },
@@ -180,7 +212,8 @@ export const downloadsQueueRouter = router({
         downloadId: z.string(),
       })
     )
-    .mutation(async ({ input }): Promise<boolean> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
+      await assertDownloadAccess(ctx, input.downloadId);
       const ok = await runClientOperation(input.downloadId, 'pause');
       if (!ok) {
         throw new TRPCError({
@@ -200,7 +233,8 @@ export const downloadsQueueRouter = router({
         downloadId: z.string(),
       })
     )
-    .mutation(async ({ input }): Promise<boolean> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
+      await assertDownloadAccess(ctx, input.downloadId);
       const ok = await runClientOperation(input.downloadId, 'resume');
       if (!ok) {
         throw new TRPCError({
@@ -221,7 +255,8 @@ export const downloadsQueueRouter = router({
         deleteFiles: z.boolean().optional(),
       })
     )
-    .mutation(async ({ input }): Promise<boolean> => {
+    .mutation(async ({ input, ctx }): Promise<boolean> => {
+      await assertDownloadAccess(ctx, input.downloadId);
       const ok = await runClientOperation(input.downloadId, 'remove', input.deleteFiles);
       // Mark in-flight tracking rows cancelled even if the client no longer knows the item
       await prisma.packDownload.updateMany({
@@ -240,7 +275,9 @@ export const downloadsQueueRouter = router({
   /**
    * List downloads from all enabled download clients
    */
-  listClientDownloads: protectedProcedure.query(async () => {
+  // Admin-only: surfaces the raw shared download-client queue (all users'
+  // transfers), used by the manual-track modal. Not per-user attributable.
+  listClientDownloads: adminProcedure.query(async () => {
     const start = Date.now();
     try {
       const enabledClients = await getEnabledClients();
@@ -268,9 +305,11 @@ export const downloadsQueueRouter = router({
       savePath: z.string().optional(),
       downloadUrl: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const initiatedByUserId = requireUserId(ctx);
       const jobId = await createDownloadTrackingJob({
         mangaId: input.mangaId,
+        initiatedByUserId,
         payload: { mode: 'BULK', method: 'MANUAL_TRACK' },
         result: {
           downloadId: input.downloadId,
@@ -287,6 +326,7 @@ export const downloadsQueueRouter = router({
           releaseTitle: input.releaseName,
           mangaId: input.mangaId,
           jobId,
+          initiatedByUserId,
           downloadId: input.downloadId,
           clientType: input.clientType,
           protocol: 'torrent',
@@ -320,7 +360,8 @@ export const downloadsQueueRouter = router({
   /**
    * Clear completed downloads from the clients (downloaded files are kept)
    */
-  clearCompleted: protectedProcedure.mutation(async () => {
+  // Admin-only: clears completed items from the shared download client(s).
+  clearCompleted: adminProcedure.mutation(async () => {
     const count = await clearCompletedFromClients();
     logger.info(`Cleared ${count} completed downloads from clients`);
     return {
@@ -341,9 +382,10 @@ export const downloadsStatsRouter = router({
   /**
    * Get download statistics (tracked downloads + live client state)
    */
-  stats: publicProcedure.query(async () => {
+  stats: protectedProcedure.query(async ({ ctx }) => {
     const grouped = await prisma.packDownload.groupBy({
       by: ['status'],
+      where: packOwnerWhere(ctx),
       _count: true,
     });
     const countFor = (statuses: PackDownloadStatus[]): number =>
@@ -443,16 +485,17 @@ export const downloadsStatsRouter = router({
   /**
    * Get download history (finished tracked downloads, newest first)
    */
-  history: publicProcedure
+  history: protectedProcedure
     .input(
       z.object({
         limit: z.number().min(1).max(100).optional(),
         offset: z.number().min(0).optional(),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const downloads = await prisma.packDownload.findMany({
         where: {
+          ...packOwnerWhere(ctx),
           status: {
             in: [
               PackDownloadStatus.COMPLETED,

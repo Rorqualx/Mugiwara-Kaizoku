@@ -205,7 +205,7 @@ model Manga {
   ReadingHistory       ReadingHistory[]
   WantedItem           WantedItem[]
   DownloadHistory      DownloadHistory[]
-  autoDownloadRule     AutoDownloadRule?
+  autoDownloadRules    AutoDownloadRule[]
   BookmarkedVolume     BookmarkedVolume[]
   BookmarkedManga      BookmarkedManga[]
   Volume               Volume[]
@@ -644,6 +644,14 @@ model User {
   NotificationPreference NotificationPreference[]
   LibraryMembership      LibraryMembership[]
   Library                Library[]
+
+  // Per-user operational layer (downloads/jobs/auto-download are owner-scoped;
+  // SetNull on the shared operational tables so deleting a user keeps shared
+  // history/jobs intact, just un-owned — visible to admins only).
+  jobsInitiated     jobs[]
+  packDownloads     PackDownload[]
+  downloadHistory   DownloadHistory[]
+  autoDownloadRules AutoDownloadRule[]
 }
 
 model VerificationToken {
@@ -994,10 +1002,15 @@ model jobs {
   manga_id            Int?
   chapter_id          Int?
   partition_key       String      @default("active")
+  // User who initiated this job (NULL = system/background or pre-migration row,
+  // visible only to admins). See _shared/library-access.ts ownerScopeWhere.
+  initiated_by_user_id String?
   manga               Manga?      @relation(fields: [manga_id], references: [id], onDelete: SetNull)
   chapter             Chapter?    @relation(fields: [chapter_id], references: [id], onDelete: SetNull)
+  initiatedBy         User?       @relation(fields: [initiated_by_user_id], references: [id], onDelete: SetNull)
 
   @@id([id, partition_key])
+  @@index([initiated_by_user_id])
 }
 
 model queue_config {
@@ -1150,14 +1163,18 @@ model PackDownload {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   completedAt  DateTime?
+  // Owner copied from the initiating job (NULL = pre-migration/system row).
+  initiatedByUserId String?
 
-  manga    Manga     @relation(fields: [mangaId], references: [id], onDelete: Cascade)
-  chapters Chapter[]
+  manga       Manga     @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapters    Chapter[]
+  initiatedBy User?     @relation(fields: [initiatedByUserId], references: [id], onDelete: SetNull)
 
   @@index([mangaId])
   @@index([status])
   @@index([downloadId])
   @@index([jobId])
+  @@index([initiatedByUserId])
   @@map("pack_download")
 }
 
@@ -1200,9 +1217,12 @@ model DownloadHistory {
   downloadClient String?
   metadata       Json?
   error          String?
+  // Owner copied from the initiating job (NULL = pre-migration/system row).
+  initiatedByUserId String?
 
-  Manga   Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
-  Chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  Manga       Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  Chapter     Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  initiatedBy User?    @relation(fields: [initiatedByUserId], references: [id], onDelete: SetNull)
 
   @@index([mangaId])
   @@index([chapterId])
@@ -1210,6 +1230,7 @@ model DownloadHistory {
   @@index([startTime])
   @@index([source])
   @@index([downloadClient])
+  @@index([initiatedByUserId])
 }
 
 // ============================================================================
@@ -1231,7 +1252,10 @@ model Config {
 }
 
 model AutoDownloadRule {
-  mangaId         Int       @id
+  // Per-user rule over the shared catalog: each user owns their own monitoring
+  // + auto-download preferences (quality/language/groups/interval) for a title.
+  userId          String
+  mangaId         Int
   enabled         Boolean   @default(true)
   lastChecked     DateTime?
   checkInterval   Int       @default(3600)
@@ -1244,7 +1268,11 @@ model AutoDownloadRule {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   manga           Manga     @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@id([userId, mangaId])
+  @@index([mangaId])
+  @@index([userId])
   @@index([enabled])
   @@index([lastChecked])
 }

@@ -46,23 +46,26 @@ export async function maybeSyncSuwayomiChapters(mangaId: number): Promise<void> 
 }
 
 /**
- * Trigger the unified release search for a manga whose `autoDownloadRule` is
- * enabled. Fire and forget — failures log but never block enrichment
- * completion. The dispatcher (`releaseDispatcher/dispatch.ts`) handles its
- * own enable-rule check; we duplicate the early-exit here to skip the
- * candidate fan-out on disabled mangas.
+ * Trigger the unified release search for every user who has an enabled
+ * auto-download rule for this manga. Rules are per-user (shared catalog), so a
+ * single title may be monitored by several users; we fire one dispatch per
+ * owner, attributed to that user (`initiatedByUserId`) so the resulting
+ * jobs/downloads land in the right user's queue. Fire and forget — failures
+ * log but never block enrichment completion.
  */
 export async function maybeTriggerAutoDownload(mangaId: number): Promise<void> {
   try {
-    const mangaWithRule = await prisma.manga.findUnique({
-      where: { id: mangaId },
-      select: { autoDownloadRule: { select: { enabled: true } } },
+    const rules = await prisma.autoDownloadRule.findMany({
+      where: { mangaId, enabled: true },
+      select: { userId: true },
     });
-    if (mangaWithRule?.autoDownloadRule?.enabled !== true) return;
-    logger.info(`[enrichmentPipeline] Triggering unified release search for manga ${mangaId} post-enrichment`);
-    unifiedReleaseSearch.run(mangaId).catch((err: unknown) => {
-      logger.error(`[enrichmentPipeline] unified release search failed for manga ${mangaId}`, { err });
-    });
+    if (rules.length === 0) return;
+    logger.info(`[enrichmentPipeline] Triggering unified release search for manga ${mangaId} post-enrichment (${rules.length} user rule(s))`);
+    for (const rule of rules) {
+      unifiedReleaseSearch.run(mangaId, { initiatedByUserId: rule.userId }).catch((err: unknown) => {
+        logger.error(`[enrichmentPipeline] unified release search failed for manga ${mangaId} (user ${rule.userId})`, { err });
+      });
+    }
   } catch (err) {
     logger.warn(`[enrichmentPipeline] auto-download check failed for manga ${mangaId}`, { err });
   }

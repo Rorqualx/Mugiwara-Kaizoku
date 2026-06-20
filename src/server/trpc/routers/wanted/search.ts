@@ -14,6 +14,7 @@ import { prisma } from '@/server/db';
 import { EventType, EventSource } from '@/server/services/events/eventTypes';
 import { runUnifiedReleaseSearch } from '@/server/services/library/releaseDispatcher/dispatch';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, logError } from '@/utils/system-event-logger';
@@ -63,7 +64,8 @@ async function resolveTargetMangaIds(input: z.infer<typeof searchChaptersInput>)
   return targetMangaIds;
 }
 
-export const searchChapters = protectedProcedure.input(searchChaptersInput).mutation(async ({ input }) => {
+export const searchChapters = protectedProcedure.input(searchChaptersInput).mutation(async ({ input, ctx }) => {
+    const initiatedByUserId = requireUserId(ctx);
   try {
     const targetMangaIds = await resolveTargetMangaIds(input);
     if (targetMangaIds.length === 0) {
@@ -83,7 +85,7 @@ export const searchChapters = protectedProcedure.input(searchChaptersInput).muta
     const results = await mapConcurrent(
       targetMangaIds,
       SEARCH_CONCURRENCY,
-      (mangaId) => runUnifiedReleaseSearch(mangaId, { bypassRuleCheck: true })
+      (mangaId) => runUnifiedReleaseSearch(mangaId, { bypassRuleCheck: true, initiatedByUserId })
     );
 
     let triggered = 0;

@@ -9,10 +9,10 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, EventType, EventSource } from '@/utils/system-event-logger';
 
-import { protectedProcedure, publicProcedure } from '../procedures';
+import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
-import { assertMembership, requireUserId } from './_shared/library-access';
+import { assertMembership, isAdmin, requireUserId } from './_shared/library-access';
 /**
  * Download Router - Manages download-related operations
  *
@@ -33,8 +33,11 @@ export const downloadRouter = router({
    * @returns {number|null} .mangaId - The ID of the manga being downloaded, if available
    * @returns {Object} .options - Additional options associated with the download
    */
-  getProgress: publicProcedure.query(async () => {
+  getProgress: protectedProcedure.query(async ({ ctx }) => {
     try {
+      // Owner-scope active jobs: admins see all, everyone else only their own.
+      const admin = isAdmin(ctx);
+      const userId = admin ? null : requireUserId(ctx);
       // Get download progress from active jobs
       const downloadJobs = await prisma.$queryRaw<Array<{
         id: bigint;
@@ -48,6 +51,7 @@ export const downloadRouter = router({
         FROM jobs
         WHERE job_type = 'chapter_check'::"JobType"
           AND status IN ('pending'::"JobStatus", 'active'::"JobStatus")
+          AND (${admin} OR initiated_by_user_id = ${userId})
         ORDER BY created_at DESC
         LIMIT 100
       `;
@@ -110,7 +114,8 @@ export const downloadRouter = router({
         manga['Chapter'].map(async (chapter) => {
           const downloadData: IDownloadWorkerData = {
             mangaId,
-            chapterIndex: chapter.index
+            chapterIndex: chapter.index,
+            initiatedByUserId: requireUserId(ctx)
           };
           await enqueueDownloadTask(downloadData);
         })
@@ -204,7 +209,8 @@ export const downloadRouter = router({
         manga['Chapter'].map(async (chapter) => {
           const downloadData: IDownloadWorkerData = {
             mangaId,
-            chapterIndex: chapter.index
+            chapterIndex: chapter.index,
+            initiatedByUserId: requireUserId(ctx)
           };
           await enqueueDownloadTask(downloadData);
         })
@@ -303,7 +309,8 @@ export const downloadRouter = router({
         manga['Chapter'].map(async (chapter) => {
           const downloadData: IDownloadWorkerData = {
             mangaId,
-            chapterIndex: chapter.index
+            chapterIndex: chapter.index,
+            initiatedByUserId: requireUserId(ctx)
           };
           await enqueueDownloadTask(downloadData);
         })

@@ -32,6 +32,13 @@ export interface EnqueueOptions {
   metadata?: Record<string, unknown>;
   mangaId?: number;
   chapterId?: number;
+  /**
+   * User who initiated this job. Stamped onto jobs.initiated_by_user_id so the
+   * Jobs/Downloads pages can scope per-user (see _shared/library-access.ts
+   * ownerScopeWhere). Leave undefined for system/background jobs with no
+   * initiating user — such rows are visible only to admins.
+   */
+  initiatedByUserId?: string;
 }
 
 export interface QueueStats {

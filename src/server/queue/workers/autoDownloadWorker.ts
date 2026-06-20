@@ -73,7 +73,7 @@ export async function processAutoDownload(mangaId: number): Promise<AsyncResult<
       },
       include: {
         Chapter: true,
-        autoDownloadRule: true,
+        autoDownloadRules: true,
         Metadata: { select: { synonyms: true } }
       }
     });
@@ -82,13 +82,13 @@ export async function processAutoDownload(mangaId: number): Promise<AsyncResult<
       return createErrorResult(new Error('Manga not found'));
     }
 
-    // Check if auto-download is enabled for this manga
-    if (!manga.autoDownloadRule?.enabled) {
+    // Auto-download rules are per-user now; this disabled worker just needs any
+    // enabled rule to proceed.
+    const rule = manga.autoDownloadRules.find((r) => r.enabled);
+    if (!rule) {
       logger.info(`[AutoDownload] No enabled rule for manga ${mangaId}`);
       return createSuccessResult(undefined);
     }
-
-    const rule = manga.autoDownloadRule;
 
     // Filter for chapters that are:
     // 1. Not completed (downloadStatus !== COMPLETED)

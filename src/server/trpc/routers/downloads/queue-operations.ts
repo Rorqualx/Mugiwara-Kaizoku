@@ -108,14 +108,17 @@ export async function createDownloadTrackingJob(opts: {
   mangaId: number;
   payload: Record<string, unknown>;
   result: Record<string, unknown>;
+  /** User who initiated the download — stamped for per-user job scoping. */
+  initiatedByUserId?: string;
 }): Promise<bigint> {
   const payloadJson = JSON.stringify(opts.payload);
   const resultJson = JSON.stringify(opts.result);
+  const initiatedByUserId = opts.initiatedByUserId ?? null;
   const jobRows = await prisma.$queryRaw<Array<{ id: bigint }>>`
     INSERT INTO jobs (
       queue_name, job_type, priority, status, progress,
       started_at, scheduled_for, manga_id, partition_key,
-      payload, result
+      payload, result, initiated_by_user_id
     ) VALUES (
       'default',
       'chapter_download'::"JobType",
@@ -126,7 +129,8 @@ export async function createDownloadTrackingJob(opts: {
       ${opts.mangaId}::integer,
       'active',
       ${payloadJson}::jsonb,
-      ${resultJson}::jsonb
+      ${resultJson}::jsonb,
+      ${initiatedByUserId}::text
     ) RETURNING id
   `;
   const job = jobRows[0];

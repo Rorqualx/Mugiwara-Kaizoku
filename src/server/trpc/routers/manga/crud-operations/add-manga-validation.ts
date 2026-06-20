@@ -209,26 +209,32 @@ export function buildMangaCreateData(
 }
 
 /**
- * Create AutoDownloadRule to enable monitoring by default
+ * Create the caller's AutoDownloadRule to enable monitoring by default.
+ *
+ * Rules are per-user (one per user+manga), so the rule is keyed by the adding
+ * user. Idempotent: a user re-adding a title they already monitor is a no-op.
  *
  * @param prisma - Prisma client instance
- * @param mangaId - ID of the manga to create rule for
+ * @param userId - User who is adding the manga (rule owner)
+ * @param mangaId - ID of the manga to create the rule for
  */
 export async function createAutoDownloadRule(
   prisma: PrismaClient,
+  userId: string,
   mangaId: number
 ): Promise<void> {
   try {
-    // @ts-expect-error - AutoDownloadRule model not yet implemented in schema.prisma
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-    await (prisma as unknown).autoDownloadRule.create({
-      data: {
+    await prisma.autoDownloadRule.upsert({
+      where: { userId_mangaId: { userId, mangaId } },
+      create: {
+        userId,
         mangaId,
         enabled: true,
         checkInterval: 3600 // 1 hour (matches scheduler default)
-      }
+      },
+      update: {}
     });
-    logger.info(`Created AutoDownloadRule for manga ${mangaId} with monitoring enabled`);
+    logger.info(`Created AutoDownloadRule for user ${userId} / manga ${mangaId} with monitoring enabled`);
   } catch (error) {
     // Log but don't fail the import if AutoDownloadRule creation fails
     logger.error(`Failed to create AutoDownloadRule for manga ${mangaId}:`, error);

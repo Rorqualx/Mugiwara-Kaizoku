@@ -70,6 +70,7 @@ export async function healChapterIfCovered(
 export async function runDispatchForReset(
   mangaId: number,
   volumeNumber: number | undefined,
+  initiatedByUserId?: string,
 ): Promise<ResetDispatchSummary | null> {
   const { runUnifiedReleaseSearch } = await import('@/server/services/library/releaseDispatcher/dispatch');
   const scope = volumeNumber !== undefined
@@ -79,6 +80,7 @@ export async function runDispatchForReset(
     const summary = await runUnifiedReleaseSearch(mangaId, {
       bypassRuleCheck: true,
       ...(scope ? { scope } : {}),
+      ...(initiatedByUserId !== undefined ? { initiatedByUserId } : {}),
     });
     return {
       queuedCount: summary.prowlarrCoveredChapters.length + summary.nativeEnqueued.length,

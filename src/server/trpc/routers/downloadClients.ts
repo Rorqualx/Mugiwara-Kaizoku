@@ -22,7 +22,7 @@ import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter
 import { isError } from '@/utils/async-result';
 
 import { toTRPCError } from '../errors';
-import { protectedProcedure } from '../procedures';
+import { adminProcedure } from '../procedures';
 import { router } from '../trpc';
 
 // Input schemas for each client type
@@ -116,7 +116,7 @@ export const downloadClientsRouter = router({
     /**
      * Test Transmission connection
      */
-    testTransmission: protectedProcedure
+    testTransmission: adminProcedure
         .input(transmissionConfigSchema)
         .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new TransmissionClient({
@@ -133,7 +133,7 @@ export const downloadClientsRouter = router({
     /**
      * Test NZBGet connection
      */
-    testNzbget: protectedProcedure
+    testNzbget: adminProcedure
         .input(nzbgetConfigSchema)
         .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new NzbgetClient({
@@ -152,7 +152,7 @@ export const downloadClientsRouter = router({
     /**
      * Test SABnzbd connection
      */
-    testSabnzbd: protectedProcedure
+    testSabnzbd: adminProcedure
         .input(sabnzbdConfigSchema)
         .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new SabnzbdClient({
@@ -170,7 +170,7 @@ export const downloadClientsRouter = router({
     /**
      * Test Deluge connection
      */
-    testDeluge: protectedProcedure
+    testDeluge: adminProcedure
         .input(delugeConfigSchema)
         .mutation(async ({ input }): Promise<TestResultData> => {
             const client = new DelugeClient({

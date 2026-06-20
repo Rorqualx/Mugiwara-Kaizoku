@@ -16,10 +16,18 @@ import { protectedProcedure } from '@/server/trpc/procedures';
 import { type DownloadHistoryEntry, type DownloadHistoryResponse } from '@/types/search.types';
 import { logError } from '@/utils/system-event-logger';
 
+import { isAdmin, requireUserId } from '../_shared/library-access';
+
 import { downloadHistorySearchSchema, type PrismaWhereClause } from './schemas';
 
-function buildHistoryWhere(input: z.infer<typeof downloadHistorySearchSchema>): PrismaWhereClause {
+function buildHistoryWhere(
+  input: z.infer<typeof downloadHistorySearchSchema>,
+  ctx: unknown,
+): PrismaWhereClause {
   const where: PrismaWhereClause = {};
+  // Owner-scope: non-admins only see history they initiated. Set first so it
+  // also flows into the stats `where` (derived from this one).
+  if (!isAdmin(ctx)) where.initiatedByUserId = requireUserId(ctx);
   if (input.status?.length) where.status = { in: input.status };
   if (input.dateRange) {
     where.startTime = { gte: input.dateRange.start, lte: input.dateRange.end };
@@ -51,9 +59,9 @@ async function computeHistoryStats(statsWhere: Prisma.DownloadHistoryWhereInput)
   return { totalDownloads, successfulDownloads, failedDownloads };
 }
 
-export const getHistory = protectedProcedure.input(downloadHistorySearchSchema).query(async ({ input }) => {
+export const getHistory = protectedProcedure.input(downloadHistorySearchSchema).query(async ({ input, ctx }) => {
   try {
-    const where = buildHistoryWhere(input);
+    const where = buildHistoryWhere(input, ctx);
     const statsWhere: PrismaWhereClause = { ...where };
     delete statsWhere.status;
 

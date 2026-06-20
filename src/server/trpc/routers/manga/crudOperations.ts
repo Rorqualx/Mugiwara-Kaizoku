@@ -107,6 +107,9 @@ async function linkExistingMangaToUser(
   source: string
 ): Promise<MangaWithRelations & { linked: true }> {
   await addMembership(prisma, userId, mangaId);
+  // Per-user monitoring parity: a user who links a deduplicated title gets
+  // their own enabled rule, same as a fresh add (idempotent upsert).
+  await createAutoDownloadRule(prisma, userId, mangaId);
   const linked = await prisma.manga.findUnique({
     where: { id: mangaId },
     include: includeMangaRelations
@@ -149,7 +152,7 @@ export const crudRouter = router({
         // Record the caller's library membership for the new shared title.
         await addMembership(ctx.prisma, userId, manga.id);
 
-        await createAutoDownloadRule(ctx.prisma, manga.id);
+        await createAutoDownloadRule(ctx.prisma, userId, manga.id);
         logMangaMetadataCounts(manga, input.metadata as MetadataInput | undefined);
         logRawProviderData(manga.rawProviderData, manga.id);
         logProviderMetadata(input.providerMetadata);

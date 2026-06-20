@@ -61,11 +61,12 @@ export const monitoringRouter = router({
       format?: string;
     }> => {
       const { mangaId } = input;
-      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
+      const userId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, userId, mangaId);
       logger.info(`Getting auto-download config for manga ${mangaId}`);
 
       const rule = await ctx.prisma.autoDownloadRule.findUnique({
-        where: { mangaId }
+        where: { userId_mangaId: { userId, mangaId } }
       });
 
       if (!rule) {
@@ -116,12 +117,14 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; enabled: boolean }> => {
       const { mangaId, config } = input;
-      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
+      const userId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, userId, mangaId);
       logger.info(`Configuring auto-download for manga ${mangaId}`);
 
       const rule = await ctx.prisma.autoDownloadRule.upsert({
-        where: { mangaId },
+        where: { userId_mangaId: { userId, mangaId } },
         create: {
+          userId,
           mangaId,
           enabled: config.enabled,
           checkInterval: config.checkInterval,
@@ -168,12 +171,14 @@ export const monitoringRouter = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; enabled: boolean }> => {
       const { mangaId, enabled } = input;
-      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
+      const userId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, userId, mangaId);
       logger.info(`Toggling monitoring for manga ${mangaId} to ${enabled}`);
 
       const rule = await ctx.prisma.autoDownloadRule.upsert({
-        where: { mangaId },
+        where: { userId_mangaId: { userId, mangaId } },
         create: {
+          userId,
           mangaId,
           enabled,
           checkInterval: 3600
@@ -191,9 +196,9 @@ export const monitoringRouter = router({
       // returns immediately; stamp lastChecked on completion so the periodic
       // scheduler doesn't double-trigger on the next poll.
       if (enabled) {
-        void runUnifiedReleaseSearch(mangaId)
+        void runUnifiedReleaseSearch(mangaId, { initiatedByUserId: userId })
           .then(() => prisma.autoDownloadRule.update({
-            where: { mangaId },
+            where: { userId_mangaId: { userId, mangaId } },
             data: { lastChecked: new Date() }
           }))
           .catch((err: unknown) => {

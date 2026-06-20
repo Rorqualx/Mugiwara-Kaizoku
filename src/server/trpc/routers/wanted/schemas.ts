@@ -10,6 +10,8 @@ import { toNumberId } from '@/utils/id-converters';
 export interface PrismaWhereClause {
   status?: { in: WantedStatus[] } | { in: DownloadHistoryStatus[] } | undefined;
   priority?: { in: WantedPriority[] } | undefined;
+  /** Owner scope for DownloadHistory reads (per-user isolation). */
+  initiatedByUserId?: string | undefined;
   dateAdded?: { gte: Date; lte: Date } | undefined;
   startTime?: { gte: Date; lte: Date } | undefined;
   source?: { in: string[] } | undefined;

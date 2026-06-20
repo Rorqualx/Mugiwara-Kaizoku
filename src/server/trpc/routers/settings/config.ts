@@ -18,7 +18,7 @@ import { getGlobalConfigService } from '@/server/services/config/globalConfigSer
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { unifiedProviderRegistry } from '@/server/services/search/UnifiedProviderRegistry';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure, settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, settingsProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
@@ -231,7 +231,7 @@ export const settingsConfigRouter = router({
     }),
 
   /** Set a specific configuration value */
-  set: protectedProcedure
+  set: adminProcedure
     .input(z.object({ key: z.string(), value: z.unknown() }))
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       const userId = ctx.user.id;
@@ -291,7 +291,7 @@ export const settingsConfigRouter = router({
       }
     }),
   /** Set multiple configuration values atomically */
-  setBatch: protectedProcedure
+  setBatch: adminProcedure
     .input(z.object({ items: z.array(z.object({ key: z.string(), value: z.unknown() })) }))
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       const userId = ctx.user.id;

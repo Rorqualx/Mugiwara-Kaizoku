@@ -111,7 +111,7 @@ export const configRouter = router({
     /**
      * Set a configuration value
      */
-    update: protectedProcedure
+    update: adminProcedure
         .input(z.object({
         key: z.string(),
         value: z.unknown(),
@@ -151,7 +151,7 @@ export const configRouter = router({
     /**
      * Set a configuration value with simpler API
      */
-    set: protectedProcedure
+    set: adminProcedure
         .input(z.object({
         key: z.string(),
         value: z.unknown(),
@@ -269,7 +269,7 @@ export const configRouter = router({
     /**
      * Create a new configuration entry
      */
-    create: protectedProcedure
+    create: adminProcedure
         .input(z.object({
         key: z.string(),
         value: z.unknown(),
@@ -308,7 +308,7 @@ export const configRouter = router({
     /**
      * Delete a configuration entry
      */
-    delete: protectedProcedure
+    delete: adminProcedure
         .input(z.object({
         key: z.string()
     }))
@@ -345,7 +345,7 @@ export const configRouter = router({
     /**
      * Import configuration from a file
      */
-    importFromFile: protectedProcedure
+    importFromFile: adminProcedure
         .input(z.object({
         filePath: z.string(),
         overrideExisting: z.boolean().optional(),
@@ -371,7 +371,7 @@ export const configRouter = router({
     /**
      * Migrate from legacy settings
      */
-    migrateFromLegacySettings: protectedProcedure
+    migrateFromLegacySettings: adminProcedure
         .mutation(async () => {
         await configService.migrateFromLegacySettings();
         logger.info('Migrated legacy settings to new configuration system');

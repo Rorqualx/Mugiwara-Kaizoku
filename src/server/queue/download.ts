@@ -58,6 +58,8 @@ export interface IDownloadWorkerData {
   chapterIndex?: number;
   /** Chapter DB primary key (for job FK constraint) */
   chapterId?: number;
+  /** User who initiated this download — stamped onto the job for per-user scoping. */
+  initiatedByUserId?: string;
 }
 /**
  * Downloads and processes a single manga chapter
@@ -265,6 +267,7 @@ export async function enqueueDownloadTask(data: IDownloadWorkerData): Promise<vo
         mangaId: data.mangaId,
         // chapterId requires a valid Chapter.id (DB primary key), not an ordinal index
         ...(data.chapterId !== undefined && { chapterId: data.chapterId }),
+        ...(data.initiatedByUserId !== undefined && { initiatedByUserId: data.initiatedByUserId }),
       }
     );
 

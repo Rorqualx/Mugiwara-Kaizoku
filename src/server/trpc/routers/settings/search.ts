@@ -24,7 +24,7 @@ import type {
   SearchProviderConfig,
 } from '@/server/services/search/configService';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
@@ -97,7 +97,7 @@ export const settingsSearchRouter = router({
    * @param {Partial<SearchProviderConfig>} config - The search configuration to update
    * @returns {Object} Whether the update was successful
    */
-  updateConfig: protectedProcedure
+  updateConfig: adminProcedure
     .input(
       z.object({
         defaultProvider: z.string().optional(),
@@ -141,7 +141,7 @@ export const settingsSearchRouter = router({
    * @param {string} providerId - The provider ID to set as default
    * @returns {Object} Whether the update was successful
    */
-  setDefaultProvider: protectedProcedure
+  setDefaultProvider: adminProcedure
     .input(
       z.object({
         providerId: z.string(),
@@ -169,7 +169,7 @@ export const settingsSearchRouter = router({
    * @param {boolean} enabled - Whether the provider should be enabled
    * @returns {Object} Whether the update was successful
    */
-  toggleProvider: protectedProcedure
+  toggleProvider: adminProcedure
     .input(
       z.object({
         providerId: z.string(),
@@ -214,7 +214,7 @@ export const settingsSearchRouter = router({
    * @param {ProwlarrConfig} config - The Prowlarr configuration to update
    * @returns {Object} Whether the update was successful
    */
-  updateProwlarrConfig: protectedProcedure
+  updateProwlarrConfig: adminProcedure
     .input(prowlarrConfigSchema)
     .mutation(async ({ input }): Promise<boolean> => {
       try {

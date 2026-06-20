@@ -146,6 +146,7 @@ export class QuickDownloadService {
         scope: resolved.scope,
         bypassRuleCheck: true,
         ...(criteria !== undefined ? { criteria } : {}),
+        ...(userId !== undefined ? { initiatedByUserId: userId } : {}),
       };
       const summary = await runUnifiedReleaseSearch(mangaId, runOptions);
       const response = await mapSummaryToResponse(summary, resolved.chapterIds, this.prisma);

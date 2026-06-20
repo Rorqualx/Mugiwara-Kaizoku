@@ -6,6 +6,17 @@ import { extractChapterIdsFromPayload } from '@/server/services/download/job-pay
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 
+import { isAdmin, requireUserId } from '../_shared/library-access';
+
+/**
+ * Owner-scope fragment for the partitioned `jobs` table. Admins see every job;
+ * everyone else only the jobs they initiated (NULL-owned/system jobs stay
+ * admin-only). See _shared/library-access.ts.
+ */
+function jobOwnerWhere(ctx: unknown): Prisma.jobsWhereInput {
+  return isAdmin(ctx) ? {} : { initiated_by_user_id: requireUserId(ctx) };
+}
+
 /**
  * Query procedures for the jobs router.
  *
@@ -82,9 +93,10 @@ interface JobDetail {
   affectedVolumes: AffectedVolume[];
 }
 
-async function buildJobDetail(jobId: bigint): Promise<JobDetail | null> {
+async function buildJobDetail(jobId: bigint, ctx: unknown): Promise<JobDetail | null> {
   const job = await prisma.jobs.findFirst({
-    where: { id: jobId },
+    // Owner-scope so a non-admin can't read another user's job detail by id.
+    where: { id: jobId, ...jobOwnerWhere(ctx) },
     include: jobRelationsInclude,
   });
   if (!job) return null;
@@ -172,20 +184,21 @@ export const jobsQueriesRouter = router({
         'retrying',
       ]),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const jobStatus = input.status as JobStatus;
       return prisma.jobs.findMany({
-        where: { status: jobStatus },
+        where: { status: jobStatus, ...jobOwnerWhere(ctx) },
         orderBy: { created_at: 'desc' },
         include: jobRelationsInclude,
       });
     }),
 
   getInProgress: protectedProcedure
-    .query(async () => {
+    .query(async ({ ctx }) => {
       return prisma.jobs.findMany({
         where: {
           status: { in: [JobStatus.pending, JobStatus.active, JobStatus.retrying] },
+          ...jobOwnerWhere(ctx),
         },
         orderBy: { created_at: 'desc' },
         include: jobRelationsInclude,
@@ -197,14 +210,16 @@ export const jobsQueriesRouter = router({
       page: z.number().min(1).default(1).optional(),
       limit: z.number().min(1).max(500).default(100).optional(),
     }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const page = input?.page ?? 1;
       const limit = input?.limit ?? 100;
       const skip = (page - 1) * limit;
 
-      const totalCount = await prisma.jobs.count();
+      const where = jobOwnerWhere(ctx);
+      const totalCount = await prisma.jobs.count({ where });
 
       const jobs = await prisma.jobs.findMany({
+        where,
         skip,
         take: limit,
         orderBy: { created_at: 'desc' },
@@ -234,7 +249,7 @@ export const jobsQueriesRouter = router({
    */
   getJobDetail: protectedProcedure
     .input(z.object({ jobId: z.string() }))
-    .query(async ({ input }) => buildJobDetail(BigInt(input.jobId))),
+    .query(async ({ input, ctx }) => buildJobDetail(BigInt(input.jobId), ctx)),
 
   /**
    * Best-effort existence + readability probe for a user-provided
@@ -260,11 +275,12 @@ export const jobsQueriesRouter = router({
 
   getLatestScanForLibrary: protectedProcedure
     .input(z.object({ libraryId: z.number() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const job = await prisma.jobs.findFirst({
         where: {
           job_type: JobType.library_scan,
           payload: { path: ['libraryId'], equals: input.libraryId },
+          ...jobOwnerWhere(ctx),
         },
         orderBy: { id: 'desc' },
         select: latestScanSelect,

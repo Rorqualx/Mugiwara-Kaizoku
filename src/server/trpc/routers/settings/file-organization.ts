@@ -19,7 +19,7 @@ import {
 } from '@/server/services/config/generalConfigService';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
@@ -58,7 +58,7 @@ export const settingsFileOrganizationRouter = router({
    * @param settings - The file organization settings to update
    * @returns Whether the update was successful
    */
-  updateFileOrganization: protectedProcedure
+  updateFileOrganization: adminProcedure
     .input(fileOrganizationSchema)
     .mutation(async ({ input }): Promise<boolean> => {
       try {

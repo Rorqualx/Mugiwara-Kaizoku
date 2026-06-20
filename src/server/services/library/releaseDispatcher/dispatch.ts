@@ -1,3 +1,6 @@
+/* eslint-disable max-lines -- cohesive dispatch orchestration entry point;
+   grew past the limit when per-user attribution (initiatedByUserId) was
+   threaded through the pipeline. Splitting is a separate refactor task. */
 // @file-size-justified: orchestration entry point that owns the full
 // dispatch pipeline (Prowlarr coverage estimate → native fill → manual
 // Prowlarr scope dispatch). Splitting further would scatter the control
@@ -103,6 +106,13 @@ export interface RunOptions {
    * orphan again and loop). Chapters native can't serve are left untouched.
    */
   nativeOnly?: boolean;
+  /**
+   * User who initiated this dispatch. Stamped onto every job/pack/history row
+   * the run creates so the Jobs/Downloads pages can scope per-user. The cron
+   * scheduler sources it from each per-user AutoDownloadRule; manual callers
+   * pass the session user. Undefined => system/unowned (admin-only visibility).
+   */
+  initiatedByUserId?: string;
 }
 
 /** Per-chapter outcome surfaced from manual Prowlarr dispatch back to the caller. */
@@ -240,6 +250,7 @@ export async function resolveChapterDestination(
 async function enqueueMangaDexCandidate(
   candidate: ReleaseCandidate,
   mangaId: number,
+  initiatedByUserId?: string,
 ): Promise<boolean> {
   const p = candidate.payload as MangaDexCandidatePayload;
   const destinationPath = await resolveChapterDestination(mangaId, p.chapterNumber);
@@ -282,6 +293,7 @@ async function enqueueMangaDexCandidate(
         chapterId: p.chapterRowId,
         maxAttempts: 5,
         retryDelaySeconds: 45,
+        ...(initiatedByUserId !== undefined && { initiatedByUserId }),
       },
     );
   } catch (err) {
@@ -307,6 +319,7 @@ async function enqueueMangaDexCandidate(
 async function enqueueSuwayomiCandidate(
   candidate: ReleaseCandidate,
   mangaId: number,
+  initiatedByUserId?: string,
 ): Promise<boolean> {
   const p = candidate.payload as SuwayomiCandidatePayload;
   const destinationPath = await resolveChapterDestination(mangaId, p.chapterNumber);
@@ -337,7 +350,7 @@ async function enqueueSuwayomiCandidate(
       },
       // Surface manga/chapter on the FK columns so the Jobs page can join
       // and show the manga title + chapter row instead of "System Task".
-      { mangaId, chapterId: p.chapterRowId },
+      { mangaId, chapterId: p.chapterRowId, ...(initiatedByUserId !== undefined && { initiatedByUserId }) },
     );
   } catch (err) {
     // Mirror the MangaDex path: roll back the NativeDownload row when
@@ -364,12 +377,13 @@ async function enqueueSuwayomiCandidate(
 async function enqueueNativeCandidate(
   candidate: ReleaseCandidate,
   mangaId: number,
+  initiatedByUserId?: string,
 ): Promise<boolean> {
   if (candidate.source === 'mangadex') {
-    return enqueueMangaDexCandidate(candidate, mangaId);
+    return enqueueMangaDexCandidate(candidate, mangaId, initiatedByUserId);
   }
   if (candidate.source === 'suwayomi') {
-    return enqueueSuwayomiCandidate(candidate, mangaId);
+    return enqueueSuwayomiCandidate(candidate, mangaId, initiatedByUserId);
   }
   // GetComics: stub — adapter returns no candidates today.
   log.warn('Skipping unsupported native candidate', { source: candidate.source });
@@ -406,6 +420,8 @@ interface DispatchContext {
    * to flip the native-vs-Prowlarr coverage yield when `prefer-chapter`.
    */
   downloadMode: DownloadModePreference;
+  /** User who initiated the run; copied to every enqueue for per-user scoping. */
+  initiatedByUserId?: string;
 }
 
 /**
@@ -578,6 +594,7 @@ async function dispatchProwlarrManual(
     method: DownloadMethod.PROWLARR,
     mode: DownloadMode.BULK,
     prowlarrResult: selected.result,
+    ...(ctx.initiatedByUserId !== undefined && { initiatedByUserId: ctx.initiatedByUserId }),
   });
 
   if (isError(dispatch)) {
@@ -687,7 +704,7 @@ async function fillNativeForChapter(
     });
     return;
   }
-  const enqueued = await (best.source === 'getcomics' ? enqueueGetComicsCandidate(best, ctx.mangaId, ch.id, ch.chapterNumber) : enqueueNativeCandidate(best, ctx.mangaId)).catch(err => {
+  const enqueued = await (best.source === 'getcomics' ? enqueueGetComicsCandidate(best, ctx.mangaId, ch.id, ch.chapterNumber, ctx.initiatedByUserId) : enqueueNativeCandidate(best, ctx.mangaId, ctx.initiatedByUserId)).catch(err => {
     log.warn('Native enqueue failed', {
       mangaId: ctx.mangaId, chapterNumber: ch.chapterNumber, source: best.source,
       error: err instanceof Error ? err.message : String(err),
@@ -915,12 +932,21 @@ export async function runUnifiedReleaseSearch(
   };
 
   if (!options.bypassRuleCheck) {
-    const manga = await prisma.manga.findUnique({
-      where: { id: mangaId },
-      select: { autoDownloadRule: { select: { enabled: true } } },
+    // Auto-download rules are now per-user. When a specific initiator is known
+    // (the cron scheduler passes each rule's userId), gate on *that user's*
+    // rule being enabled; otherwise fall back to "any user has it enabled".
+    const ruleFilter = options.initiatedByUserId !== undefined
+      ? { some: { userId: options.initiatedByUserId, enabled: true } }
+      : { some: { enabled: true } };
+    const manga = await prisma.manga.findFirst({
+      where: { id: mangaId, autoDownloadRules: ruleFilter },
+      select: { id: true },
     });
-    if (manga?.autoDownloadRule?.enabled !== true) {
-      log.info('Skipping run: autoDownloadRule disabled', { mangaId });
+    if (manga === null) {
+      log.info('Skipping run: autoDownloadRule disabled', {
+        mangaId,
+        initiatedByUserId: options.initiatedByUserId,
+      });
       return summary;
     }
   }
@@ -969,6 +995,7 @@ export async function runUnifiedReleaseSearch(
   const ctx: DispatchContext = {
     mangaId, missing, candidates, prowlarrCoverage, inFlight, failedSourcesByChapterId, mediaType,
     preferredLanguage, downloadMode,
+    ...(options.initiatedByUserId !== undefined && { initiatedByUserId: options.initiatedByUserId }),
   };
 
   // Native-only fallback: enqueue every native candidate we can and return

@@ -1,7 +1,9 @@
 import { prisma } from '@/server/db';
 
-import { publicProcedure } from '../procedures';
+import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
+
+import { isAdmin, membershipWhere, requireUserId } from './_shared/library-access';
 import type {} from '@prisma/client';
 /**
  * History Router - Manages access to download history
@@ -19,10 +21,13 @@ export const historyRouter = router({
    * 
    * @returns {Array<Object>} Array of recently completed chapter downloads with related manga data
    */
-  query: publicProcedure.query(async () => {
+  query: protectedProcedure.query(async ({ ctx }) => {
+    // Scope recently-completed chapters to the caller's library (shared catalog
+    // is per-user via LibraryMembership); admins see the whole catalog.
     const recentChapters = await prisma.chapter.findMany({
       where: {
-        downloadStatus: "COMPLETED"
+        downloadStatus: "COMPLETED",
+        ...(isAdmin(ctx) ? {} : { Manga: membershipWhere(requireUserId(ctx)) })
       },
       orderBy: {
         createdAt: 'desc'
