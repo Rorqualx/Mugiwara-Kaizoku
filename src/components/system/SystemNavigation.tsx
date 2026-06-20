@@ -44,6 +44,7 @@ import { Tabs } from "@mantine/core";
 import { IconRefresh, IconFile, IconUsers, IconDownload, IconSettings, IconClock, IconDatabase } from '@tabler/icons-react';
 import { useRouter } from "next/router";
 
+import { useAuth } from '@/hooks/useAuth';
 import { logger } from '@/utils/logger';
 
 // Import all required icons from @tabler/icons-react
@@ -71,6 +72,8 @@ export interface SystemTab {
     path: string;
     /** Icon component to render with the tab */
     icon: React.ReactElement;
+    /** Admin-only tab — hidden from non-admins (route is also middleware-gated). */
+    adminOnly?: boolean;
 }
 /**
  * Props for the SystemNavigation component
@@ -87,14 +90,15 @@ export interface SystemNavigationProps {
  * Map of system tabs with their configuration
  */
 const SYSTEM_TABS: SystemTab[] = [
-    { value: 'status', label: 'Status', path: '/system/status', icon: <IconRefresh size={16}/> },
-    { value: 'backup', label: 'Backup', path: '/system/backup', icon: <IconDownload size={16}/> },
-    { value: 'updates', label: 'Updates', path: '/system/updates', icon: <IconRefresh size={16}/> },
-    { value: 'appearance', label: 'Appearance', path: '/system/appearance', icon: <IconSettings size={16}/> },
-    { value: 'events', label: 'Events', path: '/system/events', icon: <IconClock size={16}/> },
-    { value: 'logs', label: 'Log Files', path: '/system/logs', icon: <IconFile size={16}/> },
-    { value: 'annotation', label: 'Annotation', path: '/annotation', icon: <IconDatabase size={16}/> },
-    { value: 'users', label: 'Users', path: '/system/users', icon: <IconUsers size={16}/> }
+    { value: 'status', label: 'Status', path: '/system/status', icon: <IconRefresh size={16}/>, adminOnly: true },
+    { value: 'backup', label: 'Backup', path: '/system/backup', icon: <IconDownload size={16}/>, adminOnly: true },
+    { value: 'updates', label: 'Updates', path: '/system/updates', icon: <IconRefresh size={16}/>, adminOnly: true },
+    // Appearance is the caller's own theme preference — available to every user.
+    { value: 'appearance', label: 'Appearance', path: '/system/appearance', icon: <IconSettings size={16}/>, adminOnly: false },
+    { value: 'events', label: 'Events', path: '/system/events', icon: <IconClock size={16}/>, adminOnly: true },
+    { value: 'logs', label: 'Log Files', path: '/system/logs', icon: <IconFile size={16}/>, adminOnly: true },
+    { value: 'annotation', label: 'Annotation', path: '/annotation', icon: <IconDatabase size={16}/>, adminOnly: true },
+    { value: 'users', label: 'Users', path: '/system/users', icon: <IconUsers size={16}/>, adminOnly: true }
 ];
 /**
  * Map of path patterns to tab values
@@ -118,7 +122,9 @@ const PATH_MAP: SystemPathMap = {
  */
 export function SystemNavigation({ disableLinks = false, activeTab, onTabChange }: SystemNavigationProps): React.ReactElement {
     const router = useRouter();
+    const { isAdmin } = useAuth();
     const currentPath = router.pathname;
+    const visibleTabs = useMemo(() => SYSTEM_TABS.filter((tab) => isAdmin || !tab.adminOnly), [isAdmin]);
 
     /**
      * Memoized active tab value to prevent unnecessary recalculations
@@ -164,7 +170,7 @@ export function SystemNavigation({ disableLinks = false, activeTab, onTabChange 
         return SYSTEM_TABS.some(tab => tab.value === value);
     }
     // Create the tab elements with proper children to avoid TypeScript errors
-    const tabElements = SYSTEM_TABS.map(tab => (disableLinks ? (
+    const tabElements = visibleTabs.map(tab => (disableLinks ? (
     // Disabled tabs (no links) for setup page
     <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
         {tab.label}

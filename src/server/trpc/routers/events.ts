@@ -180,7 +180,7 @@ export const eventsRouter = router({
   /**
    * Update event settings
    */
-  updateEventSettings: protectedProcedure.
+  updateEventSettings: adminProcedure.
   input(z.object({
     retentionPolicy: z.enum(['time', 'count', 'both', 'unlimited']),
     retentionDays: z.number().min(1).max(365),

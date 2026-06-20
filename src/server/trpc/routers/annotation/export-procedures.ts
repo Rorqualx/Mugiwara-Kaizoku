@@ -9,7 +9,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -153,7 +153,7 @@ function processPageTokens(
 // ============================================================================
 
 /** Export training data with deferred tokenization */
-export const exportTrainingData = settingsProcedure
+export const exportTrainingData = adminProcedure
   .input(exportInputSchema)
   .query(async ({ input }): Promise<ExportResult> => {
     const statusFilter = input.status ?? ['REVIEWED', 'GOLD'];

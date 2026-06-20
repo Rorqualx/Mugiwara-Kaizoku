@@ -12,7 +12,7 @@
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import {
   fetchHtmlWithFlareSolverr,
   getBootstrapLabels,
@@ -221,7 +221,7 @@ async function processExistingPage(
  * 3. Runs bootstrap labeling to extract tokens and BIO labels
  * 4. Updates the database with tokens, labels, entityCounts, confidence
  */
-export const processExistingPages = settingsProcedure
+export const processExistingPages = adminProcedure
   .input(processExistingPagesInputSchema)
   .mutation(async ({ input }) => {
     const { limit, mangaTitle, sourceType, onlyEmptyHtml, dryRun } = input;

@@ -11,7 +11,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { runSingleIteration } from '@/server/services/auto-labeling';
 import type { SamplingFilters, DiscoveredUrlType } from '@/server/services/auto-labeling';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import {
   fetchHtmlWithFlareSolverr,
   getExistingUrls,
@@ -245,7 +245,7 @@ function countStatuses(annotations: SavedAnnotation[]): StatusCounts {
 // ============================================================================
 
 /** Run iteration and save extracted annotations to the database */
-export const runIterationAndSave = settingsProcedure
+export const runIterationAndSave = adminProcedure
   .input(runIterationAndSaveInputSchema)
   .mutation(async ({ input }) => {
     const { sampleSize, minF1Threshold, source, pageTypes, skipExisting, dryRun } = input;

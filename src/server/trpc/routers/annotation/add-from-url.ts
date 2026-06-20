@@ -13,7 +13,7 @@ import { Prisma } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -28,7 +28,7 @@ function isPrismaUniqueConstraintError(error: unknown): boolean {
   return false;
 }
 
-export const addFromUrl = settingsProcedure
+export const addFromUrl = adminProcedure
   .input(addFromUrlInputSchema)
   .mutation(async ({ input }) => {
     // Detect source type from URL

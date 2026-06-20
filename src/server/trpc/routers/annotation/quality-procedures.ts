@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { generateIAAReport } from '@/server/ml/quality';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -35,7 +35,7 @@ const compareAnnotationsInputSchema = z.object({
 // ============================================================================
 
 /** Get quality report for a set of pages */
-export const getQualityReport = settingsProcedure
+export const getQualityReport = adminProcedure
   .input(getQualityReportInputSchema)
   .query(async ({ input }) => {
     const where: Record<string, unknown> = {};
@@ -91,7 +91,7 @@ export const getQualityReport = settingsProcedure
   });
 
 /** Compare annotations between annotators for a specific page */
-export const compareAnnotations = settingsProcedure
+export const compareAnnotations = adminProcedure
   .input(compareAnnotationsInputSchema)
   .mutation(({ input }) => {
     const labelArrays = input.annotations.map((a) => a.labels);
@@ -111,7 +111,7 @@ export const compareAnnotations = settingsProcedure
   });
 
 /** Get aggregated quality stats */
-export const getQualityStats = settingsProcedure.query(async () => {
+export const getQualityStats = adminProcedure.query(async () => {
   const statusCounts = await prisma.annotatedPage.groupBy({
     by: ['status'],
     _count: { id: true },

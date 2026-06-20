@@ -20,6 +20,12 @@ jest.mock('../../../hooks/mobile', () => ({
   })
 }));
 
+// Mock useAuth — the drawer hides admin-only nav entries from non-admins; these
+// tests assert the full (admin) nav, so return isAdmin: true.
+jest.mock('../../../hooks/useAuth', () => ({
+  useAuth: (): { isAdmin: boolean } => ({ isAdmin: true })
+}));
+
 // Mock useNavigation hook
 jest.mock('../../../hooks/useNavigation', () => ({
   useNavigation: jest.fn(() => ({

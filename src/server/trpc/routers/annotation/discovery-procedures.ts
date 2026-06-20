@@ -8,7 +8,7 @@ import { TRPCError } from '@trpc/server';
 
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 import { detectSourceType, calculateEntityCountsFromLabels, getBootstrapLabels, fetchHtmlWithFlareSolverr } from './helpers';
@@ -160,7 +160,7 @@ async function processBatch(
 // Discovery Procedures
 // ============================================================================
 
-export const discoverFromLibrary = settingsProcedure
+export const discoverFromLibrary = adminProcedure
   .input(discoverFromLibraryInputSchema)
   .query(async ({ input }): Promise<DiscoveryResult> => {
     const { sourceTypes, limit, excludeAnnotated } = input;
@@ -217,7 +217,7 @@ export const discoverFromLibrary = settingsProcedure
     return { urls: discoveredUrls, total: discoveredUrls.length, alreadyAnnotatedCount };
   });
 
-export const addBulkFromDiscovery = settingsProcedure
+export const addBulkFromDiscovery = adminProcedure
   .input(addBulkFromDiscoveryInputSchema)
   .mutation(async ({ input }): Promise<BulkImportResult> => {
     const result: BulkImportResult = { added: 0, skipped: 0, failed: [] };
@@ -235,7 +235,7 @@ export const addBulkFromDiscovery = settingsProcedure
     return result;
   });
 
-export const addBulkFromText = settingsProcedure
+export const addBulkFromText = adminProcedure
   .input(addBulkFromTextInputSchema)
   .mutation(async ({ input }): Promise<BulkImportResult> => {
     const { urlText, defaultMangaTitle } = input;

@@ -37,6 +37,12 @@ export const runtime = 'nodejs';
 
 const ADMIN_PATH_PREFIXES = ['/admin', '/settings', '/system', '/api/protected'];
 
+// Per-user pages that live under the otherwise-admin-only /settings and /system
+// trees but hold the caller's OWN data, so any authenticated user may reach
+// them. Their routers scope to ctx.user.id (api keys/webhooks) or are client-
+// side per-user preferences (appearance/theme). Checked before the admin gate.
+const USER_ALLOWED_SETTINGS_PATHS = ['/settings/api', '/system/appearance'];
+
 // Routes that exist only for ML training-data development. They surface
 // raw annotation editing, quality reports, and dataset exports — useful
 // in dev, but no place in a release build. Returning a redirect to "/"
@@ -95,7 +101,11 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   // strict `=== 'ADMIN'` check here bounced legitimate admins to `/` for
   // any path under /admin, /settings, /system, /api/protected.
   const role = typeof token.role === 'string' ? token.role.toUpperCase() : null;
-  if (startsWithAny(pathname, ADMIN_PATH_PREFIXES) && role !== 'ADMIN') {
+  if (
+    startsWithAny(pathname, ADMIN_PATH_PREFIXES) &&
+    !startsWithAny(pathname, USER_ALLOWED_SETTINGS_PATHS) &&
+    role !== 'ADMIN'
+  ) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 

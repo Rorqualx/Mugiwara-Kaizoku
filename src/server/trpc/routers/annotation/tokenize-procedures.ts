@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { cleanHtmlForTokenization, shouldCleanForTokenization } from '@/server/ml/training/bootstrap-labeler/html-cleaner';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -251,14 +251,14 @@ async function processChunk(
 // ============================================================================
 
 /** Tokenize a single page on-demand */
-export const tokenizePage = settingsProcedure
+export const tokenizePage = adminProcedure
   .input(tokenizePageInputSchema)
   .mutation(async ({ input }): Promise<TokenizationResult> => {
     return tokenizePageInternal(input.pageId, input.force);
   });
 
 /** Tokenize multiple pages in batch (parallel processing) */
-export const tokenizeBatch = settingsProcedure
+export const tokenizeBatch = adminProcedure
   .input(tokenizeBatchInputSchema)
   .mutation(async ({ input }): Promise<{
     results: TokenizationResult[];
@@ -298,7 +298,7 @@ export const tokenizeBatch = settingsProcedure
   });
 
 /** Check tokenization status for pages */
-export const getTokenizationStatus = settingsProcedure
+export const getTokenizationStatus = adminProcedure
   .input(z.object({ pageIds: z.array(z.string()).max(100) }))
   .query(async ({ input }): Promise<Array<{ pageId: string; isTokenized: boolean; tokenCount: number }>> => {
     const pages = await prisma.annotatedPage.findMany({
@@ -435,7 +435,7 @@ function computeSuggestionPreview(
 }
 
 /** Get label suggestions for a tokenized page */
-export const getSuggestions = settingsProcedure
+export const getSuggestions = adminProcedure
   .input(getSuggestionsInputSchema)
   .query(async ({ input }): Promise<GetSuggestionsResult> => {
     const page = await prisma.annotatedPage.findUnique({

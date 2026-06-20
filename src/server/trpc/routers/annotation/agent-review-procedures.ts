@@ -13,7 +13,7 @@ import {
   getReviewQueueStats,
   DEFAULT_BATCH_OPTIONS,
 } from '@/server/ml/training/agent-review';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -41,7 +41,7 @@ const getAgentCorrectedPagesInputSchema = z.object({
 // ============================================================================
 
 /** Start agent review for selected pages or batch */
-export const startAgentReview = settingsProcedure
+export const startAgentReview = adminProcedure
   .input(agentReviewInputSchema)
   .mutation(async ({ input }) => {
     logger.info('Starting agent review', {
@@ -74,7 +74,7 @@ export const startAgentReview = settingsProcedure
   });
 
 /** Get agent review queue statistics */
-export const getAgentReviewStats = settingsProcedure.query(async () => {
+export const getAgentReviewStats = adminProcedure.query(async () => {
   const stats = await getReviewQueueStats();
 
   return {
@@ -85,7 +85,7 @@ export const getAgentReviewStats = settingsProcedure.query(async () => {
 });
 
 /** Get pages that were corrected by agent for human verification */
-export const getAgentCorrectedPages = settingsProcedure
+export const getAgentCorrectedPages = adminProcedure
   .input(getAgentCorrectedPagesInputSchema)
   .query(async ({ input }) => {
     const { limit, cursor } = input;
@@ -117,7 +117,7 @@ export const getAgentCorrectedPages = settingsProcedure
   });
 
 /** Accept agent corrections for a page */
-export const acceptAgentCorrections = settingsProcedure
+export const acceptAgentCorrections = adminProcedure
   .input(z.object({ pageId: z.string() }))
   .mutation(async ({ input }) => {
     const updated = await prisma.annotatedPage.update({
@@ -134,7 +134,7 @@ export const acceptAgentCorrections = settingsProcedure
   });
 
 /** Revert agent corrections for a page */
-export const revertAgentCorrections = settingsProcedure
+export const revertAgentCorrections = adminProcedure
   .input(z.object({ pageId: z.string() }))
   .mutation(async ({ input }) => {
     const page = await prisma.annotatedPage.findUnique({

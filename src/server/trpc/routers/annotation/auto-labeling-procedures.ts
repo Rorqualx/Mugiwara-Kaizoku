@@ -17,7 +17,7 @@ import {
   analyzeRecentFailures,
   loadTrainingData,
 } from '@/server/services/auto-labeling';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -103,7 +103,7 @@ function extractEntitiesFromBIO(labels: string[], tokens: string[]): GoldEntity[
 // ============================================================================
 
 /** Run a single auto-labeling iteration */
-export const runIteration = settingsProcedure
+export const runIteration = adminProcedure
   .input(runIterationInputSchema)
   .mutation(async ({ input }) => {
     logger.info('Starting auto-labeling iteration', { sampleSize: input.sampleSize });
@@ -131,7 +131,7 @@ export const runIteration = settingsProcedure
   });
 
 /** Get current progress and trends */
-export const getAutoLabelingProgress = settingsProcedure.query(() => {
+export const getAutoLabelingProgress = adminProcedure.query(() => {
   const progress = getProgress();
   const failures = analyzeRecentFailures();
 
@@ -145,7 +145,7 @@ export const getAutoLabelingProgress = settingsProcedure.query(() => {
 });
 
 /** Get training data statistics */
-export const getTrainingDataStats = settingsProcedure.query(() => {
+export const getTrainingDataStats = adminProcedure.query(() => {
   const data = loadTrainingData();
 
   // Count entries by source and total discovered URLs
@@ -191,7 +191,7 @@ const getTrainingDataEntriesInputSchema = z.object({
 });
 
 /** Get training data entries with all columns for display */
-export const getTrainingDataEntries = settingsProcedure
+export const getTrainingDataEntries = adminProcedure
   .input(getTrainingDataEntriesInputSchema)
   .query(({ input }) => {
     const data = loadTrainingData();
@@ -257,7 +257,7 @@ export const getTrainingDataEntries = settingsProcedure
   });
 
 /** Bootstrap all titles from a specific source (Wikipedia, Fandom, or ComicVine) */
-export const bootstrapBySource = settingsProcedure
+export const bootstrapBySource = adminProcedure
   .input(bootstrapSourceInputSchema)
   .mutation(async ({ input }) => {
     const { source, sampleSize, processAll } = input;
@@ -380,7 +380,7 @@ interface ImportResult {
 // ============================================================================
 
 /** Import Wikipedia/Fandom pages from training CSV into annotation pages */
-export const importFromTrainingData = settingsProcedure
+export const importFromTrainingData = adminProcedure
   .input(importFromTrainingDataInputSchema)
   .mutation(async ({ input }) => {
     const { source, limit, requireAnilistId, dryRun } = input;
@@ -600,7 +600,7 @@ async function importSinglePage(
 }
 
 /** Get gold annotation statistics */
-export const compareWithGold = settingsProcedure
+export const compareWithGold = adminProcedure
   .input(compareWithGoldInputSchema)
   .mutation(async ({ input }) => {
     const goldPages = await prisma.annotatedPage.findMany({

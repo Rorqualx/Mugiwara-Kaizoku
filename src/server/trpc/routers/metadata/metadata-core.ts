@@ -21,7 +21,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { TRPCErrors, toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -84,7 +84,7 @@ export const metadataCoreRouter = router({
   /**
    * Update field preferences (now global, no Settings FK)
    */
-  updateFieldPreferences: protectedProcedure
+  updateFieldPreferences: adminProcedure
     .input(UpdateFieldPreferencesSchema)
     .mutation(async ({ input }): Promise<MetadataFieldPreference[]> => {
       try {
@@ -239,7 +239,7 @@ export const metadataCoreRouter = router({
   /**
    * Resolve a metadata conflict
    */
-  resolveConflict: publicProcedure
+  resolveConflict: protectedProcedure
     .input(ResolveConflictSchema)
     .mutation(async ({ input }): Promise<boolean> => {
       try {

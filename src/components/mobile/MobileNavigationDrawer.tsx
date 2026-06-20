@@ -31,6 +31,7 @@ import {
 '@tabler/icons-react';
 
 import { useMobileState } from '@/hooks/mobile';
+import { useAuth } from '@/hooks/useAuth';
 import {
   getTouchPosition,
   getSwipeDirection,
@@ -73,6 +74,8 @@ export function MobileNavigationDrawer({
   activityCounts = { active: 0, failed: 0 },
 }: MobileNavigationDrawerProps): React.ReactElement {
   const { setActiveView } = useMobileState();
+  // Admin gate: hide admin-only System/Settings entries from non-admins.
+  const { isAdmin } = useAuth();
   const touchStartRef = useRef<TouchPosition | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -117,18 +120,19 @@ export function MobileNavigationDrawer({
     id: 'system',
     label: 'System',
     icon: <IconTools size={20} />,
-    href: '/system'
+    href: isAdmin ? '/system' : '/system/appearance'
   },
   {
     id: 'settings',
     label: 'Settings',
     icon: <IconSettings size={20} />,
-    items: [
+    items: isAdmin ? [
     { label: 'Events', href: '/settings/events' },
     { label: 'Media Management', href: '/settings/media-management' },
     { label: 'Indexers', href: '/settings/indexers' },
     { label: 'Download Clients', href: '/settings/download-clients' },
-    { label: 'Metadata', href: '/settings/metadata' }]
+    { label: 'Metadata', href: '/settings/metadata' }] : [
+    { label: 'API Keys', href: '/settings/api' }]
 
   }];
 

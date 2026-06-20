@@ -26,12 +26,24 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logError } from '@/utils/system-event-logger';
 
+import { isAdmin, membershipWhere, requireUserId } from '../_shared/library-access';
+
 import { missingSearchSchema } from './schemas';
 
 const MISSING_CHAPTER_WHERE = {
   monitored: true,
   downloadStatus: { not: 'COMPLETED' as const }
 } satisfies Prisma.ChapterWhereInput;
+
+/**
+ * Missing-chapter predicate scoped to the caller's library. Non-admins only see
+ * monitored/undownloaded chapters for titles in THEIR library (shared catalog
+ * is per-user via LibraryMembership); admins see the whole instance.
+ */
+function scopedMissingWhere(ctx: unknown): Prisma.ChapterWhereInput {
+  if (isAdmin(ctx)) return MISSING_CHAPTER_WHERE;
+  return { ...MISSING_CHAPTER_WHERE, Manga: membershipWhere(requireUserId(ctx)) };
+}
 
 const MISSING_CHAPTER_INCLUDE = {
   Manga: { include: { Metadata: true } }
@@ -65,13 +77,14 @@ interface PageInput {
 }
 
 async function fetchMissingPage(
-  { page, pageSize }: PageInput
+  { page, pageSize }: PageInput,
+  where: Prisma.ChapterWhereInput
 ): Promise<AsyncResult<MissingItemsResponse, Error>> {
   try {
     const [total, chapters, mangaCount] = await Promise.all([
-      prisma.chapter.count({ where: MISSING_CHAPTER_WHERE }),
+      prisma.chapter.count({ where }),
       prisma.chapter.findMany({
-        where: MISSING_CHAPTER_WHERE,
+        where,
         include: MISSING_CHAPTER_INCLUDE,
         orderBy: [
           { mangaId: 'asc' },
@@ -82,7 +95,7 @@ async function fetchMissingPage(
         take: pageSize
       }),
       prisma.chapter.findMany({
-        where: MISSING_CHAPTER_WHERE,
+        where,
         select: { mangaId: true },
         distinct: ['mangaId']
       })
@@ -109,8 +122,8 @@ async function fetchMissingPage(
   }
 }
 
-export const getMissing = protectedProcedure.input(missingSearchSchema).query(async ({ input }) => {
-  const result = await fetchMissingPage(input);
+export const getMissing = protectedProcedure.input(missingSearchSchema).query(async ({ input, ctx }) => {
+  const result = await fetchMissingPage(input, scopedMissingWhere(ctx));
   if (isSuccess(result)) return result.data;
   if (isError(result)) {
     throw new TRPCError({
@@ -128,9 +141,9 @@ export const getMissing = protectedProcedure.input(missingSearchSchema).query(as
  * Distinct manga IDs that have any monitored, undownloaded chapter.
  * Used by "Search all monitored" callers that don't need chapter detail.
  */
-export const getMissingMangaIds = protectedProcedure.query(async () => {
+export const getMissingMangaIds = protectedProcedure.query(async ({ ctx }) => {
   const rows = await prisma.chapter.findMany({
-    where: MISSING_CHAPTER_WHERE,
+    where: scopedMissingWhere(ctx),
     select: { mangaId: true },
     distinct: ['mangaId']
   });

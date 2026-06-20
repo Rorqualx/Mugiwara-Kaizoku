@@ -32,7 +32,7 @@ import {
   type ExportFormat,
   type UnifiedExportResult,
 } from '@/server/services/training/export';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import type { ImageLabel } from '@/types/training/image-labels';
 import { logger } from '@/utils/logger';
 
@@ -322,7 +322,7 @@ async function processEnrichmentBatch(
 /**
  * Export training data with extended filters
  */
-export const exportExtended = settingsProcedure
+export const exportExtended = adminProcedure
   .input(exportExtendedInputSchema)
   .query(async ({ input }): Promise<ExtendedExportResult> => {
     const where = buildExportWhereClause(input);
@@ -371,7 +371,7 @@ export const exportExtended = settingsProcedure
 /**
  * Enrich a single page with segments, auto quality, and document labels
  */
-export const enrichPage = settingsProcedure
+export const enrichPage = adminProcedure
   .input(enrichPageInputSchema)
   .mutation(async ({ input }): Promise<EnrichmentResult> => {
     const { id, forceRecompute } = input;
@@ -451,7 +451,7 @@ async function buildCachedEnrichmentResult(page: {
 /**
  * Batch enrich all pages matching filters
  */
-export const enrichAllPages = settingsProcedure
+export const enrichAllPages = adminProcedure
   .input(enrichAllPagesInputSchema)
   .mutation(async ({ input }): Promise<BatchEnrichmentResult> => {
     const where = buildEnrichmentWhereClause(input);

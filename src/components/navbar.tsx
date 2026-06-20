@@ -30,9 +30,12 @@ import {
 import { useRouter } from "next/router";
 import { useSession } from 'next-auth/react';
 
+import { useAuth } from '@/hooks/useAuth';
+
 import { logger } from '../utils/logger';
 // Use the standard client for this component
 import { trpc } from '../utils/trpc-client/index';
+
 
 import { ActiveNavItem } from "./ActiveNavItem";
 import { EventsPanel } from "./events/EventsPanel";
@@ -191,6 +194,10 @@ export function KaizokuNavbar(): React.JSX.Element {
     const router = useRouter();
     const { status: authStatus } = useSession();
     const isAuthenticated = authStatus === 'authenticated';
+    // Admin gate: /settings and /system are admin-only except the per-user
+    // pages (Appearance, API keys). Hide admin nav items from non-admins so
+    // they don't see links that just bounce off the middleware admin gate.
+    const { isAdmin } = useAuth();
     const [settingsOpened, setSettingsOpened] = useState(false);
     const [wantedOpened, setWantedOpened] = useState(false);
     const [systemOpened, setSystemOpened] = useState(false);
@@ -265,64 +272,62 @@ export function KaizokuNavbar(): React.JSX.Element {
               
               <Stack gap={0} onMouseEnter={() => setSystemOpened(true)} onMouseLeave={() => setSystemOpened(false)}>
 
-                <ActiveNavItem icon={<IconTools size={16}/>} label="System" href="/system/status"/>
+                <ActiveNavItem icon={<IconTools size={16}/>} label="System" href={isAdmin ? "/system/status" : "/system/appearance"}/>
 
                 <Collapse in={systemOpened}>
                   <Stack gap={0}>
-                    <ActiveNavItem icon={<IconActivity size={16}/>} label="Status" href="/system/status" nested/>
-
-                    <ActiveNavItem icon={<IconDeviceFloppy size={16}/>} label="Backup & Restore" href="/system/backup" nested/>
-
-                    <ActiveNavItem icon={<IconRefresh size={16}/>} label="Updates" href="/system/updates" nested/>
-
-                    <ActiveNavItem icon={<IconPalette size={16}/>} label="Appearance" href="/system/appearance" nested/>
-
-                    <ActiveNavItem icon={<IconCalendarStats size={16}/>} label="Events" href="/system/events" nested/>
-
-                    <ActiveNavItem icon={<IconFile size={16}/>} label="Log Files" href="/system/logs" nested/>
-
-                    {/* Annotation is an ML training-data editor used only during model
-                        development; hidden in production builds. Direct URL access is
-                        also gated by the page-level NODE_ENV check. */}
-                    {process.env.NODE_ENV !== 'production' && (
-                      <ActiveNavItem icon={<IconDatabase size={16}/>} label="Annotation" href="/annotation" nested/>
+                    {/* Admin-only system pages (also middleware-gated). Grouped
+                        under one guard to keep this component's complexity low. */}
+                    {isAdmin && (
+                      <>
+                        <ActiveNavItem icon={<IconActivity size={16}/>} label="Status" href="/system/status" nested/>
+                        <ActiveNavItem icon={<IconDeviceFloppy size={16}/>} label="Backup & Restore" href="/system/backup" nested/>
+                        <ActiveNavItem icon={<IconRefresh size={16}/>} label="Updates" href="/system/updates" nested/>
+                      </>
                     )}
 
-                    <ActiveNavItem icon={<IconUsers size={16}/>} label="Users" href="/system/users" nested/>
+                    {/* Per-user: theme/appearance is the caller's own preference. */}
+                    <ActiveNavItem icon={<IconPalette size={16}/>} label="Appearance" href="/system/appearance" nested/>
+
+                    {isAdmin && (
+                      <>
+                        <ActiveNavItem icon={<IconCalendarStats size={16}/>} label="Events" href="/system/events" nested/>
+                        <ActiveNavItem icon={<IconFile size={16}/>} label="Log Files" href="/system/logs" nested/>
+                        {/* Annotation: ML dataset editor, dev-builds only. */}
+                        {process.env.NODE_ENV !== 'production' && (
+                          <ActiveNavItem icon={<IconDatabase size={16}/>} label="Annotation" href="/annotation" nested/>
+                        )}
+                        <ActiveNavItem icon={<IconUsers size={16}/>} label="Users" href="/system/users" nested/>
+                      </>
+                    )}
                   </Stack>
                 </Collapse>
               </Stack>
 
               <Stack gap={0} onMouseEnter={() => setSettingsOpened(true)} onMouseLeave={() => setSettingsOpened(false)}>
 
-                <ActiveNavItem icon={<IconSettings size={16}/>} label="Settings" href="/settings/events"/>
+                <ActiveNavItem icon={<IconSettings size={16}/>} label="Settings" href={isAdmin ? "/settings/events" : "/settings/api"}/>
 
                 <Collapse in={settingsOpened}>
                   <Stack gap={0}>
-                    <ActiveNavItem icon={<IconClock size={16}/>} label="Events" href="/settings/events" nested/>
+                    {/* Per-user: each user manages their own API keys + webhooks. */}
+                    <ActiveNavItem icon={<IconPlugConnected size={16}/>} label="API Keys" href="/settings/api" nested/>
 
-
-                    <ActiveNavItem icon={<IconFolderPlus size={16}/>} label="Media Management" href="/settings/media-management" nested/>
-
-
-                    <ActiveNavItem icon={<IconSearch size={16}/>} label="Indexers" href="/settings/indexers" nested/>
-
-
-                    <ActiveNavItem icon={<IconDownload size={16}/>} label="Download Clients" href="/settings/download-clients" nested/>
-
-
-                    <ActiveNavItem icon={<IconDatabase size={16}/>} label="Metadata" href="/settings/metadata" nested/>
-
-
-                    <ActiveNavItem icon={<IconArrowRight size={16}/>} label="File Conversion" href="/settings/file-conversion" nested/>
-
-                    <ActiveNavItem icon={<IconPlugConnected size={16}/>} label="Integrations" href="/settings/integrations" nested/>
-
-                    <ActiveNavItem icon={<IconShieldCheck size={16}/>} label="FlareSolverr" href="/settings/flaresolverr" nested/>
-
-                    <ActiveNavItem icon={<IconBooks size={16}/>} label="Import Manga" href="/settings/library" nested/>
-
-                    <ActiveNavItem icon={<IconPhoto size={16}/>} label="Living Covers" href="/settings/living-covers" nested/>
+                    {/* Admin-only infra settings (also middleware-gated). */}
+                    {isAdmin && (
+                      <>
+                        <ActiveNavItem icon={<IconClock size={16}/>} label="Events" href="/settings/events" nested/>
+                        <ActiveNavItem icon={<IconFolderPlus size={16}/>} label="Media Management" href="/settings/media-management" nested/>
+                        <ActiveNavItem icon={<IconSearch size={16}/>} label="Indexers" href="/settings/indexers" nested/>
+                        <ActiveNavItem icon={<IconDownload size={16}/>} label="Download Clients" href="/settings/download-clients" nested/>
+                        <ActiveNavItem icon={<IconDatabase size={16}/>} label="Metadata" href="/settings/metadata" nested/>
+                        <ActiveNavItem icon={<IconArrowRight size={16}/>} label="File Conversion" href="/settings/file-conversion" nested/>
+                        <ActiveNavItem icon={<IconPlugConnected size={16}/>} label="Integrations" href="/settings/integrations" nested/>
+                        <ActiveNavItem icon={<IconShieldCheck size={16}/>} label="FlareSolverr" href="/settings/flaresolverr" nested/>
+                        <ActiveNavItem icon={<IconBooks size={16}/>} label="Import Manga" href="/settings/library" nested/>
+                        <ActiveNavItem icon={<IconPhoto size={16}/>} label="Living Covers" href="/settings/living-covers" nested/>
+                      </>
+                    )}
 
                   </Stack>
                 </Collapse>

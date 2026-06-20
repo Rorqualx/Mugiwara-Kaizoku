@@ -398,7 +398,7 @@ export const flareSolverrRouter = router({
   /**
    * Clear all FlareSolverr sessions
    */
-  clearSessions: protectedProcedure.mutation(async (): Promise<{
+  clearSessions: adminProcedure.mutation(async (): Promise<{
     success: boolean;
     clearedCount: number;
     message: string;
@@ -434,7 +434,7 @@ export const flareSolverrRouter = router({
   /**
    * Start the internal FlareSolverr instance
    */
-  start: protectedProcedure.mutation(async (): Promise<{
+  start: adminProcedure.mutation(async (): Promise<{
     success: boolean;
     message: string;
   }> => {
@@ -466,7 +466,7 @@ export const flareSolverrRouter = router({
   /**
    * Stop the internal FlareSolverr instance
    */
-  stop: protectedProcedure.mutation(async (): Promise<{
+  stop: adminProcedure.mutation(async (): Promise<{
     success: boolean;
     message: string;
   }> => {
@@ -498,7 +498,7 @@ export const flareSolverrRouter = router({
   /**
    * Force restart FlareSolverr service
    */
-  restart: protectedProcedure.mutation(async (): Promise<{
+  restart: adminProcedure.mutation(async (): Promise<{
     success: boolean;
     message: string;
   }> => {
@@ -683,7 +683,7 @@ export const flareSolverrRouter = router({
   /**
    * Clear FlareSolverr log file
    */
-  clearLogs: protectedProcedure.mutation((): { success: boolean; message: string } => {
+  clearLogs: adminProcedure.mutation((): { success: boolean; message: string } => {
     const logPath = getLogFilePath();
     if (!fs.existsSync(logPath)) {
       return { success: true, message: 'Log file does not exist' };

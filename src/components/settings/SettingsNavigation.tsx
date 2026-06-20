@@ -28,8 +28,10 @@ import { IconArrowsExchange } from '@tabler/icons-react';
 import { IconShieldCheck } from '@tabler/icons-react';
 import { IconBooks } from '@tabler/icons-react';
 import { IconPhoto } from '@tabler/icons-react';
+import { IconKey } from '@tabler/icons-react';
 import { useRouter } from "next/router";
 
+import { useAuth } from '@/hooks/useAuth';
 import { logger } from '@/utils/logger';
 /**
  * Settings navigation component with tabbed interface
@@ -47,12 +49,15 @@ import { logger } from '@/utils/logger';
  */
 export function SettingsNavigation(): React.ReactElement {
     const router = useRouter();
+    const { isAdmin } = useAuth();
     // Determine active tab from current path
     const getActiveTab = (): string => {
         const currentPath = router.pathname;
         if (!currentPath)
             return 'events';
         const normalizedPath = currentPath.toLowerCase().replace(/\/+$/, '');
+        if (normalizedPath.includes('/settings/api'))
+            return 'api';
         if (normalizedPath.includes('/settings/events'))
             return 'events';
         if (normalizedPath.includes('/settings/integrations'))
@@ -102,18 +107,22 @@ logger.error('[SettingsNavigation] Client navigation failed:', errorMessage);
             }
         }
     };
+    // `adminOnly` tabs are infrastructure/system config and are hidden from
+    // non-admins (the routes are admin-gated by middleware too). 'api' is the
+    // per-user page every authenticated user may reach.
     const tabs = [
-        { value: 'events', label: 'Events', icon: IconClock, path: '/settings/events' },
-        { value: 'integrations', label: 'Integrations', icon: IconPlugConnected, path: '/settings/integrations' },
-        { value: 'media-management', label: 'Media Management', icon: IconFolderPlus, path: '/settings/media-management' },
-        { value: 'indexers', label: 'Indexers', icon: IconSearch, path: '/settings/indexers' },
-        { value: 'download-clients', label: 'Download Clients', icon: IconDownload, path: '/settings/download-clients' },
-        { value: 'metadata', label: 'Metadata', icon: IconDatabase, path: '/settings/metadata' },
-        { value: 'file-conversion', label: 'File Conversion', icon: IconArrowsExchange, path: '/settings/file-conversion' },
-        { value: 'flaresolverr', label: 'FlareSolverr', icon: IconShieldCheck, path: '/settings/flaresolverr' },
-        { value: 'library', label: 'Import Manga', icon: IconBooks, path: '/settings/library' },
-        { value: 'living-covers', label: 'Living Covers', icon: IconPhoto, path: '/settings/living-covers' },
-    ];
+        { value: 'api', label: 'API Keys', icon: IconKey, path: '/settings/api', adminOnly: false },
+        { value: 'events', label: 'Events', icon: IconClock, path: '/settings/events', adminOnly: true },
+        { value: 'integrations', label: 'Integrations', icon: IconPlugConnected, path: '/settings/integrations', adminOnly: true },
+        { value: 'media-management', label: 'Media Management', icon: IconFolderPlus, path: '/settings/media-management', adminOnly: true },
+        { value: 'indexers', label: 'Indexers', icon: IconSearch, path: '/settings/indexers', adminOnly: true },
+        { value: 'download-clients', label: 'Download Clients', icon: IconDownload, path: '/settings/download-clients', adminOnly: true },
+        { value: 'metadata', label: 'Metadata', icon: IconDatabase, path: '/settings/metadata', adminOnly: true },
+        { value: 'file-conversion', label: 'File Conversion', icon: IconArrowsExchange, path: '/settings/file-conversion', adminOnly: true },
+        { value: 'flaresolverr', label: 'FlareSolverr', icon: IconShieldCheck, path: '/settings/flaresolverr', adminOnly: true },
+        { value: 'library', label: 'Import Manga', icon: IconBooks, path: '/settings/library', adminOnly: true },
+        { value: 'living-covers', label: 'Living Covers', icon: IconPhoto, path: '/settings/living-covers', adminOnly: true },
+    ].filter((tab) => isAdmin || !tab.adminOnly);
     return (<Tabs value={activeTab} mb="xl">
       <Tabs.List>
         {tabs.map((tab) => {

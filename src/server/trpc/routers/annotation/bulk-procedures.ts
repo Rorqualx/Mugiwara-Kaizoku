@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -128,7 +128,7 @@ async function reprocessSinglePage(
 }
 
 /** Bulk reprocess multiple pages (with optional HTML refetch) */
-export const bulkReprocess = settingsProcedure
+export const bulkReprocess = adminProcedure
   .input(z.object({
     pageIds: z.array(z.string()).min(1).max(100),
     refetch: z.boolean().default(false),
@@ -172,7 +172,7 @@ export const bulkReprocess = settingsProcedure
 // ============================================================================
 
 /** Bulk delete multiple annotated pages */
-export const bulkDelete = settingsProcedure
+export const bulkDelete = adminProcedure
   .input(z.object({
     pageIds: z.array(z.string()).min(1).max(100),
   }))

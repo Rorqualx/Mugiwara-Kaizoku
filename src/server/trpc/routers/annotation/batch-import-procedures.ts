@@ -11,7 +11,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -130,7 +130,7 @@ async function processImportChunk(
 // ============================================================================
 
 /** Import multiple URLs in parallel with progress tracking */
-export const batchImport = settingsProcedure
+export const batchImport = adminProcedure
   .input(batchImportInputSchema)
   .mutation(async ({ input }): Promise<{
     results: ImportResult[];
@@ -165,7 +165,7 @@ export const batchImport = settingsProcedure
   });
 
 /** Check which URLs are already imported */
-export const checkExistingUrls = settingsProcedure
+export const checkExistingUrls = adminProcedure
   .input(z.object({ urls: z.array(z.string().url()).max(100) }))
   .query(async ({ input }): Promise<Array<{ url: string; exists: boolean; pageId?: string | undefined }>> => {
     const existing = await prisma.annotatedPage.findMany({

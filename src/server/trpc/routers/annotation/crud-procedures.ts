@@ -7,7 +7,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { settingsProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { logger } from '@/utils/logger';
 
 
@@ -34,7 +34,7 @@ import {
 import type { AnnotationStats, PageListItem } from './types';
 import type { AnnotatedPage, AnnotationStatus } from '@prisma/client';
 
-export const getStats = settingsProcedure.query(async (): Promise<AnnotationStats> => {
+export const getStats = adminProcedure.query(async (): Promise<AnnotationStats> => {
   // Use efficient database aggregations instead of loading all data into memory
   const [totalPages, statusCounts, sourceCounts, tokenCountResult, entityStats] = await Promise.all([
     prisma.annotatedPage.count(),
@@ -79,7 +79,7 @@ export const getStats = settingsProcedure.query(async (): Promise<AnnotationStat
   };
 });
 
-export const getPages = settingsProcedure
+export const getPages = adminProcedure
   .input(getPagesInputSchema)
   .query(async ({ input }): Promise<{ pages: PageListItem[]; nextCursor: string | null; total: number }> => {
     const { limit, offset, cursor, search, sourceType, status, sortBy, sortOrder } = input;
@@ -171,7 +171,7 @@ export const getPages = settingsProcedure
     };
   });
 
-export const getById = settingsProcedure
+export const getById = adminProcedure
   .input(z.object({ id: z.string() }))
   .query(async ({ input }) => {
     const page = await prisma.annotatedPage.findUnique({
@@ -190,7 +190,7 @@ export const getById = settingsProcedure
   });
 
 /** Find an annotation page by URL - returns page ID if exists, null if not */
-export const findByUrl = settingsProcedure
+export const findByUrl = adminProcedure
   .input(z.object({ url: z.string().url() }))
   .query(async ({ input }): Promise<{ id: string; status: string } | null> => {
     const page = await prisma.annotatedPage.findUnique({
@@ -201,7 +201,7 @@ export const findByUrl = settingsProcedure
     return page;
   });
 
-export const create = settingsProcedure
+export const create = adminProcedure
   .input(createPageInputSchema)
   .mutation(async ({ input, ctx }) => {
     const entityCounts = calculateEntityCountsFromLabels(input.labels);
@@ -244,7 +244,7 @@ export const create = settingsProcedure
     }
   });
 
-export const updateLabels = settingsProcedure
+export const updateLabels = adminProcedure
   .input(updateLabelsInputSchema)
   .mutation(async ({ input, ctx }) => {
     const entityCounts = input.entityCounts ?? calculateEntityCountsFromLabels(input.labels);
@@ -297,7 +297,7 @@ export const updateLabels = settingsProcedure
     return updated;
   });
 
-export const updateStatus = settingsProcedure
+export const updateStatus = adminProcedure
   .input(updateStatusInputSchema)
   .mutation(async ({ input }) => {
     // Use transaction for atomic check-and-update with optimistic locking
@@ -346,7 +346,7 @@ export const updateStatus = settingsProcedure
     return updated;
   });
 
-export const updateMangaTitle = settingsProcedure
+export const updateMangaTitle = adminProcedure
   .input(updateMangaTitleInputSchema)
   .mutation(async ({ input }) => {
     const page = await prisma.annotatedPage.findUnique({
@@ -374,7 +374,7 @@ export const updateMangaTitle = settingsProcedure
     return updated;
   });
 
-export const deletePage = settingsProcedure
+export const deletePage = adminProcedure
   .input(z.object({ id: z.string() }))
   .mutation(async ({ input }) => {
     // Use transaction for atomic check-and-delete to prevent TOCTOU race condition
@@ -403,7 +403,7 @@ export const deletePage = settingsProcedure
     return { success: true };
   });
 
-export const reprocess = settingsProcedure
+export const reprocess = adminProcedure
   .input(reprocessInputSchema)
   // eslint-disable-next-line max-lines-per-function -- Procedural mutation with clear steps: fetch, validate, process, transact, log. Splitting would hurt readability.
   .mutation(async ({ input }) => {
@@ -560,7 +560,7 @@ export const reprocess = settingsProcedure
   });
 
 /** Fetch HTML only - for previewing a page before adding to training data */
-export const fetchHtmlOnly = settingsProcedure
+export const fetchHtmlOnly = adminProcedure
   .input(z.object({ url: z.string().url() }))
   .mutation(async ({ input }) => {
     const sourceType = detectSourceType(input.url);
