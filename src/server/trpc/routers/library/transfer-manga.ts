@@ -6,6 +6,7 @@ import { prisma } from '@/server/db';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { requireUserId, requireLibraryOwner, assertMembership } from '@/server/trpc/routers/_shared/library-access';
 import { ValidationError } from '@/utils/errors';
 
 export const transferMangaProcedure = protectedProcedure
@@ -13,15 +14,12 @@ export const transferMangaProcedure = protectedProcedure
     mangaId: z.number(),
     targetLibraryId: z.number()
   }))
-  .mutation(async ({ input }) => {
+  .mutation(async ({ input, ctx }) => {
     const { mangaId, targetLibraryId } = input;
+    const userId = requireUserId(ctx);
 
-    const targetLibrary = await prisma.library.findUnique({
-      where: { id: targetLibraryId }
-    });
-    if (!targetLibrary) {
-      throw new ValidationError('Target library not found');
-    }
+    await assertMembership(prisma, userId, mangaId);
+    const targetLibrary = await requireLibraryOwner(prisma, userId, targetLibraryId);
 
     const manga = await prisma.manga.findUnique({
       where: { id: mangaId },

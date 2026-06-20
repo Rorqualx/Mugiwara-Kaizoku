@@ -75,6 +75,7 @@ interface MutationResult {
     id: number;
     name: string;
     path: string;
+    ownerId: string;
     createdAt: string | Date;
     lastScanAt: string | Date | null;
   };
@@ -270,6 +271,7 @@ function buildMangaWithRelations(result: MutationResult): MangaWithRelations {
       id: result.Library.id,
       name: result.Library.name,
       path: result.Library.path,
+      ownerId: result.Library.ownerId,
       createdAt: new Date(result.Library.createdAt),
       lastScanAt: result.Library.lastScanAt ? new Date(result.Library.lastScanAt) : null,
     },

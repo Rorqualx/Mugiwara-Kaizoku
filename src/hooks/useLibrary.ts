@@ -19,6 +19,7 @@ interface TransformedLibrary {
   id: number;
   name: string;
   path: string;
+  ownerId: string;
   createdAt: Date;
   lastScanAt: Date | null;
   mangas: Array<Record<string, unknown> & { interval: string; id: number; title: string }>;

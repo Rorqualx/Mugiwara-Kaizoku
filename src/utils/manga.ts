@@ -20,7 +20,7 @@ import type { Library } from '@prisma/client';
  * @property {string} title - Title of the manga
  */
 export interface HasLibrary {
-  library: Library | null;
+  library: Pick<Library, 'path'> | null;
   title: string;
 }
 /**

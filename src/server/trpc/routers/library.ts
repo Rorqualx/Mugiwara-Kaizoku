@@ -15,7 +15,7 @@ import { isObject, hasProperty, isArray } from '@/utils/type-guards';
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
-import { membershipWhere, requireUserId } from './_shared/library-access';
+import { membershipWhere, requireUserId, requireLibraryOwner } from './_shared/library-access';
 import { computeMissingChaptersProcedure } from './library/compute-missing-chapters';
 import { countFilePagesProcedure } from './library/count-file-pages';
 import { importFromPipelineProcedure } from './library/import-from-pipeline';
@@ -66,22 +66,23 @@ function stripMangaPayload(manga: unknown): unknown {
   return rest;
 }
 
-async function resolveAndValidateLibraryPath(inputPath: string, excludeId: number): Promise<string> {
+async function resolveAndValidateLibraryPath(inputPath: string, excludeId: number, ownerId: string): Promise<string> {
   const resolvedPath = resolveLibraryPath(inputPath);
   await fs.mkdir(resolvedPath, { recursive: true });
   const absolutePath = path.resolve(resolvedPath);
   const existing = await prisma.library.findFirst({
-    where: { path: absolutePath, NOT: { id: excludeId } }
+    where: { path: absolutePath, ownerId, NOT: { id: excludeId } }
   });
   if (existing) throw new ValidationError('Another library is already using this path');
   return absolutePath;
 }
 
-async function createLibraryDirectory(name: string): Promise<string> {
+async function createLibraryDirectory(name: string, ownerId: string): Promise<string> {
   const projectRoot = process.cwd();
   const librariesDir = path.join(path.resolve(projectRoot, 'data'), 'libraries');
   const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const resolvedPath = path.join(librariesDir, safeName);
+  const safeOwner = ownerId.replace(/[^a-zA-Z0-9]+/g, '-');
+  const resolvedPath = path.join(librariesDir, safeOwner, safeName);
   await ensureDirectoriesExist();
   await fs.mkdir(resolvedPath, { recursive: true });
   return path.resolve(resolvedPath);
@@ -101,21 +102,22 @@ async function updateGlobalMonitoringInterval(
 export const libraryRouter = router({
   create: protectedProcedure
     .input(librarySchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
       logger.info(`Creating library "${input.name}"`);
 
       let absolutePath: string;
       try {
-        absolutePath = await createLibraryDirectory(input.name);
+        absolutePath = await createLibraryDirectory(input.name, userId);
       } catch (error: unknown) {
         logger.error('Failed to create library directory', error);
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create library directory' });
       }
 
-      const existing = await prisma.library.findFirst({ where: { path: absolutePath } });
+      const existing = await prisma.library.findFirst({ where: { path: absolutePath, ownerId: userId } });
       if (existing) throw new ValidationError('A library with this path already exists');
 
-      const library = await prisma.library.create({ data: { name: input.name, path: absolutePath } });
+      const library = await prisma.library.create({ data: { name: input.name, path: absolutePath, ownerId: userId } });
 
       void realtimeEmitter.emitSystemEvent({
         eventType: 'library:created', source: 'libraryRouter',
@@ -127,14 +129,18 @@ export const libraryRouter = router({
 
   list: protectedProcedure.query(async ({ ctx }) => {
     const userId = requireUserId(ctx);
-    // Library rows are global, but each user only counts the titles in their library.
-    return prisma.library.findMany({ include: { _count: { select: { Manga: { where: membershipWhere(userId) } } } } });
+    // Libraries are per-user; only the caller's own libraries are visible.
+    return prisma.library.findMany({
+      where: { ownerId: userId },
+      include: { _count: { select: { Manga: { where: membershipWhere(userId) } } } }
+    });
   }),
 
   query: protectedProcedure.query(async ({ ctx }) => {
     const userId = requireUserId(ctx);
     const memberOnly = membershipWhere(userId);
     const libraries = await prisma.library.findMany({
+      where: { ownerId: userId },
       include: {
         Manga: { where: memberOnly, include: { Metadata: true, Chapter: true } },
         _count: { select: { Manga: { where: memberOnly } } }
@@ -153,7 +159,9 @@ export const libraryRouter = router({
 
   delete: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
+      await requireLibraryOwner(prisma, userId, input.id);
       const library = await prisma.library.delete({ where: { id: input.id } });
       void realtimeEmitter.emitSystemEvent({
         eventType: 'library:deleted', source: 'libraryRouter',
@@ -169,9 +177,11 @@ export const libraryRouter = router({
       name: z.string().min(1, 'Name is required').optional(),
       path: z.string().min(1, 'Path is required').optional()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
       const { id, ...rest } = input;
-      const absolutePath = rest.path ? await resolveAndValidateLibraryPath(rest.path, id) : undefined;
+      await requireLibraryOwner(prisma, userId, id);
+      const absolutePath = rest.path ? await resolveAndValidateLibraryPath(rest.path, id, userId) : undefined;
 
       const library = await prisma.library.update({
         where: { id },
@@ -194,8 +204,8 @@ export const libraryRouter = router({
     .query(async ({ input, ctx }) => {
       const userId = requireUserId(ctx);
       const memberOnly = membershipWhere(userId);
-      const library = await prisma.library.findUnique({
-        where: { id: input.id },
+      const library = await prisma.library.findFirst({
+        where: { id: input.id, ownerId: userId },
         include: {
           Manga: { where: memberOnly, include: { Metadata: true, Chapter: true } },
           _count: { select: { Manga: { where: memberOnly } } }

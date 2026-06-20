@@ -153,9 +153,13 @@ model Library {
   id         Int       @id @default(autoincrement())
   name       String
   path       String
+  ownerId    String
   createdAt  DateTime  @default(now())
   lastScanAt DateTime?
   Manga      Manga[]
+  owner      User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
 }
 
 model Manga {
@@ -639,6 +643,7 @@ model User {
 
   NotificationPreference NotificationPreference[]
   LibraryMembership      LibraryMembership[]
+  Library                Library[]
 }
 
 model VerificationToken {

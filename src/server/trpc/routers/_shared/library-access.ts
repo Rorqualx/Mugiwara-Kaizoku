@@ -44,6 +44,30 @@ export function membershipWhere(userId: string): Prisma.MangaWhereInput {
   return { LibraryMembership: { some: { userId } } };
 }
 
+/**
+ * Library row the caller owns. Libraries are per-user; this throws `FORBIDDEN`
+ * if the library doesn't exist or belongs to another user, so lifecycle
+ * mutations (scan/update/delete/transfer) can never touch a library outside the
+ * caller's account.
+ */
+export async function requireLibraryOwner(
+  prisma: PrismaClient,
+  userId: string,
+  libraryId: number,
+): Promise<{ id: number; name: string; path: string; ownerId: string }> {
+  const library = await prisma.library.findFirst({
+    where: { id: libraryId, ownerId: userId },
+    select: { id: true, name: true, path: true, ownerId: true },
+  });
+  if (!library) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'This library is not in your account.',
+    });
+  }
+  return library;
+}
+
 /** True if the user has the given manga in their library. */
 export async function hasMembership(
   prisma: PrismaClient,

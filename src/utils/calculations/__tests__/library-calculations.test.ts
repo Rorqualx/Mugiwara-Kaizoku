@@ -91,6 +91,7 @@ function createTestManga(
     Library: {
       id: libraryId,
       name: 'Test Library',
+      ownerId: 'test-user',
       path: '/test',
       createdAt: new Date(),
       lastScanAt: null
@@ -141,6 +142,7 @@ describe('Library Calculations', () => {
       const library: LibraryWithRelations = {
         id: 1,
         name: 'Test Library',
+        ownerId: 'test-user',
         path: '/test',
         createdAt: new Date(),
         lastScanAt: null,
@@ -163,6 +165,7 @@ describe('Library Calculations', () => {
       const library: LibraryWithRelations = {
         id: 1,
         name: 'Empty Library',
+        ownerId: 'test-user',
         path: '/empty',
         createdAt: new Date(),
         lastScanAt: null,
@@ -180,6 +183,7 @@ describe('Library Calculations', () => {
         {
           id: 1,
           name: 'Library 1',
+          ownerId: 'test-user',
           path: '/lib1',
           createdAt: new Date(),
           lastScanAt: null,
@@ -192,6 +196,7 @@ describe('Library Calculations', () => {
         {
           id: 2,
           name: 'Library 2',
+          ownerId: 'test-user',
           path: '/lib2',
           createdAt: new Date(),
           lastScanAt: null,

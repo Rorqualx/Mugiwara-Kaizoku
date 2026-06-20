@@ -153,6 +153,7 @@ export const createTestLibrary = createDataFactory<LibraryEntity & Record<string
   id: 1,
   name: 'Test Library',
   path: '/path/to/library',
+  ownerId: 'test-user',
   lastScanAt: new Date('2025-01-01T00:00:00Z'),
   createdAt: new Date('2025-01-01T00:00:00Z'),
 });

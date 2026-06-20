@@ -9,6 +9,7 @@ import { prisma } from '@/server/db';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 
@@ -51,6 +52,7 @@ function buildProviderMetadata(mangaImport: MangaImport): Prisma.InputJsonValue 
 async function createMangaWithChapters(
   tx: TransactionClient,
   libraryId: number,
+  userId: string,
   mangaImport: MangaImport,
 ): Promise<number> {
   const mangaData: Prisma.MangaCreateInput = {
@@ -85,6 +87,9 @@ async function createMangaWithChapters(
     });
   }
 
+  // Record the importing user's membership for the freshly created shared title.
+  await tx.libraryMembership.create({ data: { userId, mangaId: manga.id } });
+
   return manga.id;
 }
 
@@ -94,23 +99,24 @@ export const importLibraryProcedure = protectedProcedure
     path: z.string().min(1, 'Path is required'),
     mangaImports: z.array(mangaImportSchema)
   }))
-  .mutation(async ({ input }) => {
+  .mutation(async ({ input, ctx }) => {
+    const userId = requireUserId(ctx);
     logger.info(`Importing library "${input.name}" with ${input.mangaImports.length} series`);
 
     try { await fs.access(input.path); }
     catch { throw new TRPCError({ code: 'BAD_REQUEST', message: 'Import directory does not exist' }); }
 
     const absolutePath = path.resolve(input.path);
-    const existing = await prisma.library.findFirst({ where: { path: absolutePath } });
+    const existing = await prisma.library.findFirst({ where: { path: absolutePath, ownerId: userId } });
     if (existing) throw new ValidationError('A library with this path already exists');
 
     const createdMangaIds: number[] = [];
     const result = await prisma.$transaction(async (tx) => {
-      const library = await tx.library.create({ data: { name: input.name, path: absolutePath } });
+      const library = await tx.library.create({ data: { name: input.name, path: absolutePath, ownerId: userId } });
 
       for (const mangaImport of input.mangaImports) {
         // eslint-disable-next-line no-await-in-loop -- Within Prisma transaction
-        const mangaId = await createMangaWithChapters(tx, library.id, mangaImport);
+        const mangaId = await createMangaWithChapters(tx, library.id, userId, mangaImport);
         createdMangaIds.push(mangaId);
       }
       return library;

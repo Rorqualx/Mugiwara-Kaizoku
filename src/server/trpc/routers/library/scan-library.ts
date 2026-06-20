@@ -9,6 +9,7 @@ import { queueManager } from '@/server/queue/queueManager';
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { requireUserId, requireLibraryOwner } from '@/server/trpc/routers/_shared/library-access';
 import { logger } from '@/utils/logger';
 
 export const scanLibraryProcedure = protectedProcedure
@@ -22,19 +23,11 @@ export const scanLibraryProcedure = protectedProcedure
       preview: z.boolean().optional().default(true)
     }).optional()
   }))
-  .mutation(async ({ input }): Promise<{ jobId: string; message: string; libraryName: string }> => {
+  .mutation(async ({ input, ctx }): Promise<{ jobId: string; message: string; libraryName: string }> => {
     const { libraryId, options } = input;
+    const userId = requireUserId(ctx);
 
-    const library = await prisma.library.findUnique({
-      where: { id: libraryId }
-    });
-
-    if (!library) {
-      throw new TRPCError({
-        code: 'NOT_FOUND',
-        message: `Library with ID ${libraryId} not found`
-      });
-    }
+    const library = await requireLibraryOwner(prisma, userId, libraryId);
 
     const scanPath = input.path ?? library.path;
 

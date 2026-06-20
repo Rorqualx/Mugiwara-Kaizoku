@@ -199,6 +199,7 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
           id: typeof libRecord['id'] === 'number' ? libRecord['id'] : 0,
           name: typeof libRecord['name'] === 'string' ? libRecord['name'] : '',
           path: typeof libRecord['path'] === 'string' ? libRecord['path'] : '',
+          ownerId: typeof libRecord['ownerId'] === 'string' ? libRecord['ownerId'] : '',
           createdAt: libRecord['createdAt'] instanceof Date ? libRecord['createdAt'] : new Date(),
           lastScanAt: libRecord['lastScanAt'] instanceof Date ? libRecord['lastScanAt'] :
                       libRecord['lastScanAt'] === null ? null : null
