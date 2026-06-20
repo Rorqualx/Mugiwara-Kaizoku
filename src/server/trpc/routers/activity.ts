@@ -1,5 +1,5 @@
 
-import { JobStatus as PrismaJobStatus, ConversionStatus } from '@prisma/client';
+import { JobStatus as PrismaJobStatus, ConversionStatus, Prisma } from '@prisma/client';
 
 import { prisma } from '@/server/db';
 import { queryCache } from '@/server/utils/query-optimizer';
@@ -7,6 +7,8 @@ import { queryCache } from '@/server/utils/query-optimizer';
 
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
+
+import { getUserLibraryMangaIds, isAdmin, requireUserId } from './_shared/library-access';
 
 /**
  * Activity router for handling activity-related API endpoints
@@ -25,17 +27,29 @@ export const activityRouter = router({
    * @returns {Object} Object containing counts for different activity categories
    */
   query: protectedProcedure.
-  query(async () => {
-    // Check cache first
-    const cacheKey = 'activity-counts';
+  query(async ({ ctx }) => {
+    // Owner-scope so the nav badges reflect the caller's own activity, not the
+    // whole instance. Admins see everything. The cache key is per-user — a
+    // shared key would leak one user's counts to another.
+    const admin = isAdmin(ctx);
+    const userId = admin ? null : requireUserId(ctx);
+    const cacheKey = `activity-counts:${admin ? 'admin' : userId}`;
     const cached = queryCache.get(cacheKey);
     if (cached) {
       return cached;
     }
 
+    // Jobs are scoped by initiator; conversions (no owner column) by library
+    // membership via mangaId.
+    const jobsWhere: Prisma.jobsWhereInput = admin ? {} : { initiated_by_user_id: userId };
+    const conversionMangaWhere: Prisma.ConversionJobWhereInput = admin
+      ? {}
+      : { mangaId: { in: userId !== null ? await getUserLibraryMangaIds(prisma, userId) : [] } };
+
     // Use groupBy for efficient counting of job statuses
     const jobStatusGroups = await prisma.jobs.groupBy({
       by: ['status'],
+      where: jobsWhere,
       _count: { _all: true }
     });
 
@@ -43,16 +57,18 @@ export const activityRouter = router({
     const now = new Date();
     const [pendingTotal, pendingScheduled, conversionsCount] = await Promise.all([
     prisma.jobs.count({
-      where: { status: PrismaJobStatus.pending }
+      where: { ...jobsWhere, status: PrismaJobStatus.pending }
     }),
     prisma.jobs.count({
       where: {
+        ...jobsWhere,
         status: PrismaJobStatus.pending,
         scheduled_for: { gt: now } // Jobs scheduled for future
       }
     }),
     prisma.conversionJob.count({
       where: {
+        ...conversionMangaWhere,
         status: { in: [ConversionStatus.PENDING, ConversionStatus.PROCESSING] }
       }
     })]

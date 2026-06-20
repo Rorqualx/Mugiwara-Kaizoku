@@ -23,8 +23,11 @@ import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
 
+
 import { protectedProcedure, publicProcedure } from '../procedures';
 import { router } from '../trpc';
+
+import { isAdmin, requireUserId } from './_shared/library-access';
 
 import type { GetComicsSettings, Prisma } from '@prisma/client';
 
@@ -336,13 +339,13 @@ export const getcomicsRouter = router({
   /**
    * Get download history for GetComics
    */
-  getDownloads: publicProcedure
+  getDownloads: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(100).default(20),
       offset: z.number().min(0).default(0),
       status: z.enum(['COMPLETED', 'FAILED', 'CANCELLED', 'PARTIAL']).optional(),
     }))
-    .query(async ({ input }): Promise<{
+    .query(async ({ input, ctx }): Promise<{
       downloads: Array<{
         id: string;
         title: string;
@@ -359,22 +362,23 @@ export const getcomicsRouter = router({
 
       logger.info('[GetComics] Fetching download history', { limit, offset, status });
 
+      // Owner-scope: non-admins only see their own getcomics downloads.
+      const where: Prisma.DownloadHistoryWhereInput = {
+        source: 'getcomics',
+        ...(status ? { status } : {}),
+        ...(isAdmin(ctx) ? {} : { initiatedByUserId: requireUserId(ctx) }),
+      };
+
       // Query downloads with optional status filter
       const downloads = await prisma.downloadHistory.findMany({
-        where: status
-          ? { source: 'getcomics', status }
-          : { source: 'getcomics' },
+        where,
         take: limit,
         skip: offset,
         orderBy: { startTime: 'desc' },
         include: { Manga: true },
       });
 
-      const total = await prisma.downloadHistory.count({
-        where: status
-          ? { source: 'getcomics', status }
-          : { source: 'getcomics' },
-      });
+      const total = await prisma.downloadHistory.count({ where });
 
       return {
         downloads: downloads.map((d) => ({
