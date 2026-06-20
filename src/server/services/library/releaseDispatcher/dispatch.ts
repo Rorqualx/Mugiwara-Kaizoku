@@ -33,6 +33,7 @@ import { DownloadMethod, DownloadMode, JobType, NativeDownloadStatus } from '@pr
 
 import { prisma } from '@/server/db';
 import { queueManager } from '@/server/queue/queueManager';
+import { getUserConfigValue } from '@/server/services/config/user-config-service';
 import { DownloadManager } from '@/server/services/download/downloadManager';
 import type { MangaDexCandidatePayload } from '@/server/services/library/indexerSearch/adapters/mangadex-adapter';
 import type { SuwayomiCandidatePayload } from '@/server/services/library/indexerSearch/adapters/suwayomi-adapter';
@@ -184,11 +185,13 @@ function pickBestNativeForChapter(
 
 /** Phase 2b: read MangaDex preferred language from config once per dispatch
  * run. Defaults to 'en' on load failure (matches the metadata pipeline). */
-async function loadPreferredLanguage(): Promise<string> {
+async function loadPreferredLanguage(userId?: string): Promise<string> {
   try {
     const cfg = await mangadexConfigService.getMetadataConfig();
-    const lang = cfg.preferredLanguage.trim();
-    return lang.length > 0 ? lang : 'en';
+    const globalLang = cfg.preferredLanguage.trim().length > 0 ? cfg.preferredLanguage.trim() : 'en';
+    // Per-user override of the scanlation language, falling back to the global.
+    const lang = await getUserConfigValue<string>(userId, 'mangadex.preferredLanguage', globalLang);
+    return typeof lang === 'string' && lang.trim().length > 0 ? lang.trim() : 'en';
   } catch {
     return 'en';
   }
@@ -989,8 +992,8 @@ export async function runUnifiedReleaseSearch(
     readInFlightChapterNumbers(mangaId),
     loadFailedSourcesForManga(mangaId),
     loadDispatchMediaType(mangaId),
-    loadPreferredLanguage(),
-    loadDownloadMode(),
+    loadPreferredLanguage(options.initiatedByUserId),
+    loadDownloadMode(options.initiatedByUserId),
   ]);
   const ctx: DispatchContext = {
     mangaId, missing, candidates, prowlarrCoverage, inFlight, failedSourcesByChapterId, mediaType,

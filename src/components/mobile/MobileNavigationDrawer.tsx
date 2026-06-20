@@ -132,6 +132,7 @@ export function MobileNavigationDrawer({
     { label: 'Indexers', href: '/settings/indexers' },
     { label: 'Download Clients', href: '/settings/download-clients' },
     { label: 'Metadata', href: '/settings/metadata' }] : [
+    { label: 'My Preferences', href: '/settings/preferences' },
     { label: 'API Keys', href: '/settings/api' }]
 
   }];

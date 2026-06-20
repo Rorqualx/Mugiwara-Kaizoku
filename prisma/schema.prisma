@@ -590,12 +590,19 @@ model SystemEvent {
   details           Json?
   relatedEntityId   String?
   relatedEntityType String?
+  // User who triggered this event (NULL = system/background, admin-only). The
+  // events log is owner-scoped: non-admins see only their own. SetNull so
+  // deleting a user keeps the event history intact.
+  userId            String?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([level])
   @@index([relatedEntityId, relatedEntityType])
   @@index([source])
   @@index([timestamp])
   @@index([type])
+  @@index([userId])
 }
 
 model User {
@@ -652,6 +659,10 @@ model User {
   packDownloads     PackDownload[]
   downloadHistory   DownloadHistory[]
   autoDownloadRules AutoDownloadRule[]
+
+  // Per-user settings/preferences overrides + owned system events.
+  userConfigs  UserConfig[]
+  systemEvents SystemEvent[]
 }
 
 model VerificationToken {
@@ -1249,6 +1260,25 @@ model Config {
 
   @@index([scope])
   @@index([source])
+}
+
+/// Per-user override of a global Config key. The per-user config resolver reads
+/// UserConfig(userId, key) first and falls back to the global Config value.
+/// Only an allow-list of user-overridable keys (download/language/content prefs)
+/// is ever written here — infrastructure keys stay global. See
+/// services/config/user-config-service.ts.
+model UserConfig {
+  userId    String
+  key       String
+  value     String
+  valueType ConfigValueType @default(STRING)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@index([userId])
 }
 
 model AutoDownloadRule {

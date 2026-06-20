@@ -90,6 +90,7 @@ import { suwayomiV2Router } from './routers/suwayomi-v2';
 import { syncRouter } from './routers/sync';
 import { systemRouter } from './routers/system';
 import { usersRouter } from './routers/users';
+import { userSettingsRouter } from './routers/userSettings';
 import { volumeRouter } from './routers/volume';
 import { volumeSplitRouter } from './routers/volumeSplit';
 import { wantedRouter } from './routers/wanted';
@@ -181,6 +182,7 @@ export const appRouter = router({
   notifications: notificationRouter,
   wanted: wantedRouter,
   users: usersRouter,
+  userSettings: userSettingsRouter,
   pathMapping: pathMappingRouter,
   
   // Additional features

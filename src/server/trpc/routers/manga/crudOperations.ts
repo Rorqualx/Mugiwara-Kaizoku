@@ -164,7 +164,7 @@ export const crudRouter = router({
         });
         await orchestrateChapters(ctx, manga.id, chapterCreationData);
         await persistVolumesFromImport(manga.id, input.rawProviderData, input.providerMetadata, input.source);
-        await logMangaAdded({ id: manga.id, title: manga.title, source: manga.source, libraryId: manga.libraryId });
+        await logMangaAdded({ id: manga.id, title: manga.title, source: manga.source, libraryId: manga.libraryId }, userId);
       } catch (createError: unknown) {
         const mangaId = manga?.id;
         if (mangaId) {

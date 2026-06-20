@@ -184,9 +184,22 @@ export class EventService {
    * @param {number} pageSize - Number of events per page
    * @returns {Promise<PaginatedEvents>} Paginated events and total count
    */
-  async getEvents(filters?: EventFilters, page: number = 1, pageSize: number = 50): Promise<PaginatedEvents> {
-    // Build the where clause based on filters
-    const where = buildWhereClause(filters);
+  /**
+   * @param ownerUserId - Owner scope for the events log. Pass the caller's id
+   *   to restrict to their own events (non-admins); pass `undefined` for the
+   *   unfiltered admin view. NULL-owned (system) events are admin-only.
+   */
+  async getEvents(
+    filters?: EventFilters,
+    page: number = 1,
+    pageSize: number = 50,
+    ownerUserId?: string,
+  ): Promise<PaginatedEvents> {
+    // Build the where clause based on filters, then owner-scope it.
+    const where = {
+      ...buildWhereClause(filters),
+      ...(ownerUserId !== undefined ? { userId: ownerUserId } : {}),
+    };
 
     // Execute the queries in parallel for better performance
     const [events, total] = await Promise.all([

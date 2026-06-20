@@ -29,6 +29,7 @@ import { IconShieldCheck } from '@tabler/icons-react';
 import { IconBooks } from '@tabler/icons-react';
 import { IconPhoto } from '@tabler/icons-react';
 import { IconKey } from '@tabler/icons-react';
+import { IconSettings } from '@tabler/icons-react';
 import { useRouter } from "next/router";
 
 import { useAuth } from '@/hooks/useAuth';
@@ -56,6 +57,8 @@ export function SettingsNavigation(): React.ReactElement {
         if (!currentPath)
             return 'events';
         const normalizedPath = currentPath.toLowerCase().replace(/\/+$/, '');
+        if (normalizedPath.includes('/settings/preferences'))
+            return 'preferences';
         if (normalizedPath.includes('/settings/api'))
             return 'api';
         if (normalizedPath.includes('/settings/events'))
@@ -111,6 +114,7 @@ logger.error('[SettingsNavigation] Client navigation failed:', errorMessage);
     // non-admins (the routes are admin-gated by middleware too). 'api' is the
     // per-user page every authenticated user may reach.
     const tabs = [
+        { value: 'preferences', label: 'My Preferences', icon: IconSettings, path: '/settings/preferences', adminOnly: false },
         { value: 'api', label: 'API Keys', icon: IconKey, path: '/settings/api', adminOnly: false },
         { value: 'events', label: 'Events', icon: IconClock, path: '/settings/events', adminOnly: true },
         { value: 'integrations', label: 'Integrations', icon: IconPlugConnected, path: '/settings/integrations', adminOnly: true },

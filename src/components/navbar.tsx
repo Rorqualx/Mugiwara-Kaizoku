@@ -286,12 +286,13 @@ export function KaizokuNavbar(): React.JSX.Element {
                       </>
                     )}
 
-                    {/* Per-user: theme/appearance is the caller's own preference. */}
+                    {/* Per-user pages: theme is the caller's own preference; the
+                        event log is owner-scoped (each user sees their own). */}
                     <ActiveNavItem icon={<IconPalette size={16}/>} label="Appearance" href="/system/appearance" nested/>
+                    <ActiveNavItem icon={<IconCalendarStats size={16}/>} label="Events" href="/system/events" nested/>
 
                     {isAdmin && (
                       <>
-                        <ActiveNavItem icon={<IconCalendarStats size={16}/>} label="Events" href="/system/events" nested/>
                         <ActiveNavItem icon={<IconFile size={16}/>} label="Log Files" href="/system/logs" nested/>
                         {/* Annotation: ML dataset editor, dev-builds only. */}
                         {process.env.NODE_ENV !== 'production' && (
@@ -306,11 +307,12 @@ export function KaizokuNavbar(): React.JSX.Element {
 
               <Stack gap={0} onMouseEnter={() => setSettingsOpened(true)} onMouseLeave={() => setSettingsOpened(false)}>
 
-                <ActiveNavItem icon={<IconSettings size={16}/>} label="Settings" href={isAdmin ? "/settings/events" : "/settings/api"}/>
+                <ActiveNavItem icon={<IconSettings size={16}/>} label="Settings" href={isAdmin ? "/settings/events" : "/settings/preferences"}/>
 
                 <Collapse in={settingsOpened}>
                   <Stack gap={0}>
-                    {/* Per-user: each user manages their own API keys + webhooks. */}
+                    {/* Per-user pages — available to every authenticated user. */}
+                    <ActiveNavItem icon={<IconSettings size={16}/>} label="My Preferences" href="/settings/preferences" nested/>
                     <ActiveNavItem icon={<IconPlugConnected size={16}/>} label="API Keys" href="/settings/api" nested/>
 
                     {/* Admin-only infra settings (also middleware-gated). */}

@@ -41,7 +41,14 @@ const ADMIN_PATH_PREFIXES = ['/admin', '/settings', '/system', '/api/protected']
 // trees but hold the caller's OWN data, so any authenticated user may reach
 // them. Their routers scope to ctx.user.id (api keys/webhooks) or are client-
 // side per-user preferences (appearance/theme). Checked before the admin gate.
-const USER_ALLOWED_SETTINGS_PATHS = ['/settings/api', '/system/appearance'];
+const USER_ALLOWED_SETTINGS_PATHS = [
+  '/settings/api',
+  '/settings/preferences',
+  '/system/appearance',
+  // The event LOG is owner-scoped (users see only their own). The event
+  // *notification config* at /settings/events stays admin-only.
+  '/system/events',
+];
 
 // Routes that exist only for ML training-data development. They surface
 // raw annotation editing, quality reports, and dataset exports — useful

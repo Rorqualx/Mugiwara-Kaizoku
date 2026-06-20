@@ -32,6 +32,12 @@ interface LogSystemEventParams {
   details?: unknown;
   relatedEntityId?: string;
   relatedEntityType?: string;
+  /**
+   * User who triggered this event. Stamped onto SystemEvent.userId so the
+   * events log can be owner-scoped (admins see all; users see their own).
+   * Omit for system/background events — they stay NULL (admin-only).
+   */
+  userId?: string;
 }
 /**
  * Log a system event to the database
@@ -54,7 +60,7 @@ interface LogSystemEventParams {
  * });
  * ```
  */
-export async function logSystemEvent({ type, source, level, message, details, relatedEntityId, relatedEntityType }: LogSystemEventParams): Promise<void> {
+export async function logSystemEvent({ type, source, level, message, details, relatedEntityId, relatedEntityType, userId }: LogSystemEventParams): Promise<void> {
   try {
     // Log to file system based on level
     const logDetails = {
@@ -101,6 +107,7 @@ export async function logSystemEvent({ type, source, level, message, details, re
           details: details ? JSON.stringify(details) : undefined,
           relatedEntityId,
           relatedEntityType,
+          userId,
           timestamp: new Date()
         }
       });
@@ -124,6 +131,7 @@ export async function logError(message: string, source: EventSource, error: Erro
   relatedEntityId?: string;
   relatedEntityType?: string;
   details?: unknown;
+  userId?: string;
 }): Promise<void> {
   const errorDetails: Record<string, unknown> = {
     error: error instanceof Error ? {
@@ -148,6 +156,9 @@ export async function logError(message: string, source: EventSource, error: Erro
   if (options?.relatedEntityType) {
     eventParams.relatedEntityType = options.relatedEntityType;
   }
+  if (options?.userId) {
+    eventParams.userId = options.userId;
+  }
   await logSystemEvent(eventParams);
 }
 /**
@@ -163,6 +174,7 @@ export async function logWarning(message: string, type: EventType, source: Event
   relatedEntityId?: string;
   relatedEntityType?: string;
   details?: unknown;
+  userId?: string;
 }): Promise<void> {
   const eventParams: LogSystemEventParams = {
     type,
@@ -179,6 +191,9 @@ export async function logWarning(message: string, type: EventType, source: Event
   if (options?.relatedEntityType) {
     eventParams.relatedEntityType = options.relatedEntityType;
   }
+  if (options?.userId) {
+    eventParams.userId = options.userId;
+  }
   await logSystemEvent(eventParams);
 }
 /**
@@ -194,6 +209,7 @@ export async function logInfo(message: string, type: EventType, source: EventSou
   relatedEntityId?: string;
   relatedEntityType?: string;
   details?: unknown;
+  userId?: string;
 }): Promise<void> {
   const eventParams: LogSystemEventParams = {
     type,
@@ -209,6 +225,9 @@ export async function logInfo(message: string, type: EventType, source: EventSou
   }
   if (options?.relatedEntityType) {
     eventParams.relatedEntityType = options.relatedEntityType;
+  }
+  if (options?.userId) {
+    eventParams.userId = options.userId;
   }
   await logSystemEvent(eventParams);
 }

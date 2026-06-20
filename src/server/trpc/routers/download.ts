@@ -131,6 +131,7 @@ export const downloadRouter = router({
         {
           relatedEntityId: toStringId(mangaId),
           relatedEntityType: 'manga',
+          userId: requireUserId(ctx),
           details: {
             mangaTitle: manga["title"],
             chapterCount: manga['Chapter'].length,
@@ -226,6 +227,7 @@ export const downloadRouter = router({
         {
           relatedEntityId: toStringId(mangaId),
           relatedEntityType: 'manga',
+          userId: requireUserId(ctx),
           details: {
             mangaTitle: manga["title"],
             chapterCount: manga['Chapter'].length,
@@ -326,6 +328,7 @@ export const downloadRouter = router({
         {
           relatedEntityId: toStringId(mangaId),
           relatedEntityType: 'manga',
+          userId: requireUserId(ctx),
           details: {
             mangaTitle: manga["title"],
             chapterCount: manga['Chapter'].length,

@@ -9,11 +9,11 @@
  *     and re-sorting; no-op when mode is `'mix'`.
  */
 
-jest.mock('@/server/utils/configReader', () => ({
-  getConfig: jest.fn(),
+jest.mock('@/server/services/config/user-config-service', () => ({
+  getUserConfigValue: jest.fn(),
 }));
 
-import { getConfig } from '@/server/utils/configReader';
+import { getUserConfigValue } from '@/server/services/config/user-config-service';
 import {
   loadDownloadMode,
   DEFAULT_DOWNLOAD_MODE,
@@ -22,7 +22,7 @@ import {
 } from '@/server/services/library/releaseDispatcher/download-mode';
 import type { ScoredSearchResult } from '@/types/quickDownload.types';
 
-const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
+const mockedGetConfig = getUserConfigValue as jest.MockedFunction<typeof getUserConfigValue>;
 
 function scoredFixture(title: string, score: number): ScoredSearchResult {
   return {

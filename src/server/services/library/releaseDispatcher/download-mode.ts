@@ -21,7 +21,7 @@
  * @module server/services/library/releaseDispatcher/download-mode
  */
 
-import { getConfig } from '@/server/utils/configReader';
+import { getUserConfigValue } from '@/server/services/config/user-config-service';
 import type { ScoredSearchResult } from '@/types/quickDownload.types';
 
 /**
@@ -37,13 +37,13 @@ export const DEFAULT_DOWNLOAD_MODE: DownloadModePreference = 'mix';
 const DOWNLOAD_MODE_CONFIG_KEY = 'download.mode';
 
 /**
- * Read the global `download.mode` preference. Falls back to `'mix'` for
- * any missing, malformed, or unrecognized value — the dispatcher is
- * never expected to throw because of a config read.
+ * Read the `download.mode` preference for the initiating user — their per-user
+ * override if set, else the admin's global value. Falls back to `'mix'` for any
+ * missing/malformed value. Pass userId=undefined for background/system dispatch.
  */
-export async function loadDownloadMode(): Promise<DownloadModePreference> {
+export async function loadDownloadMode(userId?: string): Promise<DownloadModePreference> {
   try {
-    const raw = await getConfig<string>(DOWNLOAD_MODE_CONFIG_KEY, DEFAULT_DOWNLOAD_MODE);
+    const raw = await getUserConfigValue<string>(userId, DOWNLOAD_MODE_CONFIG_KEY, DEFAULT_DOWNLOAD_MODE);
     if (raw === 'prefer-volume' || raw === 'prefer-chapter' || raw === 'mix') {
       return raw;
     }

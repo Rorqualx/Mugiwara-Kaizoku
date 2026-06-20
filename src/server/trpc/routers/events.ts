@@ -22,6 +22,8 @@ import { logAppStartup, logAppShutdown } from '@/utils/system-event-logger';
 import { adminProcedure, protectedProcedure } from '../procedures';
 import { router } from "../trpc";
 
+import { isAdmin, requireUserId } from './_shared/library-access';
+
 /**
  * Configuration interface for event settings
  */
@@ -59,7 +61,7 @@ export const eventsRouter = router({
     page: z.number().default(1),
     pageSize: z.number().default(50)
   })).
-  query(async ({ input }) => {
+  query(async ({ input, ctx }) => {
     // Convert string arrays to EventType, EventSource, and EventLevel arrays
     const filters: EventFilters = {};
 
@@ -78,7 +80,10 @@ export const eventsRouter = router({
     if (input.relatedEntityId !== undefined) filters.relatedEntityId = input.relatedEntityId;
     if (input.relatedEntityType !== undefined) filters.relatedEntityType = input.relatedEntityType;
 
-    return eventService.getEvents(filters, input.page, input.pageSize);
+    // Owner-scope the log: admins see everything, everyone else only their own
+    // events (NULL-owned system events stay admin-only).
+    const ownerScope = isAdmin(ctx) ? undefined : requireUserId(ctx);
+    return eventService.getEvents(filters, input.page, input.pageSize, ownerScope);
   }),
   /**
    * Retrieves event types for filtering

@@ -20,7 +20,7 @@ interface MangaInfo {
 /**
  * Log system event for manga added
  */
-export async function logMangaAdded(manga: MangaInfo): Promise<void> {
+export async function logMangaAdded(manga: MangaInfo, userId?: string): Promise<void> {
   await logInfo(
     `Added new manga: ${manga.title}`,
     EventType.MANGA_ADDED,
@@ -28,6 +28,7 @@ export async function logMangaAdded(manga: MangaInfo): Promise<void> {
     {
       relatedEntityId: toStringId(manga.id),
       relatedEntityType: 'manga',
+      ...(userId !== undefined ? { userId } : {}),
       details: {
         title: manga.title,
         source: manga.source,

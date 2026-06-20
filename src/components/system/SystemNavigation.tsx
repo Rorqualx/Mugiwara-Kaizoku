@@ -95,7 +95,8 @@ const SYSTEM_TABS: SystemTab[] = [
     { value: 'updates', label: 'Updates', path: '/system/updates', icon: <IconRefresh size={16}/>, adminOnly: true },
     // Appearance is the caller's own theme preference — available to every user.
     { value: 'appearance', label: 'Appearance', path: '/system/appearance', icon: <IconSettings size={16}/>, adminOnly: false },
-    { value: 'events', label: 'Events', path: '/system/events', icon: <IconClock size={16}/>, adminOnly: true },
+    // Owner-scoped event log — every user sees their own events.
+    { value: 'events', label: 'Events', path: '/system/events', icon: <IconClock size={16}/>, adminOnly: false },
     { value: 'logs', label: 'Log Files', path: '/system/logs', icon: <IconFile size={16}/>, adminOnly: true },
     { value: 'annotation', label: 'Annotation', path: '/annotation', icon: <IconDatabase size={16}/>, adminOnly: true },
     { value: 'users', label: 'Users', path: '/system/users', icon: <IconUsers size={16}/>, adminOnly: true }
