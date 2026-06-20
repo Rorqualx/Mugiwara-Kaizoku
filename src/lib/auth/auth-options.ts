@@ -359,6 +359,26 @@ function sessionCallback(params: { session: ExtendedSession; token: ExtendedJWT 
 // Canonical NextAuth options
 // ---------------------------------------------------------------------------
 
+/** Record a manual logout. JWT-strategy `signOut` events carry the token. */
+async function logLogout(token: ExtendedJWT | null | undefined): Promise<void> {
+  if (!token?.sub) return;
+  await eventEmitter.emitWithTracking({
+    type: EventType.USER_LOGGED_OUT,
+    source: EventSource.USER,
+    userId: token.sub,
+    metadata: {
+      userId: token.sub,
+      userName: typeof token['name'] === 'string' ? token['name'] : '',
+      logoutType: 'manual',
+    },
+  });
+}
+
+/** NextAuth `signOut` event handler — emits logout tracking. */
+async function signOutEvent(message: { token?: ExtendedJWT | null }): Promise<void> {
+  await logLogout(message.token);
+}
+
 export const authOptions: NextAuthOptions = {
   // Adapter types differ slightly across @auth/prisma-adapter and next-auth v4.
   adapter: PrismaAdapter(prisma) as NonNullable<NextAuthOptions['adapter']>,
@@ -386,6 +406,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt: jwtCallback as never,
     session: sessionCallback as never,
+  },
+  events: {
+    signOut: signOutEvent as never,
   },
   // Only set `secret` when one is configured; startup env-validation
   // (`validateEnvironmentSecrets`) fails fast in production if it is missing.
