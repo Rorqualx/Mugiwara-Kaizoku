@@ -215,6 +215,34 @@ export const libraryRouter = router({
         }
       }
 
+      // Harden against data loss: Manga.libraryId is onDelete:Cascade, so any
+      // title PHYSICALLY owned by this library (Manga.libraryId === id) is about
+      // to be hard-deleted for EVERYONE. Re-home titles that another user still
+      // holds onto that member's library so the cascade can't take their copy.
+      // (Files don't move — Manga.libraryPath is unchanged; only the owning
+      // library reference is reassigned. Throws on failure so the delete aborts.)
+      const ownedTitles = await prisma.manga.findMany({
+        where: { libraryId: input.id },
+        select: { id: true },
+      });
+      for (const { id: mangaId } of ownedTitles) {
+        // eslint-disable-next-line no-await-in-loop -- sequential re-home for correctness
+        const otherMember = await prisma.libraryMembership.findFirst({
+          where: { mangaId, userId: { not: userId } },
+          select: { userId: true },
+        });
+        if (!otherMember) continue;
+        // eslint-disable-next-line no-await-in-loop -- sequential
+        const targetLib = await prisma.library.findFirst({
+          where: { ownerId: otherMember.userId },
+          orderBy: { id: 'asc' },
+          select: { id: true },
+        });
+        if (!targetLib || targetLib.id === input.id) continue;
+        // eslint-disable-next-line no-await-in-loop -- sequential
+        await prisma.manga.update({ where: { id: mangaId }, data: { libraryId: targetLib.id } });
+      }
+
       const library = await prisma.library.delete({ where: { id: input.id } });
       void realtimeEmitter.emitSystemEvent({
         eventType: 'library:deleted', source: 'libraryRouter',
