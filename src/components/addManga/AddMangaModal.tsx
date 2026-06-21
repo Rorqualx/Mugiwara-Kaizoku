@@ -295,6 +295,14 @@ export function AddMangaModal({
 
       setCompletedMangaId(manga.id);
 
+      // Linked title already exists in the shared catalog with metadata — reuse
+      // it instead of re-running enrichment (which re-downloads the same data
+      // and churns the shared title for every user).
+      if (manga.linked) {
+        setQuickAddProgress({ stage: 'complete', message: 'Added from existing catalog — metadata reused.', progress: 100 });
+        return;
+      }
+
       setQuickAddProgress({ stage: 'fetching_metadata', message: 'Fetching metadata from providers...', progress: 35 });
 
       try {

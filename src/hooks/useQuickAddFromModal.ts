@@ -66,6 +66,13 @@ export function useQuickAddFromModal(onSuccess?: () => void): UseQuickAddReturn 
     try {
       const input = buildAddInput(manga, defaultLib.id);
       const result = await addMutation.mutateAsync(input);
+      // Linked title already carries the shared catalog's metadata — skip
+      // re-enrichment so we don't re-download what already exists.
+      if (result.linked) {
+        setState(s => ({ ...s, progress: { stage: 'complete', message: 'Added from existing catalog — metadata reused.', progress: 100 } }));
+        onSuccess?.();
+        return;
+      }
       setState(s => ({ ...s, progress: { stage: 'fetching_metadata', message: 'Enriching...', progress: 70 } }));
       await enrichMutation.mutateAsync({ mangaId: result.id, title }).catch(() => {/* non-fatal */});
       setState(s => ({ ...s, progress: { stage: 'complete', message: 'Complete!', progress: 100 } }));
