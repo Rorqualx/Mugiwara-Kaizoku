@@ -15,7 +15,7 @@ import { isObject, hasProperty } from '@/utils/type-guards';
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
-import { membershipInLibraryWhere, requireUserId, requireLibraryOwner } from './_shared/library-access';
+import { membershipInLibraryWhere, removeMembership, requireUserId, requireLibraryOwner } from './_shared/library-access';
 import { computeMissingChaptersProcedure } from './library/compute-missing-chapters';
 import { countFilePagesProcedure } from './library/count-file-pages';
 import { importFromPipelineProcedure } from './library/import-from-pipeline';
@@ -194,6 +194,27 @@ export const libraryRouter = router({
     .mutation(async ({ input, ctx }) => {
       const userId = requireUserId(ctx);
       await requireLibraryOwner(prisma, userId, input.id);
+
+      // Remove the caller's catalog memberships attributed to this library FIRST.
+      // LibraryMembership.libraryId is SetNull on library delete, which would
+      // otherwise leave the user still a member (title keeps showing in their
+      // library/home). Ref-counted: a shared title other users still hold is
+      // kept; a linked title nobody else holds is removed entirely.
+      const memberships = await prisma.libraryMembership.findMany({
+        where: { userId, libraryId: input.id },
+        select: { mangaId: true },
+      });
+      for (const { mangaId } of memberships) {
+        // eslint-disable-next-line no-await-in-loop -- sequential for ref-count correctness
+        const { remainingMembers } = await removeMembership(prisma, userId, mangaId);
+        if (remainingMembers === 0) {
+          // Last holder left a linked/shared title — drop the now-orphaned row.
+          // (Titles physically owned by this library are removed by the cascade.)
+          // eslint-disable-next-line no-await-in-loop -- sequential cleanup
+          await prisma.manga.delete({ where: { id: mangaId } }).catch(() => { /* may already be cascade-deleted */ });
+        }
+      }
+
       const library = await prisma.library.delete({ where: { id: input.id } });
       void realtimeEmitter.emitSystemEvent({
         eventType: 'library:deleted', source: 'libraryRouter',
