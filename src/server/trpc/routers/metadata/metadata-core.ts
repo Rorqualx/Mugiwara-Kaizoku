@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { TRPCErrors, toTRPCError } from '@/server/trpc/errors';
 import { adminProcedure, protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -391,7 +392,7 @@ export const metadataCoreRouter = router({
    * @param currentLibraryId - Optional library ID to check against for distinction
    * @returns Array of results with alreadyAdded status and library info
    */
-  checkAlreadyAdded: publicProcedure
+  checkAlreadyAdded: protectedProcedure
     .input(
       z.object({
         results: z.array(
@@ -407,6 +408,7 @@ export const metadataCoreRouter = router({
       // eslint-disable-next-line max-lines-per-function -- Batch check logic is clearer inline
       async ({
         input,
+        ctx,
       }): Promise<
         Array<{
           id: string;
@@ -420,7 +422,12 @@ export const metadataCoreRouter = router({
         }>
       > => {
         try {
-          const { results, currentLibraryId } = input;
+          const { results } = input;
+          // Per-user scoping (privacy): only consider titles the CALLER already
+          // has. A title another user owns must stay invisible here so it shows
+          // as addable — adding then dedups onto the shared catalog/files via
+          // LibraryMembership without revealing the other user.
+          const userId = requireUserId(ctx);
 
           if (results.length === 0) {
             return [];
@@ -433,19 +440,25 @@ export const metadataCoreRouter = router({
           // Single batch query for ALL libraries
           const existingManga = await prisma.manga.findMany({
             where: {
-              OR: [
-                // Check Manga.sourceId
+              AND: [
                 {
-                  source: { in: providers },
-                  sourceId: { in: ids },
+                  OR: [
+                    // Check Manga.sourceId
+                    {
+                      source: { in: providers },
+                      sourceId: { in: ids },
+                    },
+                    // Check Metadata.sourceId
+                    {
+                      Metadata: {
+                        source: { in: providers },
+                        sourceId: { in: ids },
+                      },
+                    },
+                  ],
                 },
-                // Check Metadata.sourceId
-                {
-                  Metadata: {
-                    source: { in: providers },
-                    sourceId: { in: ids },
-                  },
-                },
+                // Only the caller's own library memberships count as "added".
+                membershipWhere(userId),
               ],
             },
             select: {
@@ -459,33 +472,23 @@ export const metadataCoreRouter = router({
             },
           });
 
-          // Build lookup map with library info
+          // Build lookup map. Every row here is already membership-scoped to
+          // the caller, so a hit means "in YOUR library" — there is no
+          // cross-user "other library" state to surface (privacy).
           type MangaEntry = (typeof existingManga)[0];
-          const existingMap = new Map<
-            string,
-            {
-              manga: MangaEntry;
-              inCurrentLibrary: boolean;
-            }
-          >();
+          const existingMap = new Map<string, MangaEntry>();
 
           for (const manga of existingManga) {
-            const inCurrentLibrary = currentLibraryId
-              ? manga.libraryId === currentLibraryId
-              : false;
-
-            const entry = { manga, inCurrentLibrary };
-
             // Map by Manga.source + sourceId
             if (manga.sourceId) {
-              existingMap.set(`${manga.source}-${manga.sourceId}`, entry);
+              existingMap.set(`${manga.source}-${manga.sourceId}`, manga);
             }
 
             // Also map by Metadata.source + sourceId (may differ from Manga.source)
             const metadataSource = manga.Metadata?.source;
             const metadataSourceId = manga.Metadata?.sourceId;
             if (metadataSourceId && metadataSource) {
-              existingMap.set(`${metadataSource}-${metadataSourceId}`, entry);
+              existingMap.set(`${metadataSource}-${metadataSourceId}`, manga);
             }
           }
 
@@ -494,15 +497,17 @@ export const metadataCoreRouter = router({
             const entry = existingMap.get(`${r.provider}-${r.id}`);
             // Library can be null if manga has no library association
             // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            const libraryName = entry?.manga.Library?.name;
+            const libraryName = entry?.Library?.name;
             return {
               id: r.id,
               provider: r.provider,
               alreadyAdded: !!entry,
-              inCurrentLibrary: entry?.inCurrentLibrary ?? false,
-              inOtherLibrary: entry ? !entry.inCurrentLibrary : false,
-              existingMangaId: entry?.manga.id,
-              existingTitle: entry?.manga.title,
+              // Membership-scoped: a hit is always in the caller's own library;
+              // titles other users own are never returned (privacy) → addable.
+              inCurrentLibrary: !!entry,
+              inOtherLibrary: false,
+              existingMangaId: entry?.id,
+              existingTitle: entry?.title,
               libraryName,
             };
           });

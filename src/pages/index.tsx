@@ -79,12 +79,15 @@ export default function HomePage(): React.ReactElement {
   const [addedMangaId, setAddedMangaId] = useState<number | null>(null);
 
   // Libraries
-  const { libraries } = useLibrary();
+  const { libraries, refetchLibraries } = useLibrary();
   const defaultLibrary = libraries[0];
 
   // tRPC mutations
   const addMutation = trpc.manga.add.useMutation();
   const enrichMutation = trpc.manga.oneClickEnrich.useMutation();
+  // Auto-provisions the caller's library on first add when they have none, so a
+  // brand-new user can add a title without manually creating a library first.
+  const ensureDefaultLibrary = trpc.library.ensureDefault.useMutation();
 
   // Deduplication
   const deduplicateManga = useUIStore((state) => state.deduplicateManga);
@@ -108,9 +111,18 @@ export default function HomePage(): React.ReactElement {
    */
   const handleAdd = useCallback(
     async (manga: MangaDetailData) => {
-      if (!defaultLibrary) {
-        logger.warn('No default library available for add');
-        return;
+      // Resolve the target library, provisioning a default one on demand for
+      // users who don't have a library yet (instead of disabling the button).
+      let libraryId = defaultLibrary?.id;
+      if (libraryId === undefined) {
+        try {
+          const created = await ensureDefaultLibrary.mutateAsync();
+          libraryId = created.id;
+          void refetchLibraries();
+        } catch (libError) {
+          logger.error('Failed to provision default library for add', libError);
+          return;
+        }
       }
 
       const title = manga.title.english ?? manga.title.romaji ?? manga.title.native ?? 'Unknown';
@@ -128,7 +140,7 @@ export default function HomePage(): React.ReactElement {
         const result = await addMutation.mutateAsync({
           title,
           source: 'anilist',
-          libraryId: defaultLibrary.id,
+          libraryId,
           mangaId: String(manga.id),
           metadata: {
             cover: manga.coverImage.large ?? manga.coverImage.medium,
@@ -172,7 +184,7 @@ export default function HomePage(): React.ReactElement {
         });
       }
     },
-    [defaultLibrary, closeModal, addMutation, enrichMutation]
+    [defaultLibrary, ensureDefaultLibrary, refetchLibraries, closeModal, addMutation, enrichMutation]
   );
 
   /**
@@ -232,7 +244,7 @@ export default function HomePage(): React.ReactElement {
         opened={opened}
         anilistId={anilistId}
         onClose={closeModal}
-        onAdd={defaultLibrary ? handleAdd : undefined}
+        onAdd={handleAdd}
       />
 
       {/* Add to Library Progress Modal */}

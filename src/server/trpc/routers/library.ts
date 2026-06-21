@@ -136,6 +136,36 @@ export const libraryRouter = router({
     });
   }),
 
+  /**
+   * Return the caller's default (first) library, creating one on demand when
+   * they have none. This lets any user add titles without first manually
+   * creating a library: shared titles are deduplicated into the catalog via
+   * LibraryMembership (no re-download), and brand-new titles land in this
+   * per-user container. Idempotent — repeated calls return the same library.
+   */
+  ensureDefault: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = requireUserId(ctx);
+    const existing = await prisma.library.findFirst({
+      where: { ownerId: userId },
+      orderBy: { id: 'asc' }
+    });
+    if (existing) return existing;
+
+    const name = 'My Manga';
+    const absolutePath = await createLibraryDirectory(name, userId);
+    // Guard the race where two concurrent adds both miss the findFirst above.
+    const raced = await prisma.library.findFirst({ where: { path: absolutePath, ownerId: userId } });
+    if (raced) return raced;
+
+    const library = await prisma.library.create({ data: { name, path: absolutePath, ownerId: userId } });
+    void realtimeEmitter.emitSystemEvent({
+      eventType: 'library:created', source: 'libraryRouter',
+      message: `Library "${library.name}" created`,
+      data: { libraryId: library.id, name: library.name, path: library.path }
+    });
+    return library;
+  }),
+
   query: protectedProcedure.query(async ({ ctx }) => {
     const userId = requireUserId(ctx);
     const memberOnly = membershipWhere(userId);
