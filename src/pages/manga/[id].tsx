@@ -377,12 +377,19 @@ export default function MangaDetailPage(): React.ReactElement {
 
       <ScrollArea h="calc(100vh - 144px)" type="auto" scrollbarSize={0} style={{
             width: '100%',
+            maxWidth: '100%',
+            overflowX: 'hidden',
             position: 'relative',
             paddingBottom: 0,
             marginTop: '110px'
         }} viewportProps={{
             style: {
                 width: '100%',
+                maxWidth: '100%',
+                // Cap the viewport horizontally so child `width: 100%` resolves
+                // against the real width instead of the viewport growing to its
+                // widest child (which let large titles overflow/shift right).
+                overflowX: 'hidden',
                 paddingRight: 0,
                 paddingLeft: 0
             }
