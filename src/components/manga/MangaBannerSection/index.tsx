@@ -131,6 +131,8 @@ export function MangaBannerSection({
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
         width: '100%',
+        maxWidth: '100%',
+        overflowX: 'hidden',
         padding: '10px 0',
         marginTop: '0px',
         marginLeft: '0px'
@@ -180,12 +182,17 @@ export function MangaBannerSection({
             paddingRight: '40px',
             paddingBottom: '40px',
             paddingLeft: '10px',
-            marginLeft: '-60px'
+            marginLeft: '-60px',
+            minWidth: 0,
+            maxWidth: '100%'
           }}
         >
           <Box
             style={{
               height: '100%',
+              width: '100%',
+              minWidth: 0,
+              maxWidth: '100%',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'flex-start',

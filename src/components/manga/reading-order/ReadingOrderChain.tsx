@@ -183,7 +183,7 @@ export function ReadingOrderChain({
   }
 
   return (
-    <Box mb="lg">
+    <Box mb="lg" w="100%" maw="100%" style={{ minWidth: 0 }}>
       <Group mb="xs" gap="xs">
         <IconBookmark size={18} color="gold" />
         <Text size="sm" fw={600} c="gray.3">
@@ -191,7 +191,7 @@ export function ReadingOrderChain({
         </Text>
       </Group>
 
-      <Group gap="sm" wrap="nowrap" align="flex-start" style={{ overflowX: 'auto' }}>
+      <Group gap="sm" wrap="nowrap" align="flex-start" style={{ overflowX: 'auto', maxWidth: '100%' }}>
         {before.map((e) => (
           <Group key={e.id} gap="sm" wrap="nowrap" align="flex-start">
             <RelatedNode entry={e} emphasis="before" />
@@ -212,7 +212,7 @@ export function ReadingOrderChain({
           <Text size="xs" c="dimmed" mb="xs">
             Side stories &amp; spin-offs
           </Text>
-          <Group gap="sm" wrap="nowrap" align="flex-start" style={{ overflowX: 'auto' }}>
+          <Group gap="sm" wrap="nowrap" align="flex-start" style={{ overflowX: 'auto', maxWidth: '100%' }}>
             {branches.map((e) => (
               <RelatedNode key={e.id} entry={e} emphasis="branch" />
             ))}

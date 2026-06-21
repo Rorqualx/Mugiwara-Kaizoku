@@ -26,14 +26,14 @@ export function RelatedWorksCarousel({ mangaId }: RelatedWorksCarouselProps): Re
   }
 
   return (
-    <Box mb="lg">
+    <Box mb="lg" w="100%" maw="100%" style={{ minWidth: 0 }}>
       <Group mb="xs" gap="xs">
         <IconLink size={18} color="cyan" />
         <Text size="sm" fw={600} c="gray.3">
           Related Works ({entries.length})
         </Text>
       </Group>
-      <ScrollArea type="hover" scrollbarSize={6} offsetScrollbars>
+      <ScrollArea type="hover" scrollbarSize={6} offsetScrollbars w="100%" style={{ maxWidth: '100%' }}>
         <Group gap="sm" wrap="nowrap" align="flex-start" pb="xs">
           {entries.map((entry) => (
             <RelatedWorkCard key={entry.id} entry={entry} />
