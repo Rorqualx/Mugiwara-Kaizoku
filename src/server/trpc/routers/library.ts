@@ -9,13 +9,13 @@ import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter
 import { ensureDirectoriesExist, resolveLibraryPath } from '@/utils/defaultPaths';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
-import { isObject, hasProperty, isArray } from '@/utils/type-guards';
+import { isObject, hasProperty } from '@/utils/type-guards';
 
 
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
-import { membershipWhere, requireUserId, requireLibraryOwner } from './_shared/library-access';
+import { membershipInLibraryWhere, requireUserId, requireLibraryOwner } from './_shared/library-access';
 import { computeMissingChaptersProcedure } from './library/compute-missing-chapters';
 import { countFilePagesProcedure } from './library/count-file-pages';
 import { importFromPipelineProcedure } from './library/import-from-pipeline';
@@ -33,7 +33,10 @@ interface MangaRow {
 
 const librarySchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  path: z.string().min(1, 'Path is required')
+  // The on-disk path is auto-derived per-user from the name in
+  // createLibraryDirectory, so callers that only collect a name (the add-time
+  // library picker) can omit it.
+  path: z.string().min(1).optional()
 });
 
 function extractInterval(manga: MangaRow): string {
@@ -130,10 +133,14 @@ export const libraryRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const userId = requireUserId(ctx);
     // Libraries are per-user; only the caller's own libraries are visible.
-    return prisma.library.findMany({
-      where: { ownerId: userId },
-      include: { _count: { select: { Manga: { where: membershipWhere(userId) } } } }
-    });
+    // Counts come from LibraryMembership (per library) so linked/deduplicated
+    // titles — whose Manga.libraryId points at the original owner — are counted
+    // under the user's chosen library. The first library absorbs unassigned rows.
+    const libraries = await prisma.library.findMany({ where: { ownerId: userId }, orderBy: { id: 'asc' } });
+    return Promise.all(libraries.map(async (library, idx) => {
+      const count = await prisma.manga.count({ where: membershipInLibraryWhere(userId, library.id, idx === 0) });
+      return { ...library, _count: { Manga: count } };
+    }));
   }),
 
   /**
@@ -168,23 +175,18 @@ export const libraryRouter = router({
 
   query: protectedProcedure.query(async ({ ctx }) => {
     const userId = requireUserId(ctx);
-    const memberOnly = membershipWhere(userId);
-    const libraries = await prisma.library.findMany({
-      where: { ownerId: userId },
-      include: {
-        Manga: { where: memberOnly, include: { Metadata: true, Chapter: true } },
-        _count: { select: { Manga: { where: memberOnly } } }
-      }
-    });
-    return libraries.map((library) => {
-      const obj = library as unknown as Record<string, unknown>;
-      const mangaArray = hasProperty(obj, 'Manga') && isArray(obj['Manga']) ? obj['Manga'] : [];
+    // List each owned library's titles via LibraryMembership(userId, libraryId)
+    // rather than the Manga.libraryId relation, so linked/deduplicated titles
+    // surface under the library the user chose. First library absorbs orphans.
+    const libraries = await prisma.library.findMany({ where: { ownerId: userId }, orderBy: { id: 'asc' } });
+    return Promise.all(libraries.map(async (library, idx) => {
+      const mangaArray = await prisma.manga.findMany({
+        where: membershipInLibraryWhere(userId, library.id, idx === 0),
+        include: { Metadata: true, Chapter: true }
+      });
       const transformed = mangaArray.map((m: unknown) => stripHeavyFields(m as MangaRow));
-      const countObj = hasProperty(obj, '_count') && isObject(obj['_count']) ? obj['_count'] : {};
-      const mangaCount = hasProperty(countObj, 'Manga') && typeof countObj['Manga'] === 'number' ? countObj['Manga'] : 0;
-      const { _count: _c, Manga: _m, ...rest } = obj;
-      return { ...rest, Manga: transformed, mangaCount };
-    });
+      return { ...library, Manga: transformed, mangaCount: mangaArray.length };
+    }));
   }),
 
   delete: protectedProcedure
@@ -233,21 +235,21 @@ export const libraryRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const userId = requireUserId(ctx);
-      const memberOnly = membershipWhere(userId);
-      const library = await prisma.library.findFirst({
-        where: { id: input.id, ownerId: userId },
-        include: {
-          Manga: { where: memberOnly, include: { Metadata: true, Chapter: true } },
-          _count: { select: { Manga: { where: memberOnly } } }
-        }
-      });
+      const library = await prisma.library.findFirst({ where: { id: input.id, ownerId: userId } });
       if (!library) throw new ValidationError('Library not found');
+
+      // The user's first library is the default that absorbs unassigned memberships.
+      const first = await prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
+      const mangas = await prisma.manga.findMany({
+        where: membershipInLibraryWhere(userId, library.id, first?.id === library.id),
+        include: { Metadata: true, Chapter: true }
+      });
 
       return {
         id: library.id, name: library.name, path: library.path,
         createdAt: library.createdAt, lastScanAt: library.lastScanAt,
-        mangas: library.Manga.map(stripMangaPayload),
-        mangaCount: library._count.Manga
+        mangas: mangas.map(stripMangaPayload),
+        mangaCount: mangas.length
       };
     }),
 

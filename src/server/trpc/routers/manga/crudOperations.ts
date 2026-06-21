@@ -102,11 +102,10 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 async function linkExistingMangaToUser(
   prisma: PrismaClient,
   userId: string,
-  mangaId: number,
-  title: string,
-  source: string
+  link: { mangaId: number; title: string; source: string; libraryId: number }
 ): Promise<MangaWithRelations & { linked: true }> {
-  await addMembership(prisma, userId, mangaId);
+  const { mangaId, title, source, libraryId } = link;
+  await addMembership(prisma, userId, mangaId, libraryId);
   // Per-user monitoring parity: a user who links a deduplicated title gets
   // their own enabled rule, same as a fresh add (idempotent upsert).
   await createAutoDownloadRule(prisma, userId, mangaId);
@@ -137,7 +136,7 @@ export const crudRouter = router({
       // caller's library instead of re-creating + re-downloading.
       const existing = await findExistingMangaForLink(ctx.prisma, input as AddMangaInput);
       if (existing) {
-        return await linkExistingMangaToUser(ctx.prisma, userId, existing.id, existing.title, existing.source);
+        return await linkExistingMangaToUser(ctx.prisma, userId, { mangaId: existing.id, title: existing.title, source: existing.source, libraryId: input.libraryId });
       }
 
       // Create with compensating delete on failure
@@ -150,7 +149,7 @@ export const crudRouter = router({
         logger.info(`Successfully added manga: ${manga.title} (ID: ${manga.id})`);
 
         // Record the caller's library membership for the new shared title.
-        await addMembership(ctx.prisma, userId, manga.id);
+        await addMembership(ctx.prisma, userId, manga.id, input.libraryId);
 
         await createAutoDownloadRule(ctx.prisma, userId, manga.id);
         logMangaMetadataCounts(manga, input.metadata as MetadataInput | undefined);
@@ -201,7 +200,7 @@ export const crudRouter = router({
         const raced = await findExistingMangaForLink(ctx.prisma, input as AddMangaInput).catch(() => null);
         if (raced) {
           const userId = requireUserId(ctx);
-          return linkExistingMangaToUser(ctx.prisma, userId, raced.id, raced.title, raced.source);
+          return linkExistingMangaToUser(ctx.prisma, userId, { mangaId: raced.id, title: raced.title, source: raced.source, libraryId: input.libraryId });
         }
       }
 

@@ -45,6 +45,7 @@ import type { QuickAddProgress } from '@/components/addManga/services/quickAddSe
 import { TrendingBanner, MangaDetailModal, HomeSections, GenreSections } from '@/components/home';
 import type { MangaDetailData } from '@/components/home';
 import { ResponsiveMainLayout } from '@/components/layouts/ResponsiveMainLayout';
+import { LibraryPickerModal } from '@/components/library/LibraryPickerModal';
 import { criticalQueryConfig } from '@/hooks/home/useHomeQueryConfigs';
 import { useLibrary } from '@/hooks/useLibrary';
 import { useMangaDetailModal } from '@/hooks/useMangaDetailModal';
@@ -79,15 +80,16 @@ export default function HomePage(): React.ReactElement {
   const [addedMangaId, setAddedMangaId] = useState<number | null>(null);
 
   // Libraries
-  const { libraries, refetchLibraries } = useLibrary();
-  const defaultLibrary = libraries[0];
+  const { refetchLibraries } = useLibrary();
 
   // tRPC mutations
   const addMutation = trpc.manga.add.useMutation();
   const enrichMutation = trpc.manga.oneClickEnrich.useMutation();
-  // Auto-provisions the caller's library on first add when they have none, so a
-  // brand-new user can add a title without manually creating a library first.
-  const ensureDefaultLibrary = trpc.library.ensureDefault.useMutation();
+
+  // Library picker — every add prompts the user for a destination library
+  // (or to create one), so a title never lands without an explicit library.
+  const [pickerOpened, setPickerOpened] = useState(false);
+  const [pendingManga, setPendingManga] = useState<MangaDetailData | null>(null);
 
   // Deduplication
   const deduplicateManga = useUIStore((state) => state.deduplicateManga);
@@ -104,31 +106,13 @@ export default function HomePage(): React.ReactElement {
   }, []);
 
   /**
-   * Handle "Add to Library" from MangaDetailModal.
-   * 1. Creates manga via manga.add
-   * 2. Auto-enriches via oneClickEnrich
-   * 3. Navigates to manga page
+   * Perform the add into the chosen library, then auto-enrich. Called after the
+   * user picks a destination library in the picker.
    */
-  const handleAdd = useCallback(
-    async (manga: MangaDetailData) => {
-      // Resolve the target library, provisioning a default one on demand for
-      // users who don't have a library yet (instead of disabling the button).
-      let libraryId = defaultLibrary?.id;
-      if (libraryId === undefined) {
-        try {
-          const created = await ensureDefaultLibrary.mutateAsync();
-          libraryId = created.id;
-          void refetchLibraries();
-        } catch (libError) {
-          logger.error('Failed to provision default library for add', libError);
-          return;
-        }
-      }
-
+  const doAdd = useCallback(
+    async (manga: MangaDetailData, libraryId: number): Promise<void> => {
       const title = manga.title.english ?? manga.title.romaji ?? manga.title.native ?? 'Unknown';
 
-      // Close detail modal and open progress modal
-      closeModal();
       setProgressTitle(title);
       setProgressCover(manga.coverImage.large ?? manga.coverImage.medium ?? undefined);
       setProgress({ stage: 'importing', message: 'Adding to library...', progress: 30 });
@@ -136,7 +120,7 @@ export default function HomePage(): React.ReactElement {
       setProgressOpened(true);
 
       try {
-        // Step 1: Create manga
+        // Step 1: Create / link manga into the chosen library
         const result = await addMutation.mutateAsync({
           title,
           source: 'anilist',
@@ -163,7 +147,16 @@ export default function HomePage(): React.ReactElement {
         const mangaId = result.id;
         setAddedMangaId(mangaId);
 
-        // Step 2: Enrich metadata (non-blocking for navigation)
+        // A linked title already exists in the shared catalog with its metadata —
+        // reuse it instead of re-running enrichment (which would re-download the
+        // same data and churn the shared title for everyone).
+        if (result.linked) {
+          setProgress({ stage: 'complete', message: 'Added from existing catalog — metadata reused.', progress: 100 });
+          void refetchLibraries();
+          return;
+        }
+
+        // Step 2: Enrich metadata for a brand-new title (non-blocking for navigation)
         setProgress({ stage: 'fetching_metadata', message: 'Enriching metadata...', progress: 70 });
 
         try {
@@ -175,6 +168,7 @@ export default function HomePage(): React.ReactElement {
 
         // Step 3: Complete
         setProgress({ stage: 'complete', message: 'Complete!', progress: 100 });
+        void refetchLibraries();
       } catch (error) {
         logger.error('Failed to add manga:', error);
         setProgress({
@@ -184,8 +178,43 @@ export default function HomePage(): React.ReactElement {
         });
       }
     },
-    [defaultLibrary, ensureDefaultLibrary, refetchLibraries, closeModal, addMutation, enrichMutation]
+    [addMutation, enrichMutation, refetchLibraries]
   );
+
+  /**
+   * "Add to Library" from MangaDetailModal — open the library picker so the
+   * user explicitly chooses (or creates) the destination library first.
+   */
+  const handleAdd = useCallback(
+    (manga: MangaDetailData) => {
+      setPendingManga(manga);
+      setPickerOpened(true);
+      closeModal();
+    },
+    [closeModal]
+  );
+
+  /** A library was chosen in the picker → run the add. */
+  const handlePickerConfirm = useCallback(
+    (libraryId: number) => {
+      setPickerOpened(false);
+      const manga = pendingManga;
+      setPendingManga(null);
+      if (manga) {
+        void doAdd(manga, libraryId);
+      }
+    },
+    [pendingManga, doAdd]
+  );
+
+  const handlePickerClose = useCallback(() => {
+    setPickerOpened(false);
+    setPendingManga(null);
+  }, []);
+
+  const pendingTitle = pendingManga
+    ? (pendingManga.title.english ?? pendingManga.title.romaji ?? pendingManga.title.native ?? undefined)
+    : undefined;
 
   /**
    * Navigate to the newly added manga page
@@ -245,6 +274,14 @@ export default function HomePage(): React.ReactElement {
         anilistId={anilistId}
         onClose={closeModal}
         onAdd={handleAdd}
+      />
+
+      {/* Library Picker - choose/create a destination library before adding */}
+      <LibraryPickerModal
+        opened={pickerOpened}
+        onClose={handlePickerClose}
+        onConfirm={handlePickerConfirm}
+        mangaTitle={pendingTitle}
       />
 
       {/* Add to Library Progress Modal */}

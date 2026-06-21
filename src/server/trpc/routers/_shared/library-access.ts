@@ -44,6 +44,28 @@ export function membershipWhere(userId: string): Prisma.MangaWhereInput {
   return { LibraryMembership: { some: { userId } } };
 }
 
+/**
+ * Prisma `where` fragment limiting `Manga` to titles the user has placed in a
+ * SPECIFIC one of their libraries (via LibraryMembership.libraryId). A linked
+ * (deduplicated) title keeps another owner's `Manga.libraryId`, so this is the
+ * only correct way to list a per-user library's contents.
+ *
+ * `includeUnassigned` folds in memberships whose libraryId is null (e.g. their
+ * library was deleted, or pre-attribution rows) so they still surface — pass
+ * true only for the user's default/first library to avoid double-listing.
+ */
+export function membershipInLibraryWhere(
+  userId: string,
+  libraryId: number,
+  includeUnassigned = false,
+): Prisma.MangaWhereInput {
+  const some: Prisma.LibraryMembershipWhereInput[] = [{ userId, libraryId }];
+  if (includeUnassigned) {
+    some.push({ userId, libraryId: null });
+  }
+  return { LibraryMembership: { some: { OR: some } } };
+}
+
 /** True if the session user is an ADMIN (mirrors `adminProcedure`). */
 export function isAdmin(ctx: unknown): boolean {
   if (isObject(ctx) && hasProperty(ctx, 'user')) {
@@ -163,11 +185,13 @@ export async function addMembership(
   prisma: PrismaClient,
   userId: string,
   mangaId: number,
+  libraryId?: number,
 ): Promise<void> {
   await prisma.libraryMembership.upsert({
     where: { userId_mangaId: { userId, mangaId } },
-    create: { userId, mangaId },
-    update: {},
+    create: { userId, mangaId, ...(libraryId !== undefined ? { libraryId } : {}) },
+    // Re-adding (or linking) an existing title can move it to the chosen library.
+    update: libraryId !== undefined ? { libraryId } : {},
   });
 }
 

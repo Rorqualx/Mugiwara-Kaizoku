@@ -158,6 +158,10 @@ model Library {
   lastScanAt DateTime?
   Manga      Manga[]
   owner      User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Per-user library membership of (possibly shared/deduplicated) catalog titles.
+  // A linked title keeps its original owner's Manga.libraryId, so membership is
+  // what attributes it to THIS user's chosen library.
+  memberships LibraryMembership[]
 
   @@index([ownerId])
 }
@@ -2500,14 +2504,20 @@ model LibraryMembership {
   id      Int      @id @default(autoincrement())
   userId  String
   mangaId Int
+  // Which of the user's OWN libraries this title belongs to. Nullable so the
+  // membership survives a library delete (SetNull) and to stay backward
+  // compatible; resolved to the user's default library on read when null.
+  libraryId Int?
   addedAt DateTime @default(now())
 
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  manga Manga @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manga   Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  library Library? @relation(fields: [libraryId], references: [id], onDelete: SetNull)
 
   @@unique([userId, mangaId])
   @@index([userId])
   @@index([mangaId])
+  @@index([libraryId])
 }
 
 // ============================================================================
