@@ -318,6 +318,8 @@ export class PostgreSQLQueueWorker extends EventEmitter {
    */
   private async processJob(job: jobs): Promise<void> {
     const startTime = Date.now();
+    // Scope job lifecycle events to the initiating user (+admins); null = system job (global/admin).
+    const jobOwner = job.initiated_by_user_id;
 
     logger.info(`Processing job ${job["id"]} of type ${job.job_type}`, {
       workerId: this.workerId,
@@ -328,6 +330,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
     // Emit realtime event for job starting
     void realtimeEmitter.emitJobUpdate({
       jobId: String(job["id"]),
+      targetUserId: jobOwner,
       status: 'running',
       progress: 0,
       jobType: job.job_type,
@@ -421,6 +424,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
         // Emit realtime event for WebSocket clients
         void realtimeEmitter.emitJobUpdate({
           jobId: String(job["id"]),
+          targetUserId: jobOwner,
           status: 'completed',
           progress: 100,
           jobType: job.job_type,
@@ -464,6 +468,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
       // Emit realtime event for WebSocket clients
       void realtimeEmitter.emitJobUpdate({
         jobId: String(job["id"]),
+        targetUserId: jobOwner,
         status: result === 'retrying' ? 'pending' : 'failed',
         error: errorMessage,
         jobType: job.job_type,

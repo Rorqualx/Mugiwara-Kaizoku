@@ -43,6 +43,8 @@ export interface JobUpdatePayload {
   error?: string;
   jobType?: string;
   metadata?: Record<string, unknown>;
+  /** Initiating user — scopes the live event to them (+admins). null/undefined = system job. */
+  targetUserId?: string | null | undefined;
 }
 
 export interface DownloadProgressPayload {
@@ -54,6 +56,8 @@ export interface DownloadProgressPayload {
   eta?: number;
   status: 'queued' | 'downloading' | 'importing' | 'completed' | 'failed' | 'paused';
   filename?: string;
+  /** Initiating user — scopes the live event to them (+admins). */
+  targetUserId?: string | null | undefined;
 }
 
 export interface NotificationPayload {
@@ -281,7 +285,7 @@ class RealtimeEventEmitter {
    * @param type - Event type (e.g., 'job:updated', 'download:progress')
    * @param data - Event payload
    */
-  public async emit(channel: string, type: string, data: unknown): Promise<void> {
+  public async emit(channel: string, type: string, data: unknown, targetUserId?: string | null): Promise<void> {
     try {
       const event: WebSocketEvent = {
         id: `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
@@ -289,6 +293,9 @@ class RealtimeEventEmitter {
         channel,
         data,
         timestamp: new Date().toISOString(),
+        // Scope user-private events to the initiating user (+admins) at the
+        // delivery layer (message-router). Absent = global broadcast.
+        ...(typeof targetUserId === 'string' ? { targetUserId } : {}),
       };
 
       // Broadcast locally
@@ -318,17 +325,18 @@ class RealtimeEventEmitter {
    * Emit job update event
    */
   public async emitJobUpdate(payload: JobUpdatePayload): Promise<void> {
+    const t = payload.targetUserId;
     // Emit to specific job channel
-    await this.emit(`jobs:${payload.jobId}`, 'job:updated', payload);
+    await this.emit(`jobs:${payload.jobId}`, 'job:updated', payload, t);
 
     // Also emit to wildcard channel for listeners subscribed to all job updates
-    await this.emit('jobs:active', 'job:updated', payload);
+    await this.emit('jobs:active', 'job:updated', payload, t);
 
     // Emit status-specific events
     if (payload.status === 'completed') {
-      await this.emit('jobs:completed', 'job:completed', payload);
+      await this.emit('jobs:completed', 'job:completed', payload, t);
     } else if (payload.status === 'failed') {
-      await this.emit('jobs:failed', 'job:failed', payload);
+      await this.emit('jobs:failed', 'job:failed', payload, t);
     }
   }
 
@@ -336,19 +344,19 @@ class RealtimeEventEmitter {
    * Emit job created event
    */
   public async emitJobCreated(payload: JobUpdatePayload): Promise<void> {
-    await this.emit('jobs:active', 'job:created', payload);
-    await this.emit('jobs:queued', 'job:queued', payload);
+    await this.emit('jobs:active', 'job:created', payload, payload.targetUserId);
+    await this.emit('jobs:queued', 'job:queued', payload, payload.targetUserId);
   }
 
   /**
    * Emit job progress event
    */
-  public async emitJobProgress(jobId: string, progress: number, metadata?: Record<string, unknown>): Promise<void> {
+  public async emitJobProgress(jobId: string, progress: number, metadata?: Record<string, unknown>, targetUserId?: string | null): Promise<void> {
     await this.emit(`jobs:${jobId}`, 'job:progress', {
       jobId,
       progress,
       ...metadata,
-    });
+    }, targetUserId);
   }
 
   // ==========================================================================
@@ -359,13 +367,14 @@ class RealtimeEventEmitter {
    * Emit download progress event
    */
   public async emitDownloadProgress(payload: DownloadProgressPayload): Promise<void> {
-    await this.emit(CHANNEL_PATTERNS.DOWNLOAD_PROGRESS, 'download:progress', payload);
+    await this.emit(CHANNEL_PATTERNS.DOWNLOAD_PROGRESS, 'download:progress', payload, payload.targetUserId);
 
     // Also emit to manga-specific channel
     await this.emit(
       CHANNEL_PATTERNS.MANGA_UPDATES(Number(payload.mangaId)),
       'download:progress',
-      payload
+      payload,
+      payload.targetUserId
     );
   }
 
@@ -373,7 +382,7 @@ class RealtimeEventEmitter {
    * Emit download started event
    */
   public async emitDownloadStarted(payload: DownloadProgressPayload): Promise<void> {
-    await this.emit(CHANNEL_PATTERNS.DOWNLOAD_PROGRESS, 'download:started', payload);
+    await this.emit(CHANNEL_PATTERNS.DOWNLOAD_PROGRESS, 'download:started', payload, payload.targetUserId);
   }
 
   /**
@@ -384,7 +393,7 @@ class RealtimeEventEmitter {
       ...payload,
       status: 'completed',
       progress: 100,
-    });
+    }, payload.targetUserId);
   }
 
   /**
@@ -398,7 +407,7 @@ class RealtimeEventEmitter {
       ...payload,
       status: 'failed',
       error,
-    });
+    }, payload.targetUserId);
   }
 
   // ==========================================================================

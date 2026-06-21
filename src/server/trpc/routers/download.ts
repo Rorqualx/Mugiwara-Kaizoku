@@ -146,7 +146,8 @@ export const downloadRouter = router({
         mangaId,
         progress: 0,
         status: 'queued',
-        filename: `All chapters (${manga['Chapter'].length})`
+        filename: `All chapters (${manga['Chapter'].length})`,
+        targetUserId: requireUserId(ctx)
       });
 
       return {
@@ -242,7 +243,8 @@ export const downloadRouter = router({
         mangaId,
         progress: 0,
         status: 'queued',
-        filename: `Missing chapters (${manga['Chapter'].length})`
+        filename: `Missing chapters (${manga['Chapter'].length})`,
+        targetUserId: requireUserId(ctx)
       });
 
       return {
@@ -344,7 +346,8 @@ export const downloadRouter = router({
         mangaId,
         progress: 0,
         status: 'queued',
-        filename: `Next chapters (${manga['Chapter'].length})`
+        filename: `Next chapters (${manga['Chapter'].length})`,
+        targetUserId: requireUserId(ctx)
       });
 
       return {

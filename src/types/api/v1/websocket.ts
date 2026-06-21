@@ -209,6 +209,9 @@ export const WS_EVENT_TYPES = {
 export interface WebSocketClient {
   id: string;
   userId?: string;
+  /** Whether the authenticated user is an admin — admins receive all
+   *  user-targeted events (for cross-user "all users" views). */
+  isAdmin?: boolean;
   channels: Set<string>;
   socket: unknown;
   lastActivity: Date;
@@ -223,6 +226,10 @@ export interface WebSocketEvent<T = unknown> {
   channel?: string;
   data: T;
   timestamp: string;
+  /** When set, this event is delivered ONLY to sockets whose user matches
+   *  (plus admins). Used to scope user-private events (jobs, downloads) so one
+   *  user's live activity never streams to another. Absent = global broadcast. */
+  targetUserId?: string;
 }
 
 /**

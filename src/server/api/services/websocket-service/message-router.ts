@@ -243,12 +243,17 @@ export class MessageRouter {
         return;
       }
 
-      // Send to each local client
+      // Send to each local client. User-targeted events (event.targetUserId set)
+      // are delivered ONLY to that user's sockets, plus admins (who get the
+      // cross-user "all activity" views). Untargeted events broadcast to all
+      // channel subscribers as before.
       for (const subscriberId of subscribers) {
         const client = this.clients.get(subscriberId);
-        if (client) {
-          this.sendToClient(client, event);
+        if (!client) continue;
+        if (event.targetUserId !== undefined && client.userId !== event.targetUserId && client.isAdmin !== true) {
+          continue;
         }
+        this.sendToClient(client, event);
       }
 
       logger.debug('Message broadcasted to local clients', {

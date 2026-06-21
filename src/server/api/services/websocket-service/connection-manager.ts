@@ -173,6 +173,18 @@ export class ConnectionManager {
       // eslint-disable-next-line no-param-reassign -- Intentional state update on client object
       client['userId'] = userId;
 
+      // Resolve admin status so admins still receive user-targeted events
+      // (jobs/downloads) for the cross-user "all activity" views. Best-effort:
+      // on failure the socket is treated as non-admin (sees only its own).
+      try {
+        const dbUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+        // eslint-disable-next-line no-param-reassign -- Intentional state update on client object
+        client['isAdmin'] = dbUser?.role === 'ADMIN';
+      } catch {
+        // eslint-disable-next-line no-param-reassign -- default to least privilege
+        client['isAdmin'] = false;
+      }
+
       // Check socket still open before persistence (readyState can change asynchronously)
       if ((ws.readyState as number) !== WebSocket.OPEN) {
         logger.warn('[WebSocket] Socket closed before persistence', { connectionId });
