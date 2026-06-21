@@ -101,15 +101,13 @@ function LibraryPage(): React.ReactElement {
     useEffect(() => { registerScrollParent(scrollViewportRef.current); }, [registerScrollParent]);
     useEffect(() => { registerSentinel(sentinelRef.current); }, [registerSentinel, hasMore]);
 
-    // Filter manga to only show those from current library
+    // manga.query is now scoped server-side to THIS library (by the user's
+    // LibraryMembership.libraryId), so the accumulated page already contains
+    // exactly this library's titles. We must NOT re-filter by Manga.libraryId —
+    // a linked/deduplicated title keeps the original owner's libraryId.
     const manga = useMemo((): MangaWithRelations[] => {
-        if (!allManga.length || !library)
-            return [];
-        return (allManga as MangaWithRelations[]).filter((m) => {
-            if (typeof m !== 'object' || m === null) return false;
-            return 'libraryId' in m && m.libraryId === library["id"];
-        });
-    }, [allManga, library]);
+        return allManga as MangaWithRelations[];
+    }, [allManga]);
     // Calculate filtered and sorted manga
     const displayedManga = useMemo(() => {
         if (!manga)

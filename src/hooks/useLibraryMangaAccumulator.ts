@@ -52,7 +52,7 @@ export function useLibraryMangaAccumulator(
     const { isConnected, subscribe } = useRealTime();
 
     const { data: mangaPage, refetch: refetchManga, isFetching } = trpc.manga.query.useQuery(
-        { include: { metadata: true, chapters: true, library: true, volumes: true }, limit: PAGE_SIZE, offset },
+        { include: { metadata: true, chapters: true, library: true, volumes: true }, limit: PAGE_SIZE, offset, ...(libraryId !== undefined ? { libraryId } : {}) },
         { enabled, staleTime: 30 * 1000 }
     );
 

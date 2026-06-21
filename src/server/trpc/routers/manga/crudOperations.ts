@@ -33,7 +33,7 @@ import {
 import type { SupportedProvider, VolumeForMatching } from '@/server/services/matching/types';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
-import { addMembership, assertMembership, membershipWhere, removeMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { addMembership, assertMembership, membershipInLibraryWhere, membershipWhere, removeMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { findMangaFiles } from '@/utils/file-utils';
 import { toStringId } from '@/utils/id-converters';
@@ -330,8 +330,11 @@ export const crudRouter = router({
     .input(z.object({ libraryId: z.number() }))
     .query(async ({ input, ctx }) => {
       const userId = requireUserId(ctx);
+      // Scope by the user's membership IN this library, not Manga.libraryId
+      // (which is the original owner's library for linked/deduplicated titles).
+      const first = await ctx.prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
       return ctx.prisma.manga.findMany({
-        where: { libraryId: input.libraryId, ...membershipWhere(userId) },
+        where: membershipInLibraryWhere(userId, input.libraryId, first?.id === input.libraryId),
         select: { id: true, title: true, libraryId: true },
         orderBy: { title: 'asc' },
       });

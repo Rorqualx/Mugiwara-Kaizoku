@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 import { detectErrorType } from '@/server/services/search/unified-registry/registry-utils';
 import { protectedProcedure, uncachedPublicProcedure } from '@/server/trpc/procedures';
-import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { membershipInLibraryWhere, membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import type { ProviderErrorInfo } from '@/types/search-types/provider.types';
 import { toStringId } from '@/utils/id-converters';
@@ -325,14 +325,24 @@ export const searchRouter = router({
   query: protectedProcedure.input(z.object({
     include: includeSchema,
     limit: z.number().min(1).max(100).optional().default(50),
-    offset: z.number().min(0).optional().default(0)
+    offset: z.number().min(0).optional().default(0),
+    // When set, scope to titles the user placed in THIS library (via
+    // LibraryMembership.libraryId) — a linked title keeps the original owner's
+    // Manga.libraryId, so membership is the only correct per-library filter.
+    libraryId: z.number().optional()
   }).optional()).query(async ({ input, ctx }) => {
     const limit = input?.limit ?? 50;
     const offset = input?.offset ?? 0;
     const userId = requireUserId(ctx);
 
+    let where = membershipWhere(userId);
+    if (input?.libraryId !== undefined) {
+      const first = await ctx.prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
+      where = membershipInLibraryWhere(userId, input.libraryId, first?.id === input.libraryId);
+    }
+
     return ctx.prisma.manga.findMany({
-      where: membershipWhere(userId),
+      where,
       include: {
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
