@@ -39,6 +39,25 @@ export const USER_OVERRIDABLE_KEYS = [
 
 export type UserOverridableKey = (typeof USER_OVERRIDABLE_KEYS)[number];
 
+/**
+ * Authoritative default for each overridable key — the value a user falls back
+ * to when neither a personal override NOR an admin global row exists. These
+ * mirror the read-site defaults (`DEFAULT_DOWNLOAD_MODE`, `DEFAULT_MANGADEX_CONFIG`,
+ * the AniList filter defaults) so the "My Preferences" UI seeds real values
+ * instead of blanks, and "Set" starts from the true default. Keep in sync with
+ * those sources if a default ever changes.
+ */
+export const USER_CONFIG_DEFAULTS: Record<UserOverridableKey, unknown> = {
+  'download.mode': 'mix',
+  'mangadex.preferredLanguage': 'en',
+  'comicvine.preferredLanguage': 'en',
+  'anilist.filterAdultContent': true,
+  'anilist.filterWebtoons': false,
+  'anilist.filterKoreanManhwa': false,
+  'mangadex.includeAdult': false,
+  'mangadex.defaultContentRating': ['safe', 'suggestive'],
+};
+
 const OVERRIDABLE = new Set<string>(USER_OVERRIDABLE_KEYS);
 
 /** True if `key` is in the per-user allow-list. */
@@ -62,7 +81,32 @@ export async function getUserConfigValue<T = unknown>(
     });
     if (row) return parseValue(row.value, row.valueType) as T;
   }
-  return configService.get<T>(key, fallback as T);
+  // When the caller passes no explicit fallback, seed the overridable key's
+  // authoritative default so a missing global row still resolves to a real
+  // value rather than undefined.
+  const effectiveFallback =
+    fallback === undefined && isUserOverridableKey(key)
+      ? (USER_CONFIG_DEFAULTS[key] as T)
+      : (fallback as T);
+  return configService.get<T>(key, effectiveFallback);
+}
+
+/**
+ * The user's OWN override for a key, or `undefined` if they haven't set one —
+ * with NO global fallback. Use when the caller wants to apply the global value
+ * via a different key/semantics when the user hasn't personalised (e.g. the
+ * home rails map a missing `anilist.filterAdultContent` override onto the
+ * legacy global `search.includeAdult` instead).
+ */
+export async function getUserConfigOverride<T = unknown>(
+  userId: string | undefined,
+  key: string,
+): Promise<T | undefined> {
+  if (userId === undefined || !isUserOverridableKey(key)) return undefined;
+  const row = await prisma.userConfig.findUnique({
+    where: { userId_key: { userId, key } },
+  });
+  return row ? (parseValue(row.value, row.valueType) as T) : undefined;
 }
 
 export interface EffectiveUserConfig {
@@ -91,7 +135,9 @@ export async function getUserEffectiveConfig(
   const byKey = new Map(rows.map((r) => [r.key, r]));
   return Promise.all(
     overridable.map(async (key): Promise<EffectiveUserConfig> => {
-      const globalValue = await configService.get(key, undefined);
+      // Fall back to the authoritative default so the UI shows the real value
+      // (and "reset" target) even before an admin has written a global row.
+      const globalValue = await configService.get(key, USER_CONFIG_DEFAULTS[key]);
       const row = byKey.get(key);
       return {
         key,

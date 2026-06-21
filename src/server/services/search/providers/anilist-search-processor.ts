@@ -7,8 +7,10 @@
  * Extracted from: AniListProvider.ts (lines 31-183)
  */
 
+import { getRequestUserId } from '@/server/context/request-user-context';
 import { anilistConfigService } from '@/server/services/anilist/configService';
 import { anilistService } from '@/server/services/anilist/service';
+import { getUserConfigValue } from '@/server/services/config/user-config-service';
 import { logger } from '@/utils/logger';
 import { isAniListMedia } from '@/utils/type-guards/adapters/anilist-guards';
 
@@ -75,15 +77,25 @@ export class AniListSearchProcessor {
     const limit = options?.limit ?? 20;
 
     const config = await anilistConfigService.loadConfig();
-    const filterAdultContent = config.filterAdultContent;
+
+    // Overlay the calling user's per-user filter overrides on top of the global
+    // config (getRequestUserId() is undefined for system/background callers, so
+    // those transparently keep the global values).
+    const userId = getRequestUserId();
+    const filterAdultContent = await getUserConfigValue<boolean>(
+      userId,
+      'anilist.filterAdultContent',
+      config.filterAdultContent
+    );
 
     // Determine if we should apply local filtering
     const shouldFilterLocally = options?.includeAdult === true ? false : filterAdultContent;
 
-    // Prepare format filter config (experimental filters)
+    // Prepare format filter config (experimental filters) — per-user with
+    // global fallback.
     const formatFilterConfig: FormatFilterConfig = {
-      filterWebtoons: config.filterWebtoons,
-      filterKoreanManhwa: config.filterKoreanManhwa
+      filterWebtoons: await getUserConfigValue<boolean>(userId, 'anilist.filterWebtoons', config.filterWebtoons),
+      filterKoreanManhwa: await getUserConfigValue<boolean>(userId, 'anilist.filterKoreanManhwa', config.filterKoreanManhwa)
     };
 
     logger.info(`AniList provider: config.filterAdultContent=${config.filterAdultContent}, default=${filterAdultContent}, includeAdult=${options?.includeAdult}, will filter locally: ${shouldFilterLocally}`);

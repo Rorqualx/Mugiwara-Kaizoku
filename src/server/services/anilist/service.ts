@@ -477,12 +477,19 @@ export class AniListService {
       async () => {
         const { limit = 10, includeDescription = false, filterAdultContent } = options;
 
-        // Get filter setting from config if not provided
+        // Get filter setting from config if not provided — resolve the calling
+        // user's per-user override (falls back to global config, then to
+        // filtering on, for system callers with no request user).
         let shouldFilterAdult = filterAdultContent;
         if (shouldFilterAdult === undefined) {
           try {
-            const { configService } = await import('../config/configService');
-            shouldFilterAdult = await configService.get<boolean>('anilist.filterAdultContent');
+            const { getRequestUserId } = await import('../../context/request-user-context');
+            const { getUserConfigValue } = await import('../config/user-config-service');
+            shouldFilterAdult = await getUserConfigValue<boolean>(
+              getRequestUserId(),
+              'anilist.filterAdultContent',
+              true
+            );
           } catch {
             shouldFilterAdult = true; // Default to filtering if config fails
           }

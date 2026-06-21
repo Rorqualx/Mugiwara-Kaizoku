@@ -19,12 +19,17 @@ import { z } from 'zod';
 
 import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
+import { getRequestUserId } from '@/server/context/request-user-context';
 import * as anilistQueries from '@/server/services/anilist/queries';
 import {
   validatedAnilistClient,
   AniListPriority,
 } from '@/server/services/anilist/validated-client';
 import { configService } from '@/server/services/config/configService';
+import {
+  getUserConfigOverride,
+  getUserConfigValue,
+} from '@/server/services/config/user-config-service';
 import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
@@ -39,8 +44,12 @@ import {
 } from './utils';
 
 /**
- * Get the includeAdult setting from config
- * Returns false (filter out adult) if setting not found or on error
+ * Resolve the effective "include adult" flag for the calling user.
+ *
+ * The caller's own `anilist.filterAdultContent` override wins (true = hide
+ * adult ⇒ includeAdult false). When they have NOT personalised it, fall back
+ * to the instance-wide legacy `search.includeAdult` setting so admin defaults
+ * still apply. Returns false (filter out) on any error.
  */
 async function getIncludeAdultSetting(): Promise<boolean> {
   try {
@@ -48,9 +57,13 @@ async function getIncludeAdultSetting(): Promise<boolean> {
     if (!configService.isInitialized()) {
       await configService.initialize();
     }
-    // Get includeAdult setting, default to false (filter out adult content)
-    const includeAdult = await configService.get<boolean>('search.includeAdult', false);
-    return includeAdult;
+    const userId = getRequestUserId();
+    const filterOverride = await getUserConfigOverride<boolean>(userId, 'anilist.filterAdultContent');
+    if (filterOverride !== undefined) {
+      return !filterOverride;
+    }
+    // No per-user override → instance default (default false = filter out adult).
+    return await configService.get<boolean>('search.includeAdult', false);
   } catch (error) {
     logger.debug('[AniList Filtered] Failed to load adult filter setting, defaulting to filter out', { error });
     return false;
@@ -58,8 +71,9 @@ async function getIncludeAdultSetting(): Promise<boolean> {
 }
 
 /**
- * Get format filter settings from config (experimental)
- * Returns filter config with both options defaulting to false (off)
+ * Get format filter settings, per-user with global fallback (experimental).
+ * Both default to false (off). The caller's overrides win; otherwise the
+ * admin's global `anilist.filter*` values apply.
  */
 async function getFormatFilterSettings(): Promise<FormatFilterConfig> {
   try {
@@ -67,9 +81,9 @@ async function getFormatFilterSettings(): Promise<FormatFilterConfig> {
     if (!configService.isInitialized()) {
       await configService.initialize();
     }
-    // Get format filter settings, both default to false (experimental, opt-in)
-    const filterWebtoons = await configService.get<boolean>('anilist.filterWebtoons', false);
-    const filterKoreanManhwa = await configService.get<boolean>('anilist.filterKoreanManhwa', false);
+    const userId = getRequestUserId();
+    const filterWebtoons = await getUserConfigValue<boolean>(userId, 'anilist.filterWebtoons', false);
+    const filterKoreanManhwa = await getUserConfigValue<boolean>(userId, 'anilist.filterKoreanManhwa', false);
     return { filterWebtoons, filterKoreanManhwa };
   } catch (error) {
     logger.debug('[AniList Filtered] Failed to load format filter settings, defaulting to filtering disabled', { error });

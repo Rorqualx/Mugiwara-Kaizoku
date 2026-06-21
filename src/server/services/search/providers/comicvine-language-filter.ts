@@ -183,7 +183,13 @@ export function applyLanguageScoring(
 }
 
 /**
- * Get preferred language from ComicVine config
+ * Get preferred language for ComicVine search results, scoped to the calling
+ * user. Resolves the user's `comicvine.preferredLanguage` override first, then
+ * the global ComicVine config (its own default), then `'en'`.
+ *
+ * This is the SEARCH path only. The enrichment pipeline deliberately keeps the
+ * global config (it writes the shared, deduplicated catalog where a per-user
+ * language would be last-writer-wins incoherent).
  *
  * @returns Promise with preferred language code (default 'en')
  */
@@ -191,7 +197,13 @@ export async function getPreferredLanguage(): Promise<string> {
   try {
     const { comicvineConfigService } = await import('../../comicvine/configService');
     const config = await comicvineConfigService.loadConfig();
-    return config.preferredLanguage;
+    const { getRequestUserId } = await import('../../../context/request-user-context');
+    const { getUserConfigValue } = await import('../../config/user-config-service');
+    return await getUserConfigValue<string>(
+      getRequestUserId(),
+      'comicvine.preferredLanguage',
+      config.preferredLanguage
+    );
   } catch {
     return 'en';
   }

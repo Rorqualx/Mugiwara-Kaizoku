@@ -11,6 +11,7 @@
 import { TRPCError } from '@trpc/server';
 
 import { getCachedSession } from '@/server/auth/session-cache';
+import { runWithRequestUser } from '@/server/context/request-user-context';
 
 import {
   loggingMiddleware,
@@ -20,7 +21,7 @@ import {
   cachingMiddleware,
   checkRateLimit,
 } from './middleware';
-import { procedure } from './trpc';
+import { middleware, procedure } from './trpc';
 
 import type { Context } from './context';
 import type { WSContext } from '../wsContext';
@@ -51,7 +52,38 @@ type ProtectedContext = (Context | WSContext) & {
  *   .query(() => ({ status: 'ok' }));
  * ```
  */
+/**
+ * Binds the caller's user id into the request-scoped {@link AsyncLocalStorage}
+ * (see request-user-context) for the lifetime of the resolver, so deeply-nested
+ * singleton services can resolve per-user config overrides without an explicit
+ * userId parameter. Resolves the session best-effort: unauthenticated/public
+ * calls simply bind `undefined` and fall back to global config. Never throws —
+ * auth enforcement stays in protectedProcedure.
+ */
+const requestUserMiddleware = middleware(async ({ ctx, next }) => {
+  const context = ctx as Context | WSContext;
+  const req = 'req' in context ? context.req : undefined;
+  const res = 'res' in context ? context.res : undefined;
+
+  let userId: string | undefined;
+  if (req && res) {
+    try {
+      const session = await getCachedSession(req as NextApiRequest, res as NextApiResponse);
+      const rawId = session?.user.id as string | number | undefined;
+      if (rawId !== undefined) {
+        userId = String(rawId);
+      }
+    } catch {
+      // Best-effort: a failed/absent session just means global-config fallback.
+      userId = undefined;
+    }
+  }
+
+  return runWithRequestUser(userId, () => next());
+});
+
 export const publicProcedure = procedure
+  .use(requestUserMiddleware)
   .use(loggingMiddleware)
   .use(performanceMiddleware)
   .use(errorHandlingMiddleware)
@@ -78,6 +110,7 @@ export const publicProcedure = procedure
  * ```
  */
 export const protectedProcedure = procedure
+  .use(requestUserMiddleware)
   .use(loggingMiddleware)
   .use(performanceMiddleware)
   .use(errorHandlingMiddleware)
@@ -152,6 +185,7 @@ export const settingsProcedure = protectedProcedure;
  * ```
  */
 export const uncachedPublicProcedure = procedure
+  .use(requestUserMiddleware)
   .use(loggingMiddleware)
   .use(performanceMiddleware)
   .use(errorHandlingMiddleware)
