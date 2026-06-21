@@ -20,11 +20,13 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { eventEmitter } from '@/server/services/eventEmitter';
+import { ensureDefaultLibrary } from '@/server/services/library/default-library';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { isSuccess, isError } from '@/utils/async-result';
 import { toStringId } from '@/utils/id-converters';
+import { logger } from '@/utils/logger';
 
 
  
@@ -209,6 +211,13 @@ export const usersAdminRouter = router({
         avatar: true,
       },
     });
+
+    // Provision the standard default "My Manga" library for the new user.
+    // Best-effort: a filesystem hiccup must not fail account creation — the
+    // add-time picker also provisions one on demand.
+    await ensureDefaultLibrary(dbUser['id']).catch((err: unknown) =>
+      logger.error('Failed to auto-create default library for new user', { userId: dbUser['id'], err }),
+    );
 
     // Emit user created notification
     await eventEmitter.emit('user:action', {

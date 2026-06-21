@@ -13,6 +13,7 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
+import { ensureDefaultLibrary } from '@/server/services/library/default-library';
 import { publicProcedure, rateLimitedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { isError } from '@/utils/async-result';
@@ -112,6 +113,11 @@ export const usersSetupRouter = router({
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
       logger.info(`First admin user created: ${dbUser.userName} (${dbUser.email})`);
+
+      // Give the first admin the standard default "My Manga" library too.
+      await ensureDefaultLibrary(dbUser.id).catch((err: unknown) =>
+        logger.error('Failed to auto-create default library for first admin', { userId: dbUser.id, err }),
+      );
 
       return {
         success: true,
