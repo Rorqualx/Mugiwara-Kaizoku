@@ -39,7 +39,7 @@ function LoadingSpinner(): React.ReactElement {
  */
 function ErrorState({
   loadingTimeout,
-  manga
+  manga: _manga
 }: {
   loadingTimeout: boolean;
   manga: MangaWithRelations | null;
@@ -52,10 +52,10 @@ function ErrorState({
     : 'This manga does not exist or has been removed.';
 
   const handleGoBack = (): void => {
-    // Try to navigate back to library if we have a libraryId from router state
-    const mangaLibraryId = manga && 'libraryId' in manga ? manga['libraryId'] : null;
-    const libraryId = router.query['libraryId'] ?? mangaLibraryId;
-    void router.push(libraryId ? `/library/${libraryId}` : '/');
+    // Go to the library index, not /library/:id — a shared/linked title's
+    // libraryId is the original owner's library, which the current user may not
+    // own (which itself surfaces a "Library not found").
+    void router.push('/library');
   };
 
   return (

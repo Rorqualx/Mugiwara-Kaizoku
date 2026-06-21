@@ -88,7 +88,7 @@ export function MangaActionBar({
   totalChapters,
   downloadedChapters,
   readChapters,
-  libraryId,
+  libraryId: _libraryId,
   libraryName: _libraryName
 }: MangaActionBarProps): React.ReactElement {
   const { navigateTo } = useNavigation();
@@ -106,19 +106,15 @@ export function MangaActionBar({
       // Show notification immediately
       notify({ severity: 'ERROR', title: 'Manga Deleted', message: `${mangaTitle} has been removed from your library` });
 
-      // Navigate immediately to library page
-      logger.info('[MangaActionBar] Delete success - navigating to library:', libraryId);
-      if (libraryId && libraryId > 0) {
-        void navigateTo(`/library/${libraryId}`);
-      } else {
-        void navigateTo('/');
-      }
+      // Navigate immediately to the library section. Use the index (not a
+      // specific /library/:id) because a shared/linked title's Manga.libraryId
+      // is the original owner's library, which the current user may not own.
+      logger.info('[MangaActionBar] Delete success - navigating to library');
+      void navigateTo('/library');
 
       // Fire-and-forget cache invalidation (happens in background)
       void utils.manga.query.invalidate();
-      if (libraryId && libraryId > 0) {
-        void utils.library.get.invalidate({ id: libraryId });
-      }
+      void utils.library.query.invalidate();
     },
     onError: (error) => {
       notify({ severity: 'ERROR', title: 'Delete Failed', message: (error instanceof Error ? error.message : String(error)) });
@@ -278,7 +274,7 @@ export function MangaActionBar({
               <ActionIcon
                 variant="subtle"
                 size="lg"
-                onClick={() => { void navigateTo(libraryId ? `/library/${libraryId}` : '/'); }}
+                onClick={() => { void navigateTo('/library'); }}
               >
                 <IconArrowLeft size={20} />
               </ActionIcon>
