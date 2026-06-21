@@ -151,7 +151,9 @@ export function MangaBannerSection({
             flexDirection: 'column',
             alignItems: 'flex-start',
             position: 'relative',
-            zIndex: 2
+            zIndex: 2,
+            minWidth: 0,
+            maxWidth: '100%'
           }}
         >
           <CoverSection
@@ -233,10 +235,17 @@ export function MangaBannerSection({
             />
 
             {isDetailsExpanded && (
-              <ExpandedDetailsSection
-                manga={manga}
-                extractedMetadata={extractedMetadata}
-              />
+              // Hard horizontal clamp: a child of the expanded details (gallery,
+              // carousels, long rows) must not be able to grow this column past
+              // the viewport. `overflowX: clip` + width:100% means the box is
+              // exactly its parent's width and never contributes intrinsic width,
+              // so the grid can't balloon and shove content off-screen.
+              <Box style={{ width: '100%', minWidth: 0, maxWidth: '100%', overflowX: 'clip' }}>
+                <ExpandedDetailsSection
+                  manga={manga}
+                  extractedMetadata={extractedMetadata}
+                />
+              </Box>
             )}
           </Box>
         </Grid.Col>
