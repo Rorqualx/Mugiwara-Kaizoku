@@ -183,7 +183,7 @@ export function ReadingOrderChain({
   }
 
   return (
-    <Box mb="lg" w="100%" maw="100%" style={{ minWidth: 0 }}>
+    <Box mb="lg" style={{ width: 0, minWidth: '100%', maxWidth: '100%', overflowX: 'clip' }}>
       <Group mb="xs" gap="xs">
         <IconBookmark size={18} color="gold" />
         <Text size="sm" fw={600} c="gray.3">
