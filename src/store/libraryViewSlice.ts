@@ -275,7 +275,7 @@ const initialState: LibraryViewStateData = {
   showCovers: true,
   showProgress: true,
   coverSize: 'medium',
-  animatedCovers: true,
+  animatedCovers: false,
   autoDownloadNewChapters: false,
   sendUpdateNotifications: false,
   autoMarkAsRead: false,
@@ -304,7 +304,16 @@ export const useLibraryViewStore = createAppSlice<
   LibraryViewActions
 >(
   initialState,
-  'library-view'
+  'library-view',
+  {
+    // v1: animated covers are now OFF by default. One-time migration flips any
+    // existing persisted preference off (users can re-enable in view settings).
+    version: 1,
+    migrate: (persisted): LibraryViewStateData => {
+      const prev = persisted && typeof persisted === 'object' ? (persisted as Record<string, unknown>) : {};
+      return { ...initialState, ...prev, animatedCovers: false };
+    },
+  }
 )((set, get) => ({
   ...initialState,
   

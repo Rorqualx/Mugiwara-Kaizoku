@@ -65,6 +65,10 @@ export type StoreSlice<TState extends Record<string, unknown>, TActions extends 
 export interface PersistOptions<TState> {
   /** Fields to exclude from localStorage persistence (e.g., large data arrays) */
   excludeFromPersist?: (keyof TState)[];
+  /** Persist schema version. Bump to run `migrate` against older stored state. */
+  version?: number;
+  /** Transform older persisted state when the stored version is below `version`. */
+  migrate?: (persistedState: unknown, fromVersion: number) => TState;
 }
 
 /**
@@ -128,6 +132,10 @@ export const createAppSlice = <TState extends Record<string, unknown>, TActions 
         persist(immer(storeCreator), {
           name: `kaizoku-${name}`,
           partialize,
+          ...(options?.version !== undefined ? { version: options.version } : {}),
+          ...(options?.migrate !== undefined
+            ? { migrate: options.migrate as (persistedState: unknown, version: number) => TState & TActions }
+            : {}),
         })
       )
     ) as UseBoundStore<StoreApi<TState & TActions>>;
