@@ -16,6 +16,8 @@
 import { buildChapterStats } from '@/components/library/utils/chapter-stats-builder';
 import { isRealChapter } from '@/components/library/utils/library-chapter-stats';
 
+import { buildGridMangaData } from './chapter-stats-sql';
+
 const HEAVY_MANGA_FIELDS = ['providerMetadata', 'rawProviderData', 'monitoringConfig', 'suwayomiPluginConfig'] as const;
 const HEAVY_METADATA_FIELDS = ['galleryImages', 'fieldAlternatives', 'externalLinks'] as const;
 
@@ -43,4 +45,22 @@ export function toGridManga(m: Record<string, unknown> & { Chapter?: unknown }):
     .map((c) => ({ id: c.id, chapterNumber: c.chapterNumber, title: c.title, isRead: c.isRead, downloadStatus: c.downloadStatus }));
   const { Chapter: _drop, ...rest } = m;
   return { ...stripHeavyManga(rest), chapterStats, recentChapters };
+}
+
+/**
+ * Finalize manga.query rows for the wire. Non-grid callers just get heavy blobs
+ * stripped; the grid (chapters requested) gets the chapterStats aggregate +
+ * recentChapters — computed in SQL (`buildGridMangaData`, parity-validated) when
+ * enabled, else by the JS `toGridManga` over fetched chapters.
+ */
+export async function finalizeQueryRows<T extends { id: number }>(result: T[], includeChapters: boolean, useSqlStats: boolean): Promise<T[]> {
+  if (!includeChapters) return result.map((m) => stripHeavyManga(m as Record<string, unknown>)) as unknown as T[];
+  if (useSqlStats) {
+    const grid = await buildGridMangaData(result.map((m) => m.id));
+    return result.map((m) => {
+      const g = grid.get(m.id);
+      return { ...stripHeavyManga(m as Record<string, unknown>), chapterStats: g?.chapterStats, recentChapters: g?.recentChapters };
+    }) as unknown as T[];
+  }
+  return result.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown })) as unknown as T[];
 }

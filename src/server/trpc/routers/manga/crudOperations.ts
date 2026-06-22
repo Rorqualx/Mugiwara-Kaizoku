@@ -40,7 +40,7 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, logError, EventType, EventSource } from '@/utils/system-event-logger';
 
-import { toGridManga, stripHeavyManga } from './_grid-manga';
+import { finalizeQueryRows } from './_grid-manga';
 import {
   shouldFetchChapterDetails,
   fetchChapterDetailsAsync
@@ -294,13 +294,17 @@ export const crudRouter = router({
       where = membershipInLibraryWhere(userId, input.libraryId, first?.id === input.libraryId);
     }
 
+    // Grid aggregate is computed in SQL (parity-validated against buildChapterStats) so we never
+    // materialize every chapter row. GRID_SQL_STATS=false falls back to the JS path (fetch + toGridManga).
+    const useSqlStats = input?.include?.chapters === true && process.env['GRID_SQL_STATS'] !== 'false';
+
     const result = await ctx.prisma.manga.findMany({
       where,
       include: {
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
-        // Chapters fetched (wide) only to COMPUTE the aggregate server-side — NOT returned (One Piece = 1324 rows ≈ 9MB that blocked the event loop). Grid reads chapterStats + recentChapters.
-        Chapter: input?.include?.chapters
+        // Chapters fetched (wide) only to COMPUTE the aggregate server-side — NOT returned (One Piece = 1324 rows ≈ 9MB that blocked the event loop). Skipped entirely on the SQL path.
+        Chapter: input?.include?.chapters && !useSqlStats
           ? { select: { id: true, index: true, isRead: true, monitored: true, downloadStatus: true, updatedAt: true, chapterNumber: true, volumeId: true, volume: true, filePath: true, title: true } }
           : false,
         Volume: input?.include?.volumes
@@ -314,11 +318,8 @@ export const crudRouter = router({
       }
     });
 
-    // Strip list-irrelevant blobs (providerMetadata ~7.5MB/page, galleryImages) from every row; the grid (chapters:true) also swaps the Chapter array for the chapterStats aggregate. Cast back to the result type (clients read the extra fields via cast).
-    if (input?.include?.chapters !== true) {
-      return result.map((m) => stripHeavyManga(m as Record<string, unknown>)) as unknown as typeof result;
-    }
-    return result.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown })) as unknown as typeof result;
+    // Strip heavy blobs (providerMetadata ~7.5MB/page, galleryImages); the grid also swaps the Chapter array for chapterStats + recentChapters. Cast back to the result type (clients read the extra fields via cast).
+    return (await finalizeQueryRows(result, input?.include?.chapters === true, useSqlStats)) as unknown as typeof result;
   }),
 
   /**
@@ -344,12 +345,7 @@ export const crudRouter = router({
   // NOTE: searchLibrary is defined in searchOperations.ts with proper transformation
   // (coverImage, libraryChapters, etc.) for the import pipeline. Do not duplicate here.
 
-  /**
-   * Get a single manga by ID with caching
-   * NOTE: Uses uncachedPublicProcedure because this procedure has its own caching
-   * via checkMangaCache (hot cache + unified cache). Using publicProcedure's
-   * cachingMiddleware would create duplicate caching and cause stale data issues.
-   */
+  /** Get a single manga by ID. Has its own caching via checkMangaCache (hot + unified), so it avoids publicProcedure's cachingMiddleware (which would double-cache and serve stale data). */
   get: protectedProcedure.input(
     z.object({
       id: z.number(),
@@ -367,9 +363,7 @@ export const crudRouter = router({
         return cached;
       }
 
-      // Database query on cache miss - use slim chapter select for ~80% smaller payload
-      // Only fetches 18 chapter fields instead of 51, reducing payload from ~1.2MB to ~250KB
-      // for manga with 1100+ chapters (e.g., One Piece)
+      // Cache miss: slim chapter select (18 of 51 fields) → ~80% smaller payload (~1.2MB → ~250KB for One Piece-sized manga).
       logger.debug(`Cache miss for manga ${input.id}, fetching from database`);
 
       const mangaRaw = await ctx.prisma.manga.findUnique({
