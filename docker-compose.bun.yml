@@ -96,7 +96,11 @@ services:
 
       # NextAuth configuration
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-production}
+      # Leave unset to let docker-entrypoint.sh auto-generate + persist a
+      # strong secret on first boot. Set this only to pin/share a known value
+      # (required when running multiple replicas). Do NOT use a placeholder —
+      # weak values like "change-me" are rejected by startup validation.
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-}
 
       # Disable Next.js telemetry
       NEXT_TELEMETRY_DISABLED: 1
