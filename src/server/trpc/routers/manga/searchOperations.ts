@@ -10,30 +10,13 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { buildChapterStats } from '@/components/library/utils/chapter-stats-builder';
-import { isRealChapter } from '@/components/library/utils/library-chapter-stats';
 import { detectErrorType } from '@/server/services/search/unified-registry/registry-utils';
 import { protectedProcedure, uncachedPublicProcedure } from '@/server/trpc/procedures';
-import { membershipInLibraryWhere, membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import type { ProviderErrorInfo } from '@/types/search-types/provider.types';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
-
-/** Replace a manga's heavy Chapter array with a precomputed aggregate + a small
- *  recent-chapters preview (grid path). Reuses the exact client stat logic. */
-function toGridManga(m: Record<string, unknown> & { Chapter?: unknown }): Record<string, unknown> {
-  const chapters = (m.Chapter ?? []) as Parameters<typeof buildChapterStats>[0];
-  const chapterStats = buildChapterStats(chapters);
-  const recentChapters = (chapters as Array<{ id: number; chapterNumber: number | null; title: string | null; isRead: boolean; downloadStatus: string; index: number }>)
-    .filter((c) => isRealChapter(c))
-    .sort((a, b) => Number(b.chapterNumber ?? 0) - Number(a.chapterNumber ?? 0))
-    .slice(0, 5)
-    .map((c) => ({ id: c.id, chapterNumber: c.chapterNumber, title: c.title, isRead: c.isRead, downloadStatus: c.downloadStatus }));
-  const { Chapter: _drop, ...rest } = m;
-  return { ...rest, chapterStats, recentChapters };
-}
-
 
 import {
   cleanSearchTitle,
@@ -333,60 +316,6 @@ async function searchSingleProvider(
 // ===================================
 
 export const searchRouter = router({
-  /**
-   * Query manga from the database with pagination
-   *
-   * @param input Object containing include options, limit, and offset
-   * @returns Array of manga with optional relations
-   */
-  query: protectedProcedure.input(z.object({
-    include: includeSchema,
-    limit: z.number().min(1).max(100).optional().default(50),
-    offset: z.number().min(0).optional().default(0),
-    // When set, scope to titles the user placed in THIS library (via
-    // LibraryMembership.libraryId) — a linked title keeps the original owner's
-    // Manga.libraryId, so membership is the only correct per-library filter.
-    libraryId: z.number().optional()
-  }).optional())
-    // eslint-disable-next-line complexity -- input-driven optional includes + per-row aggregate mapping
-    .query(async ({ input, ctx }) => {
-    const limit = input?.limit ?? 50;
-    const offset = input?.offset ?? 0;
-    const userId = requireUserId(ctx);
-
-    let where = membershipWhere(userId);
-    if (input?.libraryId !== undefined) {
-      const first = await ctx.prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
-      where = membershipInLibraryWhere(userId, input.libraryId, first?.id === input.libraryId);
-    }
-
-    const rows = await ctx.prisma.manga.findMany({
-      where,
-      include: {
-        Library: input?.include?.library ?? false,
-        Metadata: input?.include?.metadata ?? false,
-        // Chapters are fetched (wide) only to COMPUTE the per-manga aggregate
-        // server-side — they are NOT returned. Shipping every chapter row (One
-        // Piece = 1324) was an ~8MB payload that blocked the event loop. The
-        // grid reads `chapterStats` (+ a 5-row `recentChapters` preview) instead.
-        Chapter: input?.include?.chapters
-          ? { select: { id: true, index: true, downloadStatus: true, volumeId: true, volume: true, chapterNumber: true, filePath: true, isRead: true, monitored: true, updatedAt: true, title: true } }
-          : false,
-        Volume: input?.include?.volumes
-          ? { select: { id: true } }
-          : false,
-      },
-      take: limit,
-      skip: offset,
-      orderBy: {
-        updatedAt: 'desc'
-      }
-    });
-
-    if (input?.include?.chapters !== true) return rows;
-    // Replace each manga's heavy Chapter array with the server aggregate.
-    return rows.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown }));
-  }),
 
   /**
    * Search manga in the local library

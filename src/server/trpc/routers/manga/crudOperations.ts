@@ -40,7 +40,7 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, logError, EventType, EventSource } from '@/utils/system-event-logger';
 
-
+import { toGridManga } from './_grid-manga';
 import {
   shouldFetchChapterDetails,
   fetchChapterDetailsAsync
@@ -278,33 +278,31 @@ export const crudRouter = router({
   query: protectedProcedure.input(z.object({
     include: includeSchema,
     limit: z.number().min(1).max(500).optional().default(200),
-    offset: z.number().min(0).optional().default(0)
-  }).optional()).query(async ({ input, ctx }) => {
+    offset: z.number().min(0).optional().default(0),
+    // Scope to one of the user's libraries (membership-based — a linked title keeps the original owner's Manga.libraryId).
+    libraryId: z.number().optional()
+  }).optional())
+    // eslint-disable-next-line complexity -- input-driven optional includes + per-row aggregate mapping
+    .query(async ({ input, ctx }) => {
     const limit = input?.limit ?? 200;
     const offset = input?.offset ?? 0;
     const userId = requireUserId(ctx);
 
+    let where = membershipWhere(userId);
+    if (input?.libraryId !== undefined) {
+      const first = await ctx.prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
+      where = membershipInLibraryWhere(userId, input.libraryId, first?.id === input.libraryId);
+    }
+
     const result = await ctx.prisma.manga.findMany({
-      where: membershipWhere(userId),
+      where,
       include: {
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
-        // Slim chapter select: only filter/sort fields (~44 bytes/row vs ~500 for full).
-        // `index` + `chapterNumber` are required so the library UI can filter
-        // out volume-file rows (NULL chapterNumber at index >= 100000) when
-        // counting "real" chapters (see library-chapter-stats' isRealChapter).
-        Chapter: {
-          select: {
-            id: true,
-            index: true,
-            isRead: true,
-            monitored: true,
-            downloadStatus: true,
-            updatedAt: true,
-            chapterNumber: true,
-            volumeId: true,
-          },
-        },
+        // Chapters fetched (wide) only to COMPUTE the aggregate server-side — NOT returned (One Piece = 1324 rows ≈ 9MB that blocked the event loop). Grid reads chapterStats + recentChapters.
+        Chapter: input?.include?.chapters
+          ? { select: { id: true, index: true, isRead: true, monitored: true, downloadStatus: true, updatedAt: true, chapterNumber: true, volumeId: true, volume: true, filePath: true, title: true } }
+          : false,
         Volume: input?.include?.volumes
           ? { select: { id: true } }
           : false,
@@ -316,8 +314,9 @@ export const crudRouter = router({
       }
     });
 
-    // Return result directly - heavy fields are handled at DB level
-    return result;
+    if (input?.include?.chapters !== true) return result;
+    // Drop each manga's heavy Chapter array for the server aggregate. Cast back to the result type so the procedure has one return type (clients read chapterStats/recentChapters via cast).
+    return result.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown })) as unknown as typeof result;
   }),
 
   /**
