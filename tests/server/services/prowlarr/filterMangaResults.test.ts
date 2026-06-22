@@ -109,5 +109,54 @@ describe('filterMangaResults — video rejection', () => {
       const out = filterMangaResults([fixture('Series Name v01 (CBZ)')]);
       expect(out).toHaveLength(1);
     });
+
+    it('keeps a firm-category release with no manga keyword in the title', () => {
+      // Category 7030 (Comics) stands on its own — title need not say "manga".
+      const out = filterMangaResults([
+        fixture('Berserk Deluxe Edition', { categories: [7030] }),
+      ]);
+      expect(out).toHaveLength(1);
+    });
+
+    it('keeps a weak-category (Other) release WHEN the title has a manga keyword', () => {
+      const out = filterMangaResults([
+        fixture('One Piece vol 01-105', { categories: [8000] }),
+      ]);
+      expect(out).toHaveLength(1);
+    });
+  });
+
+  describe('size + weak-category gating', () => {
+    it('rejects an oversized (>20GB) release even with manga signals', () => {
+      const out = filterMangaResults([
+        fixture('Some Manga vol 01-10', { size: 25 * 1024 ** 3, categories: [7030] }),
+      ]);
+      expect(out).toEqual([]);
+    });
+
+    it('rejects the JoJo BD pack (job 13168): clean title, 8000/Other, 31GB', () => {
+      const out = filterMangaResults([
+        fixture("Jojo's Bizarre Adventure Part 1 and 2 - Phantom Blood and Battle Tendency (Old)", {
+          size: 31_549_652_005,
+          categories: [8000],
+          indexer: 'TorrentsCSV',
+        }),
+      ]);
+      expect(out).toEqual([]);
+    });
+
+    it('rejects a weak-category (Other) release with no manga keyword', () => {
+      const out = filterMangaResults([
+        fixture('Random Bundle Pack', { categories: [8000] }),
+      ]);
+      expect(out).toEqual([]);
+    });
+
+    it('keeps a normal-sized manga release just under the ceiling', () => {
+      const out = filterMangaResults([
+        fixture('Naruto Complete v01-v72 Manga', { size: 5 * 1024 ** 3 }),
+      ]);
+      expect(out).toHaveLength(1);
+    });
   });
 });

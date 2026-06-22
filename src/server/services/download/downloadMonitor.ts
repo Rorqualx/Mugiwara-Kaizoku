@@ -27,12 +27,13 @@ import {
 import { parseJobResult, isPackMode } from './download-monitor/job-parser';
 import { runPackImportWithRetry } from './download-monitor/pack-import-retry';
 import { attemptDownloadRetry, extractReleaseUrl } from './download-monitor/retry-handler';
+import { classifyDownloadFiles } from './media-format-guard';
 import { getRetryService, DownloadFailureReason, detectFailure } from './retry';
 import { syncToDatabase } from './tracked-download/db-sync';
 import { TrackedDownloadService } from './tracked-download/tracked-download-service';
 import { TrackedDownloadEvent, TrackedDownloadState } from './tracked-download/types';
 
-import type { DownloadItem } from './base';
+import type { DownloadItem, GetStatusOptions } from './base';
 import type { ValidatedDownloadStatus } from './download-monitor/download-status-checker';
 import type { CompletedDownload } from './download-monitor/utils';
 import type { DownloadRetryConfig, DownloadClientStatus } from './retry';
@@ -51,6 +52,10 @@ interface JobContext {
   chapterIds: number[];
   isPack: boolean;
 }
+
+/** Client types whose downloads are torrents (vs usenet). Only these expose a
+ *  meaningful per-file list for the video-only guard. */
+const TORRENT_CLIENT_TYPES = new Set(['transmission', 'deluge', 'qbittorrent', 'rtorrent']);
 
 /**
  * DownloadMonitor - State machine driven orchestrator
@@ -160,6 +165,10 @@ export class DownloadMonitor {
 
     // Ensure tracked download exists for state machine tracking
     await this.ensureTracking(ctx);
+
+    // Backstop: reject video-only releases (anime .mkv packs mislabeled as
+    // manga) once the client exposes the file list — before we import/seed them.
+    if (await this.rejectIfVideoOnly(ctx)) return null;
 
     if (isDownloadComplete(downloadStatus.status) && downloadStatus.savePath) {
       return this.handleCompleted(ctx, downloadStatus);
@@ -382,8 +391,10 @@ export class DownloadMonitor {
   }
 
   /** Get status of a specific download from its client */
-  async getDownloadStatus(clientType: string, downloadId: string): Promise<AsyncResult<DownloadItem, Error>> {
-    const statusResult = await this.downloadService.getDownloadStatus(clientType, downloadId);
+  async getDownloadStatus(
+    clientType: string, downloadId: string, options?: GetStatusOptions,
+  ): Promise<AsyncResult<DownloadItem, Error>> {
+    const statusResult = await this.downloadService.getDownloadStatus(clientType, downloadId, options);
     if (isError(statusResult)) { return statusResult; }
     if (!isSuccess(statusResult)) { return createErrorResult(new Error('Failed to get download status')); }
     return createSuccessResult(statusResult.data as DownloadItem);
@@ -467,6 +478,66 @@ export class DownloadMonitor {
 
     // Job is already active -- transition Queued -> Downloading
     this.trackedDownloadService.transitionState(trackingId, TrackedDownloadEvent.DOWNLOAD_STARTED);
+  }
+
+  /**
+   * Backstop for video releases that passed pre-download filtering: once the
+   * torrent client exposes the file list, if it's all video (no manga files)
+   * remove it, blocklist the release, and fail the job — so we never import or
+   * keep seeding a video pack mislabeled as manga (job 13168, a 31GB JoJo BD
+   * pack of 26 .mkv files tagged "Other"). Returns true if it acted.
+   */
+  private async rejectIfVideoOnly(ctx: JobContext): Promise<boolean> {
+    if (!TORRENT_CLIENT_TYPES.has(ctx.clientType.toLowerCase())) return false;
+
+    const statusResult = await this.getDownloadStatus(ctx.clientType, ctx.downloadId, { includeFiles: true });
+    if (!isSuccess(statusResult)) return false;
+
+    const verdict = classifyDownloadFiles(statusResult.data.files);
+    if (!verdict.isVideoOnly) return false;
+
+    const { job, downloadId, clientType, mangaId } = ctx;
+    const name = statusResult.data.name;
+    const trackingId = `job:${String(job.id)}`;
+    logger.warn(
+      `[DownloadMonitor] Rejecting video-only download for job ${job.id} ` +
+      `(${verdict.videoCount}/${verdict.total} video files, 0 manga): ${name}`,
+    );
+
+    // Drop it from the client (and delete the files we don't want).
+    await this.downloadService.removeDownload(clientType, downloadId, true);
+
+    // Blocklist so it isn't re-picked, then fail the job permanently.
+    const retryConfig = await this.getRetryConfig();
+    await this.blocklistRelease({
+      retryConfig,
+      job: { id: job.id, result: job.result },
+      downloadName: name, mangaId, failureReason: 'video_content',
+    });
+
+    this.trackedDownloadService.transitionState(trackingId, TrackedDownloadEvent.DOWNLOAD_FAILED);
+    this.trackedDownloadService.transitionState(
+      trackingId, TrackedDownloadEvent.RETRIES_EXHAUSTED, 'Rejected: video-only release',
+    );
+
+    await this.prismaClient.jobs.update({
+      where: { id_partition_key: { id: job.id, partition_key: job.partition_key } },
+      data: {
+        status: 'failed',
+        progress: 100,
+        completed_at: new Date(),
+        last_error: {
+          message: `Rejected video-only release (${verdict.videoCount} video files, no manga): ${name}`,
+        },
+      },
+    });
+
+    void realtimeEmitter.emitDownloadFailed(
+      { taskId: String(job.id), mangaId, progress: 100, status: 'failed' },
+      'Rejected: download contained only video files',
+    );
+
+    return true;
   }
 
   /** Auto-blocklist a failed release */

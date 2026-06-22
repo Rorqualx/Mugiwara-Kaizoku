@@ -63,6 +63,19 @@ const MANGA_CATEGORY_IDS = new Set([7000, 7020, 7030, 5070, 8000, 100920, 156719
 // indexers we probed. Hits tagged with one of these get a scoring bonus.
 const STRONG_MANGA_CATEGORY_IDS = new Set([7030, 156719, 117084, 111160, 7020]);
 
+// Weak catch-all buckets kept in MANGA_CATEGORY_IDS only so miscategorized
+// manga still surfaces: 5070 (anime/TV) and 8000 (Other). On their own these
+// carry almost no manga signal — a 31GB BD pack tagged 8000/Other (job 13168,
+// JoJo) is the failure mode. They count as a manga category ONLY when the
+// title also has a manga keyword; alone they're insufficient.
+const WEAK_MANGA_CATEGORY_IDS = new Set([5070, 8000]);
+
+// Absolute size ceiling for a manga release. Even a 100+ volume raw pack tops
+// out in the low-GB range; tens of GB means video. Releases above this are
+// rejected outright regardless of category/keywords — this is what catches a
+// title-clean anime .mkv pack miscategorized as manga (e.g. 31.5GB JoJo BD).
+const MAX_MANGA_RELEASE_BYTES = 20 * 1024 ** 3; // 20 GiB
+
 // iter-10: indexer names that historically return clean manga results.
 // Rewarded with a small bonus so they outrank generic trackers on ties.
 const MANGA_CORE_INDEXER_PATTERN = /\b(nyaa\.si|nzbgeek|knaben)\b/i;
@@ -79,11 +92,9 @@ export function filterMangaResults(
     // Reject video/anime releases — these are never manga
     if (VIDEO_INDICATORS.test(result.title)) return false;
 
-    // Check if result is in manga-related categories
-    // Handles both {id: number} objects and plain numbers from Prowlarr API
-    const isMangaCategory = result.categories?.some(cat =>
-      MANGA_CATEGORY_IDS.has(getCategoryId(cat))
-    ) ?? false;
+    // Size sanity: tens of GB is a video release, not manga. Rejects
+    // title-clean .mkv packs that carry no codec/resolution token (job 13168).
+    if (typeof result.size === 'number' && result.size > MAX_MANGA_RELEASE_BYTES) return false;
 
     // Check if title contains manga/comic keywords. `\bv\d{2,}` (2+ digits)
     // catches manga volume tokens like `v01`, `v100`, `v01-v72`, while
@@ -92,6 +103,16 @@ export function filterMangaResults(
     // numbers are virtually always zero-padded — single-digit `v1` without
     // any other manga signal is overwhelmingly the fansub case.
     const hasMangaKeywords = /manga|comic|vol(?:ume)?|chapter|omnibus|cbz|cbr|\bv\d{2,}/i.test(result.title);
+
+    // Check if result is in manga-related categories. Handles both
+    // {id: number} objects and plain numbers from the Prowlarr API. Firm
+    // categories (7030 Comics, Nyaa Literature, …) stand alone; the weak
+    // catch-alls (5070 anime, 8000 Other) only count alongside a manga
+    // keyword, so a title-clean "Other" pack no longer passes on category.
+    const catIds = (result.categories ?? []).map(getCategoryId);
+    const hasFirmMangaCat = catIds.some(id => MANGA_CATEGORY_IDS.has(id) && !WEAK_MANGA_CATEGORY_IDS.has(id));
+    const hasWeakMangaCat = catIds.some(id => WEAK_MANGA_CATEGORY_IDS.has(id));
+    const isMangaCategory = hasFirmMangaCat || (hasWeakMangaCat && hasMangaKeywords);
 
     // Check minimum quality (seeders for torrents, skip for usenet)
     const hasMinimumQuality = !result.seeders || result.seeders >= 1;
