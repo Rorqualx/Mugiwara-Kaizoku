@@ -28,6 +28,7 @@ import {
 } from './library-utils-helpers';
 import { getRatingValue } from './rating-extractor';
 
+import type { MangaChapterStats } from './chapter-stats-builder';
 import type { Prisma } from '@prisma/client';
 
 // Define manga with relations type using Prisma's generated types
@@ -99,6 +100,8 @@ function applySearch(manga: MangaWithRelations[], query: string, field: SearchFi
  * loaded the relation count; falls back to the in-memory `Chapter` array length.
  */
 function getChapterCount(manga: MangaWithRelations): number {
+    const stats = (manga as { chapterStats?: MangaChapterStats | null }).chapterStats;
+    if (stats) return stats.realChapterCount;
     const withCount = manga as MangaWithRelations & { _count?: { Chapter?: number } };
     if (typeof withCount._count?.Chapter === 'number') return withCount._count.Chapter;
     return manga.Chapter?.length ?? 0;
@@ -189,10 +192,11 @@ function applyAdvancedFilters(manga: MangaWithRelations[], filters: AdvancedFilt
     if (filters.readingStatus !== undefined && filters.readingStatus.length > 0) {
         const readingFilter = filters.readingStatus;
         filtered = filtered.filter(m => {
+            const stats = (m as { chapterStats?: MangaChapterStats | null }).chapterStats;
             const chapters = m.Chapter ?? [];
-            const totalCount = chapters.length;
-            const readCount = chapters.filter(ch => ch.isRead).length;
-            const downloadedCount = chapters.filter(ch => ch.downloadStatus === ChapterStatus.COMPLETED).length;
+            const totalCount = stats ? stats.realChapterCount : chapters.length;
+            const readCount = stats ? stats.readCount : chapters.filter(ch => ch.isRead).length;
+            const downloadedCount = stats ? stats.downloadedCount : chapters.filter(ch => ch.downloadStatus === ChapterStatus.COMPLETED).length;
             return readingFilter.some(status => {
                 switch (status) {
                     case 'has-chapters': return totalCount > 0;
@@ -224,8 +228,9 @@ function applyAdvancedFilters(manga: MangaWithRelations[], filters: AdvancedFilt
     if (filters.monitored !== null && filters.monitored !== undefined) {
         const monitoredValue = filters.monitored;
         filtered = filtered.filter(m => {
+            const stats = (m as { chapterStats?: MangaChapterStats | null }).chapterStats;
             const chapters = (m as MangaWithRelations & { Chapter?: Array<{ monitored?: boolean }> }).Chapter ?? [];
-            const mangaMonitored = chapters.some(ch => ch.monitored === true);
+            const mangaMonitored = stats ? stats.isMonitored : chapters.some(ch => ch.monitored === true);
             return mangaMonitored === monitoredValue;
         });
     }
@@ -250,6 +255,8 @@ function applyAdvancedFilters(manga: MangaWithRelations[], filters: AdvancedFilt
  * server-side include and is tracked as a follow-up.
  */
 function getLastReadTime(manga: MangaWithRelations): number {
+    const stats = (manga as { chapterStats?: MangaChapterStats | null }).chapterStats;
+    if (stats) return stats.lastReadAt ? new Date(stats.lastReadAt).getTime() : 0;
     if (!manga.Chapter || manga.Chapter.length === 0) {
         return 0;
     }
@@ -377,15 +384,13 @@ export function filterAndSortManga(manga: MangaWithRelations[], options: FilterS
                 // Sort by read percentage (matches the read/unread/in-progress filters,
                 // which all use isRead). Don't use downloadStatus here — a fully-downloaded
                 // unread library would otherwise rank as 100% complete.
-                const aChapters = a.Chapter ?? [];
-                const bChapters = b.Chapter ?? [];
-                const aProgress = aChapters.length > 0
-                    ? aChapters.filter(ch => ch.isRead).length / aChapters.length
-                    : 0;
-                const bProgress = bChapters.length > 0
-                    ? bChapters.filter(ch => ch.isRead).length / bChapters.length
-                    : 0;
-                return bProgress - aProgress;
+                const progressOf = (m: MangaWithRelations): number => {
+                    const st = (m as { chapterStats?: MangaChapterStats | null }).chapterStats;
+                    if (st) return st.realChapterCount > 0 ? st.readCount / st.realChapterCount : 0;
+                    const chs = m.Chapter ?? [];
+                    return chs.length > 0 ? chs.filter(ch => ch.isRead).length / chs.length : 0;
+                };
+                return progressOf(b) - progressOf(a);
             }
             case 'rating': {
                 // Sort by rating (if available in metadata); Phase 1: JSON shape.

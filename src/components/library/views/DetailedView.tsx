@@ -5,6 +5,7 @@ import { Card, Group, Text, Badge, Stack, Progress, Button, Collapse, Divider, A
 import { MangaPublicationStatus, ChapterStatus } from '@prisma/client';
 import { IconChevronDown, IconChevronUp, IconDownload, IconCheck, IconBook, IconRefresh, IconTrash } from '@tabler/icons-react';
 
+import type { RecentChapterPreview, MangaChapterStats } from '@/components/library/utils/chapter-stats-builder';
 import { MangaCover } from '@/components/manga/MangaCover';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useLibraryViewStore } from '@/store/index';
@@ -222,7 +223,7 @@ function GenresAndTags({ metadata }: GenresAndTagsProps): React.ReactElement | n
 }
 
 interface ChapterListSectionProps {
-  latestChapters: MangaEntity['Chapter'];
+  latestChapters: RecentChapterPreview[];
   totalChapters: number;
   expanded: boolean;
   onToggle: () => void;
@@ -307,15 +308,16 @@ function MangaDetailCard({
   }, [manga.Metadata?.summary, expanded]);
 
   // Get latest 5 chapters
-  const latestChapters = useMemo(() => {
+  const latestChapters = useMemo((): RecentChapterPreview[] => {
+    const pre = (manga as { recentChapters?: RecentChapterPreview[] }).recentChapters;
+    if (pre) return pre;
     const realChapters = (manga.Chapter ?? []).filter(isRealChapter);
-    if (realChapters.length === 0) return [];
     return [...realChapters].sort((a, b) => {
       const aNum = parseFloat(String(a.chapterNumber ?? '0'));
       const bNum = parseFloat(String(b.chapterNumber ?? '0'));
       return bNum - aNum;
-    }).slice(0, 5);
-  }, [manga.Chapter]);
+    }).slice(0, 5).map(c => ({ id: c.id, chapterNumber: c.chapterNumber, title: c.title, isRead: c.isRead, downloadStatus: c.downloadStatus }));
+  }, [manga]);
   const handleAction = (action: string, e: React.MouseEvent): void => {
     e.stopPropagation();
     notify({ severity: 'INFO', title: action, message: 'This feature will be implemented with backend support' });
@@ -366,7 +368,7 @@ function MangaDetailCard({
             {descriptionElement}
 
             <StatsRow
-              chapterCount={manga.Chapter?.filter(isRealChapter).length ?? 0}
+              chapterCount={(manga as { chapterStats?: MangaChapterStats }).chapterStats?.realChapterCount ?? (manga.Chapter?.filter(isRealChapter).length ?? 0)}
               downloaded={downloadStatus.downloaded}
               total={downloadStatus.total}
               progress={progress}
@@ -381,7 +383,7 @@ function MangaDetailCard({
       
       <ChapterListSection
         latestChapters={latestChapters}
-        totalChapters={manga.Chapter?.filter(isRealChapter).length ?? 0}
+        totalChapters={(manga as { chapterStats?: MangaChapterStats }).chapterStats?.realChapterCount ?? (manga.Chapter?.filter(isRealChapter).length ?? 0)}
         expanded={expanded}
         onToggle={() => setExpanded(!expanded)}
       />

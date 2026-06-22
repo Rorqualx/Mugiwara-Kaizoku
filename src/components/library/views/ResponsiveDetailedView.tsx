@@ -16,6 +16,7 @@ import { MangaPublicationStatus } from '@prisma/client';
 import { IconRefresh, IconEye, IconDots, IconChevronDown, IconChevronUp, IconUser, IconTags } from '@tabler/icons-react';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 
+import type { RecentChapterPreview, MangaChapterStats } from '@/components/library/utils/chapter-stats-builder';
 import { MangaCover } from '@/components/manga/MangaCover';
 import { useBreakpoint } from '@/hooks/mobile';
 import { useNavigation } from '@/hooks/useNavigation';
@@ -262,7 +263,8 @@ interface ExpandedContentProps {
 }
 
 function ExpandedContent({ manga, isMobile, availableChapters, readChapters }: ExpandedContentProps): React.ReactElement {
-  const recentChapters = (manga.Chapter ?? []).filter(isRealChapter).slice(0, 5);
+  const recentChapters: RecentChapterPreview[] = (manga as { recentChapters?: RecentChapterPreview[] }).recentChapters
+    ?? (manga.Chapter ?? []).filter(isRealChapter).slice(0, 5).map(c => ({ id: c.id, chapterNumber: c.chapterNumber, title: c.title, isRead: c.isRead, downloadStatus: c.downloadStatus }));
   return (
     <Stack gap="xs" pt="xs">
       <Group gap="lg" wrap="wrap">
@@ -416,10 +418,12 @@ export function ResponsiveDetailedView({
   // Helper functions — sentinel pack-import volume rows (index >= 100000)
   // are not chapters and must not inflate the counts.
   const getAvailableChapters = (manga: MangaEntity): number => {
-    return manga.Chapter?.filter(isRealChapter).length ?? 0;
+    const st = (manga as { chapterStats?: MangaChapterStats }).chapterStats;
+    return st ? st.realChapterCount : (manga.Chapter?.filter(isRealChapter).length ?? 0);
   };
   const getReadChapters = (manga: MangaEntity): number => {
-    return manga.Chapter?.filter(ch => isRealChapter(ch) && ch.isRead).length ?? 0;
+    const st = (manga as { chapterStats?: MangaChapterStats }).chapterStats;
+    return st ? st.readCount : (manga.Chapter?.filter(ch => isRealChapter(ch) && ch.isRead).length ?? 0);
   };
 
   // Apply filtering and sorting

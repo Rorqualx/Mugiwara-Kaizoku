@@ -14,6 +14,7 @@ import { Table, Group, Text, Badge, ActionIcon, Checkbox, Tooltip, Progress, Ava
 import { MangaPublicationStatus } from '@prisma/client';
 import { IconDownload, IconCheck, IconBook, IconDots, IconTrash, IconRefresh, IconEye } from '@tabler/icons-react';
 
+import type { MangaChapterStats } from '@/components/library/utils/chapter-stats-builder';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useLibraryViewStore } from '@/store/index';
 import { toStringId } from '@/utils/id-converters';
@@ -30,6 +31,11 @@ type MangaEntity = Prisma.MangaGetPayload<{
     Chapter: true;
   };
 }>;
+
+/** Real chapter count, preferring the server aggregate (grid) over the array. */
+function realChapterCount(m: { Chapter?: Array<{ index: number; chapterNumber?: number | null }> | null; chapterStats?: MangaChapterStats | null }): number {
+  return m.chapterStats?.realChapterCount ?? (m.Chapter?.filter(isRealChapter).length ?? 0);
+}
 interface TableViewProps {
   manga: MangaEntity[];
   libraryId: number;
@@ -92,8 +98,8 @@ export function TableView({
             bVal = b.publicationStatus;
             break;
           case 'chapters':
-            aVal = a.Chapter?.filter(isRealChapter).length ?? 0;
-            bVal = b.Chapter?.filter(isRealChapter).length ?? 0;
+            aVal = realChapterCount(a);
+            bVal = realChapterCount(b);
             break;
           case 'progress':
             aVal = calculateProgress(a);

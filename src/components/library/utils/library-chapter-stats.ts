@@ -23,6 +23,7 @@
 
 import { ChapterStatus } from '@prisma/client';
 
+import type { MangaChapterStats } from './chapter-stats-builder';
 import type { Prisma } from '@prisma/client';
 
 type MangaWithRelations = Prisma.MangaGetPayload<{
@@ -31,6 +32,9 @@ type MangaWithRelations = Prisma.MangaGetPayload<{
         Chapter: true;
     };
 }>;
+
+/** A manga that may carry a server-precomputed chapter aggregate (library grid). */
+type MangaMaybeStats = MangaWithRelations & { chapterStats?: MangaChapterStats | null };
 
 /** First index of the synthetic volume-row band. */
 export const SENTINEL_INDEX_MIN = 100000;
@@ -45,7 +49,11 @@ export function isRealChapter(chapter: { index: number; chapterNumber?: number |
 /**
  * Calculate read progress percentage for a manga
  */
-export function calculateProgress(manga: MangaWithRelations): number {
+export function calculateProgress(manga: MangaMaybeStats): number {
+    const stats = manga.chapterStats;
+    if (stats) {
+        return stats.realChapterCount === 0 ? 0 : Math.round((stats.readCount / stats.realChapterCount) * 100);
+    }
     const realChapters = (manga.Chapter ?? []).filter(isRealChapter);
     if (realChapters.length === 0) {
         return 0;
@@ -57,7 +65,8 @@ export function calculateProgress(manga: MangaWithRelations): number {
 /**
  * Get the latest chapter number
  */
-export function getLatestChapterNumber(manga: MangaWithRelations): string | null {
+export function getLatestChapterNumber(manga: MangaMaybeStats): string | null {
+    if (manga.chapterStats) return manga.chapterStats.latestChapterNumber;
     const realChapters = (manga.Chapter ?? []).filter(isRealChapter);
     if (realChapters.length === 0) {
         return null;
@@ -80,11 +89,15 @@ export function getLatestChapterNumber(manga: MangaWithRelations): string | null
 /**
  * Get download status summary
  */
-export function getDownloadStatus(manga: MangaWithRelations): {
+export function getDownloadStatus(manga: MangaMaybeStats): {
     downloaded: number;
     total: number;
     hasErrors: boolean;
 } {
+    const stats = manga.chapterStats;
+    if (stats) {
+        return { downloaded: stats.downloadedCount, total: stats.realChapterCount, hasErrors: stats.hasErrors };
+    }
     const realChapters = (manga.Chapter ?? []).filter(isRealChapter);
     if (realChapters.length === 0) {
         return { downloaded: 0, total: 0, hasErrors: false };
