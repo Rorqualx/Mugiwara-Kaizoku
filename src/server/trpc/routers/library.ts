@@ -182,7 +182,7 @@ export const libraryRouter = router({
     return Promise.all(libraries.map(async (library, idx) => {
       const mangaArray = await prisma.manga.findMany({
         where: membershipInLibraryWhere(userId, library.id, idx === 0),
-        include: { Metadata: true, Chapter: { select: { size: true } } }
+        include: { Chapter: { select: { size: true } } }
       });
       const transformed = mangaArray.map((m: unknown) => stripHeavyFields(m as MangaRow));
       return { ...library, Manga: transformed, mangaCount: mangaArray.length };
@@ -291,7 +291,7 @@ export const libraryRouter = router({
       const first = await prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
       const mangas = await prisma.manga.findMany({
         where: membershipInLibraryWhere(userId, library.id, first?.id === library.id),
-        include: { Metadata: true, Chapter: { select: { size: true } } }
+        include: { Chapter: { select: { size: true } } }
       });
 
       return {
