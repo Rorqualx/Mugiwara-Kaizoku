@@ -2,8 +2,9 @@
  * Job Info Modal — opens when clicking the File Name cell on the /jobs page.
  * Shows the original-source link plus all available torrent/download metadata
  * (magnet URI, .torrent URL, info-hash, indexer, save path, raw payload) for
- * the current job. No tRPC calls — everything is read from the row data that
- * useJobsPage already loaded.
+ * the current job. Most fields are read from the row data useJobsPage already
+ * loaded; the per-file list is fetched live from the download client via
+ * jobs.getDownloadFiles when the job has a client downloadId.
  */
 import React from 'react';
 
@@ -15,6 +16,7 @@ import { IconCheck, IconCopy, IconExternalLink } from '@tabler/icons-react';
 import { formatDistanceToNow } from 'date-fns';
 import Link from 'next/link';
 
+import { JobDownloadFilesSection } from './JobDownloadFilesSection';
 import { SourceBadge, ProtocolBadge } from './source-badge';
 import { muted } from './theme-text-styles';
 import { buildOriginalSourceUrl, extractInfoHashFromMagnet, formatBytes } from './utils';
@@ -444,6 +446,11 @@ export function JobInfoModal({ opened, onClose, data }: JobInfoModalProps): Reac
             prowlarrResult={prowlarrResult}
             payload={payload}
             chapter={chapter}
+          />
+          <JobDownloadFilesSection
+            jobId={String(data.taskId)}
+            opened={opened}
+            downloadId={data.downloadId}
           />
           <LinksSection
             data={data}

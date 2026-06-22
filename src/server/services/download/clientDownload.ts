@@ -4,7 +4,7 @@ import { createSuccessResult, createErrorResult, isSuccess, isError } from '@/ut
 import { logger } from '@/utils/logger';
 
 // Import download client adapters
-import { AddDownloadOptions } from './base';
+import { AddDownloadOptions, type GetStatusOptions } from './base';
 import {
   clientFactories,
   type BaseClientConfig
@@ -169,7 +169,7 @@ export class ClientDownloadService {
      * @param downloadId - Download ID to check
      * @returns AsyncResult with download status
      */
-    async getDownloadStatus(clientType: string, downloadId: string): Promise<AsyncResult<unknown, Error>> {
+    async getDownloadStatus(clientType: string, downloadId: string, options?: GetStatusOptions): Promise<AsyncResult<unknown, Error>> {
         try {
             // Get client configuration
             const configResult = await this.getClientConfig(clientType);
@@ -189,7 +189,7 @@ export class ClientDownloadService {
             }
             const client = clientResult.data;
             // Get status
-            const status = await client.getStatus(downloadId);
+            const status = await client.getStatus(downloadId, options);
             return createSuccessResult(status);
         }
         catch (error: unknown) {

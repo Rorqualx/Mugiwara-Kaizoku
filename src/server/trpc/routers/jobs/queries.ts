@@ -2,9 +2,12 @@ import { JobStatus, JobType, Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
+import { ClientDownloadService } from '@/server/services/download/clientDownload';
+import { parseJobResult } from '@/server/services/download/download-monitor/job-parser';
 import { extractChapterIdsFromPayload } from '@/server/services/download/job-payload';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { isSuccess } from '@/utils/async-result';
 
 import { isAdmin, requireUserId } from '../_shared/library-access';
 
@@ -172,6 +175,45 @@ async function buildJobDetail(jobId: bigint, ctx: unknown): Promise<JobDetail | 
   };
 }
 
+/** A single file inside a client download (torrent/usenet job). */
+interface DownloadFileInfo {
+  name: string;
+  size: number;
+  progress: number;
+}
+
+interface DownloadFilesResult {
+  available: boolean;
+  /** Why files are unavailable, for the UI to show a helpful message. */
+  reason: 'ok' | 'not_found' | 'no_download' | 'client_error';
+  clientType: string | null;
+  files: DownloadFileInfo[];
+}
+
+/**
+ * Pull the per-file list out of a download client's getStatus payload.
+ * The client returns a DownloadItem whose `files` is
+ * Array<{ name; size; progress; selected? }> — we keep only name/size/progress.
+ */
+function extractDownloadFiles(status: unknown): DownloadFileInfo[] {
+  if (typeof status !== 'object' || status === null) return [];
+  const files = (status as Record<string, unknown>)['files'];
+  if (!Array.isArray(files)) return [];
+  const out: DownloadFileInfo[] = [];
+  for (const entry of files) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const f = entry as Record<string, unknown>;
+    const name = typeof f['name'] === 'string' ? f['name'] : null;
+    if (!name) continue;
+    out.push({
+      name,
+      size: typeof f['size'] === 'number' ? f['size'] : 0,
+      progress: typeof f['progress'] === 'number' ? f['progress'] : 0,
+    });
+  }
+  return out;
+}
+
 export const jobsQueriesRouter = router({
   getByStatus: protectedProcedure
     .input(z.object({
@@ -250,6 +292,48 @@ export const jobsQueriesRouter = router({
   getJobDetail: protectedProcedure
     .input(z.object({ jobId: z.string() }))
     .query(async ({ input, ctx }) => buildJobDetail(BigInt(input.jobId), ctx)),
+
+  /**
+   * Individual file list (filenames + extensions) for a download job, fetched
+   * live from the download client (Transmission/Deluge/SABnzbd/NZBGet) via
+   * `getStatus(downloadId, { includeFiles: true })`. The job payload only holds
+   * the release title, so the per-file breakdown has to come from the client.
+   * Owner-scoped: a non-admin can only inspect their own jobs.
+   */
+  getDownloadFiles: protectedProcedure
+    .input(z.object({ jobId: z.string() }))
+    .query(async ({ input, ctx }): Promise<DownloadFilesResult> => {
+      const job = await prisma.jobs.findFirst({
+        where: { id: BigInt(input.jobId), ...jobOwnerWhere(ctx) },
+      });
+      if (!job) {
+        return { available: false, reason: 'not_found', clientType: null, files: [] };
+      }
+
+      const parsed = parseJobResult(job);
+      if (!parsed) {
+        // No client downloadId/clientType on the job result (e.g. native
+        // MangaDex job, or not yet dispatched to a client).
+        return { available: false, reason: 'no_download', clientType: null, files: [] };
+      }
+
+      const service = new ClientDownloadService();
+      const statusResult = await service.getDownloadStatus(
+        parsed.clientType,
+        parsed.downloadId,
+        { includeFiles: true },
+      );
+      if (!isSuccess(statusResult)) {
+        return { available: false, reason: 'client_error', clientType: parsed.clientType, files: [] };
+      }
+
+      return {
+        available: true,
+        reason: 'ok',
+        clientType: parsed.clientType,
+        files: extractDownloadFiles(statusResult.data),
+      };
+    }),
 
   /**
    * Best-effort existence + readability probe for a user-provided
