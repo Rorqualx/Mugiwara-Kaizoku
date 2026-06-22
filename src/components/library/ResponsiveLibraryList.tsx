@@ -268,12 +268,10 @@ export function ResponsiveLibraryList({
 
   const form = useForm({
     initialValues: {
-      name: '',
-      path: ''
+      name: ''
     },
     validate: {
-      name: (value: string) => value.length < 1 ? 'Library name is required' : null,
-      path: (value: string) => value.length < 1 ? 'Library path is required' : null
+      name: (value: string) => value.length < 1 ? 'Library name is required' : null
     }
   });
 

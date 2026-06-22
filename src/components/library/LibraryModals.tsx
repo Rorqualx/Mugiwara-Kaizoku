@@ -14,11 +14,9 @@ import {
   Button,
   Group,
   Stack,
-  Text,
-  ActionIcon
+  Text
 } from '@mantine/core';
 import { UseFormReturnType } from '@mantine/form';
-import { IconFolderPlus } from '@tabler/icons-react';
 
 import type { LibraryWithRelations } from '@/types/search.types';
 
@@ -27,16 +25,23 @@ interface LibraryFormValues {
   path: string;
 }
 
+interface CreateLibraryFormValues {
+  name: string;
+}
+
 interface CreateLibraryModalProps {
   opened: boolean;
   onClose: () => void;
-  form: UseFormReturnType<LibraryFormValues>;
+  form: UseFormReturnType<CreateLibraryFormValues>;
   onSubmit: () => void;
   isMobile: boolean;
 }
 
 /**
- * Modal for creating a new library
+ * Modal for creating a new library.
+ *
+ * Only the display name is collected — the on-disk path is set server-side
+ * (auto-derived per-user from the name), so users don't choose it.
  */
 export function CreateLibraryModal({
   opened,
@@ -59,17 +64,6 @@ export function CreateLibraryModal({
             placeholder="My Manga Collection"
             required
             {...form.getInputProps('name')} />
-
-          <TextInput
-            label="Library Path"
-            placeholder="/path/to/manga/folder"
-            required
-            {...form.getInputProps('path')}
-            rightSection={
-            <ActionIcon size="sm" variant="subtle">
-                <IconFolderPlus size={16} />
-              </ActionIcon>
-            } />
 
           <Group justify="flex-end" gap="sm">
             <Button variant="light" onClick={onClose}>Cancel</Button>

@@ -3,39 +3,25 @@
  *
  * A modal dialog for creating new libraries directly from the main page.
  * Features:
- * - Form for entering library name and path
- * - Directory selection via File System Access API (with fallback)
+ * - Form for entering a library name (the on-disk path is set server-side,
+ *   auto-derived per-user from the name, so users don't choose it)
  * - Validation for required fields
  * - Error handling for API calls
  * - Success feedback
  *
- * TypeScript Migration:
- * - Updated to use domain types from types/domain
- * - Changed from Library to LibraryEntity and LibraryWithRelations
- * - Updated property access patterns for related entities
- * - Improved type safety with standardized domain types
- *
  * @module components/library/CreateLibraryModal
  */
 import * as React from 'react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
-import { Modal, TextInput, Button, Group, Stack, Text, Checkbox, Alert } from '@mantine/core';
-import { showNotification } from '@mantine/notifications';
-import { IconAlertCircle, IconX } from '@tabler/icons-react';
+import { Modal, TextInput, Button, Group, Stack, Alert } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
 
 import { useNotification } from '@/hooks/useNotification';
 import { useLibraryStore } from '@/store/librarySlice';
-import { getDefaultLibraryPath, LIBRARIES_DIR } from '@/utils/defaultPaths';
-import { browseDirectory } from '@/utils/directoryBrowser';
-import { logger } from '@/utils/logger';
-// @next/dynamic-imports
-// The following imports are dynamically loaded for ESM compatibility
-import { detectPlatform, getPathPlaceholder, getPathHelpText, type PlatformInfo } from '@/utils/platformUtils';
 import { trpc } from '@/utils/trpc-client';
 
 import type { Prisma} from '@prisma/client';
-import type { Manga as _MangaEntity } from '@prisma/client';
 
 // Use Prisma's generated type with relations
 type LibraryWithRelations = Prisma.LibraryGetPayload<{
@@ -43,15 +29,7 @@ type LibraryWithRelations = Prisma.LibraryGetPayload<{
         Manga: true;
     };
 }>;
-/**
- * Helper function to get a path from a directory handle
- * This is a simplified version that just returns the name
- */
-const _getPathFromDirectoryHandle = (dirHandle: FileSystemDirectoryHandle): Promise<string> => {
-    // In a real implementation, you would use the resolve method
-    // to get the full path, but for now we just return the name
-    return Promise.resolve(dirHandle["name"] || 'Selected Directory');
-};
+
 interface CreateLibraryModalProps {
     opened: boolean;
     onClose: () => void;
@@ -60,29 +38,8 @@ interface CreateLibraryModalProps {
 export function CreateLibraryModal({ opened, onClose, onSuccess }: CreateLibraryModalProps): React.ReactElement {
     // Form state
     const [name, setName] = useState('');
-    const [path, setPath] = useState('');
-    const [manualPath, setManualPath] = useState(false);
-    const [useDefaultPath, setUseDefaultPath] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    // Platform detection for help text
-    const [platformInfo, setPlatformInfo] = useState<PlatformInfo>({
-        platform: 'unknown',
-        browser: 'unknown',
-        mobile: false
-    });
-    // Initialize platform detection on component mount
-    useEffect(() => {
-        const platform = detectPlatform();
-        setPlatformInfo(platform);
-        logger.info('Platform detection:', platform);
-    }, []);
-    // Set default path based on library name
-    useEffect(() => {
-        if (name && useDefaultPath && !manualPath) {
-            setPath(getDefaultLibraryPath(name));
-        }
-    }, [name, useDefaultPath, manualPath]);
     // Store actions
     const addLibrary = useLibraryStore((state) => state.addLibrary);
     const { showSuccess, showError } = useNotification();
@@ -104,7 +61,6 @@ export function CreateLibraryModal({ opened, onClose, onSuccess }: CreateLibrary
             });
             // Reset form
             setName('');
-            setPath('');
             setError(null);
             // Close modal
             onClose();
@@ -136,55 +92,13 @@ export function CreateLibraryModal({ opened, onClose, onSuccess }: CreateLibrary
             setError('Library name is required');
             return;
         }
-        if (!path.trim()) {
-            setError('Library path is required');
-            return;
-        }
         setIsLoading(true);
         setError(null);
-        // Create library
+        // Create library. Path is auto-derived per-user from the name on the server.
         void createLibraryMutation.mutateAsync({
-            name: name.trim(),
-            path: path.trim()
+            name: name.trim()
         });
-    }, [name, path, createLibraryMutation]);
-    // Handle directory selection using standardized browse utility
-    const handleDirectorySelect = useCallback(async () => {
-        const result = await browseDirectory();
-
-        if (result.success && result.path) {
-            // Get the directory name from the path
-            const pathParts = result.path.split('/').filter(Boolean);
-            const dirName = pathParts[pathParts.length - 1] ?? 'library';
-
-            // If we're using default paths, create a path in the libraries directory
-            if (useDefaultPath) {
-                const defaultPath = getDefaultLibraryPath(dirName);
-                setPath(defaultPath);
-            } else {
-                setPath(result.path);
-            }
-
-            // Clear any previous errors
-            setError(null);
-
-            // Turn off default path mode since user selected a custom directory
-            if (!useDefaultPath) {
-                setManualPath(true);
-            }
-        } else if (result.error && result.error !== 'Selection cancelled') {
-            showNotification({
-                title: 'Browse Failed',
-                message: result.error,
-                color: 'red',
-                icon: <IconX />
-            });
-        }
-    }, [useDefaultPath]);
-    // Handle manual path toggle
-    const handleManualPathChange = useCallback<React.ChangeEventHandler<HTMLInputElement>>((event) => {
-        setManualPath(event.target.checked);
-    }, []);
+    }, [name, createLibraryMutation]);
     return (<Modal opened={opened} onClose={() => { void onClose(); }} title="Create New Library" size="lg" centered={false} styles={{
             content: {
                 backgroundColor: '#333333',
@@ -219,7 +133,7 @@ export function CreateLibraryModal({ opened, onClose, onSuccess }: CreateLibrary
 
               {error}
             </Alert>}
-          
+
           <TextInput label="Library Name" placeholder="My Manga Collection" value={name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)} required disabled={isLoading} styles={{
             label: { color: '#ffffff' },
             input: {
@@ -232,62 +146,6 @@ export function CreateLibraryModal({ opened, onClose, onSuccess }: CreateLibrary
             }
         }}/>
 
-          
-          <div>
-            <Group mb="xs">
-              <Text size="sm" fw={500} c="white">Library Path</Text>
-              <Checkbox label="Use default library location" checked={useDefaultPath} onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-            setUseDefaultPath(e.target.checked);
-            if (e.target.checked && name) {
-                setPath(getDefaultLibraryPath(name));
-            }
-        }} disabled={isLoading} mr="md" styles={{
-            label: { color: '#ffffff' },
-            input: { backgroundColor: '#2a2a2a', borderColor: '#555555' }
-        }}/>
-
-              <Checkbox label="Enter path manually" checked={manualPath} onChange={handleManualPathChange} disabled={isLoading || useDefaultPath} styles={{
-            label: { color: '#ffffff' },
-            input: { backgroundColor: '#2a2a2a', borderColor: '#555555' }
-        }}/>
-
-            </Group>
-            
-            <Group align="flex-end" gap="xs">
-              <TextInput placeholder={manualPath ? getPathPlaceholder(platformInfo) : "Select a directory"} value={path} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPath(e.target.value)} readOnly={!manualPath} required disabled={isLoading} style={{ flex: 1 }} styles={{
-            input: {
-                backgroundColor: '#2a2a2a',
-                borderColor: '#555555',
-                color: '#ffffff',
-                '&::placeholder': {
-                    color: '#aaaaaa'
-                }
-            }
-        }}/>
-
-              
-              {!manualPath &&
-            <Button variant="light" color="gray" onClick={() => { void handleDirectorySelect(); }} disabled={isLoading} styles={{
-                    root: {
-                        backgroundColor: '#555555',
-                        color: '#ffffff',
-                        '&:hover': { backgroundColor: '#666666' }
-                    }
-                }}>
-
-                  Browse
-                </Button>}
-            </Group>
-            
-            <Text size="xs" c="white" mt="xs">
-              {useDefaultPath ?
-            <>Libraries will be stored in the default location at <code>{LIBRARIES_DIR}</code></> :
-            manualPath ?
-                <>{getPathHelpText(platformInfo)}</> :
-                "Click Browse to select a directory, or enable \"Use default library location\" for automatic path management"}
-            </Text>
-          </div>
-          
           <Group justify="flex-end" mt="md">
             <Button variant="subtle" onClick={() => { void onClose(); }} disabled={isLoading} styles={{
             root: {

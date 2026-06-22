@@ -1,14 +1,12 @@
 /**
  * CreateLibraryForm component for creating new manga libraries
  *
- * This component provides a form interface for creating new manga libraries,
- * with support for both manual path entry and directory picker functionality.
+ * This component provides a form interface for creating new manga libraries.
+ * The on-disk path is set by the admin/server (auto-derived per-user from the
+ * library name), so users only choose a display name here.
  *
  * Features:
  * - Library name input
- * - Path selection/input
- * - Manual path toggle
- * - Directory browser (where supported)
  * - Development mode detection
  */
 import React, { useState, useEffect } from 'react';
@@ -20,8 +18,6 @@ import {
   TextInput,
   Stack,
   Group,
-  Switch,
-  Tooltip,
   Divider,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
@@ -31,7 +27,6 @@ import {
   IconFolderPlus,
 } from '@tabler/icons-react';
 
-import { browseDirectory } from '@/utils/directoryBrowser';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client';
@@ -42,10 +37,6 @@ import { trpc } from '@/utils/trpc-client';
 interface FormValues {
   /** Library display name */
   name: string;
-  /** Library filesystem path */
-  path: string;
-  /** Whether to manually enter path */
-  manualPath: boolean;
 }
 
 /**
@@ -63,7 +54,8 @@ interface CreateLibraryFormProps {
 /**
  * Create Library Form Component
  *
- * Standalone form for creating a new library with name and path inputs.
+ * Standalone form for creating a new library with a name input. The filesystem
+ * path is determined server-side, not by the user.
  */
 export function CreateLibraryForm({
   onSuccess,
@@ -99,38 +91,18 @@ export function CreateLibraryForm({
   const form = useForm<FormValues>({
     initialValues: {
       name: '',
-      path: '',
-      manualPath: false,
     },
     validate: {
       name: (value) => (value.trim() ? null : 'Name is required'),
-      path: (value) => (value.trim() ? null : 'Path is required'),
     },
   });
-
-  const handleDirectorySelect = async (): Promise<void> => {
-    const result = await browseDirectory();
-
-    if (result.success && result.path) {
-      form.setFieldValue('path', result.path);
-      // Also set the name field if it's empty
-      if (!form.values.name) {
-        // Use the last part of the path as the name
-        const pathParts = result.path.split('/').filter(Boolean);
-        const dirName = pathParts[pathParts.length - 1] ?? result.path;
-        form.setFieldValue('name', dirName);
-      }
-    } else if (result.error && result.error !== 'Selection cancelled') {
-      notify({ severity: 'ERROR', title: 'Browse Failed', message: result.error });
-    }
-  };
 
   const handleSubmit = async (values: FormValues): Promise<void> => {
     setIsLoading(true);
     try {
+      // Path is auto-derived per-user from the name on the server.
       const library = await libraryMutation.mutateAsync({
         name: values.name,
-        path: values.path,
       });
       notify({
         severity: 'SUCCESS',
@@ -193,53 +165,6 @@ export function CreateLibraryForm({
           leftSection={<IconFolderPlus size={16} />}
           {...form.getInputProps('name')}
         />
-
-        <Group align="center" gap="xs">
-          <Switch
-            label="Enter path manually"
-            checked={form.values.manualPath}
-            disabled={isDevelopmentMode}
-            onChange={(event) =>
-              form.setFieldValue('manualPath', event.currentTarget.checked)
-            }
-          />
-
-          <Tooltip label="Toggle this if you want to manually enter a path instead of using the file browser">
-            <IconInfoCircle size={16} style={{ cursor: 'pointer' }} />
-          </Tooltip>
-        </Group>
-
-        <Group align="flex-end" gap="xs">
-          <TextInput
-            label="Library Path"
-            placeholder={
-              form.values.manualPath
-                ? 'Enter a directory path'
-                : 'Select a directory'
-            }
-            style={{ flex: 1 }}
-            readOnly={!form.values.manualPath}
-            disabled={isDevelopmentMode}
-            description={
-              form.values.manualPath
-                ? 'Enter an absolute path (e.g., /home/user/manga or C:\\Users\\user\\Documents\\Manga)'
-                : undefined
-            }
-            {...form.getInputProps('path')}
-          />
-
-          {!form.values.manualPath && (
-            <Button
-              onClick={() => {
-                void handleDirectorySelect();
-              }}
-              variant="light"
-              disabled={isDevelopmentMode}
-            >
-              Browse
-            </Button>
-          )}
-        </Group>
 
         <Divider my="xs" />
 
