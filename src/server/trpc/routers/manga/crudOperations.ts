@@ -40,7 +40,7 @@ import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { logInfo, logError, EventType, EventSource } from '@/utils/system-event-logger';
 
-import { toGridManga } from './_grid-manga';
+import { toGridManga, stripHeavyManga } from './_grid-manga';
 import {
   shouldFetchChapterDetails,
   fetchChapterDetailsAsync
@@ -314,8 +314,10 @@ export const crudRouter = router({
       }
     });
 
-    if (input?.include?.chapters !== true) return result;
-    // Drop each manga's heavy Chapter array for the server aggregate. Cast back to the result type so the procedure has one return type (clients read chapterStats/recentChapters via cast).
+    // Strip list-irrelevant blobs (providerMetadata ~7.5MB/page, galleryImages) from every row; the grid (chapters:true) also swaps the Chapter array for the chapterStats aggregate. Cast back to the result type (clients read the extra fields via cast).
+    if (input?.include?.chapters !== true) {
+      return result.map((m) => stripHeavyManga(m as Record<string, unknown>)) as unknown as typeof result;
+    }
     return result.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown })) as unknown as typeof result;
   }),
 
