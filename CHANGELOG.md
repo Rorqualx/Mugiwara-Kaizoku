@@ -7,9 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Project Status
 
-**Current Version**: 0.9.0 (Pre-release)
+**Current Version**: 0.10.0 (Pre-release)
 **Target for 1.0.0**: TBD
-**Total Commits**: 981+
 
 ### Version Numbering Convention (Pre-1.0)
 
@@ -29,75 +28,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tagging History
 
-No semver releases have been cut yet. The repo contains one `v*`-prefixed tag — `v1.7.0-strict-mode-complete` — but it is a development checkpoint marker (TypeScript strict mode milestone), not a release. The `package.json` version (`0.9.0`) is the canonical version reference; ignore any other in-repo state that disagrees.
+No semver releases have been cut yet. The repo contains one `v*`-prefixed tag — `v1.7.0-strict-mode-complete` — but it is a development checkpoint marker (TypeScript strict mode milestone), not a release. The `package.json` version (`0.10.0`) is the canonical version reference; ignore any other in-repo state that disagrees.
 
 ---
 
 ## [Unreleased]
 
-### Added
-- **Database Models**: Implemented 4 new Prisma models for bookmarking and auto-download features
-  - `AutoDownloadRule` - Per-manga auto-download monitoring configuration
-  - `BookmarkedChapter` - Chapter-level bookmarks with multi-user support
-  - `BookmarkedVolume` - Volume-level bookmarks with multi-user support
-  - `BookmarkedManga` - Manga-level bookmarks with multi-user support
-- All models include proper indexes, unique constraints, and cascade deletes
+_No unreleased changes yet. New work lands here before the next version is cut._
 
-### Fixed
-- **TypeScript Type Safety**: Eliminated all 166 production code violations of `@typescript-eslint/no-unsafe-argument`
-  - Fixed violations across 59 files in 13 systematic batches
-  - Removed all `as any` type assertions from production code
-  - Applied consistent type safety patterns (type intersections, double casting, Record types, explicit enums)
-  - Production code now 100% type-safe for unsafe argument rule ✅
+---
 
-### Changed
-- Updated Manga model with 3 new relations: `AutoDownloadRule`, `BookmarkedVolume[]`, `BookmarkedManga[]`
-- Updated Chapter model with 1 new relation: `BookmarkedChapter[]`
-- Removed 48 lines of type suppressions from `manga.ts` router
+## [0.10.0] - 2026-06-23
+
+### Major Features - Multi-User & Per-User Libraries
+- **Per-user libraries**: Each user gets their own libraries on top of a shared, deduplicated title catalog
+- **Multi-tenancy isolation**: Downloads, jobs, history, and auto-download subscriptions are now scoped per user
+- **Library memberships**: Add-time library picker with per-library attribution; any user can add a title another already owns without duplicating it
+- **Default library**: A standard "My Manga" library is auto-created for every user
+- **Per-user content filters**: Content/age filters apply per request-user via async-local-storage, with seeded preference defaults
+- **Per-user config overrides**: Reusable override layer plus per-user system events
+- **Realtime isolation**: Job and download WebSocket events are delivered per user
+
+### Major Features - Living Covers
+- **Animated "living" covers**: Static character layer over a drifting, inpainted background, generated in-app
+- **Segmentation tiers**: SAM and Grounded-SAM object segmentation with per-object motion; WD14 tag-driven mood-aware effects
+- **Global motion control**: Calm / Normal / Lively speed setting (off by default), with in-app generation, model-download progress, and torch auto-provisioning
+
+### Major Features - Metadata Selector System
+- **Selector cutover**: A new per-field metadata selector (numeric, categorical, string, list, structured) is now the primary picker, with authority weights and per-field-type thresholds
+- **Provenance & freshness**: Provenance badges, selection history, sticky-binding freshness checks, and periodic Fandom/Wikipedia/ComicVine/MangaUpdates/Kitsu freshness audits
+- **Recommendations & relations**: MyAnimeList recommendations (via Jikan), AniList recommendations, and related-works from MangaRelation
+
+### Major Features - Single-Container Docker
+- **Streamlined deployment**: Single-container Docker Compose with bundled PostgreSQL and a dual-mode entrypoint
+- **Bundled FlareSolverr**: Chrome and GUI libraries bundled in-image for FlareSolverr
+- **Zero-config secrets**: Session/auth secrets auto-generated on first boot
+
+### Improvements
+- **Manga detail page**: Related-works and reading-order carousels, clickable publisher chip + browse-by-publisher page, cover/banner override picker with manual pin, themes/tags chip rows, and multi-source rating display
+- **Access control**: Infrastructure/system pages are admin-gated; per-user pages stay open; fixed a missing-chapters information leak
+- **Download reliability**: Reject video releases mislabeled as manga; native fallback when a Prowlarr pack claims but never delivers; source-aware dedup that won't clobber chapters another source already has
+- **Self-healing**: Full archive-coverage heal at scan completion, passive heal in the download monitor, and detection/repair of wedged or stale Suwayomi bindings
+- **MangaDex pacing**: At-home endpoint paced to eliminate monitored-search 429s
+- **API platform**: Completed the designed v1 API surface
+
+### Performance
+- **Library payloads**: `manga.query` and `library.query` slimmed dramatically (~27 MB to KB) by dropping unused chapter rows, `Metadata` includes, and `providerMetadata`/`galleryImages`
+- **SQL aggregates**: Chapter completeness aggregates computed in SQL instead of per-row JavaScript
+- **Rendering & polling**: Virtualized the detailed library view; gated jobs-page polling on socket state; cached cover manifests
+- **Enrichment**: Parallelized the provider retry tail and shared volume-page work
 
 ### Security
-- **CRITICAL**: Fixed 23 OWASP Top 10:2021 vulnerabilities (4 critical, 8 high, 7 medium, 4 low)
-- **A01:2021 - Broken Access Control** (10 vulns): Fixed authentication bypass, admin role bypass, system token validation, file access authorization, public API authentication
-- **A02:2021 - Cryptographic Failures** (3 vulns): Replaced Math.random() with crypto.randomBytes(), enforced environment secret validation (32+ chars), increased bcrypt salt rounds (10 → 12)
-- **A03:2021 - Injection** (4 vulns): SQL injection prevention, XSS prevention with DOMPurify, path traversal protection, command injection prevention
-- **A05:2021 - Security Misconfiguration** (3 vulns): Debug mode requires explicit flag, production error sanitization, cache adapter pattern
-- **A07:2021 - Authentication Failures** (4 vulns): Brute force protection (5 attempts/30min), JWT expiration (14d → 1d), strong password policy, session invalidation
-- **A09:2021 - Logging Failures** (1 vuln): Security event logging (16 event types), log sanitization (26+ sensitive fields)
-- **A10:2021 - SSRF** (1 vuln): Private IP blocking in image proxy
+- **Auth hardening**: Self-provision a stable NextAuth secret when none is configured; keep middleware edge-safe by reading the JWT secret from env; dropped a weak `NEXTAUTH_SECRET` Docker Compose default
+- **Session correctness**: Logout stays on the current origin; removed a signout route that shadowed NextAuth
 
-### Added
-- `src/lib/html-sanitizer.ts` - XSS prevention utility with DOMPurify (4 sanitization profiles, URL validation)
-- `src/server/utils/json-utils.ts` - Safe JSON parsing with AsyncResult pattern
-- `src/server/env-validation.ts` - Environment secret validation (startup validation, weak pattern detection)
-- `src/server/utils/security-logger.ts` - Security event logging system (16 event types, 26+ sensitive fields redacted)
-- `src/server/utils/log-sanitizer.ts` - Credential redaction utility
-- `src/server/cache/cache-adapter.ts` - Pluggable cache pattern (in-memory, Redis-ready)
-- `.claude/hooks/security-check.sh` - Pre-commit security validation (27 pattern detectors, 3-tier severity system)
-
-### Changed
-- Reduced TypeScript errors from 1,497 to 14 (99% reduction, remaining are pre-existing Prisma issues)
-- Installed @types/dompurify for proper type safety
-- Fixed mixed operator precedence errors (|| and ?? operators)
-- Fixed exactOptionalPropertyTypes violations in auth utilities
-- Regenerated Prisma client for latest schema
-
-### Documentation
-- Updated `docs/development/security-guide.md` - Added 300+ line security pattern detection section
-- Updated `.claude/hooks/README.md` - Added comprehensive security-check documentation
-- Created security reports in `docs/security/` (OWASP remediation baseline, completion report, parallel agents summary)
-
-### Known Issues
-- 14 TypeScript errors remain (all pre-existing Prisma property issues)
-- ESLint violations in multiple components (see lint report)
-- Performance optimizations needed for large libraries
-- Mobile UI refinements in progress
-
-### Planned
-- Complete comprehensive cleanup sprint
-- Resolve remaining TypeScript errors
-- Mobile UI polish
-- Performance optimization phase
-- Comprehensive test suite
+### Fixed
+- Re-home shared titles on library delete to prevent data loss; remove a user's memberships for a library's titles when that library is deleted
+- Numerous manga-detail layout fixes (page/banner/carousel horizontal overflow and right-shift)
+- Header library search now mounts its provider; navigation targets the library index correctly
 
 ---
 
@@ -287,6 +275,7 @@ No semver releases have been cut yet. The repo contains one `v*`-prefixed tag �
 
 | Version | Date | Focus Area | Commits |
 |---------|------|------------|---------|
+| 0.10.0 | 2026-06-23 | Multi-User Libraries, Living Covers, Metadata Selector, Single-Container Docker | ~356 |
 | 0.9.0 | 2025-10-26 | Backup, Home Page, Caching | ~50 |
 | 0.8.0 | 2025-09-07 | Cleanup Sprint, Standardization | ~200 |
 | 0.7.0 | 2025-08-16 | Unified Metadata System | ~100 |
@@ -332,5 +321,5 @@ When adding entries to this changelog:
 
 ---
 
-**Last Updated**: 2025-10-26
+**Last Updated**: 2026-06-23
 **Maintained By**: Development Team

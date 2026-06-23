@@ -237,7 +237,7 @@ function FooterAlert(): React.ReactElement {
     <Alert icon={<IconInfoCircle size={16} />} mt="xl">
       <Stack gap="xs">
         <Text size="sm">
-          <strong>Roadmap to 1.0.0:</strong> See docs/development/SYSTEM_AUDIT_2025-10.md for detailed release criteria and timeline
+          <strong>Roadmap to 1.0.0:</strong> Release criteria are tracked in CHANGELOG.md (see &ldquo;Criteria for 1.0.0 Release&rdquo;)
         </Text>
         <Text size="sm">
           <strong>Changelog:</strong> Full version history available in CHANGELOG.md
