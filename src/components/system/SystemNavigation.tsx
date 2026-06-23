@@ -74,6 +74,8 @@ export interface SystemTab {
     icon: React.ReactElement;
     /** Admin-only tab — hidden from non-admins (route is also middleware-gated). */
     adminOnly?: boolean;
+    /** Development-only tab — hidden unless NODE_ENV === 'development' (route is also middleware-gated). */
+    devOnly?: boolean;
 }
 /**
  * Props for the SystemNavigation component
@@ -98,7 +100,7 @@ const SYSTEM_TABS: SystemTab[] = [
     // Owner-scoped event log — every user sees their own events.
     { value: 'events', label: 'Events', path: '/system/events', icon: <IconClock size={16}/>, adminOnly: false },
     { value: 'logs', label: 'Log Files', path: '/system/logs', icon: <IconFile size={16}/>, adminOnly: true },
-    { value: 'annotation', label: 'Annotation', path: '/annotation', icon: <IconDatabase size={16}/>, adminOnly: true },
+    { value: 'annotation', label: 'Annotation', path: '/annotation', icon: <IconDatabase size={16}/>, adminOnly: true, devOnly: true },
     { value: 'users', label: 'Users', path: '/system/users', icon: <IconUsers size={16}/>, adminOnly: true }
 ];
 /**
@@ -125,7 +127,11 @@ export function SystemNavigation({ disableLinks = false, activeTab, onTabChange 
     const router = useRouter();
     const { isAdmin } = useAuth();
     const currentPath = router.pathname;
-    const visibleTabs = useMemo(() => SYSTEM_TABS.filter((tab) => isAdmin || !tab.adminOnly), [isAdmin]);
+    const isDev = process.env.NODE_ENV === 'development';
+    const visibleTabs = useMemo(
+        () => SYSTEM_TABS.filter((tab) => (isAdmin || !tab.adminOnly) && (isDev || !tab.devOnly)),
+        [isAdmin, isDev]
+    );
 
     /**
      * Memoized active tab value to prevent unnecessary recalculations
