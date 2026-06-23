@@ -12,7 +12,7 @@ Documentation for Integration Adapter Pattern
 # Integration Adapter Pattern
 
 > ⚠️ **Note**: This document references the standardized adapter pattern.
-> For the canonical implementation guide, see [adapter-pattern-unified.md](/docs/adapter-pattern-unified.md)
+> For the canonical implementation guide, see [adapter-pattern-unified.md](./adapter-pattern-comprehensive-guide.md)
 
 This document outlines the Integration Adapter Pattern implemented in the Mugiwara-Kaizoku project for managing external API integrations consistently and with proper type safety.
 
@@ -20,7 +20,7 @@ This document outlines the Integration Adapter Pattern implemented in the Mugiwa
 
 The Integration Adapter Pattern provides a standardized interface for interacting with various external metadata providers (AniList, MangaDex, ComicVine, etc.). It ensures consistent error handling, type-safe operations, and a uniform approach to integrations across the application.
 
-> **Important**: The implementation follows the dual-method pattern documented in the [Unified Adapter Pattern Guide](/docs/adapter-pattern-unified.md), which includes:
+> **Important**: The implementation follows the dual-method pattern documented in the [Unified Adapter Pattern Guide](./adapter-pattern-comprehensive-guide.md), which includes:
 > - Private AsyncResult methods for internal use
 > - Public throwing methods for external API
 
@@ -107,7 +107,7 @@ export interface FandomAdapterConfig extends BaseIntegrationConfig {
 
 ### 4. Uniform Error Handling
 
-The pattern includes standardized error handling with proper type checking, as detailed in the [Unified Adapter Pattern Guide](/docs/adapter-pattern-unified.md#error-handling):
+The pattern includes standardized error handling with proper type checking, as detailed in the [Unified Adapter Pattern Guide](./adapter-pattern-comprehensive-guide.md):
 
 ```typescript
 // Base adapter provides error creation method
@@ -138,7 +138,7 @@ This approach:
 
 ### How to Implement a New Integration
 
-> **Note**: For complete implementation details, refer to the [Unified Adapter Pattern Guide](/docs/adapter-pattern-unified.md#implementation-template)
+> **Note**: For complete implementation details, refer to the [Unified Adapter Pattern Guide](./adapter-pattern-comprehensive-guide.md)
 
 1. Create a new file in `src/api/metadataProviders/adapters/` named after the integration
 2. Define a config interface extending `BaseIntegrationConfig`
@@ -149,7 +149,7 @@ This approach:
 
 ### Example Implementation
 
-For a complete implementation example following the standardized pattern, see the [Unified Adapter Pattern Guide](/docs/adapter-pattern-unified.md#complete-example).
+For a complete implementation example following the standardized pattern, see the [Unified Adapter Pattern Guide](./adapter-pattern-comprehensive-guide.md).
 
 ## Type Safety Benefits
 
@@ -229,40 +229,31 @@ export interface MangaMetadata {
 }
 ```
 
-## Integration Manager
+## Obtaining adapters: `AdapterFactory`
 
-The `IntegrationManager` class provides a unified interface for working with all integrations:
+Adapters are created and cached by the `AdapterFactory` singleton
+(`src/server/adapters/AdapterFactory.ts`). There is **no** `IntegrationManager`
+adapter facade — the class named `IntegrationManager` (in `src/server/queue/`) is a
+queue runner, unrelated to adapter lookup.
 
 ```typescript
-export class IntegrationManager {
-  private integrations: Map<string, IntegrationAdapter>;
-  
-  constructor(config: IntegrationConfig = {}) {
-    // Initialize integrations based on config
-  }
-  
-  // Get specific integration
-  getIntegration(source: string): IntegrationAdapter | undefined {
-    return this.integrations.get(source);
-  }
-  
-  // Search across all enabled integrations
-  async searchAllSources(query: string): Promise<SearchResult[]> {
-    // Implementation
-  }
-  
-  // Update metadata from all sources
-  async updateMetadataFromAllSources(mangaId: number): Promise<void> {
-    // Implementation
-  }
-}
+import { MetadataProvider } from '@prisma/client';
+import { AdapterFactory } from '@/server/adapters/AdapterFactory';
+
+const factory = AdapterFactory.getInstance();
+
+// Get an adapter for a provider
+const anilist = factory.createByProvider(MetadataProvider.ANILIST);
+
+// Enumerate enabled adapters (e.g. to search across all sources)
+const enabled = factory.getEnabledAdapters();
 ```
 
 ## Best Practices
 
 When implementing or using the Integration Adapter Pattern:
 
-1. **Error Handling**: Follow the error handling approach in the [Unified Adapter Pattern](/docs/adapter-pattern-unified.md#error-handling)
+1. **Error Handling**: Follow the AsyncResult approach in the [Adapter Pattern Comprehensive Guide](./adapter-pattern-comprehensive-guide.md)
 2. **Throttling**: Respect rate limits by using the provided throttling mechanism
 3. **Configuration**: Don't hardcode API URLs or keys, use the configuration system
 4. **Type Guards**: Implement proper type guards when processing unknown data
@@ -319,7 +310,7 @@ The Integration Adapter Pattern provides a robust framework for managing externa
 
 ### Next Steps
 
-1. **Complete Adapter Migration**: Update all remaining adapters to follow the [Unified Adapter Pattern](/docs/adapter-pattern-unified.md)
+1. **Complete Adapter Migration**: Update all remaining adapters to follow the [Unified Adapter Pattern](./adapter-pattern-comprehensive-guide.md)
 2. **Integration Registry**: Create a registry for dynamic adapter discovery and instantiation
 3. **Unit Tests**: Add comprehensive tests for all adapters
 4. **Documentation**: Add more examples and usage patterns to the documentation

@@ -31,16 +31,11 @@ We've created a script that fixes the search provider settings in the database. 
 2. Enables them in the database settings
 3. Sets AniList Native as the default provider
 
-### Running the Fix Script
+### Fixing It
 
-To fix the issue, run the following command:
-
-```bash
-cd /path/to/Mugiwara-Kaizoku
-node scripts/fix-search-providers.mjs
-```
-
-This will update your database settings to enable all search providers.
+Enable the search providers from **Settings → Indexers / Providers** in the app —
+toggle on AniList, MangaDex, ComicVine, and Fandom, and set AniList as the default.
+These settings are stored in the database (`Config`), so no script is required.
 
 ### Verifying the Fix
 

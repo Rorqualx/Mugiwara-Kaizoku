@@ -268,12 +268,11 @@ node scripts/test-comicvine-rate-limit.js
 ### Architecture
 
 ```
-ComicVineProvider
-  ├── ComicVineService (API communication)
-  │   ├── ComicVineRateLimiter (rate limiting)
-  │   ├── RequestCache (caching layer)
-  │   └── CircuitBreaker (failure protection)
-  └── ComicVineConverter (data transformation)
+ComicVineProvider                          # services/search/providers/ComicVineProvider.ts
+  └── ComicVineService (API communication)  # services/comicvine/service.ts
+      ├── ComicVineRateLimiter (rate limiting)   # comicvine/modules/rateLimiter.ts
+      └── CircuitBreaker (failure protection)    # comicvine/modules/circuitBreaker.ts
+  # results are mapped into the shared metadata types (no separate converter/cache class)
 ```
 
 ### API Endpoints

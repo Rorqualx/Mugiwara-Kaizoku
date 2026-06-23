@@ -50,7 +50,7 @@ Every download attempt is recorded with:
 - Records download attempts for quality tracking
 - Returns descriptive errors when releases are blocked
 
-### Data Types (`src/types/domain/download-types.ts`)
+### Data Types (`src/types/prowlarr.ts`)
 - Extended `ProwlarrSearchResult` interface to include blocklist information
 - Allows UI to display blocklist status
 

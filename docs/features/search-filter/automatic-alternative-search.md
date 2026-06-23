@@ -114,17 +114,11 @@ The release blocklist page shows:
 
 ## Testing
 
-Run the test script to verify functionality:
-```bash
-bun run tsx scripts/test-alternative-search.ts
-```
-
-This script:
-1. Creates test manga with alternative titles
-2. Blocks a test release
-3. Checks a similar release (triggers alternative search)
-4. Displays found alternatives
-5. Tests pattern-based blocking with alternatives
+To verify the behavior manually:
+1. Add a manga that has alternative titles
+2. Block a test release
+3. Trigger a search for a similar release (alternative search kicks in)
+4. Confirm found alternatives are surfaced and pattern-based blocking applies
 
 ## Configuration
 

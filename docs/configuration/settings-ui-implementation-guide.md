@@ -24,7 +24,7 @@ This guide provides instructions for completing the remaining Settings UI fixes 
 
 2. **Toggle/Switch Functionality**
    - Configuration hooks provide proper state persistence
-   - EnhancedSwitch component provides consistent UI
+   - SettingsSwitch component provides consistent UI
    - Transmission settings now save correctly
 
 3. **Integrations Page Structure**
@@ -38,7 +38,7 @@ This guide provides instructions for completing the remaining Settings UI fixes 
    - Shows folder structure, file name, and full path
 
 2. **Switch Indicator Consistency**
-   - EnhancedSwitch provides visual feedback
+   - SettingsSwitch provides visual feedback
    - Status icons and animated indicators
    - Theme-aware colors
 
@@ -53,7 +53,7 @@ src/hooks/useDelugeConfig.ts
 src/hooks/useSabnzbdConfig.ts
 src/hooks/useNzbgetConfig.ts
 
-// Create fixed components following TransmissionSettingsFixed.tsx pattern:
+// Create fixed components following TransmissionSettings.tsx pattern:
 src/components/settings/downloadClients/DelugeSettingsFixed.tsx
 src/components/settings/downloadClients/SabnzbdSettingsFixed.tsx
 src/components/settings/downloadClients/NzbgetSettingsFixed.tsx
@@ -101,7 +101,7 @@ export function [Component]Fixed() {
   
   return (
     <Box>
-      <EnhancedSwitch
+      <SettingsSwitch
         checked={config.enabled}
         onChange={(e) => updateSetting('enabled', e.currentTarget.checked)}
       />
@@ -121,7 +121,7 @@ export function [Component]Fixed() {
 
 ## Maintenance Guidelines
 1. Always use configuration hooks for settings persistence
-2. Use EnhancedSwitch for consistent toggle UI
+2. Use SettingsSwitch for consistent toggle UI
 3. Wrap components in ErrorBoundary for stability
 4. Test navigation between all settings pages
 5. Run type-check before committing changes

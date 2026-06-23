@@ -96,5 +96,5 @@ The Mugiwara Kaizoku project uses PostgreSQL with Prisma ORM for database manage
 
 ## Related Documentation
 - [Architecture Overview](../architecture/architecture-overview.md)
-- [Prisma Migration Guide](../development/prisma-migration-guide.md)
-- [Testing Database Operations](../testing/database-testing-guide.md)
+- [Prisma Migration Guide](../migration/PRISMA_MIGRATION_GUIDE.md)
+- [Testing Database Operations](../testing/testing-guide.md)

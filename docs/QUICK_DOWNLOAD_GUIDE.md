@@ -101,7 +101,7 @@ Download client error. Check Transmission/Deluge configuration.
                      ↓
 ┌─────────────────────────────────────────────────────────────┐
 │               Backend (tRPC Router)                         │
-│  manga.ts → quickDownloadWithSearch endpoint                │
+│  manga/downloadOperations.ts → quickDownloadWithSearch endpoint                │
 └────────────────────┬────────────────────────────────────────┘
                      │
                      ↓
@@ -264,7 +264,7 @@ src/
 │   │       └── downloadManager.ts       # Download execution
 │   └── trpc/
 │       └── routers/
-│           └── manga.ts                 # tRPC endpoints
+│           └── manga/downloadOperations.ts  # quick-download endpoint
 └── components/
     └── manga/
         └── ChapterList.tsx              # UI components

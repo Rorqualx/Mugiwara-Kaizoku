@@ -213,12 +213,12 @@ When a release doesn't arrive on schedule:
 3. Subscribe to the calendar URL in your calendar app
 4. Updates sync automatically
 
-### API Access
+### Programmatic Access
 
-For developers:
-1. Generate an API key in Settings
-2. Access calendar data via `/api/calendar/events`
-3. See API documentation for endpoints
+Calendar data is served by the `calendar` tRPC router
+(`src/server/trpc/routers/calendar.ts`), with an export handler at
+`calendar/export-handler.ts`. Call it through the typed tRPC client like any other
+router (there is no standalone REST `/api/calendar` endpoint).
 
 ## Privacy & Data
 
