@@ -222,15 +222,15 @@ export type { HttpClient } from './client';
 export { createHttpClient } from './client';
 ```
 
-### Rule 5.2: Relative Imports
-**ALWAYS** use relative imports as specified in CLAUDE.md:
+### Rule 5.2: Path-Alias Imports
+**ALWAYS** use `@/` path-alias imports (enforced by `no-restricted-imports` in `eslint.config.mjs`):
 
 ```typescript
 // ❌ WRONG
-import { trpc } from '@/utils/trpc-client';
+import { trpc } from '../utils/trpc-client/index';
 
 // ✅ CORRECT
-import { trpc } from '../utils/trpc-client/index';
+import { trpc } from '@/utils/trpc-client';
 ```
 
 ### Rule 5.3: Module Existence
@@ -374,7 +374,7 @@ const config: TransmissionConfig = {
 **ALWAYS** run type check before committing:
 
 ```bash
-pnpm type-check
+bun run type-check
 ```
 
 ### Rule 9.2: Fix Type Errors First
@@ -475,12 +475,12 @@ Before committing any code:
 
 - [ ] All IDs converted to correct type when passed to APIs
 - [ ] All Mantine components use v7 props
-- [ ] All tRPC queries use v10 syntax
+- [ ] All tRPC queries use v11 syntax
 - [ ] All imports are type-safe and exist
 - [ ] All AsyncResult usage includes proper type guards
 - [ ] All nullable values handled with optional chaining
 - [ ] All function parameters have explicit types
-- [ ] `pnpm type-check` passes without errors
+- [ ] `bun run type-check` passes without errors
 - [ ] No `any` types without explicit justification
 
 ## Quick Reference

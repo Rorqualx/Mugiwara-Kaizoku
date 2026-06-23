@@ -116,7 +116,7 @@ The release blocklist page shows:
 
 Run the test script to verify functionality:
 ```bash
-pnpm tsx scripts/test-alternative-search.ts
+bun run tsx scripts/test-alternative-search.ts
 ```
 
 This script:

@@ -21,7 +21,7 @@ The application can run in two modes:
 
 ### For Production Use
 ```bash
-pnpm start:production
+bun run start:production
 ```
 - Forces `NODE_ENV=production`
 - Uses `.env.production` if available, falls back to `.env`
@@ -30,14 +30,14 @@ pnpm start:production
 
 ### For Development Use
 ```bash
-pnpm dev
+bun run dev
 ```
 - Runs in development mode with hot reloading
 - Uses nodemon for auto-restart
 - **Recommended for active development**
 
 ```bash
-pnpm start:dev
+bun run start:dev
 ```
 - Forces `NODE_ENV=development`
 - Runs the standalone build (if available)
@@ -45,7 +45,7 @@ pnpm start:dev
 
 ### Generic Start
 ```bash
-pnpm start
+bun run start
 ```
 - Uses environment settings from `.env` file
 - Runs the standalone build (if available)
@@ -60,7 +60,7 @@ pnpm start
 
 ### `.env.production` (Production)
 - Contains `NODE_ENV=production`
-- Used when running `pnpm start:production`
+- Used when running `bun run start:production`
 - Should contain production-safe values
 
 ## Why Different Commands?
@@ -72,13 +72,13 @@ pnpm start
 
 ## Best Practices
 
-1. **Local Development**: Use `pnpm dev`
-2. **Testing Production Build Locally**: Use `pnpm start:production`
-3. **Production Server**: Use `pnpm start:production` with proper `.env.production`
+1. **Local Development**: Use `bun run dev`
+2. **Testing Production Build Locally**: Use `bun run start:production`
+3. **Production Server**: Use `bun run start:production` with proper `.env.production`
 
 ## Troubleshooting
 
 If you see `NODE_ENV=development` when expecting production:
 1. Check which command you're using
-2. Use `pnpm start:production` to force production mode
+2. Use `bun run start:production` to force production mode
 3. Verify `.env.production` exists and has `NODE_ENV=production`

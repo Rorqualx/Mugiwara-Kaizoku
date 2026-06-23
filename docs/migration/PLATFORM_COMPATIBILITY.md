@@ -150,13 +150,13 @@ Error: Cannot find module '@next/swc-darwin-arm64'
 ./scripts/bun/fix-swc-binaries.sh
 ```
 
-#### Issue 2: pnpm Virtual Store Symlinks
+#### Issue 2: bun run Virtual Store Symlinks
 
-**Scenario**: Using pnpm with Bun
+**Scenario**: Using bun run with Bun
 
 **Symptom**: Next.js cannot find SWC binary despite it being installed.
 
-**Cause**: pnpm uses virtual store with symlinks. Next.js expects SWC binary in specific location relative to Next.js package.
+**Cause**: bun run uses virtual store with symlinks. Next.js expects SWC binary in specific location relative to Next.js package.
 
 **Solution**: Auto-fix creates correct symlinks:
 ```bash
@@ -165,8 +165,8 @@ Error: Cannot find module '@next/swc-darwin-arm64'
 
 **Manual fix** (if needed):
 ```bash
-# Find Next.js in pnpm virtual store
-NEXT_PATH=$(find node_modules/.pnpm -name "next@14.1.0*" -type d | head -1)
+# Find Next.js in bun run virtual store
+NEXT_PATH=$(find node_modules/.bun run -name "next@14.1.0*" -type d | head -1)
 
 # Create symlink to SWC binary
 cd "$NEXT_PATH/node_modules/@next"
@@ -185,7 +185,7 @@ ln -s "../../../../@next/swc-darwin-arm64" "swc-darwin-arm64"
 bun add -d @next/swc-darwin-arm64
 
 # With pnpm
-pnpm add -D @next/swc-darwin-arm64
+bun add -D @next/swc-darwin-arm64
 
 # With npm
 npm install --save-dev @next/swc-darwin-arm64
@@ -195,7 +195,7 @@ npm install --save-dev @next/swc-darwin-arm64
 
 ## Package Manager Compatibility
 
-### pnpm (Recommended for Node.js)
+### bun run (Recommended for Node.js)
 
 **Version**: 10.7.1+
 
@@ -211,7 +211,7 @@ npm install --save-dev @next/swc-darwin-arm64
 **Setup**:
 ```bash
 npm install -g pnpm@10.7.1
-pnpm install
+bun install
 ```
 
 **With Bun**:
@@ -259,7 +259,7 @@ bun --bun run dev
 - Flat node_modules structure (less symlink issues)
 
 **Cons**:
-- Slower than pnpm and Bun
+- Slower than bun run and Bun
 - Larger disk usage
 
 **Setup**:
@@ -278,7 +278,7 @@ npm run dev
 - Workspaces support
 
 **Cons**:
-- Slower than pnpm and Bun
+- Slower than bun run and Bun
 - Yarn Berry (2.x+) not yet tested
 
 **Setup**:
@@ -517,7 +517,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 | "Cannot find module '@next/swc-*'" | Run `./scripts/bun/fix-swc-binaries.sh` |
 | "Bun not found" | Add `export PATH="$HOME/.bun/bin:$PATH"` |
 | Build fails with SWC error | Delete node_modules, run `bun install` |
-| pnpm symlink issues | Run fix script, restart dev server |
+| bun run symlink issues | Run fix script, restart dev server |
 
 ### Getting Help
 
@@ -539,7 +539,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 
 2. **Use recommended package managers**:
    - Bun for fastest experience
-   - pnpm for Node.js compatibility
+   - bun run for Node.js compatibility
 
 3. **Test locally before CI**:
    ```bash
@@ -560,7 +560,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 
 2. **Cache package managers**:
    - Bun: `~/.bun/install/cache`
-   - pnpm: `pnpm store path`
+   - pnpm: `bun run store path`
    - npm: `npm config get cache`
 
 3. **Test matrix strategically**:
@@ -580,7 +580,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 
 ### Full Compatibility Matrix
 
-| OS | Arch | Bun | pnpm | npm | yarn | Docker | Status |
+| OS | Arch | Bun | bun run | npm | yarn | Docker | Status |
 |----|------|-----|------|-----|------|--------|--------|
 | macOS 14 | ARM64 | ✅ | ✅ | ✅ | ✅ | N/A | Fully Tested |
 | macOS 14 | x64 | ✅ | ✅ | ✅ | ✅ | N/A | Fully Tested |

@@ -22,7 +22,7 @@ To run the development environment with all patches applied:
 ./scripts/run-patched-dev.sh
 
 # Access the application
-# Open http://localhost:3002 in your browser
+# Open http://localhost:3000 in your browser
 ```
 
 ## Common Issues and Solutions

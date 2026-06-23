@@ -120,7 +120,7 @@ bun install
 Error: ENOENT: no such file or directory, stat 'node_modules/.pnpm/node_modules/@next/swc-darwin-arm64'
 ```
 
-**Meaning**: pnpm virtual store symlink is broken.
+**Meaning**: bun run virtual store symlink is broken.
 
 **Quick Fix**:
 ```bash
@@ -158,11 +158,11 @@ file $(which bun)     # Shows arm64
 
 ---
 
-### Cause 2: pnpm Virtual Store Symlinks
+### Cause 2: bun run Virtual Store Symlinks
 
-**Scenario**: Using pnpm with Bun.
+**Scenario**: Using bun run with Bun.
 
-**How pnpm works**:
+**How bun run works**:
 ```
 node_modules/
   .pnpm/
@@ -179,7 +179,7 @@ node_modules/
     swc-darwin-arm64/  # Actual binary installed here
 ```
 
-**Problem**: Next.js (inside .pnpm) looks for SWC binary relative to itself, but pnpm places it outside the virtual store.
+**Problem**: Next.js (inside .pnpm) looks for SWC binary relative to itself, but bun run places it outside the virtual store.
 
 **Fix**: Create symlink in virtual store:
 ```bash
@@ -221,7 +221,7 @@ bun add -d "$REQUIRED_SWC"
 ```bash
 rm -rf node_modules
 rm bun.lockb  # or pnpm-lock.yaml, package-lock.json
-bun install   # or pnpm install, npm install
+bun install   # or bun install, npm install
 ```
 
 ---
@@ -270,7 +270,7 @@ rm -rf node_modules
 rm bun.lockb pnpm-lock.yaml package-lock.json yarn.lock
 
 # 2. Reinstall
-bun install  # or pnpm install, npm install
+bun install  # or bun install, npm install
 
 # 3. Verify
 ./scripts/bun/platform-detect.sh
@@ -335,11 +335,11 @@ ls -la "node_modules/$REQUIRED_SWC/next-swc.node"
 ### Step 3: Check for Symlink Issues (pnpm)
 
 ```bash
-# Find Next.js in pnpm virtual store
-find node_modules/.pnpm -name "next@14.1.0*" -type d
+# Find Next.js in bun run virtual store
+find node_modules/.bun run -name "next@14.1.0*" -type d
 
 # Check symlinks in virtual store
-NEXT_PNPM=$(find node_modules/.pnpm -name "next@14.1.0*" -type d | head -1)
+NEXT_PNPM=$(find node_modules/.bun run -name "next@14.1.0*" -type d | head -1)
 ls -la "$NEXT_PNPM/node_modules/@next/"
 ```
 
@@ -396,11 +396,11 @@ Error: Cannot find module '@next/swc-darwin-arm64'
 
 ## Manual Fixes
 
-### Manual Fix 1: Create pnpm Symlink
+### Manual Fix 1: Create bun run Symlink
 
 ```bash
 # 1. Find Next.js in virtual store
-NEXT_PNPM=$(find node_modules/.pnpm -name "next@14.1.0*" -type d | head -1)
+NEXT_PNPM=$(find node_modules/.bun run -name "next@14.1.0*" -type d | head -1)
 
 # 2. Detect required SWC binary
 REQUIRED_SWC=$(./scripts/bun/platform-detect.sh --json | grep requiredSwcBinary | cut -d'"' -f4)
@@ -550,7 +550,7 @@ export PATH="/usr/local/bin:$PATH"
 
 ### Linux ARM64 + pnpm
 
-**Problem**: pnpm symlinks more complex on ARM64.
+**Problem**: bun run symlinks more complex on ARM64.
 
 **Fix**: Use auto-fix script (handles ARM-specific paths):
 ```bash

@@ -7,7 +7,7 @@
 
 ## Overview
 
-Comprehensive guide for integrating download clients including qBittorrent, Transmission, NZBGet, Deluge, and others.
+Comprehensive guide for the download clients integrated by the app: Transmission, Deluge, NZBGet, and SABnzbd.
 
 ## Cleanup Record (August 2025)
 
@@ -35,10 +35,8 @@ Comprehensive guide for integrating download clients including qBittorrent, Tran
 ## Supported Clients
 
 ### BitTorrent Clients
-- qBittorrent
 - Transmission
 - Deluge
-- ruTorrent
 
 ### Usenet Clients
 - NZBGet

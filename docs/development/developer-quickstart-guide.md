@@ -30,9 +30,9 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
 ### Prerequisites
 
 - Node.js 20+ (as specified in package.json engines)
-- pnpm (required, other package managers are not supported)
+- bun run (required, other package managers are not supported)
 - Docker (for database and development environment)
-- Java 11+ (for Suwayomi integration - optional)
+- Java 21+ (for the bundled Suwayomi engine)
 - [mangal](https://github.com/metafates/mangal) (for downloading manga)
 
 ### First-Time Setup
@@ -45,7 +45,7 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
 
 2. Install dependencies:
    ```bash
-   pnpm i
+   bun run i
    ```
 
 3. Create a `.env` file in the project root:
@@ -65,12 +65,12 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
    NEXTAUTH_SESSION_MAX_AGE=2592000
 
    # Optional: Suwayomi integration status
-   DISABLE_SUWAYOMI=true  # Set to false if you have Java 11+ installed
+   DISABLE_SUWAYOMI=true  # Set to false if you have Java 21+ installed
    ```
 
 4. After starting the application for the first time, create an admin user:
    ```bash
-   pnpm create-admin
+   bun run create-admin
    ```
 
 ## 3. Running the Application
@@ -79,7 +79,7 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
 
 Start the development server (includes database setup):
 ```bash
-pnpm dev
+bun run dev
 ```
 
 This will automatically:
@@ -93,14 +93,14 @@ The application will be available at [http://localhost:3000](http://localhost:30
 
 ```bash
 # Start without using Docker
-pnpm dev:no-docker
+bun run dev:no-docker
 
 # Start with an existing database (skip setup)
-pnpm dev:skip-db
+bun run dev:skip-db
 
 # Production build and start
-pnpm build
-pnpm start
+bun run build
+bun run start
 ```
 
 ### Troubleshooting
@@ -109,26 +109,26 @@ If you encounter build issues:
 
 ```bash
 # Clean build artifacts
-pnpm clean
+bun run clean
 
 # Deep clean (caches, logs, build artifacts)
-pnpm deep-clean
+bun run deep-clean
 
 # Full reset (everything including node_modules)
-pnpm reset
+bun run reset
 ```
 
 For database issues:
 
 ```bash
 # Reset the database (completely deletes and recreates it)
-pnpm reset:db
+bun run reset:db
 
 # For macOS users (recommended and most reliable on macOS)
-pnpm reset:db:mac
+bun run reset:db:mac
 
 # Reset the database with local PostgreSQL
-pnpm reset:db:local
+bun run reset:db:local
 ```
 
 ## 4. Codebase Structure
@@ -283,7 +283,7 @@ If you encounter authentication problems:
 1. Ensure `NEXTAUTH_URL` is set correctly in your `.env` file
 2. Do not use `0.0.0.0` in `NEXTAUTH_URL` - use `localhost` or your actual IP address
 3. Check that `NEXTAUTH_SECRET` is set
-4. Try creating a new admin user with `pnpm create-admin`
+4. Try creating a new admin user with `bun run create-admin`
 
 See [Authentication Guide](./authentication-guide.md) for more details.
 
@@ -291,10 +291,10 @@ See [Authentication Guide](./authentication-guide.md) for more details.
 
 If the build process fails:
 
-1. Make sure you're using pnpm (not npm or yarn)
-2. Run `pnpm clean` to remove build artifacts
+1. Make sure you're using bun run (not npm or yarn)
+2. Run `bun run clean` to remove build artifacts
 3. Check for TypeScript errors with `npm run type-check`
-4. Ensure all dependencies are installed with `pnpm i`
+4. Ensure all dependencies are installed with `bun run i`
 
 ### Getting Help
 

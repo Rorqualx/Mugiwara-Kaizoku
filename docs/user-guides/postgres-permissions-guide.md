@@ -46,13 +46,13 @@ sudo ./scripts/database/fix-postgres-permissions.sh
 ### Option 2: Run the build with sudo
 
 ```bash
-sudo pnpm build:clean
+sudo bun run build:clean
 ```
 
 or
 
 ```bash
-sudo pnpm dev
+sudo bun run dev
 ```
 
 ### Option 3: Manual PostgreSQL commands
@@ -106,7 +106,7 @@ After applying any of the fixes above, you can verify that the permissions are c
 1. Running the build again:
 
 ```bash
-pnpm build:clean
+bun run build:clean
 ```
 
 2. Or trying to connect to the database directly:

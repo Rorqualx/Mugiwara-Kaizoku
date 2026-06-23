@@ -202,13 +202,13 @@ If you continue to experience permission issues:
 1. Try running the build or development script with sudo:
 
 ```bash
-sudo pnpm build:clean
+sudo bun run build:clean
 ```
 
 or
 
 ```bash
-sudo pnpm dev
+sudo bun run dev
 ```
 
 2. Check the system logs for more detailed error information:

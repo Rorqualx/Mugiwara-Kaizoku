@@ -120,7 +120,7 @@ await blocklistService.blockRelease({
 
 Run the test script to verify the integration:
 ```bash
-pnpm tsx scripts/test-blocklist-integration.ts
+bun run tsx scripts/test-blocklist-integration.ts
 ```
 
 This script will:

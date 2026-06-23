@@ -338,7 +338,7 @@ export function useTRPCQuery<TData, TError>(
 1. **Replace ALL `isPending` with `isLoading`**
    ```bash
    # Run migration script
-   pnpm run migrate:state-management
+   bun run migrate:state-management
    ```
 
 2. **Fix race conditions in search components**

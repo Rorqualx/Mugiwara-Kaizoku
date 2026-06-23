@@ -169,7 +169,7 @@ declare module '@mantine/core' {
 
 ### src/types/trpc.d.ts
 ```typescript
-// tRPC v10 type enhancements
+// tRPC v11 type enhancements
 import { UseTRPCQueryResult } from '@trpc/react-query';
 
 declare module '@trpc/react-query' {
@@ -247,7 +247,7 @@ Add these scripts to `package.json`:
 Install and configure type coverage:
 
 ```bash
-pnpm add -D typescript-coverage-report
+bun add -D typescript-coverage-report
 ```
 
 Add to `package.json`:
@@ -271,11 +271,11 @@ Add to your GitHub Actions workflow:
 
 ```yaml
 - name: Type Check
-  run: pnpm type-check
+  run: bun run type-check
   
 - name: Type Coverage
-  run: pnpm type-coverage
+  run: bun run type-coverage
   
 - name: Lint Types
-  run: pnpm lint:types
+  run: bun run lint:types
 ```

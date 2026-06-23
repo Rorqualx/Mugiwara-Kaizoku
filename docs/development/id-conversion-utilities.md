@@ -19,7 +19,7 @@ One of the major sources of TypeScript errors in the codebase was inconsistent h
 
 ## Implementation
 
-We created a centralized utility file (`src/utils/id-conversion.ts`) that provides type-safe functions for working with IDs. This ensures consistent ID handling throughout the application.
+We created a centralized utility file (`src/utils/id-converters.ts`) that provides type-safe functions for working with IDs. This ensures consistent ID handling throughout the application.
 
 ### Key Features
 
@@ -62,7 +62,7 @@ export function isValidId(id: unknown): id is EntityId {
 /**
  * Safely converts a value to a numeric ID
  */
-export function toNumericId(id: unknown): number {
+export function toNumberId(id: unknown): number {
   if (typeof id === 'number' && !isNaN(id)) {
     return id;
   }
@@ -157,7 +157,7 @@ if (isValidId(id)) {
 
 ```typescript
 // Convert an ID to a number safely
-const numericId = toNumericId(mangaId);
+const numericId = toNumberId(mangaId);
 if (numericId > 0) {
   // Safe to use as a number
   await api.getManga(numericId);

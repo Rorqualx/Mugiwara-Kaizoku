@@ -13,9 +13,9 @@ Documentation for CLAUDE
 
 ## CRITICAL BUILD RULE
 
-**THERE IS ONLY ONE BUILD COMMAND**: `pnpm build:clean`
+**THERE IS ONLY ONE BUILD COMMAND**: `bun run build:clean`
 
-- **ALWAYS USE**: `pnpm build:clean` for building the application
+- **ALWAYS USE**: `bun run build:clean` for building the application
 - **NEVER USE**: Any other build commands or variations
 - **NEVER CREATE**: New build commands or scripts
 - This is the ONLY authorized build command for this project
@@ -121,11 +121,11 @@ To prevent common TypeScript and build errors, strict development rules have bee
 **Key Rules Summary**:
 1. Always convert IDs with `toNumberId()` when passing to tRPC/Prisma
 2. Use Mantine v7 props (`fw` not `weight`, `gap` not `spacing`)
-3. Use tRPC v10 syntax (`.methodName.useQuery()` not `.query.useQuery()`)
+3. Use tRPC v11 syntax (`.methodName.useQuery()` not `.query.useQuery()`)
 4. Check `mutation.isPending` not `mutation.isLoading`
 5. Use relative imports, not aliases
 6. Handle all AsyncResult states with proper type guards
-7. **ALWAYS run `pnpm type-check` after making any code changes** - Fix all TypeScript errors before proceeding
+7. **ALWAYS run `bun run type-check` after making any code changes** - Fix all TypeScript errors before proceeding
 
 ---
 
@@ -610,21 +610,21 @@ If you encounter tRPC-related errors:
 ## Testing Guidelines
 
 1. **TypeScript Verification** (MANDATORY):
-   - **Run `pnpm type-check` after EVERY file modification**
+   - **Run `bun run type-check` after EVERY file modification**
    - Fix ALL TypeScript errors immediately before proceeding
    - Never commit code with type errors
    - Type checking workflow:
      1. Make code changes
-     2. Run `pnpm type-check`
+     2. Run `bun run type-check`
      3. Fix any errors that appear
-     4. Run `pnpm type-check` again to confirm fixes
+     4. Run `bun run type-check` again to confirm fixes
      5. Only then proceed with additional changes
    - Common type check commands:
-     - `pnpm type-check` - Full type checking
-     - `pnpm tsc --noEmit --watch` - Watch mode for continuous checking
+     - `bun run type-check` - Full type checking
+     - `bun run tsc --noEmit --watch` - Watch mode for continuous checking
 
 2. **Functional Testing**:
-   - Test functionality with `pnpm dev` after making changes
+   - Test functionality with `bun run dev` after making changes
    - Verify that your changes work as expected in the UI
    - Check browser console for runtime errors
 
@@ -632,7 +632,7 @@ If you encounter tRPC-related errors:
    - Follow existing test patterns in `src/hooks/__tests__/`
    - Create test files with the same name as the file being tested
    - Use descriptive test names that explain what is being tested
-   - Run tests with `pnpm test`
+   - Run tests with `bun run test`
 
 ## Database and Caching Policy
 
@@ -732,11 +732,11 @@ Categorize errors to handle appropriately:
 - **Fatal**: Missing dependencies, corrupt data (stop)
 
 ### Database Commands
-- `pnpm db:reset:dev` - Reset development database using schema recreation
-- `pnpm db:fix-account` - Fix account table issues
-- `pnpm generate` - Generate Prisma client
+- `bun run db:reset:dev` - Reset development database using schema recreation
+- `bun run db:fix-account` - Fix account table issues
+- `bun run generate` - Generate Prisma client
 - `npx prisma db push` - Push schema changes (development)
-- `pnpm db:studio` - Open Prisma Studio
+- `bun run db:studio` - Open Prisma Studio
 
 ## Authentication System
 
@@ -850,7 +850,7 @@ When creating new files, follow these guidelines:
 
 **CRITICAL RULE**: There is only ONE build command that must be used:
 
-- `pnpm build:clean` - The ONLY build command to be used for building the application
+- `bun run build:clean` - The ONLY build command to be used for building the application
 
 **DO NOT USE** any other build commands such as:
 - ❌ `npm run build:smart`
@@ -860,17 +860,17 @@ When creating new files, follow these guidelines:
 
 **MANDATORY TYPE CHECKING WORKFLOW**:
 1. Before ANY commit or after ANY code change:
-   - Run `pnpm type-check`
+   - Run `bun run type-check`
    - Fix ALL errors before proceeding
-   - Run `pnpm type-check` again to verify
-2. Use `pnpm tsc --noEmit --watch` in a separate terminal for real-time type checking
+   - Run `bun run type-check` again to verify
+2. Use `bun run tsc --noEmit --watch` in a separate terminal for real-time type checking
 
 Other available commands for development:
-- `pnpm dev` - Start the development server
-- `pnpm type-check` - **Run TypeScript checks (MANDATORY after changes)**
-- `pnpm test` - Run unit tests
-- `pnpm lint` - Run linting checks
-- `pnpm tsc --noEmit --watch` - Watch mode for continuous type checking
+- `bun run dev` - Start the development server
+- `bun run type-check` - **Run TypeScript checks (MANDATORY after changes)**
+- `bun run test` - Run unit tests
+- `bun run lint` - Run linting checks
+- `bun run tsc --noEmit --watch` - Watch mode for continuous type checking
 
 **Note**: Always use `pnpm` as the package manager, not `npm`.
 
@@ -1752,13 +1752,13 @@ function MangaDetailPage() {
 
 ```bash
 # 1. Type check (0 errors)
-✅ pnpm type-check
+✅ bun run type-check
 
 # 2. Linting (max 10 warnings)
-✅ pnpm lint
+✅ bun run lint
 
 # 3. Unit tests (all passing)
-✅ pnpm test
+✅ bun run test
 
 # 4. No console.log statements
 ✅ git diff --cached | grep -i "console\\.log" && exit 1
@@ -2172,9 +2172,9 @@ Located in `.husky/pre-commit`:
 4. ✅ Add JSDoc to exports
 
 ### Before Committing
-1. ✅ Run `pnpm type-check` (0 errors)
-2. ✅ Run `pnpm lint` (max 10 warnings)
-3. ✅ Run `pnpm test` (all passing)
+1. ✅ Run `bun run type-check` (0 errors)
+2. ✅ Run `bun run lint` (max 10 warnings)
+3. ✅ Run `bun run test` (all passing)
 4. ✅ Review changes for console.log
 5. ✅ Verify tests added/updated
 

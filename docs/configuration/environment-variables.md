@@ -42,22 +42,12 @@ The following environment variables are required for the application to function
 |----------|-------------|---------------|-------|
 | `KAIZOKU_PORT` | The port on which the application server will run | `3000` | Used by Next.js server and health checks |
 | `NODE_ENV` | The environment mode (development/production) | `development` | Affects build process and runtime behavior |
-| `DATABASE_URL` | The PostgreSQL connection string | `postgresql://postgres:kaizoku@localhost:5432/kaizoku` | Used by Prisma ORM and application |
+| `DATABASE_URL` | The PostgreSQL connection string | `postgresql://kaizoku:kaizoku@localhost:5432/kaizoku` | Used by Prisma ORM and application |
 | `NEXTAUTH_URL` | The base URL of your application | `http://localhost:3000` | Used by NextAuth for callbacks - must match how you access the site in browser |
-| `NEXTAUTH_SECRET` | Secret key for encrypting tokens | `this-is-a-local-secret-key-change-in-production` | **Required in production** |
-| `JWT_EXPIRES_IN` | JWT token expiration time in seconds | `2592000` (30 days) | Configures token lifetime |
-| `NEXTAUTH_SESSION_STRATEGY` | Session handling method | `jwt` | Options: `jwt` or `database` |
-| `NEXTAUTH_SESSION_MAX_AGE` | Session maximum age in seconds | `2592000` (30 days) | Controls how long sessions last |
+| `NEXTAUTH_SECRET` | Secret key for encrypting tokens | _(none)_ | **Required in production.** No default; generate with `openssl rand -base64 32`. Placeholder values are rejected in production. |
+| `AUTH_SECRET` | Secondary auth secret | _(none)_ | Generated/managed alongside `NEXTAUTH_SECRET` |
 
-See [Authentication Troubleshooting Guide](./auth-troubleshooting.md) for more details on resolving auth-related issues.
-
-## Automatic Configuration
-
-The application includes several scripts to help manage environment variables:
-
-- `scripts/check-env.sh` - Automatically checks and sets required environment variables
-- `scripts/reset-database.sh` - Resets the database and updates environment variables
-- `scripts/kaizoku.sh` - Runs the check-env script before starting the application
+> The validated env schema lives in `src/env/server.ts`; see `.env.example` for the full annotated list. (`JWT_EXPIRES_IN`, `NEXTAUTH_SESSION_STRATEGY`, and `NEXTAUTH_SESSION_MAX_AGE` are **not** used by this project.)
 
 ## Manual Configuration
 
@@ -69,28 +59,20 @@ KAIZOKU_PORT=3000
 NODE_ENV=development
 
 # Database settings
-DATABASE_URL="postgresql://postgres:kaizoku@localhost:5432/kaizoku"
+DATABASE_URL="postgresql://kaizoku:kaizoku@localhost:5432/kaizoku"
 
 # NextAuth settings
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=this-is-a-local-secret-key-change-in-production
-JWT_EXPIRES_IN=2592000
-NEXTAUTH_SESSION_STRATEGY=jwt
-NEXTAUTH_SESSION_MAX_AGE=2592000
+# Generate with: openssl rand -base64 32
+NEXTAUTH_SECRET=
+AUTH_SECRET=
 # For network access from other devices, uncomment and update with your IP address:
 # NEXTAUTH_URL=http://192.168.X.X:3000
-
-# Optional: Suwayomi integration status
-DISABLE_SUWAYOMI=true  # Set to false if you have Java 11+ installed
 ```
 
 ## Troubleshooting
 
-If you encounter the error `Required environment variable KAIZOKU_PORT is not set`, it means your `.env` file is missing the KAIZOKU_PORT variable. You can fix this by:
-
-1. Running the check-env script: `./scripts/check-env.sh`
-2. Manually adding the variable to your `.env` file: `KAIZOKU_PORT=3000`
-3. Using the kaizoku.sh script to start the application: `./scripts/kaizoku.sh dev`
+If you encounter the error `Required environment variable KAIZOKU_PORT is not set`, it means your `.env` file is missing the KAIZOKU_PORT variable. Add it to your `.env`: `KAIZOKU_PORT=3000` (anything not set falls back to the defaults validated in `src/env/server.ts`).
 
 ## Advanced Configuration
 

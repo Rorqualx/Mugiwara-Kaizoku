@@ -637,7 +637,7 @@ SWC is a Rust-based compiler used by Next.js. It's a native binary that varies b
 1. Detects your platform
 2. Determines required SWC binary
 3. Installs missing binary
-4. Fixes broken symlinks (pnpm virtual store)
+4. Fixes broken symlinks (bun run virtual store)
 5. Validates installation
 
 #### SWC Troubleshooting Tools
@@ -717,7 +717,7 @@ Before starting development:
 
 #### macOS ARM64 + Rosetta 2 + pnpm
 
-**Issue**: Broken SWC binary symlinks in pnpm virtual store.
+**Issue**: Broken SWC binary symlinks in bun run virtual store.
 
 **Auto-fix**: `./.claude/hooks/check-bun-compatibility.sh`
 

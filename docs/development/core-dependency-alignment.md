@@ -21,11 +21,11 @@ The project has been updated to ensure consistent versions of core dependencies 
 
 ### React and Next.js Ecosystem
 
-- **React 19.0.0**: Latest major version of React
-- **React DOM 19.0.0**: Matching React DOM version
-- **Next.js 15.2.3**: Latest version of Next.js compatible with React 19
-- **@types/react 19.0.12**: Type definitions for React 19
-- **@types/react-dom 19.0.4**: Type definitions for React DOM 19
+- **React 18.2.0**: Latest major version of React
+- **React DOM 18.2.0**: Matching React DOM version
+- **Next.js 14.1.0**: Latest version of Next.js compatible with React 18 (project pins React 18)
+- **@types/react 18.3.23**: Type definitions for React 18
+- **@types/react-dom 18.3.7**: Type definitions for React DOM 19
 
 ### tRPC Ecosystem
 
@@ -55,8 +55,8 @@ The `resolutions` field in `package.json` was updated to enforce consistent vers
 
 ```json
 "resolutions": {
-  "@types/react": "19.0.12",
-  "@types/react-dom": "19.0.4",
+  "@types/react": "18.3.23",
+  "@types/react-dom": "18.3.7",
   "@types/node": "22.13.11",
   "typescript": "5.8.2",
   "@mantine/core": "7.17.2",
@@ -66,9 +66,9 @@ The `resolutions` field in `package.json` was updated to enforce consistent vers
   "@trpc/react-query": "11.0.0",
   "@trpc/server": "11.0.0",
   "@tanstack/react-query": "5.69.0",
-  "react": "19.0.0",
-  "react-dom": "19.0.0",
-  "next": "15.2.3",
+  "react": "18.2.0",
+  "react-dom": "18.2.0",
+  "next": "14.1.0",
   "superjson": "2.2.2"
 }
 ```
@@ -95,9 +95,9 @@ The tRPC client configuration was updated to be compatible with tRPC v11:
 - The transformer is now specified in the link configuration, not at the root level
 - The `createTRPCNext` configuration structure has changed
 
-### React 19 Type Compatibility
+### React 18 Type Compatibility
 
-- Some third-party components may not yet have type definitions for React 19
+- Some third-party components may not yet have type definitions for React 18
 - When encountering such issues, use type assertions or create custom type declarations
 
 ## Dependency Update Process
@@ -106,6 +106,6 @@ When updating dependencies in the future:
 
 1. Check compatibility between React, Next.js, and tRPC versions
 2. Update the `resolutions` field in package.json
-3. Run `pnpm install` to apply the resolutions
+3. Run `bun install` to apply the resolutions
 4. Test thoroughly, especially components using tRPC hooks
 5. Run type checking to identify and fix any type errors

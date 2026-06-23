@@ -18,7 +18,7 @@ This guide provides practical instructions for implementing the fixes outlined i
 ### Prerequisites
 
 1. Ensure you have the latest repository code
-2. Install required dependencies: `pnpm install`
+2. Install required dependencies: `bun install`
 3. Familiarize yourself with the TypeScript error correction plan
 4. Read the TypeScript error patterns document
 
@@ -45,7 +45,7 @@ This guide provides practical instructions for implementing the fixes outlined i
 
 3. Run the type checking command to see current errors:
    ```bash
-   pnpm typecheck
+   bun run typecheck
    ```
 
 ## Implementation Process
@@ -447,17 +447,17 @@ After implementing fixes:
 
 1. Run type checking:
    ```bash
-   pnpm typecheck
+   bun run typecheck
    ```
 
 2. Run unit tests:
    ```bash
-   pnpm test
+   bun run test
    ```
 
 3. Run the application locally:
    ```bash
-   pnpm dev
+   bun run dev
    ```
 
 4. Verify no regressions in functionality

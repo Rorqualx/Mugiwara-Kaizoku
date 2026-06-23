@@ -317,7 +317,7 @@ Property 'isLoading' does not exist
 
 **Solution:**
 ```typescript
-// ❌ Wrong - tRPC v10 syntax
+// ❌ Wrong - tRPC v11 syntax
 const { isLoading } = trpc.manga.getAll.useQuery();
 
 // ✅ Correct - tRPC v11 syntax

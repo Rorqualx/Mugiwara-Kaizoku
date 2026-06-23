@@ -96,8 +96,8 @@ This enables all of the following settings:
 
 The project includes several scripts to help with TypeScript development:
 
-- `pnpm type-check`: Run TypeScript type checking with `tsc --noEmit`
-- `pnpm build`: TypeScript compilation as part of the build process
+- `bun run type-check`: Run TypeScript type checking with `tsc --noEmit`
+- `bun run build`: TypeScript compilation as part of the build process
 
 ## Type Definitions and Type Safety Features
 
@@ -241,7 +241,7 @@ The project follows these type safety best practices:
 
 If you encounter TypeScript errors:
 
-1. **Run Type Check**: Use `pnpm type-check` to identify errors
+1. **Run Type Check**: Use `bun run type-check` to identify errors
 2. **Check Type Guards**: Ensure type guards are properly implemented
 3. **Verify Discriminated Unions**: Make sure discriminated unions are correctly typed
 4. **Validate Null Handling**: Check for proper null/undefined handling

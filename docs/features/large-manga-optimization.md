@@ -20,10 +20,10 @@ Manga series like One Piece (1000+ chapters) and Detective Conan (1100+ chapters
 
 ### 1. Configurable Chapter Limits
 
-**Location**: `src/server/trpc/routers/manga.ts:81`
+**Location**: `src/server/trpc/routers/manga/shared.ts`
 
 ```typescript
-const DEFAULT_CHAPTER_LIMIT = 500;
+const DEFAULT_CHAPTER_LIMIT = 0; // 0 = no limit (load all chapters)
 
 function createMangaRelations(chapterLimit?: number) {
   return {
@@ -326,7 +326,7 @@ await prisma.$executeRaw`
 - **Hook**: `src/hooks/useChapterPagination.ts`
 - **Virtual List**: `src/components/manga/VirtualChapterList.tsx`
 - **Load More UI**: `src/components/manga/LoadMoreChapters.tsx`
-- **Router Updates**: `src/server/trpc/routers/manga.ts:73-105`
+- **Router Updates**: `src/server/trpc/routers/manga/shared.ts`
 - **Page Integration**: `src/pages/manga/[id].tsx` (integration example above)
 
 ## Testing
@@ -345,7 +345,7 @@ await prisma.$executeRaw`
 
 ```bash
 # Run Lighthouse audit
-pnpm lighthouse http://localhost:3000/manga/1
+bun run lighthouse http://localhost:3000/manga/1
 
 # Expected scores:
 # Performance: > 90

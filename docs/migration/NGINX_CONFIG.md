@@ -85,7 +85,7 @@ upstream kaizoku_bun {
     # Multiple instances (if using PM2 or similar)
     # server localhost:3000 weight=1;
     # server localhost:3001 weight=1;
-    # server localhost:3002 weight=1;
+    # server localhost:3000 weight=1;
 
     # Health check (requires nginx-plus or custom module)
     # health_check interval=10s fails=3 passes=2;
@@ -343,7 +343,7 @@ upstream kaizoku_bun {
 
     server localhost:3000 weight=1 max_fails=3 fail_timeout=30s;
     server localhost:3001 weight=1 max_fails=3 fail_timeout=30s;
-    server localhost:3002 weight=1 max_fails=3 fail_timeout=30s;
+    server localhost:3000 weight=1 max_fails=3 fail_timeout=30s;
 
     keepalive 32;
 }

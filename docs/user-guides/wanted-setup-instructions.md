@@ -21,13 +21,13 @@ First, ensure your database has the new tables:
 
 ```bash
 # Generate Prisma client with new models
-pnpm generate
+bun run generate
 
 # Push schema to database (creates new tables)
-pnpm wanted:setup
+bun run wanted:setup
 
 # OR manually run:
-pnpm exec prisma db push
+bunx prisma db push
 ```
 
 ### 2. Add Test Data (Optional)
@@ -36,7 +36,7 @@ To see the functionality in action with sample data:
 
 ```bash
 # Seed test data for wanted functionality
-pnpm wanted:seed
+bun run wanted:seed
 ```
 
 This will create:
@@ -48,7 +48,7 @@ This will create:
 
 ```bash
 # Start development server
-pnpm dev
+bun run dev
 ```
 
 ### 4. Access the Wanted Pages
@@ -129,15 +129,15 @@ import { WantedSummaryWidget } from '@/components/wanted/WantedSummaryWidget';
 If the tables aren't created:
 1. Check your DATABASE_URL in .env
 2. Ensure PostgreSQL is running
-3. Run `pnpm generate` then `pnpm exec prisma db push`
+3. Run `bun run generate` then `bunx prisma db push`
 
 ### No Data Showing
-1. Run `pnpm wanted:seed` to add test data
+1. Run `bun run wanted:seed` to add test data
 2. Ensure you have manga in your library first
 3. Check browser console for errors
 
 ### TypeScript Errors
-1. Run `pnpm generate` to update Prisma types
+1. Run `bun run generate` to update Prisma types
 2. Restart TypeScript server in VS Code
 3. Check that all imports use relative paths
 

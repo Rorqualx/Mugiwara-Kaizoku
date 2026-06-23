@@ -38,7 +38,7 @@ A self-hosted manga library manager. Tracks your collection, enriches metadata f
 
 ## Tech stack
 
-Next.js 14 · React 18 · Mantine v7 · TanStack Query · Zustand · tRPC v11 · Prisma 6 · PostgreSQL · Socket.io · Pino · Bun 1.3
+Next.js 14 · React 18 · Mantine v7 · TanStack Query · Zustand · tRPC v11 · Prisma 7 · PostgreSQL · Socket.io · Pino · Bun 1.3
 
 ## Prerequisites
 

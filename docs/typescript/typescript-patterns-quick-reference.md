@@ -186,4 +186,4 @@ const [formState, setFormState] = useState<FormState>({
 - Provide meaningful error messages
 - Initialize state with proper types
 - Document complex types with JSDoc
-- Test type safety with `pnpm type-check`
+- Test type safety with `bun run type-check`

@@ -610,3 +610,6 @@ scripts/surveys/.*
 # Python bytecode (cover-layer sidecar)
 __pycache__/
 *.pyc
+
+# Local-only contributor guide (not tracked)
+/CLAUDE.md

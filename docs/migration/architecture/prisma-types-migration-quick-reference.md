@@ -74,7 +74,7 @@ grep -r "prismaTypes" src/ --include="*.ts" --include="*.tsx" | grep -v ".bak"
 3. **Find replacements**: Use the mapping table above
 4. **Fix paths**: Ensure relative paths are correct
 5. **Handle complex types**: Some may need special consideration
-6. **Test**: Run `pnpm type-check` after changes
+6. **Test**: Run `bun run type-check` after changes
 
 ### Common Issues
 
@@ -87,13 +87,13 @@ grep -r "prismaTypes" src/ --include="*.ts" --include="*.tsx" | grep -v ".bak"
 
 ```bash
 # Check types
-pnpm type-check
+bun run type-check
 
 # Find remaining imports
 grep -r "prismaTypes" src/ --include="*.ts" --include="*.tsx"
 
 # Test build
-pnpm build:clean
+bun run build:clean
 ```
 
 ## 🚨 Remember

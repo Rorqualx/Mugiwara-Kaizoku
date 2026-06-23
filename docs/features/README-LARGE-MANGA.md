@@ -94,8 +94,8 @@ src/
 ### Default Settings
 
 ```typescript
-// src/server/trpc/routers/manga.ts
-const DEFAULT_CHAPTER_LIMIT = 500;
+// src/server/trpc/routers/manga/shared.ts
+const DEFAULT_CHAPTER_LIMIT = 0; // 0 = no limit (load all chapters)
 
 // src/hooks/useChapterPagination.ts
 const config = {

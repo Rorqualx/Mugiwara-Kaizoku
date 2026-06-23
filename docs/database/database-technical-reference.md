@@ -50,7 +50,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["jsonProtocol"]
+  previewFeatures = ["partialIndexes"]
 }
 ```
 
@@ -77,7 +77,7 @@ generator client {
 ### Useful Commands
 ```bash
 # Check database size
-SELECT pg_database_size('kapowarr');
+SELECT pg_database_size('kaizoku');
 
 # List all indexes
 SELECT * FROM pg_indexes WHERE schemaname = 'public';

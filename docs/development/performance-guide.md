@@ -97,27 +97,27 @@ The project uses PostgreSQL UNLOGGED tables for high-performance caching.
 #### CacheUnified Table
 
 ```typescript
-// Hot cache for frequently accessed data
-await prisma.cacheUnified.upsert({
-  where: { key: `manga:${id}` },
+// Hot cache for frequently accessed data (model `cache_unified`, snake_case columns)
+await prisma.cache_unified.upsert({
+  where: { cache_key: `manga:${id}` },
   create: {
-    key: `manga:${id}`,
-    value: JSON.stringify(mangaData),
-    expiresAt: new Date(Date.now() + 3600000) // 1 hour TTL
+    cache_key: `manga:${id}`,
+    cache_value: mangaData,                          // Json column
+    expires_at: new Date(Date.now() + 3600000)       // 1 hour TTL
   },
   update: {
-    value: JSON.stringify(mangaData),
-    expiresAt: new Date(Date.now() + 3600000)
+    cache_value: mangaData,
+    expires_at: new Date(Date.now() + 3600000)
   }
 });
 
 // Retrieve from cache
-const cached = await prisma.cacheUnified.findUnique({
-  where: { key: `manga:${id}` }
+const cached = await prisma.cache_unified.findUnique({
+  where: { cache_key: `manga:${id}` }
 });
 
-if (cached && cached.expiresAt > new Date()) {
-  return JSON.parse(cached.value);
+if (cached && cached.expires_at && cached.expires_at > new Date()) {
+  return cached.cache_value;
 }
 ```
 
@@ -130,7 +130,7 @@ function setCacheWithTTL<T>(
   value: T,
   ttlSeconds: number
 ): Promise<void> {
-  return prisma.cacheUnified.upsert({
+  return prisma.cache_unified.upsert({
     where: { key },
     create: {
       key,
@@ -146,7 +146,7 @@ function setCacheWithTTL<T>(
 
 // Get from cache with expiration check
 async function getCacheWithTTL<T>(key: string): Promise<T | null> {
-  const cached = await prisma.cacheUnified.findUnique({
+  const cached = await prisma.cache_unified.findUnique({
     where: { key }
   });
 
@@ -169,7 +169,7 @@ async function updateManga(id: number, data: UpdateMangaInput) {
   });
 
   // Invalidate related caches
-  await prisma.cacheUnified.deleteMany({
+  await prisma.cache_unified.deleteMany({
     where: {
       key: {
         in: [
@@ -364,7 +364,7 @@ function MyApp({ Component, pageProps }: AppProps) {
       defaultOptions: {
         queries: {
           staleTime: 60 * 1000,      // 1 minute
-          cacheTime: 5 * 60 * 1000,  // 5 minutes
+          gcTime: 5 * 60 * 1000,  // 5 minutes
           refetchOnWindowFocus: false
         }
       }
@@ -384,7 +384,7 @@ function MyApp({ Component, pageProps }: AppProps) {
 ```typescript
 // Prefetch on hover
 function MangaCard({ manga }: Props) {
-  const utils = trpc.useContext();
+  const utils = trpc.useUtils();
 
   const handleHover = () => {
     utils.manga.getById.prefetch({ id: manga.id });
@@ -482,24 +482,25 @@ function App() {
 ### Database Query Logging
 
 ```typescript
-// Log slow queries
+// Log slow queries — `$use` middleware was removed in Prisma 5+; use a `$extends` query component
 const slowQueryThreshold = 100; // ms
 
-prisma.$use(async (params, next) => {
-  const before = Date.now();
-  const result = await next(params);
-  const after = Date.now();
-  const duration = after - before;
+const prisma = basePrisma.$extends({
+  query: {
+    $allModels: {
+      async $allOperations({ model, operation, args, query }) {
+        const before = Date.now();
+        const result = await query(args);
+        const duration = Date.now() - before;
 
-  if (duration > slowQueryThreshold) {
-    logger.warn('Slow query detected', {
-      model: params.model,
-      action: params.action,
-      duration
-    });
+        if (duration > slowQueryThreshold) {
+          logger.warn('Slow query detected', { model, operation, duration });
+        }
+
+        return result;
+      }
+    }
   }
-
-  return result;
 });
 ```
 

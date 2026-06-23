@@ -135,7 +135,7 @@ bun install
 
 ## 📊 Performance Comparison
 
-| Metric | npm | pnpm | Bun | Winner |
+| Metric | npm | bun run | Bun | Winner |
 |--------|-----|------|-----|--------|
 | Install time | 120s | 45s | **8s** | **Bun (15x)** |
 | Dev server start | 5s | 4.5s | **2s** | **Bun (2.5x)** |
@@ -155,9 +155,9 @@ bun install                # Install dependencies
 bun add <package>          # Add package
 bun remove <package>       # Remove package
 
-# With pnpm (also supported)
-pnpm install
-pnpm run dev
+# With bun run (also supported)
+bun install
+bun run dev
 
 # With npm (also supported)
 npm install
