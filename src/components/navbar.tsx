@@ -294,8 +294,8 @@ export function KaizokuNavbar(): React.JSX.Element {
                     {isAdmin && (
                       <>
                         <ActiveNavItem icon={<IconFile size={16}/>} label="Log Files" href="/system/logs" nested/>
-                        {/* Annotation: ML dataset editor, dev-builds only. */}
-                        {process.env.NODE_ENV !== 'production' && (
+                        {/* Annotation: ML dataset editor, development builds only. */}
+                        {process.env.NODE_ENV === 'development' && (
                           <ActiveNavItem icon={<IconDatabase size={16}/>} label="Annotation" href="/annotation" nested/>
                         )}
                         <ActiveNavItem icon={<IconUsers size={16}/>} label="Users" href="/system/users" nested/>

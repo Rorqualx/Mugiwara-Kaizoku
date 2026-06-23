@@ -14,7 +14,6 @@ import {
   Group,
   Stack,
   Alert,
-  LoadingOverlay,
   Skeleton,
   Tabs,
   Tooltip,
@@ -32,7 +31,6 @@ import {
   IconArrowForwardUp,
 } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
-import { useSession } from 'next-auth/react';
 import { z } from 'zod';
 
 import { useUndoRedoKeyboard, useToolKeyboard, useElementClickHandler, useUrlClickHandler, useSelectionCreateHandler } from '@/components/annotation/editor-page';
@@ -66,7 +64,6 @@ import { api } from '@/utils/api';
 
 // eslint-disable-next-line complexity, max-statements, max-lines-per-function -- Single page component managing complex annotation UI
 export default function AnnotationEditor(): React.ReactElement {
-  const { data: session, status: authStatus } = useSession();
   const router = useRouter();
   const { pageId } = router.query;
 
@@ -557,18 +554,16 @@ export default function AnnotationEditor(): React.ReactElement {
     setRefetchHtml(false); // Reset after use
   }, [pageId, reprocessMutation, refetchHtml, hasChanges, handleSave]);
 
-  // Access control
+  // Access control: annotation tooling is development-only. Non-dev builds
+  // never reach this page (navbar hides the entry, middleware redirects
+  // /annotation/*); this is the in-page backstop.
   const isDev = process.env.NODE_ENV === 'development';
-  const isAdmin = session?.user?.role === 'ADMIN';
-  const hasAccess = isDev || isAdmin;
 
-  if (authStatus === 'loading') return <LoadingOverlay visible />;
-
-  if (!hasAccess && !session) {
+  if (!isDev) {
     return (
       <Container size="md" py="xl">
-        <Alert icon={<IconAlertCircle size={16} />} title="Access Denied" color="red">
-          You must be an admin to annotate pages.
+        <Alert icon={<IconAlertCircle size={16} />} title="Not available" color="gray">
+          The annotation tools are only available in development builds.
         </Alert>
       </Container>
     );

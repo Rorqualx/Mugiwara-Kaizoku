@@ -33,7 +33,6 @@ import {
   IconChartBar,
 } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
-import { useSession } from 'next-auth/react';
 
 import { PagesTable } from '@/components/annotation';
 import { AddPageCard, BulkImportModal } from '@/features/annotation/components';
@@ -58,22 +57,21 @@ interface AnnotationStats {
 // ============================================================================
 
 export default function AnnotationDashboard(): React.ReactElement {
-  const { data: session, status } = useSession();
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [bulkImportOpened, setBulkImportOpened] = useState(false);
 
-  // Check admin access (bypass in development mode)
+  // Annotation tooling is development-only. Non-dev builds never reach this
+  // page (the navbar hides the entry and middleware redirects /annotation/*);
+  // this gate is the in-page backstop.
   const isDev = process.env.NODE_ENV === 'development';
-  const isAdmin = session?.user?.role === 'ADMIN';
-  const hasAccess = isDev || isAdmin;
 
   // All hooks must be called before any conditional returns
   const utils = api.useUtils();
   const { data: stats, isLoading: statsLoading } = api.annotation.getStats.useQuery(undefined, {
-    enabled: hasAccess || !!session,
+    enabled: isDev,
   });
 
   const handleImportComplete = (): void => {
@@ -93,26 +91,15 @@ export default function AnnotationDashboard(): React.ReactElement {
 
   const displayStats = stats ?? defaultStats;
 
-  // In dev mode, skip auth checks entirely
-  // In prod, wait for session to load and require admin
+  // Development-only tool: every non-dev build is denied here too.
   if (!isDev) {
-    if (status === 'loading') {
-      return (
-        <Container size="xl" py="md">
-          <LoadingOverlay visible />
-        </Container>
-      );
-    }
-
-    if (!isAdmin) {
-      return (
-        <Container size="md" py="xl">
-          <Alert icon={<IconAlertCircle size={16} />} title="Access Denied" color="red">
-            You must be an admin to access the annotation dashboard.
-          </Alert>
-        </Container>
-      );
-    }
+    return (
+      <Container size="md" py="xl">
+        <Alert icon={<IconAlertCircle size={16} />} title="Not available" color="gray">
+          The annotation tools are only available in development builds.
+        </Alert>
+      </Container>
+    );
   }
 
   return (

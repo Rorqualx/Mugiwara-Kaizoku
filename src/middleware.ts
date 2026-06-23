@@ -52,9 +52,8 @@ const USER_ALLOWED_SETTINGS_PATHS = [
 
 // Routes that exist only for ML training-data development. They surface
 // raw annotation editing, quality reports, and dataset exports — useful
-// in dev, but no place in a release build. Returning a redirect to "/"
-// here keeps the routes silently inaccessible without leaking their
-// existence via a 404 page.
+// in dev, but with no place in any non-development build. Gated to
+// NODE_ENV === 'development' below.
 const DEV_ONLY_PATH_PREFIXES = ['/annotation'];
 
 /**
@@ -81,12 +80,15 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.next();
   }
 
-  // Dev-only routes (annotation editor + ML dataset tools) are gated to
-  // NODE_ENV !== 'production'. The corresponding nav entries are hidden
-  // by the navbar; this is the defense-in-depth so direct URL access
-  // can't reach them in a release build either.
+  // Dev-only routes (annotation editor + ML dataset tools) are available
+  // ONLY when NODE_ENV === 'development'. Any other build — production,
+  // test, staging, or an unset NODE_ENV — redirects /annotation/* to "/".
+  // The corresponding nav entries are hidden by the navbar; this is the
+  // defense-in-depth so direct URL access can't reach them either. The
+  // redirect (rather than a 404) keeps the routes silently inaccessible
+  // without leaking their existence.
   if (
-    process.env.NODE_ENV === 'production' &&
+    process.env.NODE_ENV !== 'development' &&
     startsWithAny(pathname, DEV_ONLY_PATH_PREFIXES)
   ) {
     return NextResponse.redirect(new URL('/', req.url));
