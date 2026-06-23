@@ -1,3 +1,0 @@
-$ eslint src --max-warnings=10 --format json
-bun: command not found: eslint
-error: script "lint" exited with code 1
