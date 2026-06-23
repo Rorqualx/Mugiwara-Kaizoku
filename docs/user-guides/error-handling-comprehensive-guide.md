@@ -522,16 +522,16 @@ function UserProfile({ userId }: { userId: string }) {
   
   // Handle each AsyncResult state explicitly
   return handleAsyncResult(userState, {
-    idle: () => <Button onClick={fetchUser}>Load User</Button>,
-    loading: () => <LoadingSpinner />,
-    error: (error) => (
+    onIdle: () => <Button onClick={fetchUser}>Load User</Button>,
+    onLoading: () => <LoadingSpinner />,
+    onError: (error) => (
       <ErrorMessage
         title="Failed to load user"
         message={error.message}
         retry={fetchUser}
       />
     ),
-    success: (user) => (
+    onSuccess: (user) => (
       <UserProfileView user={user} />
     )
   });
@@ -1560,16 +1560,16 @@ function UserProfile({ userId }: { userId: string }) {
   
   // Render with handleAsyncResult
   return handleAsyncResult(userState, {
-    idle: () => <Button onClick={fetchUser}>Load User</Button>,
-    loading: () => <LoadingSpinner />,
-    error: (error) => (
+    onIdle: () => <Button onClick={fetchUser}>Load User</Button>,
+    onLoading: () => <LoadingSpinner />,
+    onError: (error) => (
       <ErrorMessage
         title="Failed to load user"
         message={error.message}
         retry={fetchUser}
       />
     ),
-    success: (user) => (
+    onSuccess: (user) => (
       <UserProfileView user={user} />
     )
   });

@@ -162,7 +162,7 @@ This configuration validation pattern provides several benefits:
 
 See the following adapters for example implementations:
 
-- `src/api/metadataProviders/adapters/anilistAdapter.fixed.ts`
-- `src/api/metadataProviders/adapters/comicvineAdapter.fixed.ts`
-- `src/api/metadataProviders/adapters/fandomAdapter.fixed.ts`
-- `src/api/metadataProviders/adapters/mangadexAdapter.fixed.ts`
+- `src/server/adapters/unified/AniListAdapter.ts`
+- `src/server/adapters/unified-comicvine-adapter.ts`
+- `src/utils/validation/validators/config.ts` (defines `validateConfig` and `createConfigFactory`)
+- `src/utils/integration-adapter.ts` (defines `BaseIntegrationAdapter` and re-exports `BaseIntegrationConfig`)

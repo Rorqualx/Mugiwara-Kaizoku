@@ -106,8 +106,8 @@ The following files have been successfully migrated to use the domain types and 
 2. ✅ `src/server/queue/index.ts` - Using compatibility layer for task type validation 
 3. ✅ `src/server/queue/queueManager.ts` - Modified database queries to handle both uppercase and lowercase formats
 4. ✅ `src/hooks/useDownloadQueue.ts` - Updated to use TaskStatus enum values
-5. ✅ `src/server/trpc/router/tasks.ts` - Using OR conditions to handle both formats in queries
-6. ✅ `src/pages/tasks/active.tsx` - Updated to use domain TaskStatus
+5. ✅ `src/server/trpc/routers/jobs.ts` - Using OR conditions to handle both formats in queries
+6. ✅ `src/pages/jobs/active.tsx` - Updated to use domain TaskStatus
 7. ✅ `src/server/queue/taskHandlers.ts` - Added support for both legacy and domain task types
 
 ### Remaining Files

@@ -58,7 +58,7 @@ type ID = string | number;
 // Always use conversion utilities
 const numId = toNumberId(id);
 const strId = toStringId(id);
-const same = isSameId(id1, id2);
+const same = areIdsEqual(id1, id2);
 ```
 
 ## 5. Component Props Pattern
@@ -99,11 +99,11 @@ function useCustomHook<T>(id: string): UseHookResult<T> {
 ## 7. Import Paths
 
 ```typescript
-// ❌ Avoid in certain contexts
-import { utils } from '@/utils';
-
-// ✅ Use relative paths
+// ❌ Avoid relative paths
 import { utils } from '../../../utils';
+
+// ✅ Use @/ alias imports
+import { utils } from '@/utils';
 ```
 
 ## 8. Error Handling
@@ -171,7 +171,7 @@ const [formState, setFormState] = useState<FormState>({
 - Handle all AsyncResult states
 - Type event handlers explicitly
 - Validate external data before use
-- Use relative imports when needed
+- Use `@/` alias imports (never relative paths)
 - Provide meaningful error messages
 - Initialize state with proper types
 - Document complex types with JSDoc

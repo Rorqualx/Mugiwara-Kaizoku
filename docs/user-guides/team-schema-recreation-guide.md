@@ -53,7 +53,7 @@ npm run generate
 ## Making Schema Changes
 
 1. Edit `prisma/schema-consolidated.prisma` directly
-2. Run `npm run db:reset:dev` to apply changes
+2. Run `bun run db:reset:dev` to apply changes
 3. Test your changes
 4. Commit both `schema-consolidated.prisma` and `schema.prisma`
 
@@ -95,7 +95,7 @@ docker-compose logs -f app
 A: Not for development. Production still uses migrations.
 
 ### Q: What if I get schema conflicts in Git?
-A: Resolve conflicts in `schema-consolidated.prisma`, then run `npm run db:reset:dev`
+A: Resolve conflicts in `schema-consolidated.prisma`, then run `bun run db:reset:dev`
 
 ### Q: Can I keep my development data?
 A: No, `db:reset:dev` recreates the database from scratch. Development data is meant to be disposable.

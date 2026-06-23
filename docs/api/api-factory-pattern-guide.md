@@ -287,7 +287,6 @@ export default createApiRoute({
 interface RouteConfig {
   // Authentication
   requireAuth?: boolean;           // Require authenticated user
-  requireAdmin?: boolean;          // Require admin role
   
   // Permissions (per method)
   permissions?: {
@@ -304,35 +303,21 @@ interface RouteConfig {
     POST?: ZodSchema;    // Request body
     PUT?: ZodSchema;     // Request body
     PATCH?: ZodSchema;   // Request body
-    DELETE?: ZodSchema;  // Query params
     query?: ZodSchema;   // Alternative for query params
   };
   
   // Response handling
   streaming?: boolean;   // Enable streaming responses
   binary?: boolean;      // Enable binary responses
+  rangeRequests?: boolean; // Enable range request support
   
   // Caching
   cache?: {
     maxAge: number;              // Browser cache (seconds)
     sMaxAge?: number;            // CDN cache (seconds)
     staleWhileRevalidate?: number; // SWR time (seconds)
+    mustRevalidate?: boolean;    // Require revalidation after max-age
     private?: boolean;           // Private cache only
-  };
-  
-  // Rate limiting
-  rateLimit?: {
-    windowMs: number;    // Time window in milliseconds
-    max: number;         // Max requests per window
-    message?: string;    // Custom error message
-  };
-  
-  // CORS
-  cors?: {
-    origin?: string | string[] | boolean;
-    methods?: string[];
-    allowedHeaders?: string[];
-    credentials?: boolean;
   };
   
   // Method handlers
@@ -342,8 +327,6 @@ interface RouteConfig {
     PUT?: RouteHandler;
     PATCH?: RouteHandler;
     DELETE?: RouteHandler;
-    HEAD?: RouteHandler;
-    OPTIONS?: RouteHandler;
   };
 }
 ```

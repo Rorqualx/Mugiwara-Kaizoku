@@ -91,17 +91,13 @@ throw 'Error occurred';
 import { logger } from '@/utils/logger';
 
 // Create child logger with context
-const log = logger.child({ 
-  component: 'UserService',
-  userId: user.id 
-});
+const log = logger.child('UserService', { userId: user.id });
 
 // Log levels
 log.debug('Detailed debug information');
 log.info('General information');
 log.warn('Warning conditions');
 log.error('Error conditions', error);
-log.fatal('Fatal errors requiring immediate attention', error);
 ```
 
 ### Logging Patterns
@@ -246,7 +242,7 @@ app.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
 ### React Error Boundaries
 
 ```typescript
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 // Wrap components with error boundary
 <ErrorBoundary
@@ -262,12 +258,12 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 ```typescript
 import { DatabaseError } from '@/utils/errors';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime';
+import { Prisma } from '@prisma/client';
 
 try {
   const user = await prisma.user.create({ data });
 } catch (error) {
-  if (error instanceof PrismaClientKnownRequestError) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
       throw new ConflictError('User already exists', 'user');
     }
@@ -386,10 +382,10 @@ errorHandler.logAndThrow(
 ### Pattern: Child Loggers
 ```typescript
 class UserService {
-  private log = logger.child({ service: 'UserService' });
+  private log = logger.child('UserService');
   
   async createUser(data: CreateUserDto) {
-    const log = this.log.child({ operation: 'createUser' });
+    const log = this.log.child('createUser');
     log.info('Creating user', { email: data.email });
     // ...
   }

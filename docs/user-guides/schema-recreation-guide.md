@@ -14,7 +14,7 @@ Key benefits:
 
 ## How It Works
 
-1. **Consolidated Schema**: All models are defined in a single `schema-consolidated.prisma` file
+1. **Consolidated Schema**: All models are defined in `prisma/schema.prisma`
 2. **Direct SQL for NextAuth Tables**: Creates NextAuth tables directly with SQL statements for reliability
 3. **Prisma Push for Remaining Tables**: Uses `prisma db push` for the rest of the schema
 4. **Environment Detection**: Automatically uses the appropriate approach based on environment
@@ -24,8 +24,6 @@ Key benefits:
 ## Commands
 
 ### Smart Commands (Recommended)
-- `npm run build:smart` - Smart build with auto-repair capabilities
-- `npm run dev:smart` - Smart development server with auto-repair capabilities
 - `npm run smart-run "command"` - Run any command with smart error detection
 
 ### Direct Database Commands
@@ -38,7 +36,6 @@ Key benefits:
 
 ### Build Commands
 - `npm run build:clean` - Full setup including schema recreation
-- `npm run build:clean:fixed` - Fixed build process that uses direct SQL for NextAuth tables
 
 See also: Smart Database System for intelligent self-healing capabilities.
 
@@ -62,8 +59,7 @@ This script:
 - Verifies that all tables are created successfully
 
 #### Alternative Solutions
-- Use the fixed build clean process: `npm run build:clean:fixed`
-- Verify that your consolidated schema includes all NextAuth models (User, Account, Session, VerificationToken)
+- Verify that your schema includes all NextAuth models (User, Account, Session, VerificationToken)
 - Run `npm run db:reset:safe` which includes verification and retry logic
 - Check if your database connection is working properly
 - Try running `npm run db:test:schema` to specifically test table creation
@@ -84,7 +80,7 @@ This script:
 
 **Solution**:
 - Check for syntax errors in your schema.prisma file
-- Verify that you're using the consolidated schema file
+- Verify that `prisma/schema.prisma` is complete and valid
 - Try running `npx prisma db push --force-reset` manually for detailed error messages
 - Run `npm run db:test:schema` to isolate and identify schema issues
 
@@ -149,19 +145,19 @@ For persistent issues:
    npm run db:fix-account  # Use direct SQL fix instead of reset:safe
    ```
 
-6. **Fixed Build Process**:
+6. **Clean Build Process**:
    ```bash
    # Completely clean build with direct SQL fix
-   npm run build:clean:fixed
+   npm run build:clean
    ```
 
 ## Best Practices
 
-1. For the most reliable setup, use `npm run db:fix-account` or `npm run build:clean:fixed`
+1. For the most reliable setup, use `npm run db:fix-account` or `npm run build:clean`
 2. If issues persist, use the direct SQL approach rather than relying solely on Prisma
 3. Always run `npm run db:test:schema` after making schema changes
 4. Document any schema changes in comments
-5. Keep the consolidated schema and individual schemas in sync
+5. Keep the schema (`prisma/schema.prisma`) up to date with all model changes
 6. Use the archiving system to preserve migration history
 7. Follow the verification process for any schema changes
 8. Ensure that all NextAuth tables are defined in your schema

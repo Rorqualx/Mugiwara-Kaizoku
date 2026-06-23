@@ -980,7 +980,7 @@ This led to inconsistent error handling, parameter naming confusion ('path' vs '
 
 We have created a new unified client implementation:
 
-- **Location**: `src/api/prowlarrClient.ts`
+- **Location**: `src/utils/prowlarrApi.ts`
 - **Class**: `ProwlarrClient`
 - **Factory Function**: `createProwlarrClient(config)`
 
@@ -1016,7 +1016,7 @@ We have created a new unified client implementation:
 ### Using the New Client
 
 ```typescript
-import { createProwlarrClient } from '@/api/prowlarrClient';
+import { createProwlarrClient } from '@/utils/prowlarrApi';
 
 // Create client instance
 const client = createProwlarrClient({

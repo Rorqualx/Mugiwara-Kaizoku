@@ -634,7 +634,7 @@ git status
 
 **Issues with security checks:**
 - Check this guide first
-- Review `docs/security/security-guide.md`
+- Review `docs/development/security-guide.md`
 - Ask in team security channel
 - Create issue with `security` label
 

@@ -34,7 +34,7 @@ This guide provides practical instructions for implementing the fixes outlined i
 
 3. Run the type checking command to see current errors:
    ```bash
-   bun run typecheck
+   bun run type-check
    ```
 
 ## Implementation Process
@@ -436,7 +436,7 @@ After implementing fixes:
 
 1. Run type checking:
    ```bash
-   bun run typecheck
+   bun run type-check
    ```
 
 2. Run unit tests:

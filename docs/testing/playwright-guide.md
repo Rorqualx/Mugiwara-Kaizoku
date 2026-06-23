@@ -76,7 +76,7 @@ def login(page):
 - Home (`/`)
 - Library (`/library`)
 - Calendar (`/calendar`)
-- Activity (`/activity`)
+- Activity (`/jobs/active`)
 - Wanted (`/wanted`)
 - System (`/system`)
 - Settings (`/settings`)

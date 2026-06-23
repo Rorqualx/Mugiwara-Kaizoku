@@ -223,7 +223,7 @@ bun --bun run dev
 
 ### Pre-Commit Validation Hook
 
-**Location**: `.claude/hooks/pre-commit-validation.sh`
+**Location**: `.claude/hooks/validate-code-quality.py`
 
 **Triggered by**: `/commit` command
 
@@ -290,7 +290,7 @@ bun run lint
 
 ### File Placement Validator Hook
 
-**Location**: `.claude/hooks/file-placement-validator.sh`
+**Location**: `.claude/hooks/validate-file-placement.sh`
 
 **Triggered by**: `/commit` command
 
@@ -548,15 +548,15 @@ Designed to complete in **<60 seconds**:
 ### Hook Configuration Files
 
 **Commit validation**:
-- `.claude/slash-commands/commit.md`
-- `.claude/hooks/pre-commit-validation.sh`
-- `.claude/hooks/file-placement-validator.sh`
+- `.claude/commands/commit.md`
+- `.claude/hooks/validate-code-quality.py`
+- `.claude/hooks/validate-file-placement.sh`
 
 **Start command**:
-- `.claude/slash-commands/start.md`
+- `.claude/commands/start.md`
 
 **Rules command**:
-- `.claude/slash-commands/rules.md`
+- `.claude/commands/rules.md`
 
 **Server management**:
 - `.claude/hooks/restart-dev-server.sh`

@@ -18,7 +18,9 @@ The Prowlarr integration follows a standardized API-based approach:
 
 - `src/utils/prowlarrApi.ts`: Central utility functions for Prowlarr communication
 - `src/pages/api/prowlarr.ts`: API endpoint for proxying requests to Prowlarr
-- `src/contexts/ProwlarrContext.tsx`: React context for managing Prowlarr state and access
+- `src/components/settings/indexers/hooks/useProwlarrConfig.ts`: Hook for managing Prowlarr configuration state
+- `src/components/settings/indexers/hooks/useProwlarrIndexers.ts`: Hook for fetching Prowlarr indexers
+- `src/server/services/prowlarr/`: Server-side Prowlarr service modules
 
 ## Configuration
 
@@ -57,23 +59,18 @@ await prowlarrClient.getIndexers();
 await prowlarrClient.testConnection();
 ```
 
-#### Using the Context Hook
+#### Using the Prowlarr Hooks
 
 ```typescript
-import { useProwlarr } from '@/contexts/ProwlarrContext';
+import { useProwlarrConfig } from '@/components/settings/indexers/hooks/useProwlarrConfig';
+import { useProwlarrIndexers } from '@/components/settings/indexers/hooks/useProwlarrIndexers';
 
 function YourComponent() {
-  const { search, loading, error } = useProwlarr();
+  const config = useProwlarrConfig();
+  const { indexersState, fetchIndexers } = useProwlarrIndexers();
+  const { indexers, isLoading, error } = indexersState;
   
-  const handleSearch = async () => {
-    try {
-      const results = await search('One Piece');
-      // Handle results
-    } catch (error) {
-      // Handle error
-    }
-  };
-  
+  // Use config and indexers in your component
   return (
     // Your component JSX
   );
@@ -83,10 +80,10 @@ function YourComponent() {
 #### Server-Side
 
 ```typescript
-import { prowlarrServerRequest } from '@/utils/prowlarrApi';
+import { prowlarrClientRequest } from '@/utils/prowlarrApi';
 
-// Make a direct request to Prowlarr from server code
-const results = await prowlarrServerRequest({
+// Make a request to Prowlarr via the proxy endpoint
+const results = await prowlarrClientRequest(config, {
   path: '/search',
   method: 'POST',
   body: {
@@ -132,7 +129,7 @@ The Prowlarr integration includes robust error handling:
 To add new Prowlarr functionality:
 
 1. Add new methods to the client creation function in `src/utils/prowlarrApi.ts`
-2. Update the ProwlarrContext with the new functionality
+2. Add or update hooks in `src/components/settings/indexers/hooks/` to expose the new functionality
 3. Add UI components to utilize the new features
 
 ## Resources

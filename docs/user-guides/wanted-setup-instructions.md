@@ -71,7 +71,7 @@ Navigate to these URLs:
 The implementation includes custom hooks for easy integration:
 
 ```typescript
-import { useWantedItems, useDownloadHistory, useBlocklist } from '@/hooks/useWanted';
+import { useWantedItems, useDownloadHistory } from '@/hooks/useWanted';
 
 // In your component
 const { 
@@ -85,13 +85,6 @@ const {
   entries, 
   stats 
 } = useDownloadHistory();
-
-const { 
-  entries, 
-  isBlocked, 
-  add, 
-  remove 
-} = useBlocklist();
 ```
 
 ## Widget Component
@@ -121,7 +114,7 @@ If the tables aren't created:
 ### TypeScript Errors
 1. Run `bun run generate` to update Prisma types
 2. Restart TypeScript server in VS Code
-3. Check that all imports use relative paths
+3. Check that all imports use the `@/` alias (not relative paths)
 
 ## Next Steps
 
@@ -135,16 +128,13 @@ To fully integrate with download functionality:
 
 The tRPC router provides these procedures:
 - `wanted.getMissing` - Get missing items
+- `wanted.getMissingMangaIds` - Get IDs of manga with missing items
 - `wanted.getWanted` - Get wanted list with filters
 - `wanted.addToWanted` - Add item to wanted list
 - `wanted.updateWanted` - Update priority/status
 - `wanted.removeFromWanted` - Remove from list
-- `wanted.searchNow` - Trigger search for items
+- `wanted.searchChapters` - Trigger search for items
 - `wanted.getHistory` - Get download history
-- `wanted.getBlocklist` - Get blocklist entries
-- `wanted.addToBlocklist` - Add to blocklist
-- `wanted.removeFromBlocklist` - Remove from blocklist
-- `wanted.toggleBlocklistActive` - Toggle active state
 
 ## Development Notes
 

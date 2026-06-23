@@ -67,14 +67,11 @@ ast-grep --pattern 'PATTERN' PATH
 # Search with context lines
 ast-grep --pattern 'PATTERN' -C 3 PATH
 
-# Count matches
-ast-grep --pattern 'PATTERN' --count PATH
-
 # JSON output for parsing
 ast-grep --pattern 'PATTERN' --json PATH
 
 # Debug mode (show AST structure)
-ast-grep --pattern 'PATTERN' --debug PATH
+ast-grep --pattern 'PATTERN' --debug-query PATH
 ```
 
 ---
@@ -314,16 +311,14 @@ grep -r "\"key\":" *.json
 
 ### Interactive Playground
 
-```bash
-# Launch interactive mode to test patterns
-ast-grep playground
-```
+Use the web-based playground to test patterns interactively:
+https://ast-grep.github.io/playground.html
 
 ### Show AST Structure
 
 ```bash
 # See how ast-grep parses a file
-ast-grep --pattern '$_' --debug src/path/to/file.ts
+ast-grep --pattern '$_' --debug-query src/path/to/file.ts
 ```
 
 ### Test Pattern on Specific File
@@ -353,8 +348,8 @@ ast-grep --pattern 'PATTERN' src/components/
 # Search specific file types
 ast-grep --pattern 'PATTERN' src/**/*.tsx
 
-# Exclude directories
-ast-grep --pattern 'PATTERN' src/ --no-ignore
+# Exclude directories (include hidden files)
+ast-grep --pattern 'PATTERN' src/ --no-ignore hidden
 ```
 
 ### Use Specific Patterns
@@ -426,7 +421,7 @@ Install the "ast-grep" extension for inline search and refactoring.
 
 ```bash
 # 1. Find pattern
-ast-grep --pattern 'PATTERN' src/ -l
+ast-grep --pattern 'PATTERN' src/
 
 # 2. Review matches with context
 ast-grep --pattern 'PATTERN' src/ -C 5

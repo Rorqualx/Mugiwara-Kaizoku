@@ -311,17 +311,19 @@ function MyApp({ Component, pageProps }: AppProps) {
 
 **Error:**
 ```
-Property 'isLoading' does not exist
+Property 'isLoading' does not exist on mutation
 ```
 
 **Solution:**
 ```typescript
-// ❌ Wrong - tRPC v11 syntax
-const { isLoading } = trpc.manga.getAll.useQuery();
+// ❌ Wrong - mutations in tRPC v11 no longer expose isLoading
+const { isLoading } = trpc.manga.create.useMutation();
 
-// ✅ Correct - tRPC v11 syntax
-const { isPending } = trpc.manga.getAll.useQuery();
+// ✅ Correct - use isPending for mutations in tRPC v11
+const { isPending } = trpc.manga.create.useMutation();
 ```
+
+> Note: `isLoading` remains valid on `useQuery` — only **mutations** switched to `isPending`.
 
 ---
 
@@ -588,22 +590,30 @@ function App() {
 
 ### Database Query Profiling
 
+> `prisma.$use()` was removed in Prisma 5. Use `prisma.$extends()` with a query extension instead:
+
 ```typescript
-// Log slow queries
-prisma.$use(async (params, next) => {
-  const before = Date.now();
-  const result = await next(params);
-  const after = Date.now();
+// Log slow queries via Prisma client extension (Prisma 5+)
+const extendedPrisma = prisma.$extends({
+  query: {
+    $allModels: {
+      async $allOperations({ model, operation, args, query }) {
+        const before = Date.now();
+        const result = await query(args);
+        const after = Date.now();
 
-  if (after - before > 100) {
-    logger.warn('Slow query', {
-      model: params.model,
-      action: params.action,
-      duration: after - before
-    });
+        if (after - before > 100) {
+          logger.warn('Slow query', {
+            model,
+            action: operation,
+            duration: after - before
+          });
+        }
+
+        return result;
+      }
+    }
   }
-
-  return result;
 });
 ```
 
@@ -630,17 +640,19 @@ npx depcheck
 ### AsyncResult Errors
 
 ```typescript
-// ❌ Wrong - not checking for error
+// ❌ Wrong - not checking for error (isErr/isOk/.value do not exist)
 const result = await someAsyncFunction();
-return result.value; // Might be undefined!
+return result.value; // Might be undefined — .value is not a field!
 
-// ✅ Correct - handle errors
+// ✅ Correct - use isError() guard and .data field
+import { isError } from '@/utils/async-result';
+
 const result = await someAsyncFunction();
-if (result.isErr()) {
+if (isError(result)) {
   logger.error('Operation failed', { error: result.error });
   throw result.error;
 }
-return result.value;
+return result.data; // .data is the success field, not .value
 ```
 
 ---

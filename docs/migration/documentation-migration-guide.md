@@ -132,7 +132,7 @@ class MyAdapter {
 Documented (wrong) → Actual (correct)
 /types/dto/        → /types/domain/
 /types/utils/      → /utils/
-/types/api/        → /types/shared/
+/types/api/        → /types/api/ (this directory exists; use it for API types)
 ```
 
 ## Validation Tools
@@ -200,7 +200,7 @@ A: Native GraphQL only, no mangal CLI
 A: NextAuth.js/Auth.js (not Lucia)
 
 **Q: Where do types go?**
-A: domain/, adapters/, shared/ (not dto/ or api/)
+A: domain/, adapters/, api/ (not dto/)
 
 **Q: How should adapters work?**
 A: Dual-method pattern with AsyncResult

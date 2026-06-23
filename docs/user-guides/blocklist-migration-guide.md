@@ -27,7 +27,7 @@ Run the following migration to create new tables while preserving old data:
 
 ```sql
 -- Create new tables (handled by Prisma migration)
--- This will be generated when running: bun run db:push
+-- This will be generated when running: bun run migrate
 
 -- Migrate existing blocklist data to new format
 INSERT INTO "ReleaseBlocklist" (

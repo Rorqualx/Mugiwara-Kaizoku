@@ -73,7 +73,7 @@ The feature consists of:
 
 1. **Backend Components**:
    - A new `updateProviderPreferences` procedure in the manga router
-   - Enhanced `enhanceMetadata` method in the metadata merger service
+   - `mergeProviderMetadata` in `src/server/services/metadata/metadata-merger.ts` handles the cross-provider field merge
 
 2. **Frontend Components**:
    - `ProviderSelectionForm.tsx` - The main UI component

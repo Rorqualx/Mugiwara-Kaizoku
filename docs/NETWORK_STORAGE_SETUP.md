@@ -322,8 +322,8 @@ mount -t cifs //nas-server/downloads /mnt/nas -o cache=strict,actimeo=30
 
 Set environment variable:
 ```bash
-export DEBUG=mugiwara:fileImporter
-npm run dev
+export DEBUG_LOGGING=true
+bun run dev
 ```
 
 ### Check App Logs

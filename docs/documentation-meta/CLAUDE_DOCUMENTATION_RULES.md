@@ -23,7 +23,7 @@ Mandatory rules for Claude when working with Mugiwara Kaizoku documentation. The
    - /docs/architecture/architecture-overview.md
    - /docs/testing/testing-guide.md
    - /docs/adapters-clients/*-guide.md
-3. Review DOCUMENTATION_INDEX.md for topic location
+3. Review docs/README.md for topic location
 4. Check archive for historical context if needed
 ```
 
@@ -204,7 +204,7 @@ grep -r "filename.md" /docs --include="*.md"
 - [ ] Used kebab-case naming
 - [ ] Added standard header
 - [ ] Linked from relevant guides
-- [ ] Updated DOCUMENTATION_INDEX.md
+- [ ] Updated docs/README.md if adding a new top-level category
 
 ---
 

@@ -64,7 +64,7 @@ const anilistConfig = {
 
 ## Implementation
 
-The AniList adapter is located at `src/api/metadataProviders/adapters/anilistAdapter.ts`:
+The AniList adapter is located at `src/server/adapters/unified/AniListAdapter.ts`:
 
 ```typescript
 import { AniListAdapter } from '../adapters/anilistAdapter';
@@ -216,29 +216,27 @@ const results = await adapter.search(query);
 To test AniList integration:
 
 ```bash
-# Run integration tests
-npm run test:integration -- anilist
+# Run tests
+bun run test
 
 # Test specific functionality
-npm run dev
+bun run dev
 # Navigate to search and select AniList as provider
 ```
 
 ## Related Files
 
-- `src/api/metadataProviders/adapters/anilistAdapter.ts` - Main adapter
-- `src/types/integrations/anilist.ts` - Type definitions
-- `src/utils/status-mapping.ts` - Status mapping utilities
+- `src/server/adapters/unified/AniListAdapter.ts` - Main adapter
+- `src/types/adapters/anilist.ts` - Type definitions
 
 ## Related Documentation
 
 ### Correct/Current:
 - This guide - Native AniList integration for metadata
-- `mangal-setup.md` - Mangal configuration for downloading
-- `src/server/services/mangal/*` - Mangal download services
 
 ### Potentially Confusing:
 - Any documentation mentioning "mangal AniList integration" - We use native AniList, not mangal's
+- Note: Mangal has been deprecated and removed; see `docs/archive/mangal-deprecation-notice.md`
 
 ---
 

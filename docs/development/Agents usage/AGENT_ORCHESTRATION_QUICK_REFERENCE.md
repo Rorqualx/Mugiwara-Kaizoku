@@ -217,9 +217,7 @@ Result:
 ## 📖 Full Documentation
 
 - `AGENT_ORCHESTRATION_DIRECTIVE.md` - Complete rules
-- `AGENT_ORCHESTRATION_IMPLEMENTATION.md` - Prompts & examples
-- `.claude/orchestration/coordinator-prompt.md` - Coordinator prompt
-- `.claude/orchestration/agents/*.md` - Worker prompts
+- `.claude/orchestration/*.md` - Worker prompts (component, trpc, prisma, testing, etc.)
 
 ---
 

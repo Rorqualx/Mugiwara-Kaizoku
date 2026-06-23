@@ -234,13 +234,7 @@ const config = {
 
 ### Custom Configuration
 
-Users can adjust limits via environment variables:
-
-```env
-# .env.local
-NEXT_PUBLIC_CHAPTER_LIMIT=1000
-NEXT_PUBLIC_ENABLE_VIRTUAL_SCROLL=true
-```
+The limits are configured directly in the hook call and component props (see Integration Guide above). The environment variables below are not currently wired up in the codebase; adjust defaults in `useChapterPagination` and `VirtualChapterList` source files instead.
 
 ## Best Practices
 
@@ -343,9 +337,11 @@ await prisma.$executeRaw`
 
 ### Performance Testing
 
+Use browser DevTools Lighthouse panel or the Lighthouse CLI to audit the manga detail page:
+
 ```bash
-# Run Lighthouse audit
-bun run lighthouse http://localhost:3000/manga/1
+# Run Lighthouse audit via CLI (requires lighthouse installed separately)
+npx lighthouse http://localhost:3000/manga/1 --view
 
 # Expected scores:
 # Performance: > 90
@@ -361,12 +357,7 @@ No database schema changes required. This is purely a query and UI optimization.
 
 ### Environment Variables
 
-Optional configuration:
-```env
-NEXT_PUBLIC_CHAPTER_LIMIT=500
-NEXT_PUBLIC_PAGINATION_BATCH=200
-NEXT_PUBLIC_VIRTUAL_SCROLL_THRESHOLD=200
-```
+No environment variables are required. Limits are configured via hook parameters and component props (see Integration Guide).
 
 ### Dependencies Added
 

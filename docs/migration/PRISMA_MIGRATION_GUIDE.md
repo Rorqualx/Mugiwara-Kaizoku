@@ -44,22 +44,22 @@ The migration script (`scripts/migrate-to-prisma-types.ts`) performs the followi
 
 ```bash
 # Run a dry run to preview changes (recommended first step)
-npm run migrate:types:dry
+bun run migrate:types:dry
 
 # Run the migration with automatic backup
-npm run migrate:types
+bun run migrate:types
 
 # Run the migration without backup (not recommended)
-npm run migrate:types -- --no-backup
+bun run migrate:types -- --no-backup
 
 # Run with verbose output
-npm run migrate:types -- --verbose
+bun run migrate:types -- --verbose
 
 # Test the migration on sample files
-npm run migrate:types:test
+bun run migrate:types:test
 
 # Show help
-npx tsx scripts/migrate-to-prisma-types.ts --help
+bunx tsx scripts/migrate-to-prisma-types.ts --help
 ```
 
 ## Migration Process
@@ -68,7 +68,7 @@ npx tsx scripts/migrate-to-prisma-types.ts --help
 Always start with a dry run to preview changes:
 
 ```bash
-npm run migrate:types:dry
+bun run migrate:types:dry
 ```
 
 This will:
@@ -86,7 +86,7 @@ The dry run produces:
 Once satisfied with the dry run results:
 
 ```bash
-npm run migrate:types
+bun run migrate:types
 ```
 
 This will:
@@ -100,7 +100,7 @@ After migration:
 
 1. **Check TypeScript errors**:
    ```bash
-   npm run type-check
+   bun run type-check
    ```
 
 2. **Review the changes**:
@@ -110,7 +110,7 @@ After migration:
 
 3. **Run tests**:
    ```bash
-   npm test
+   bun run test
    ```
 
 ## Rollback
@@ -152,7 +152,7 @@ Based on the current codebase analysis:
 - Missing type imports
 
 ### Issue: Build fails after migration
-**Solution**: Run `npm run build:clean` to ensure a fresh build.
+**Solution**: Run `bun run build:clean` to ensure a fresh build.
 
 ## What Needs Manual Attention
 
@@ -190,7 +190,7 @@ The migration script handles most transformations automatically, but some items 
 3. **Clean up dependencies**:
    ```bash
    # Remove unused type packages if any
-   npm prune
+   bun install
    ```
 
 ## Support

@@ -109,12 +109,12 @@ For components that need to track multiple loading operations:
 function ComplexComponent() {
   const { setLoading } = useUIStore();
   
-  const isLoadingData = useSelector(state => 
-    state.ui.loadingStates['data-fetch'] || false
+  const isLoadingData = useUIStore((s) =>
+    s.loadingStates['data-fetch'] ?? false
   );
   
-  const isProcessing = useSelector(state => 
-    state.ui.loadingStates['data-processing'] || false
+  const isProcessing = useUIStore((s) =>
+    s.loadingStates['data-processing'] ?? false
   );
   
   const fetchData = async () => {
@@ -194,7 +194,7 @@ export function useLoadingManager(): UseLoadingManagerResult {
     setUILoading(key, false);
   }, [setUILoading]);
   
-  const withLoading = useCallback(<T, Args extends any[]>(
+  const withLoading = useCallback(<T, Args extends unknown[]>(
     key: string,
     fn: (...args: Args) => Promise<T>
   ) => {

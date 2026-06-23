@@ -424,7 +424,6 @@ Is the data from JSON.parse()?
 |--------|----------|----------|
 | `AniListMediaSchema` | AniList | Manga metadata |
 | `ComicVineVolumeSchema` | ComicVine | Comic information |
-| `MangaDexMangaSchema` | MangaDex | Manga data |
 
 ### Generic
 

@@ -98,7 +98,7 @@ const librarySizes = useMemo(() => {
 - Proper typing maintained throughout
 
 ### Build Verification
-- `npm run type-check` passes without errors
+- `bun run type-check` passes without errors
 - No runtime errors in development environment
 
 ## Performance Improvements

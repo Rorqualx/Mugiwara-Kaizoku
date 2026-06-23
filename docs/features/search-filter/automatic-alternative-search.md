@@ -15,14 +15,12 @@ When a release is checked against the blocklist and found to be blocked, the sys
 ### 2. Alternative Search Process
 The automatic search process:
 1. Retrieves the manga details including alternative titles (synonyms)
-2. Builds multiple search queries:
-   - `{title} chapter {number}`
-   - `{title} ch{number}`
-   - `{title} {number}`
-   - Same patterns for all alternative titles
+2. Builds series-level search queries:
+   - `{title}` (primary title)
+   - Up to 2 synonym titles
 3. Searches Prowlarr with each query
 4. Filters results to:
-   - Match the requested chapter number
+   - Match the requested chapter number (via coverage parsing of the release title)
    - Exclude already blocked releases
    - Remove duplicates
 5. Returns up to 5 valid alternatives
@@ -35,19 +33,20 @@ When a download is blocked:
 
 ## Implementation Details
 
-### ReleaseBlocklistService
-The `findAlternativeReleases` method in `ReleaseBlocklistService`:
+### findAlternativeReleases
+The `findAlternativeReleases` exported function in `src/server/services/release-blocklist/alternatives-finder.ts`:
 ```typescript
-private async findAlternativeReleases(
+export async function findAlternativeReleases(
+  prisma: PrismaClient,
   mangaId: number,
   chapterNumber: string,
   excludeReleases: string[]
 ): Promise<AsyncResult<ReleaseIdentifier[], Error>>
 ```
 
-This method:
+This function:
 - Uses `ProwlarrMangaSearch` to find releases
-- Checks each result against the blocklist
+- Parses release title coverage to filter by chapter
 - Returns unblocked alternatives only
 
 ### Enhanced CheckRelease Response
@@ -57,7 +56,6 @@ interface BlocklistCheckResult {
   isBlocked: boolean;
   reason?: ReleaseBlocklistReason;
   details?: string;
-  matchedPattern?: string;
   alternatives?: ReleaseIdentifier[];
 }
 ```

@@ -7,8 +7,8 @@ This guide provides solutions for common development environment issues and reco
 To run the development environment with all patches applied:
 
 ```bash
-# Run the patched development server
-./scripts/run-patched-dev.sh
+# Run the development server
+./scripts/build/dev-integrated.sh
 
 # Access the application
 # Open http://localhost:3000 in your browser
@@ -47,7 +47,7 @@ To run the development environment with all patches applied:
 
 1. **Start Development Server**:
    ```bash
-   ./scripts/run-patched-dev.sh
+   ./scripts/build/dev-integrated.sh
    ```
 
 2. **Making Changes**:
@@ -58,7 +58,7 @@ To run the development environment with all patches applied:
 3. **Adding New Components**:
    - Follow the patterns in the patched files
    - Use defensive programming (null checks, try/catch)
-   - Import from patched modules (e.g., `trpc-monkey-patch.ts`)
+   - Import from the standard tRPC client setup
 
 ## Patching Strategy
 
@@ -71,8 +71,7 @@ Our approach uses several techniques:
 
 ### Key Patched Files
 
-- `/src/utils/tabler-icons-wrapper.js`: Fixed ESM exports
-- `/src/utils/trpc-monkey-patch.ts`: Added stub implementations
+- `/src/utils/tabler-icons-wrapper.d.ts`: Type definitions for tabler-icons-wrapper
 - `/src/contexts/IntegrationStatusContext.tsx`: Added resilient error handling
 
 ## Long-term Recommendations

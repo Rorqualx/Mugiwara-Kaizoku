@@ -255,11 +255,11 @@ export enum TaskStatus {
 
 The Mugiwara-Kaizoku project is a manga management application with the following key components:
 
-- **API Clients**: Located in `src/api/` - Handle external service communication
-  - **Base Classes**: `src/api/base/` - Base classes for API clients and providers
-  - **Download Clients**: `src/api/downloadClients/` - Clients for download services
-  - **Metadata Providers**: `src/api/metadataProviders/` - Providers for metadata services
-  - **Adapters**: `src/api/metadataProviders/adapters/` - Adapters for metadata services
+- **API Clients / Adapters**: Handle external service communication
+  - **Metadata Adapters**: `src/server/adapters/` - Unified adapter implementations (AdapterFactory, UnifiedBaseAdapter, unified-anilist-adapter, unified-comicvine-adapter)
+  - **Download Clients**: `src/server/services/download/clients/` - Clients for download services (transmission/, delugeClient.ts, nzbgetClient.ts, sabnzbdClient.ts)
+  - **Provider Services**: `src/server/services/{mangadex,comicvine,fandom,anilist}/` - Per-provider service layers
+  - **Base Contract**: `src/utils/integration-adapter.ts` - IntegrationAdapter / BaseIntegrationAdapter
 - **React Components**: Located in `src/components/` - UI components
 - **React Hooks**: Located in `src/hooks/` - Custom hooks for state management and data fetching
 - **Types**: Located in `src/types/` - TypeScript type definitions
@@ -300,23 +300,30 @@ The project uses several architectural patterns that should be maintained:
 
 The project has gone through a complete file consolidation effort to rename and standardize multiple versions of the same files. Always use these canonical versions for all future development:
 
-### API Clients
-- `src/api/metadataProviders/comicvineClient.ts`
-- `src/api/metadataProviders/fandomClient.ts`
-- `src/api/metadataProviders/mangadexClient.ts`
-- `src/api/downloadClients/transmissionClient.ts`
-- `src/api/downloadClients/nzbgetClient.ts`
+### Provider Services
+- `src/server/services/mangadex/` - MangaDex service layer
+- `src/server/services/comicvine/` - ComicVine service layer
+- `src/server/services/fandom/` - Fandom service layer
+- `src/server/services/anilist/` - AniList service layer
 
-### API Adapters
-- `src/api/metadataProviders/adapters/anilistAdapter.ts`
-- `src/api/metadataProviders/adapters/comicvineAdapter.ts`
-- `src/api/metadataProviders/adapters/fandomAdapter.ts`
-- `src/api/metadataProviders/adapters/mangadexAdapter.standardized.ts`
+### Download Clients
+- `src/server/services/download/clients/transmission/` - Transmission client
+- `src/server/services/download/clients/nzbgetClient.ts` - NZBGet client
+- `src/server/services/download/clients/delugeClient.ts` - Deluge client
+- `src/server/services/download/clients/sabnzbdClient.ts` - SABnzbd client
+- `src/server/services/download/base.ts` - Base download client
+- `src/server/services/download/client-factory.ts` - Client factory
+
+### Metadata Adapters
+- `src/server/adapters/unified-anilist-adapter.ts`
+- `src/server/adapters/unified-comicvine-adapter.ts`
+- `src/server/adapters/UnifiedBaseAdapter.ts`
+- `src/server/adapters/AdapterFactory.ts`
+- `src/utils/integration-adapter.ts` - IntegrationAdapter base contract
 
 ### React Components
-- `src/components/updateManga/ProviderSelectionForm.tsx`
+- `src/components/updateManga/ProviderSelectionForm/` - Provider selection form
 - `src/components/addManga/steps/searchStep.tsx`
-- `src/components/addManga/steps/searchStep.standardized.tsx`
 
 ### React Hooks
 - `src/hooks/useManga.ts`
@@ -729,7 +736,7 @@ Categorize errors to handle appropriately:
 
 ## Authentication System
 
-The project uses Auth.js v5 (next-auth 5.0.0-beta.28) for authentication. The authentication system was improved in June 2025 with the following security enhancements:
+The project uses NextAuth v4 (next-auth 4.24.5) for authentication. The authentication system was improved in June 2025 with the following security enhancements:
 
 1. **Environment-Independent Authentication**:
    - Removed all development mode authentication bypasses
@@ -865,16 +872,11 @@ Other available commands for development:
 
 ## File Cleanup Status
 
-All duplicate fixed files have been cleaned up as of the latest update. The codebase now only contains the canonical versions of all files, with a few exceptions:
+All duplicate fixed files have been cleaned up as of the latest update. The codebase now only contains the canonical versions of all files, with one exception:
 
 1. Test files with `.fixed.test.ts` suffixes - These are kept to maintain test coverage
-2. Standardized adapter versions - The following adapters have standardized versions:
-   - `src/api/metadataProviders/adapters/mangadexAdapter.standardized.ts`
 
-If new duplicate files are created in the future, they can be removed using the provided cleanup scripts:
-- `scripts/cleanup-duplicates.sh` - Comprehensive cleanup with backup
-- `scripts/cleanup-remaining-duplicates.sh` - Targeted cleanup for specific files
-- `scripts/execute-cleanup-plan.sh` - Custom cleanup with a specific file list
+If new duplicate files are created in the future, remove them manually following the file placement rules above. See `scripts/cleanup/` for any available cleanup utilities.
 
 ### Recent Cleanup (June 2025)
 - All backup (.bak) files have been moved from the source directory to `/archive/src-backups/`

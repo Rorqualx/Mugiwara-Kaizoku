@@ -944,7 +944,7 @@ const tasks: Task[] = [
     agent: 'backend-specialist',
     estimatedDuration: 30,
     dependencies: ['T2'],
-    outputs: ['src/server/routers/manga.router.ts'],
+    outputs: ['src/server/trpc/routers/manga.ts'],
     acceptanceCriteria: [
       'Uses AsyncResult pattern',
       'Implements pagination',
@@ -972,7 +972,7 @@ const tasks: Task[] = [
     agent: 'testing-specialist',
     estimatedDuration: 20,
     dependencies: ['T3', 'T4'],
-    outputs: ['src/server/routers/manga.test.ts', 'src/components/manga/MangaSearchBar.test.tsx'],
+    outputs: ['tests/server/trpc/routers/manga.test.ts', 'src/components/manga/MangaSearchBar.test.tsx'],
     acceptanceCriteria: [
       '>80% code coverage',
       'Tests both success and error cases',

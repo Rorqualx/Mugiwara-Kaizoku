@@ -309,7 +309,7 @@ export async function protectedRoute(req: Request) {
 ### tRPC Protected Procedures
 
 ```typescript
-// src/server/api/trpc.ts
+// src/server/trpc/procedures.ts
 import { getServerAuthSession } from '@/server/auth';
 
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {

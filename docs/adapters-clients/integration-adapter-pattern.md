@@ -1,7 +1,7 @@
 # Integration Adapter Pattern
 
 > ⚠️ **Note**: This document references the standardized adapter pattern.
-> For the canonical implementation guide, see [adapter-pattern-unified.md](./adapter-pattern-comprehensive-guide.md)
+> For the canonical implementation guide, see [adapter-pattern-comprehensive-guide.md](./adapter-pattern-comprehensive-guide.md)
 
 This document outlines the Integration Adapter Pattern implemented in the Mugiwara-Kaizoku project for managing external API integrations consistently and with proper type safety.
 
@@ -68,15 +68,18 @@ All integrations use a configuration that extends the simplified `BaseIntegratio
 
 ```typescript
 export interface BaseIntegrationConfig {
-  enabled?: boolean;
-  [key: string]: unknown;
+  enabled: boolean;
+  name?: string;
+  id?: string;
+  priority?: number;
+  timeout?: number;
 }
 ```
 
 Service-specific configurations extend this base:
 
 ```typescript
-export interface AniListAdapterConfig extends BaseIntegrationConfig {
+export interface AnilistAdapterConfig extends BaseIntegrationConfig {
   apiEndpoint?: string;
   accessToken?: string;
   clientId?: string;
@@ -129,7 +132,7 @@ This approach:
 
 > **Note**: For complete implementation details, refer to the [Unified Adapter Pattern Guide](./adapter-pattern-comprehensive-guide.md)
 
-1. Create a new file in `src/api/metadataProviders/adapters/` named after the integration
+1. Create a new file in `src/server/adapters/` named after the integration
 2. Define a config interface extending `BaseIntegrationConfig`
 3. Create a class extending `BaseIntegrationAdapter<YourConfig>` and implementing `IntegrationAdapter<YourConfig>`
 4. Implement all required methods

@@ -217,7 +217,7 @@ interface ErrorInfo {
 1. **Update type definitions:**
    ```typescript
    // Replace old result types with AsyncResult
-   import { AsyncResult } from '@/types/shared/async-result';
+   import { AsyncResult } from '@/utils/async-result';
    ```
 
 2. **Update function signatures:**
@@ -321,7 +321,7 @@ const session = await lucia.validateSession(sessionId);
 ```typescript
 // ✅ CORRECT - NextAuth.js/Auth.js
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/server/auth';
+import { authOptions } from '@/lib/auth';
 
 // ✅ CORRECT - NextAuth session handling
 const session = await getServerSession(authOptions);
@@ -375,7 +375,7 @@ import { ApiResponse } from '@/types/api/response';
 // ✅ CORRECT - Actual directory structure
 import { Manga } from '@/types/domain/manga';
 import { formatDate } from '@/utils/date';  // Utils are separate
-import { ApiResponse } from '@/types/shared/api';
+import { ApiResponse } from '@/types/api/common';
 ```
 
 ### Migration Steps

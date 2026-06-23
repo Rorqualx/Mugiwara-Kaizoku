@@ -145,21 +145,20 @@ interface SearchResult {
 The integration includes sophisticated rate limiting:
 
 1. **Request Throttling**
-   - 3-second minimum between requests
-   - 20 requests per minute maximum
-   - 400 requests per hour maximum (safety margin)
+   - 1-second minimum between requests (2 seconds recommended safe delay)
+   - 200 requests per hour maximum (ComicVine's actual API limit)
 
 2. **Exponential Backoff**
    - Automatic retry with increasing delays
    - Random jitter to prevent thundering herd
 
 3. **Circuit Breaker**
-   - Temporarily pauses after 3 consecutive failures
-   - 15-minute cooldown period
+   - Temporarily pauses after 5 consecutive failures
+   - 1-minute cooldown period before attempting recovery
    - Prevents API lockout
 
 4. **Request Caching**
-   - 30-minute in-memory cache
+   - Multi-tier cache: L1 in-memory (5 min), L2 PostgreSQL (1 hour), L3 hot-data (24 hours)
    - Reduces duplicate API calls
    - Improves performance
 
@@ -168,8 +167,8 @@ The integration includes sophisticated rate limiting:
 Monitor rate limit status in the application logs:
 
 ```
-[ComicVine] Rate limit: 350/400 requests used this hour
-[ComicVine] Circuit breaker activated - pausing for 15 minutes
+[ComicVine] Rate limit: 175/200 requests used this hour
+[ComicVine] Circuit breaker opened - pausing requests
 [ComicVine] Cache hit for volume 1234
 ```
 
@@ -208,7 +207,7 @@ If searches return no results:
 1. **Verify Integration Status**
    ```bash
    # Test script
-   node scripts/test-comicvine-search.js "Batman"
+   bun scripts/comicvine/test-comicvine-search.ts
    ```
 
 2. **Check API Key**
@@ -229,13 +228,13 @@ If searches return no results:
 
 ```bash
 # Basic search test
-node scripts/test-comicvine-search.js "Spider-Man"
+bun scripts/comicvine/test-comicvine-search.ts
 
-# Enhanced data test
-node scripts/test-comicvine-enhanced-data.mjs
+# Enhanced API data test
+node scripts/testing/test-comicvine-api-data.mjs
 
-# Rate limiting test
-node scripts/test-comicvine-rate-limit.js
+# Full flow test
+node scripts/testing/test-comicvine-flow.js
 ```
 
 ### Manual Testing
@@ -298,7 +297,7 @@ class ComicVineError extends Error {
 ### Performance Optimization
 
 1. **Field Lists**: Only request needed fields to reduce payload size
-2. **Caching**: 30-minute cache for repeated requests
+2. **Caching**: Multi-tier cache (5-min memory, 1-hr PostgreSQL) for repeated requests
 3. **Batch Processing**: Group related requests when possible
 4. **Lazy Loading**: Load detailed data only when needed
 

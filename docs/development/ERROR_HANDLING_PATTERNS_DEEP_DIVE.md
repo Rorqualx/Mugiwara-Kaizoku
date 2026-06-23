@@ -113,8 +113,8 @@ console.error('Worker is unhealthy');  // Console in example!
 
 #### Frontend Components Using Server Logger
 ```typescript
-// src/components/system/LogViewer.tsx
-import { logger } from '../../utils/logging';
+// src/components/system/LogViewer/index.tsx
+import { logger } from '@/utils/logger';
 // But logger might not work properly in browser!
 ```
 

@@ -321,7 +321,7 @@ import {
   createLoadingResult,
   createSuccessResult,
   createErrorResult
-} from '@/types/shared/async-result';
+} from '@/utils/async-result';
 
 // Initial state
 const idle = createIdleResult<Data, Error>();

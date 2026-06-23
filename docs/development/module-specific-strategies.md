@@ -19,7 +19,6 @@ This document outlines specific strategies for fixing TypeScript errors in each 
 **Key Files:**
 - `src/server/services/downloadClient/configService.ts` (47 errors)
 - `src/server/services/config/themeMigration.ts` (31 errors)
-- `src/server/services/config/integrationMigration.ts` (30 errors)
 
 **Common Patterns:**
 1. Unsafe JSON parsing
@@ -105,8 +104,8 @@ async function migrateThemeConfig(
 ### Metadata Services
 
 **Key Files:**
-- `src/server/services/metadata/metadataService.standardized.ts` (12 errors)
-- `src/server/services/metadata/metadataServiceProvider.ts` (4 errors)
+- `src/server/services/metadata/metadataService.ts`
+- `src/server/services/metadata/metadataServiceProvider.ts`
 
 **Common Patterns:**
 1. Type mismatches between DB models and domain models
@@ -157,9 +156,9 @@ async function getMangaWithRelations(id: number): Promise<MangaEntity> {
 ## Components Module (190 errors)
 
 **Key Files:**
-- `src/components/manga/MangaDetailView.tsx` (23 errors)
-- `src/components/settings/BackupSettings.tsx` (14 errors)
-- `src/components/updateManga/ProviderSelectionForm.tsx` (14 errors)
+- `src/components/manga/MangaDetailView.tsx`
+- `src/components/settings/backup/` (backup settings components)
+- `src/components/updateManga/ProviderSelectionForm/ProviderSelectionForm.tsx`
 
 **Common Patterns:**
 1. Untyped component props
@@ -234,9 +233,7 @@ const coverUrl = manga?.metadata?.coverUrl ?? '/default-cover.jpg';
 ## Hooks Module (168 errors)
 
 **Key Files:**
-- `src/hooks/useNotificationConfig.ts` (26 errors)
-- `src/hooks/useFandomConfig.ts` (20 errors)
-- `src/hooks/useProviderConfig.ts` (20 errors)
+- `src/hooks/useProviderConfig.ts`
 
 **Common Patterns:**
 1. Inconsistent AsyncResult usage
@@ -334,9 +331,7 @@ useEffect(() => {
 ## Utils Module (154 errors)
 
 **Key Files:**
-- `src/utils/converters/ChapterConverter.ts` (28 errors)
-- `src/utils/converters/MetadataConverter.ts` (26 errors)
-- `src/utils/converters/examples/integration-example.ts` (21 errors)
+- `src/server/services/metadata/metadata-converters.ts`
 
 **Common Patterns:**
 1. Complex generic type misuse
@@ -434,9 +429,9 @@ export function isDate(value: unknown): value is Date {
 ## API Module (87 errors)
 
 **Key Files:**
-- `src/api/metadataProviders/fandomClient.standardized.ts` (17 errors)
-- `src/api/utils/errorHandling.ts` (16 errors)
-- `src/api/metadataProviders/fandomClient.ts` (14 errors)
+- `src/server/services/fandom/FandomAPIClient.ts`
+- `src/server/services/fandom/FandomService.ts`
+- `src/utils/api-helpers.ts`
 
 **Common Patterns:**
 1. Untyped API responses
@@ -538,9 +533,8 @@ private convertSearchResultToManga(result: FandomSearchResponse['query']['search
 ## Types Module (53 errors)
 
 **Key Files:**
-- `src/types/domain-types.ts` (24 errors)
-- `src/types/prismaTypes.ts` (7 errors)
-- `src/types/domain/index.ts` (6 errors)
+- `src/types/domain/` (enrichment-result-types.ts, cover-layers-types.ts, and related)
+- `src/types/prisma/` (prisma type extensions)
 
 **Common Patterns:**
 1. Circular references

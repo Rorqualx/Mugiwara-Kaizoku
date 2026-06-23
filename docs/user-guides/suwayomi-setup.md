@@ -64,8 +64,8 @@ The container ships with OpenJDK 21 pre-installed; no extra steps.
 
 ## Enable Suwayomi in Kaizoku
 
-1. Open **Settings → Download Clients**. Scroll to the **Suwayomi (headless library source)** section.
-2. The **Server** tab shows Java + server status badges. If Java 21 is missing, install it (see above) and reload.
+1. Open **Settings → Download Clients**. Scroll to the **Suwayomi (Mihon source bridge)** section.
+2. The section shows Java + server status badges. If Java 21 is missing, install it (see above) and reload.
 3. Click **Start server**. The first start downloads `Suwayomi-Server.jar` (~150 MB) into `data/suwayomi-server/`. Health check turns green within ~10 seconds.
 
 The server stops when the Kaizoku process exits. To stop it manually, use the **Stop server** button on the same tab.
@@ -81,7 +81,7 @@ The server stops when the Kaizoku process exits. To stop it manually, use the **
 
 ## Install a Mihon source extension
 
-In **Settings → Suwayomi → Extensions**:
+In **Settings → Indexers** (scroll to the Suwayomi section):
 
 1. Suwayomi needs an extension repository configured. The keiyoushi catalog is the de-facto standard. Add it once via Suwayomi's `server.conf` (`server.extensionRepos = ["https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json"]`) and restart the server.
 2. Type a package name into the **Install by package name** input. Recommended starting set:
@@ -123,7 +123,7 @@ If the matcher returns the wrong manga, use the **Manual override** fields on th
 | Server starts but health stays red | Check `data/suwayomi-config/server.conf` for HOCON syntax errors. Common cause: legacy half-written config. Delete `server.conf` and let Suwayomi regenerate it on next start. |
 | Extensions list is empty after install | The keiyoushi repo is not configured in `server.conf`. Add it (see above), restart server, retry. |
 | Match returns "no results" | Source extension may not have the title indexed. Try a different source, or set `sourceId`/`mangaId` manually in the panel. |
-| `bun run scripts/surveys/test-suwayomi-match.ts <id> <sourceId>` returns 0 candidates | Suwayomi-Server isn't running, or the source extension hasn't been installed. Check the **Server** and **Extensions** tabs first. |
+| `bun run scripts/surveys/test-suwayomi-match.ts <id> <sourceId>` returns 0 candidates | Suwayomi-Server isn't running, or the source extension hasn't been installed. Check the server controls in **Settings → Download Clients** and the extension catalog in **Settings → Indexers** first. |
 
 ---
 

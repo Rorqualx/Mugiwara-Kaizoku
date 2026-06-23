@@ -152,6 +152,6 @@ To test the feature:
 The implementation follows the project's established patterns:
 - Uses TypeScript with proper type safety
 - Follows the AsyncResult pattern where applicable
-- Uses relative imports as per project guidelines
+- Uses `@/` alias imports as per project guidelines
 - Implements proper enum usage (uppercase values)
 - Includes comprehensive JSDoc documentation

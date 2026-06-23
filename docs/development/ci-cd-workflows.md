@@ -112,5 +112,4 @@ If commenting `/test` doesn't trigger tests:
 If your PR decreases test coverage:
 
 1. Add tests for the new code you've written
-2. Consider using the [test templates](../src/test/templates/) to create tests
-3. Use the test generation script: `node scripts/generate-test.js`
+2. Consider using the [test templates](../../src/test/templates/) to create tests

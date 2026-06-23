@@ -7,7 +7,6 @@ This document explains the TypeScript configuration structure and type safety pr
 The project uses a simplified TypeScript configuration structure:
 
 1. **tsconfig.json**: Main configuration for the entire project
-2. **tsconfig.test.json**: Configuration specific to tests
 
 ## Core Configuration Principles
 
@@ -96,11 +95,10 @@ The project includes extensive type definitions and type safety features:
 
 Custom type definitions are located in `src/types/`:
 
-- **prismaTypes.ts**: Type definitions derived from Prisma models
-- **auth-types.d.ts**: Authentication system types
 - **component-types.ts**: React component type definitions
 - **prisma-exports.ts**: Type exports from Prisma models
 - **prisma-transaction.ts**: Types for transaction handling
+- **next-auth-types.d.ts**: Authentication system types
 
 ### Advanced Type Safety Features
 
@@ -111,12 +109,12 @@ The project implements several advanced type safety features:
    - Automatic type narrowing based on task type and status
    - Type guards for discriminated unions
 
-2. **Specialized Error Types** (`src/types/error-types.ts`):
+2. **Specialized Error Types** (`src/utils/errors/`):
    - Comprehensive error class hierarchy
    - Type-safe error handling with specialized error types
    - Type guards for error types
 
-3. **Type Guards** (`src/utils/type-guards.ts`):
+3. **Type Guards** (`src/utils/type-guards/`):
    - Reusable type guards for common data structures
    - Generic type parameters for flexible type checking
    - Predicate functions for type narrowing

@@ -106,7 +106,7 @@ Error: Module did not self-register.
 ```bash
 # Clean and reinstall
 rm -rf node_modules
-rm bun.lockb
+rm bun.lock
 bun install
 ```
 
@@ -219,7 +219,7 @@ bun add -d "$REQUIRED_SWC"
 **Fix**: Force reinstall:
 ```bash
 rm -rf node_modules
-rm bun.lockb  # or pnpm-lock.yaml, package-lock.json
+rm bun.lock  # or pnpm-lock.yaml, package-lock.json
 bun install   # or bun install, npm install
 ```
 
@@ -266,7 +266,7 @@ bun install   # or bun install, npm install
 ```bash
 # 1. Clean everything
 rm -rf node_modules
-rm bun.lockb pnpm-lock.yaml package-lock.json yarn.lock
+rm bun.lock pnpm-lock.yaml package-lock.json yarn.lock
 
 # 2. Reinstall
 bun install  # or bun install, npm install
@@ -488,7 +488,7 @@ In `.github/workflows/test-platforms.yml`:
 
 ### 3. Commit Correct Lockfiles
 
-- **With Bun**: Commit `bun.lockb`
+- **With Bun**: Commit `bun.lock`
 - **With pnpm**: Commit `pnpm-lock.yaml`
 - **Don't mix**: Only commit one lockfile type
 

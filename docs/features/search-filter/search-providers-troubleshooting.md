@@ -8,27 +8,19 @@ If you're experiencing an issue where the Add Manga popup in the library page is
 
 The problem occurs because the search providers are not properly enabled in the database settings. Specifically:
 
-1. The application uses a `metadata` field in the `Settings` table to store provider configurations
-2. When this field is empty or doesn't contain the correct structure, the search function can't determine which providers to use
+1. The application stores provider configurations as key-value rows in the `Config` table (the legacy `Settings` table was removed)
+2. When provider rows are missing or set to disabled, the search function can't determine which providers to use
 3. Even if API keys are configured correctly, the providers won't be used for search without the proper settings
 
 ## Solution
 
-We've created a script that fixes the search provider settings in the database. This script:
-
-1. Sets up all available search providers (AniList, MangaDex, ComicVine, Fandom)
-2. Enables them in the database settings
-3. Sets AniList Native as the default provider
-
-### Fixing It
-
-Enable the search providers from **Settings → Indexers / Providers** in the app —
-toggle on AniList, MangaDex, ComicVine, and Fandom, and set AniList as the default.
+Enable the search providers from **Settings → Metadata** in the app —
+toggle on AniList, MangaDex, ComicVine, Fandom, and Wikipedia as desired, and set AniList as the default.
 These settings are stored in the database (`Config`), so no script is required.
 
 ### Verifying the Fix
 
-After running the script:
+After enabling providers in the UI:
 
 1. Restart the application server
 2. Navigate to a library page
@@ -38,25 +30,19 @@ After running the script:
 
 ## Manual Fix
 
-If the script doesn't work for some reason, you can manually fix the issue by executing the following SQL:
-
-```sql
-UPDATE "Settings" 
-SET metadata = '{"defaultProvider":"anilist-native","providers":{"anilist-native":{"enabled":true},"anilist":{"enabled":true},"mangadex":{"enabled":true},"comicvine":{"enabled":true},"fandom":{"enabled":true}}}'
-WHERE id = 1;
-```
+If the UI toggle doesn't work for some reason, you can manually enable providers by inserting or upserting rows in the `Config` table. The `Settings` table no longer exists — all settings are stored in `Config` as key-value rows. Use the Settings → Metadata page in the application instead of direct SQL where possible.
 
 ## Understanding Search Providers
 
 The application supports multiple search providers:
 
-1. **AniList Native** - Primary source for anime/manga metadata
+1. **AniList** - Primary source for anime/manga metadata
 2. **MangaDex** - Comprehensive manga database
 3. **ComicVine** - Source for comic book metadata
 4. **Fandom** - Wiki-based source for various media
-5. **AniList** (Legacy) - Original AniList implementation
+5. **Wikipedia** - General wiki-based source
 
-Each provider has different strengths and coverage, so enabling all of them provides the best search experience.
+Each provider has different strengths and coverage, so enabling the relevant ones provides the best search experience.
 
 ## Additional Troubleshooting
 

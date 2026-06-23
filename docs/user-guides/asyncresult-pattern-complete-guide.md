@@ -184,32 +184,28 @@ export async function chain<T, U, E>(
 }
 
 // Combine multiple AsyncResults
-export function combineAsyncResults<T extends any[], E>(
+export function combine<T extends readonly unknown[], E>(
   results: { [K in keyof T]: AsyncResult<T[K], E> }
 ): AsyncResult<T, E> {
   // Check if any result is in error state
   for (const result of results) {
     if (isError(result)) {
-      return result as AsyncResult<T, E>;
+      return createErrorResult<T, E>(result.error);
     }
   }
   
   // Check if any result is in loading state
-  for (const result of results) {
-    if (isLoading(result)) {
-      return createLoadingResult<T, E>();
-    }
+  if (results.some(isLoading)) {
+    return createLoadingResult<T, E>();
   }
   
   // Check if any result is in idle state
-  for (const result of results) {
-    if (isIdle(result)) {
-      return createIdleResult<T, E>();
-    }
+  if (results.some(isIdle)) {
+    return createIdleResult<T, E>();
   }
   
   // All results are successful, extract data
-  const data = results.map(result => (result as { status: 'success', data: any }).data) as T;
+  const data = results.map(result => (result as { status: 'success', data: unknown }).data) as unknown as T;
   return createSuccessResult<T, E>(data);
 }
 
@@ -227,28 +223,32 @@ export function filterSuccessResults<T, E>(
 
 ```typescript
 // Handle all states with a single function
-export function handleAsyncResult<T, E, R>(
+export function handleAsyncResult<T, E = Error, R = void>(
   result: AsyncResult<T, E>,
   handlers: {
-    idle?: () => R;
-    loading?: () => R;
-    error?: (error: E) => R;
-    success?: (data: T) => R;
+    onIdle?: () => R;
+    onLoading?: () => R;
+    onError?: (error: E) => R;
+    onSuccess?: (data: T) => R;
+    onAny?: (result: AsyncResult<T, E>) => R;
   }
-): R | null {
-  if (isIdle(result) && handlers.idle) {
-    return handlers.idle();
+): R | undefined {
+  if (handlers.onAny) {
+    return handlers.onAny(result);
   }
-  if (isLoading(result) && handlers.loading) {
-    return handlers.loading();
+  if (isSuccess(result) && handlers.onSuccess) {
+    return handlers.onSuccess(result.data);
   }
-  if (isError(result) && handlers.error) {
-    return handlers.error(result.error);
+  if (isError(result) && handlers.onError) {
+    return handlers.onError(result.error);
   }
-  if (isSuccess(result) && handlers.success) {
-    return handlers.success(result.data);
+  if (isLoading(result) && handlers.onLoading) {
+    return handlers.onLoading();
   }
-  return null;
+  if (isIdle(result) && handlers.onIdle) {
+    return handlers.onIdle();
+  }
+  return undefined;
 }
 ```
 
@@ -259,26 +259,35 @@ The AsyncResult pattern can be integrated with enhanced error handling to provid
 ### Contextual Error Creator
 
 ```typescript
-export interface ErrorContext {
-  service?: string;      // Service/module where the error occurred
-  operation?: string;    // Operation being performed when error occurred
-  resourceType?: string; // Type of resource being accessed
-  resourceId?: string;   // ID of resource being accessed
-  details?: Record<string, unknown>; // Additional context
+export interface ContextualError extends Error {
+  /** Additional context information about the error */
+  context?: Record<string, unknown>;
+  /** Optional error code for categorization */
+  code?: string;
+  /** The original error that caused this error */
+  originalError?: Error;
 }
 
-export function createContextualErrorCreator(defaultContext: Partial<ErrorContext>) {
-  return (message: string, operation?: string, details?: Record<string, unknown>): Error => {
-    const error = new Error(message);
-    
-    // Add context properties to the error object
-    Object.assign(error, {
-      ...defaultContext,
-      ...(operation ? { operation } : {}),
-      ...(details ? { details } : {})
-    });
-    
-    return error;
+export function createContextualErrorCreator(
+  defaultContext: Record<string, unknown>
+): (
+  message: string,
+  code?: string,
+  additionalContext?: Record<string, unknown>,
+  originalError?: Error
+) => ContextualError {
+  return (
+    message: string,
+    code?: string,
+    additionalContext?: Record<string, unknown>,
+    originalError?: Error
+  ): ContextualError => {
+    return createContextualError(
+      message,
+      code,
+      { ...defaultContext, ...additionalContext },
+      originalError
+    );
   };
 }
 ```
@@ -287,20 +296,29 @@ export function createContextualErrorCreator(defaultContext: Partial<ErrorContex
 
 ```typescript
 export async function withEnhancedErrorHandling<T>(
-  operation: () => Promise<T>,
-  context: ErrorContext
-): Promise<AsyncResult<T, Error>> {
+  fn: () => Promise<AsyncResult<T, Error>>,
+  errorContext: Record<string, unknown>
+): Promise<AsyncResult<T, ContextualError>> {
   try {
-    const result = await operation();
-    return createSuccessResult(result);
+    const result = await fn();
+    if (isError(result)) {
+      // Convert regular Error to ContextualError with context
+      return createErrorResult(
+        createContextualError(result.error.message, undefined, errorContext, result.error)
+      );
+    }
+    if (isSuccess(result)) {
+      return createSuccessResult(result.data);
+    }
+    if (isLoading(result)) {
+      return createLoadingResult();
+    }
+    return createIdleResult();
   } catch (error) {
-    // Add context to the error
-    const contextualError = error instanceof Error ? error : new Error(String(error));
-    
-    // Add context properties to the error object
-    Object.assign(contextualError, context);
-    
-    return createErrorResult(contextualError);
+    const message = error instanceof Error ? error.message : String(error);
+    return createErrorResult(
+      createContextualError(message, 'UNEXPECTED_ERROR', errorContext, error instanceof Error ? error : undefined)
+    );
   }
 }
 ```
@@ -314,13 +332,13 @@ public async methodName(params): Promise<AsyncResult<ResultType, ContextualError
   return withEnhancedErrorHandling<ResultType>(async () => {
     // Validate inputs
     if (!isValidInput(params)) {
-      throw this.createContextualError('Validation error message', 'methodName');
+      throw new Error('Validation error message');
     }
     
     // Implementation logic...
     
-    // Return raw data, not wrapped in AsyncResult
-    return result;
+    // Return result wrapped in AsyncResult
+    return createSuccessResult(result);
   }, {
     operation: 'methodName',
     service: 'ServiceName',
@@ -492,10 +510,10 @@ function UserProfile({ userId }: { userId: number }) {
   
   // Method 2: Using the handleAsyncResult helper
   return handleAsyncResult(userState, {
-    idle: () => <Button onClick={fetchUser}>Load User</Button>,
-    loading: () => <LoadingSpinner />,
-    error: (error) => <ErrorMessage message={error.message} />,
-    success: (user) => (
+    onIdle: () => <Button onClick={fetchUser}>Load User</Button>,
+    onLoading: () => <LoadingSpinner />,
+    onError: (error) => <ErrorMessage message={error.message} />,
+    onSuccess: (user) => (
       <div>
         <h1>{user.name}</h1>
         <p>Email: {user.email}</p>
@@ -522,18 +540,18 @@ export class MyAdapter extends BaseIntegrationAdapter<MyConfig> implements Integ
   }
   
   // Async version with AsyncResult and enhanced error handling
-  async searchMangaAsync(query: string): Promise<AsyncResult<MangaEntity[], Error>> {
+  async searchMangaAsync(query: string): Promise<AsyncResult<MangaEntity[], ContextualError>> {
     return withEnhancedErrorHandling(async () => {
       // Validate input
       if (!query || query.trim().length === 0) {
-        throw this.createContextualError('Search query cannot be empty', 'searchManga');
+        throw new Error('Search query cannot be empty');
       }
       
       // Implementation...
       const results = await this.client.search(query);
       
-      // Process results...
-      return processedResults;
+      // Return result wrapped in AsyncResult
+      return createSuccessResult(processedResults);
     }, {
       operation: 'searchManga',
       service: 'MyAdapter',
@@ -609,10 +627,10 @@ throw this.createContextualError(
 ### 5. Handle All States in UI Components
 ```tsx
 return handleAsyncResult(dataState, {
-  idle: () => <InitialMessage />,
-  loading: () => <LoadingSpinner />,
-  error: (error) => <ErrorMessage message={error.message} />,
-  success: (data) => <DataDisplay data={data} />
+  onIdle: () => <InitialMessage />,
+  onLoading: () => <LoadingSpinner />,
+  onError: (error) => <ErrorMessage message={error.message} />,
+  onSuccess: (data) => <DataDisplay data={data} />
 });
 ```
 
@@ -625,7 +643,8 @@ const getField = <K extends keyof Data>(field: K, defaultValue?: Data[K]) =>
 ### 7. Use Enhanced Error Handling for Better Context
 ```typescript
 return withEnhancedErrorHandling(async () => {
-  // Implementation...
+  // Implementation that returns AsyncResult...
+  return createSuccessResult(data);
 }, {
   operation: 'methodName',
   service: 'ServiceName',
@@ -696,8 +715,8 @@ if (isSuccess(results)) {
   const mangaTitles = results.data.map(manga => manga.title);
 }
 
-// Or use the mapArray helper
-const mangaTitlesResult = mapArray(results, manga => manga.title);
+// Or use the mapAsyncResultArray helper
+const mangaTitlesResult = mapAsyncResultArray(results, manga => manga.title);
 ```
 
 ### 3. Forgetting to Set Loading State
@@ -744,10 +763,10 @@ if (isLoading(result)) {
 ```tsx
 // Handle all states with handleAsyncResult
 return handleAsyncResult(result, {
-  idle: () => <InitialState />,
-  loading: () => <LoadingSpinner />,
-  error: (error) => <ErrorMessage error={error} />,
-  success: (data) => <DataDisplay data={data} />
+  onIdle: () => <InitialState />,
+  onLoading: () => <LoadingSpinner />,
+  onError: (error) => <ErrorMessage error={error} />,
+  onSuccess: (data) => <DataDisplay data={data} />
 });
 ```
 
@@ -788,14 +807,15 @@ return createErrorResult(
 );
 ```
 
-### 7. Returning, Not Throwing Errors in withEnhancedErrorHandling
+### 7. Forgetting to Wrap Return Values in AsyncResult for withEnhancedErrorHandling
 **❌ Incorrect:**
 ```typescript
 return withEnhancedErrorHandling(async () => {
   if (!isValid) {
-    return createErrorResult(new Error('Invalid input')); // WRONG!
+    throw new Error('Invalid input');
   }
-  // ...
+  // WRONG: returns raw data, not an AsyncResult
+  return rawData;
 }, { /* context */ });
 ```
 
@@ -803,9 +823,10 @@ return withEnhancedErrorHandling(async () => {
 ```typescript
 return withEnhancedErrorHandling(async () => {
   if (!isValid) {
-    throw this.createContextualError('Invalid input', 'methodName'); // Correct
+    throw new Error('Invalid input'); // throwing is correct for errors
   }
-  // ...
+  // Correct: wrap result in AsyncResult
+  return createSuccessResult(rawData);
 }, { /* context */ });
 ```
 
@@ -878,12 +899,12 @@ const fetchData = async (): Promise<AsyncResult<Data, Error>> => {
 Or with enhanced error handling:
 
 ```typescript
-const fetchData = async (): Promise<AsyncResult<Data, Error>> => {
+const fetchData = async (): Promise<AsyncResult<Data, ContextualError>> => {
   setDataState(createLoadingResult());
   
   const result = await withEnhancedErrorHandling(async () => {
     const data = await api.getData();
-    return data;
+    return createSuccessResult(data);
   }, {
     operation: 'fetchData',
     service: 'DataService'
@@ -911,10 +932,10 @@ return (
 **After:**
 ```tsx
 return handleAsyncResult(dataState, {
-  idle: () => <p>Click to load data</p>,
-  loading: () => <LoadingSpinner />,
-  error: (error) => <ErrorMessage message={error.message} />,
-  success: (data) => <DataDisplay data={data} />
+  onIdle: () => <p>Click to load data</p>,
+  onLoading: () => <LoadingSpinner />,
+  onError: (error) => <ErrorMessage message={error.message} />,
+  onSuccess: (data) => <DataDisplay data={data} />
 });
 ```
 
@@ -970,7 +991,8 @@ const updateItem = async (id: number, update: ItemUpdate): Promise<AsyncResult<I
   
   // Perform actual update
   const result = await withEnhancedErrorHandling(async () => {
-    return await api.updateItem(id, update);
+    const updated = await api.updateItem(id, update);
+    return createSuccessResult(updated);
   }, {
     operation: 'updateItem',
     resourceId: String(id)
@@ -999,8 +1021,8 @@ const loadDashboardData = async (): Promise<AsyncResult<DashboardData, Error>> =
     fromPromiseCatch<Stats, Error>(api.getStats(), err => new Error(`Failed to load stats: ${String(err)}`)),
   ]);
   
-  // Use the combineAsyncResults helper to combine all results
-  const combinedResult = combineAsyncResults<[User, Item[], Stats], Error>([userResult, itemsResult, statsResult]);
+  // Use the combine helper to combine all results
+  const combinedResult = combine<[User, Item[], Stats], Error>([userResult, itemsResult, statsResult]);
   
   // Handle the combined result
   if (isSuccess(combinedResult)) {
@@ -1152,30 +1174,25 @@ export function useMetadata(mangaId: number): UseMetadataResult {
   // Define state with proper typing
   const [metadataState, setMetadataState] = useState<AsyncResult<MangaMetadata | undefined, Error>>(createIdleResult());
   
-  // Fetch metadata query using trpc
-  const { data: metadataResult, isLoading } = trpc.metadata.getMangaMetadata.useQuery(
+  // Fetch metadata query using trpc (TanStack Query v5: no onSuccess/onError in useQuery options)
+  const { data: metadataResult, isPending, isError: queryIsError, error: queryError } = trpc.metadata.getMangaMetadata.useQuery(
     { mangaId },
-    {
-      enabled: !!mangaId,
-      onSuccess: (data) => {
-        // Convert successful query to AsyncResult
-        setMetadataState(createSuccessResult(data));
-      },
-      onError: (error) => {
-        // Convert error to AsyncResult
-        setMetadataState(createErrorResult(
-          error instanceof Error ? error : new Error(`Failed to fetch metadata: ${String(error)}`)
-        ));
-      }
-    }
+    { enabled: !!mangaId }
   );
   
-  // Set loading state when query is initiated
+  // Sync tRPC query state into AsyncResult state
   useEffect(() => {
-    if (mangaId && isLoading) {
+    if (!mangaId) return;
+    if (isPending) {
       setMetadataState(createLoadingResult());
+    } else if (queryIsError) {
+      setMetadataState(createErrorResult(
+        queryError instanceof Error ? queryError : new Error(`Failed to fetch metadata: ${String(queryError)}`)
+      ));
+    } else if (metadataResult !== undefined) {
+      setMetadataState(createSuccessResult(metadataResult));
     }
-  }, [mangaId, isLoading]);
+  }, [mangaId, isPending, queryIsError, queryError, metadataResult]);
   
   // Safe extraction of metadata with type guards
   const metadata = isSuccess(metadataState) ? metadataState.data : undefined;
@@ -1254,10 +1271,10 @@ export const SearchStep: React.FC<SearchStepProps> = ({ onSelect }) => {
       <SearchForm onSubmit={handleSearch} />
       
       {handleAsyncResult(searchState, {
-        idle: () => <p>Enter a search query to begin</p>,
-        loading: () => <LoadingSpinner />,
-        error: (error) => <ErrorMessage message={error.message} />,
-        success: (results) => (
+        onIdle: () => <p>Enter a search query to begin</p>,
+        onLoading: () => <LoadingSpinner />,
+        onError: (error) => <ErrorMessage message={error.message} />,
+        onSuccess: (results) => (
           results.length > 0 
             ? <SearchResults results={results} onSelect={onSelect} />
             : <p>No results found</p>
@@ -1286,11 +1303,11 @@ export class MangaDexAdapter extends BaseIntegrationAdapter<MangaDexConfig> impl
   /**
    * Search for manga using enhanced error handling
    */
-  async searchMangaAsync(query: string, options?: SearchOptions): Promise<AsyncResult<MangaSearchResult[], Error>> {
+  async searchMangaAsync(query: string, options?: SearchOptions): Promise<AsyncResult<MangaSearchResult[], ContextualError>> {
     return withEnhancedErrorHandling(async () => {
       // Validate input
       if (!query || query.trim().length === 0) {
-        throw this.createContextualError('Search query cannot be empty', 'searchManga');
+        throw new Error('Search query cannot be empty');
       }
       
       // Make API request
@@ -1301,20 +1318,16 @@ export class MangaDexAdapter extends BaseIntegrationAdapter<MangaDexConfig> impl
       
       // Validate response
       if (!response || !response.data) {
-        throw this.createContextualError(
-          'Invalid response from MangaDex API',
-          'searchManga',
-          { query }
-        );
+        throw new Error(`Invalid response from MangaDex API for query "${query}"`);
       }
       
       // Process results
       if (!Array.isArray(response.data)) {
-        return [];
+        return createSuccessResult([]);
       }
       
       // Map to standard format
-      return response.data.map(manga => ({
+      const results = response.data.map(manga => ({
         id: manga.id,
         title: manga.attributes.title.en || Object.values(manga.attributes.title)[0] || 'Unknown',
         source: 'mangadex',
@@ -1328,6 +1341,7 @@ export class MangaDexAdapter extends BaseIntegrationAdapter<MangaDexConfig> impl
             .map(tag => tag.attributes.name.en)
         }
       }));
+      return createSuccessResult(results);
     }, {
       operation: 'searchManga',
       service: 'MangaDexAdapter',

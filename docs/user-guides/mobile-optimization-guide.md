@@ -69,7 +69,7 @@ if (isMobile) {
 Manages PWA installation and status:
 
 ```typescript
-const { isInstalled, canInstall, promptInstall } = usePWA();
+const { isInstalled, canInstall, install } = usePWA();
 ```
 
 ### useHapticFeedback
@@ -77,8 +77,8 @@ const { isInstalled, canInstall, promptInstall } = usePWA();
 Provides vibration feedback:
 
 ```typescript
-const { vibrate } = useHapticFeedback();
-vibrate('light'); // light, medium, or heavy
+const { trigger } = useHapticFeedback();
+trigger('light'); // light, medium, or heavy
 ```
 
 ### Mobile Gesture Hooks

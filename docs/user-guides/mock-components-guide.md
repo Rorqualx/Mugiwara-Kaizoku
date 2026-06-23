@@ -10,59 +10,32 @@ The application uses several complex components that have dependencies on extern
 
 The following mock components have been created to aid the build process:
 
-1. **Download Client Components**
-   - `src/components/settings/downloadClients/ClientSettings.mock.tsx`
-   - `src/components/settings/downloadClients/DownloadDashboard.mock.tsx`
+1. **Settings Components**
+   - `src/test/mocks/components/settings/EventSettings.mock.tsx`
+   - `src/test/mocks/components/settings/NotificationSettings.mock.tsx`
+   - `src/test/mocks/components/settings/DownloadSettings.mock.tsx`
+   - `src/test/mocks/components/settings/FileOrganizationSettings.mock.tsx`
+   - `src/test/mocks/components/settings/MetadataProvidersGrid.mock.tsx`
+   - `src/test/mocks/components/settings/DefaultMetadataProvider.mock.tsx`
 
-2. **Settings Components**
-   - `src/components/settings/EventSettings.mock.tsx`
-   - `src/components/settings/NotificationSettings.mock.tsx`
-   - `src/components/settings/IntegrationSettings.mock.tsx`
-   - `src/components/settings/DownloadSettings.mock.tsx`
-   - `src/components/settings/FileOrganizationSettings.mock.tsx`
-   - `src/components/settings/MetadataProvidersGrid.mock.tsx`
-   - `src/components/settings/DefaultMetadataProvider.mock.tsx`
-
-3. **System Components**
-   - `src/components/system/LogViewer.mock.tsx`
+2. **System Components**
    - `src/components/system/StatusContent.mock.tsx`
+   - `src/test/mocks/components/system/StatusContent.mock.tsx`
 
-4. **Task Components**
-   - `src/components/tasks/TaskList.mock.tsx`
-   - `src/components/tasks/TaskNav.tsx` (actual implementation that works without complex dependencies)
+3. **Task Components**
+   - `src/test/mocks/components/tasks/TaskList.mock.tsx`
+   - `src/test/mocks/components/tasks/TaskNav.mock.tsx`
 
-5. **Auth Configuration**
+4. **Auth Configuration**
    - `src/lib/auth/config.mock.ts` (avoids bcrypt native dependencies)
 
 ## How to Use
 
 ### Building with Mock Components
 
-To build the application using mock components, use the enhanced build script:
+To build the application, the mock components under `src/test/mocks/` and `src/components/system/` are used automatically. The mock auth configuration (`src/lib/auth/config.mock.ts`) avoids bcrypt native dependencies during builds.
 
-```bash
-./scripts/enhanced-build.sh
-```
-
-This script:
-1. Backs up the original auth configuration
-2. Replaces it with the mock version to avoid bcrypt dependencies
-3. Runs the simplified build process
-4. Restores the original files
-
-### Running with Simplified Server
-
-After building, you can run the application with a simplified server:
-
-```bash
-./scripts/start-simple.sh
-```
-
-This script:
-1. Sets up the PostgreSQL database
-2. Generates the Prisma client
-3. Runs database migrations
-4. Starts a simplified HTTP server to serve the built content
+Refer to `scripts/build/build-clean.sh` and `scripts/build/dev-integrated.sh` for the available build helpers.
 
 ## Implementation Details
 
@@ -91,14 +64,9 @@ The mock auth configuration avoids the use of bcrypt, which requires native comp
 - Simplified auth callbacks
 - A dummy authorize function
 
-### Simplified Server
+### Development Server
 
-The simplified server (`scripts/simple-server.mjs`) is an ES module that:
-
-- Creates a basic HTTP server
-- Serves the static HTML file built during the build process
-- Handles basic routing
-- Provides appropriate content types
+For local development, use the integrated dev server script at `scripts/build/dev-integrated.sh`, which starts the application on HTTP port 3000.
 
 ## Troubleshooting
 

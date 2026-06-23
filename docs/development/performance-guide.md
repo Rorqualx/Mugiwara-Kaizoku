@@ -337,7 +337,7 @@ function MangaCover({ src, alt }: Props) {
 #### Enable Query Batching
 
 ```typescript
-// src/utils/trpc-client.ts
+// src/utils/trpc-client/index.ts
 import { createTRPCProxyClient, httpBatchLink } from '@trpc/client';
 
 export const trpc = createTRPCProxyClient<AppRouter>({

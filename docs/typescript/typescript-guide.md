@@ -23,13 +23,11 @@ The project uses TypeScript with strict type checking enabled:
 {
   "compilerOptions": {
     "target": "es2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "types": ["@testing-library/jest-dom", "jest"],
-    "jsx": "react-jsx",
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "module": "esnext",
-    "moduleResolution": "node",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "types": ["bun-types", "node", "jest"],
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]

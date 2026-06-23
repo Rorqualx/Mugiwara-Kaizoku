@@ -22,8 +22,8 @@
 | Old Import | New Import |
 |------------|------------|
 | `getBestAvailableCover()` | `from '../utils/manga-utils'` |
-| `isPrismaError()` | `from '../utils/validation/type-guards'` |
-| `isTaskType()` | `from '../utils/validation/task-validators'` |
+| `isPrismaError()` | `from '../utils/type-guards'` |
+| `isTaskType()` | (no longer exists — remove usage or replace with a Prisma type guard) |
 
 ### Path Corrections
 

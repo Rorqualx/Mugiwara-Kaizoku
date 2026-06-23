@@ -255,7 +255,7 @@ public async getStatusAsync(): Promise<AsyncResult<{ status: 'ok' | 'error'; mes
 
 ## Verification
 
-All type errors have been verified as fixed using `npm run type-check`. The adapter now passes TypeScript validation and continues to follow the project's established patterns and guidelines.
+All type errors have been verified as fixed using `bun run type-check`. The adapter now passes TypeScript validation and continues to follow the project's established patterns and guidelines.
 
 ## Overview
 
@@ -297,9 +297,7 @@ Unit tests were implemented to verify:
 
 ## Documentation
 
-The implementation was documented in:
-- `/docs/anilist-adapter-implementation.md`
-- Test files with comprehensive examples
+The implementation was documented in test files with comprehensive examples.
 
 ## Remaining Issues
 
@@ -425,7 +423,7 @@ The updates should be tested to ensure:
 3. Status mapping produces the same results as before
 4. All functionality continues to work as expected
 
-## File: src/api/metadataProviders/adapters/anilistAdapter.ts
+## File: src/server/adapters/unified-anilist-adapter.ts
 
 ### Issues Fixed
 
@@ -629,18 +627,7 @@ The solution involved creating a consistent way to map cover URLs from any provi
 
 ## Testing
 
-A test script has been created to verify that the cover art is being properly retrieved when using AniList to add manga:
-
-```bash
-node scripts/test-anilist-cover-art.js "Manga Title"
-```
-
-This script:
-1. Searches for a manga using the AniList provider
-2. Gets the detailed metadata for the first result
-3. Displays the cover information
-4. Creates standardized cover data
-5. Simulates how the MangaCard component would display the cover
+To verify that the cover art is being properly retrieved when using AniList to add manga, search for a manga via the AniList provider and confirm the cover URL fields (`coverLarge`, `coverMedium`, `coverSmall`) are populated in the database after adding it.
 
 ## Results
 
@@ -858,13 +845,7 @@ Failed to add manga: Failed to get anilist-native metadata: Failed to get metada
 5. Ensure "Use Native Provider" is turned on
 6. Save the settings
 
-Alternatively, you can run the `update-anilist-settings.js` script to automatically fix these issues:
-
-```bash
-node scripts/update-anilist-settings.js [clientId] [clientSecret]
-```
-
-Replace `[clientId]` and `[clientSecret]` with your actual AniList API credentials. If you don't provide these, the script will use dummy values or existing values if available.
+Verify these settings are correctly saved by checking the database configuration directly or restarting the server after saving.
 
 ### "Manga not found in anilist-native"
 
@@ -892,24 +873,18 @@ If you enable AniList settings in the UI and click the save button, but the page
 
 #### Solution:
 
-1. Use the `update-anilist-settings.js` script to ensure the settings are properly saved
+1. Re-enter the settings in the UI and click Save
 2. Restart the server to apply the changes
-3. Verify the settings are correctly saved by running the `test-anilist-metadata.js` script
+3. Verify the settings are correctly applied by checking Settings > Metadata > AniList after the restart
 
 ## Testing AniList Integration
 
-You can test the AniList integration by running the `test-anilist-metadata.js` script:
+To test the AniList integration manually:
 
-```bash
-node scripts/test-anilist-metadata.js
-```
-
-This script will:
-
-1. Check if AniList is properly configured in the settings
-2. Attempt to initialize the AniList client
-3. Test the AniList search functionality
-4. Test the AniList native provider by fetching metadata for popular manga
+1. Check that AniList is properly configured in Settings > Metadata > AniList
+2. Try adding a popular manga (e.g., "One Piece" or "Naruto") using the AniList provider
+3. Verify that metadata and cover art are populated correctly
+4. Check the server logs for any error messages related to AniList
 
 ## Getting AniList API Credentials
 
@@ -919,17 +894,16 @@ To use the AniList integration, you need to create an AniList API client:
 2. Create a new client
 3. Set the redirect URL to `http://localhost` (this is not used but required)
 4. Copy the client ID and client secret
-5. Enter these credentials in the AniList settings or use the `update-anilist-settings.js` script
+5. Enter these credentials in the AniList settings (Settings > Metadata > AniList)
 
 ## Troubleshooting Steps
 
 If you're still experiencing issues with the AniList integration, try the following steps:
 
-1. Run the `update-anilist-settings.js` script to ensure the settings are properly configured
-2. Run the `test-anilist-metadata.js` script to verify the integration is working
-3. Restart the server to apply any changes
-4. Try adding a popular manga like "One Piece" or "Naruto"
-5. Check the server logs for any error messages
+1. Verify and re-save settings in Settings > Metadata > AniList
+2. Restart the server to apply any changes
+3. Try adding a popular manga like "One Piece" or "Naruto"
+4. Check the server logs for any error messages
 
 If these steps don't resolve the issue, please report the problem with the error message and server logs.
 

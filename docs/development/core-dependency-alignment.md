@@ -14,7 +14,7 @@ The project has been updated to ensure consistent versions of core dependencies 
 - **React DOM 18.2.0**: Matching React DOM version
 - **Next.js 14.1.0**: Latest version of Next.js compatible with React 18 (project pins React 18)
 - **@types/react 18.3.23**: Type definitions for React 18
-- **@types/react-dom 18.3.7**: Type definitions for React DOM 19
+- **@types/react-dom 18.3.7**: Type definitions for React DOM 18
 
 ### tRPC Ecosystem
 

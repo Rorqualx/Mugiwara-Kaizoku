@@ -70,8 +70,8 @@ bun --bun run dev
 - Can be edited manually (not recommended)
 
 **Bun:**
-- Uses `bun.lockb` (binary format, ~200KB)
-- **Cannot be edited manually**
+- Uses `bun.lock` (text format)
+- **Can be inspected but should not be edited manually**
 - **Do not commit both:** Delete `package-lock.json` after migrating
 
 ### 2. Package Cache
@@ -128,7 +128,7 @@ bun --bun run dev
 ```bash
 # Installation
 bun install                    # Install dependencies
-bun install:frozen             # Install with frozen lockfile (CI)
+bun run install:bun:frozen     # Install with frozen lockfile (CI)
 bun add <package>              # Add package
 bun remove <package>           # Remove package
 
@@ -225,7 +225,7 @@ bun install
 bun --bun run dev
 
 # Switch back to Node.js
-rm -rf node_modules bun.lockb
+rm -rf node_modules bun.lock
 npm install
 npm run dev
 ```
@@ -233,8 +233,8 @@ npm run dev
 ### Regenerate Lockfile
 
 ```bash
-# If bun.lockb is corrupted
-rm bun.lockb
+# If bun.lock is corrupted
+rm bun.lock
 bun install
 
 # Force clean install
@@ -281,7 +281,7 @@ exec $SHELL
 **Solution:**
 ```bash
 # Clean and reinstall
-rm -rf node_modules bun.lockb
+rm -rf node_modules bun.lock
 bun install
 
 # Generate Prisma client
@@ -344,7 +344,7 @@ The `--bun` flag enables Bun's native runtime optimizations.
 
 During migration, you may need both:
 - `package-lock.json` - For Node.js CI/CD
-- `bun.lockb` - For Bun development
+- `bun.lock` - For Bun development
 
 **After full migration:** Delete `package-lock.json`
 
@@ -417,9 +417,8 @@ Based on Mugiwara Kaizoku project:
 
 ### Internal Resources
 
-- **Migration Plan:** `docs/migration/BUN_MIGRATION_IMPLEMENTATION_PLAN.md`
-- **Analysis:** `docs/migration/BUN_MIGRATION_ANALYSIS.md`
-- **Addendum:** `docs/migration/BUN_MIGRATION_ADDENDUM.md`
+- **Migration Overview:** `docs/migration/README.md`
+- **Platform Compatibility:** `docs/migration/PLATFORM_COMPATIBILITY.md`
 - **Team Slack:** `#bun-migration` channel
 
 ### External Resources

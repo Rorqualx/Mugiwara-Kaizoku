@@ -45,7 +45,7 @@ The project follows a modern architecture with:
 - **Frontend**: Next.js with React and Mantine UI
 - **Backend**: Node.js with tRPC for type-safe APIs
 - **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: Auth.js (next-auth v5)
+- **Authentication**: NextAuth.js (next-auth v4)
 - **Type Safety**: End-to-end TypeScript
 
 ## 🔄 Migration Approach

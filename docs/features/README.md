@@ -4,14 +4,14 @@ This directory contains detailed documentation for all features implemented in M
 
 ## 📁 Feature Categories
 
-### [Download System](./download-system/)
+### Download System
 Documentation for the download client integration system:
 - Download system TypeScript fixes
 - Download client error handling
 - Deluge client implementation
 - Download settings deduplication
 
-### [Reader](./reader/)
+### Reader
 Native reader enhancement implementation:
 - Reader implementation completion status
 - Reader features and improvements
@@ -28,13 +28,13 @@ External service integrations:
 - Integration status fixes
 - TypeScript fixes for integrations
 
-### [User Management](./user-management/)
+### User Management
 User page and authentication features:
 - Users page implementation plan
 - Audit fixes and improvements
 - Fix summaries
 
-### [Other Features](./other/)
+### Other Features
 Additional feature implementations:
 - Wanted pages functionality
 - Updates page implementation

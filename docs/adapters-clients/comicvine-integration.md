@@ -50,11 +50,7 @@ When a ComicVine URL is entered:
 When a ComicVine manga is added to the library:
 
 #### Automatic Chapter Generation
-The system automatically creates chapters from ComicVine issues:
-```typescript
-// src/components/addManga/services/modules/metadataMerger.ts
-async enrichChapterMetadataFromComicVine(mangaId: number)
-```
+The system automatically creates chapters from ComicVine issues via the ComicVine issue processor (`src/components/addManga/services/modules/comicvine-provider/issue-processor.ts`).
 
 This process:
 1. Fetches the issues list from ComicVine API
@@ -163,7 +159,7 @@ const result = await trpc.metadata.fetchComicvineVolumeDetails.mutate({
 ### Key Components Modified
 - `src/server/trpc/routers/metadata.ts`: Added `fetchComicvineVolumeDetails` endpoint
 - `src/components/addManga/steps/confirmationStep.tsx`: Enhanced to display volume details
-- `src/components/addManga/services/modules/metadataMerger.ts`: Creates chapters from ComicVine issues
+- `src/components/addManga/services/modules/comicvine-provider/issue-processor.ts`: Creates chapters from ComicVine issues
 - `src/components/manga/ChapterList.tsx`: Displays cover thumbnails and descriptions
 - `src/components/manga/ChapterDetailModal.tsx`: Shows full issue information
 

@@ -4,9 +4,6 @@ This directory contains documentation related to user interface design and user 
 
 ## 📄 Files
 
-### APPEARANCE_AUDIT.md
-Comprehensive audit of the application's appearance settings and UI components.
-
 ### [CLAUDE.md](./CLAUDE.md)
 Documentation related to Claude AI integration or Claude-specific UI considerations.
 

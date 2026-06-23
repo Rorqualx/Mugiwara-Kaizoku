@@ -75,5 +75,5 @@ git status --short        # verify
 ## Related
 
 - [`git-hooks-setup.md`](./git-hooks-setup.md) — pre-commit hook configuration
-- `.husky/pre-commit` (427 lines) and `scripts/pre-commit-hook.sh` (137 lines,
+- `.husky/pre-commit` (475 lines) and `scripts/pre-commit-hook.sh` (137 lines,
   symlinked from `.git/hooks/pre-commit`) — neither writes to the index

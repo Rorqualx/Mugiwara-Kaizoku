@@ -22,7 +22,7 @@ Connect to the WebSocket server for real-time bidirectional communication.
 
 **Authentication**: 
 - Query parameter: `?apiKey=your-api-key`
-- Or header: `Authorization: Bearer your-api-key`
+- Or header: `X-API-Key: your-api-key`
 
 ### Message Format
 

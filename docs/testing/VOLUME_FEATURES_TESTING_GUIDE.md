@@ -388,7 +388,7 @@ After each test, verify:
 
 **Solution:**
 - Verify file is actually a volume (multiple chapters)
-- Check `isVolumeFile()` logic in volumeSplitter.ts:254
+- Check `isVolumeFile()` logic in volume-splitter/volume-detector.ts:26
 - Manually test with `volumeSplitter.isVolumeFile(filePath)`
 
 ### Low Confidence Score (<50%)

@@ -15,7 +15,7 @@ src/types/
 ├── domain/          # ✅ Core business logic types
 ├── adapters/        # ✅ Adapter interfaces and types
 ├── api/             # ✅ API request/response types
-├── mangal/          # ✅ Mangal integration types
+├── manga/           # ✅ Manga-specific view/guard types
 ├── generated/       # ✅ Auto-generated types
 └── [root files]     # ✅ Shared/utility types
 ```
@@ -26,13 +26,11 @@ src/types/
 **Purpose**: Core business entities and logic types
 
 **Key Files**:
-- `manga-types.ts` - Core manga entities (Manga, MangaStatus enum)
-- `chapter-types.ts` - Chapter entities
-- `user-types.ts` - User domain models
-- `library-types.ts` - Library management types
-- `provider-types.ts` - Provider abstractions
-- `search-types.ts` - Search interfaces
-- `task-types.ts` - Background task types
+- `cover-layers-types.ts` - Cover layer composite types
+- `enrichment-result-types.ts` - Metadata enrichment result types
+- `field-alternatives-types.ts` - Field alternative/fallback types
+- `pipeline-events.ts` - Enrichment pipeline event types
+- `rating-types.ts` - Rating domain types
 
 **When to Use**: For any core business logic types that represent domain concepts
 
@@ -40,11 +38,11 @@ src/types/
 **Purpose**: Type definitions for all adapters
 
 **Key Files**:
-- `base.ts` - Base adapter interfaces
 - `anilist.ts` - AniList adapter types
-- `mangadex.ts` - MangaDex adapter types
 - `comicvine.ts` - ComicVine adapter types
-- `fandom.ts` - Fandom adapter types
+- `suwayomi.ts` - Suwayomi adapter types
+- `native-download-types.ts` - Native download adapter types
+- `index.ts` - Barrel re-exports
 
 **When to Use**: When implementing or using adapter functionality
 
@@ -52,22 +50,25 @@ src/types/
 **Purpose**: API request/response types
 
 **Key Files**:
-- `requests.ts` - API request DTOs
-- `responses.ts` - API response DTOs
-- `error-types.ts` - API error structures
+- `common.ts` - Shared API types
+- `manga-router-types.ts` - Manga tRPC router types
+- `v1/requests.ts` - v1 API request DTOs
+- `v1/responses.ts` - v1 API response DTOs
+- `v1/errors.ts` - v1 API error structures
 
 **When to Use**: For API endpoints, request validation, response formatting
 
-### `/src/types/mangal/` - Mangal Integration Types
-**Purpose**: Types for mangal CLI integration
+### `/src/types/manga/` - Manga View and Guard Types
+**Purpose**: Manga-specific view models, type guards, and derived types
 
 **Key Files**:
-- `manga.ts` - Mangal manga types
-- `chapter.ts` - Mangal chapter types
-- `config.ts` - Mangal configuration types
-- `common.ts` - Shared mangal types
+- `index.ts` - Barrel re-exports (including `MangaWithMetadata`)
+- `views.ts` - Manga view/display types
+- `guards.ts` - Manga type guards
+- `adapters.ts` - Manga adapter result types
+- `external.ts` - External API manga types
 
-**When to Use**: When working with mangal CLI integration
+**When to Use**: When working with manga display types or type guards
 
 ### Root Level Types - Shared/Utility Types
 **Purpose**: Types used across multiple domains
@@ -76,7 +77,6 @@ src/types/
 - `common.ts` - Common utility types
 - `component-types.ts` - React component props
 - `store-types.ts` - Zustand store types
-- `error-types.ts` - General error types
 - `prisma-exports.ts` - Prisma generated exports
 
 **When to Use**: For cross-cutting concerns or utilities

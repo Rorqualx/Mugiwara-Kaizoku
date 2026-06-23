@@ -9,7 +9,7 @@ We have successfully refactored the provider system to eliminate code duplicatio
 ### What Was Done
 
 1. **Enhanced MetadataService** - Now acts as the primary orchestrator for all metadata operations
-2. **Created Service Wrappers** - FandomServiceWrapper and WikipediaServiceWrapper provide backward compatibility
+2. **Created Service Wrappers** - WikipediaServiceWrapper provides backward compatibility
 3. **Unified Search Service** - Bridges legacy and new provider systems seamlessly
 4. **Provider Registry Pattern** - All providers now follow a consistent strategy pattern
 
@@ -50,10 +50,9 @@ src/server/
 │   │   │   ├── AniListProviderStrategy.ts
 │   │   │   └── ComicVineProviderStrategy.ts
 │   │   └── wrappers/
-│   │       ├── FandomServiceWrapper.ts    # Backward compatibility
 │   │       └── WikipediaServiceWrapper.ts # Backward compatibility
 │   ├── search/
-│   │   └── UnifiedSearchService.ts        # Unified search coordinator
+│   │   └── UnifiedProviderRegistry.ts     # Unified search coordinator
 │   └── metadata/
 │       └── MetadataService.ts             # Enhanced orchestrator
 ```
@@ -143,8 +142,8 @@ interface ProviderStrategy {
   name: string;
   type: MetadataProvider;
   
-  search(query: string, options?: any): Promise<AsyncResult<SearchResult[], Error>>;
-  getMetadata(id: string, options?: any): Promise<AsyncResult<MangaMetadata, Error>>;
+  search(query: string, options?: unknown): Promise<AsyncResult<SearchResult[], Error>>;
+  getMetadata(id: string, options?: unknown): Promise<AsyncResult<MangaMetadata, Error>>;
   isEnabled(): Promise<boolean>;
   getConfig(): ProviderConfig;
   updateConfig(config: Partial<ProviderConfig>): void;
@@ -196,14 +195,14 @@ const isEnabled = await registry.getProvider(MetadataProvider.ANILIST)?.isEnable
 
 ## Testing
 
-Run the integration test to verify everything works:
+Run the existing test suite to verify provider integration works:
 
 ```bash
-# Test provider integration
-npm run test:providers
+# Run all tests
+bun run test
 
-# Or run the test script directly
-tsx scripts/test-provider-integration.ts
+# Run tests with coverage
+bun run test:coverage
 ```
 
 ## Benefits of the New System
@@ -235,7 +234,7 @@ Check:
 If old code breaks:
 1. Ensure service wrappers are imported correctly
 2. Check that legacy providers are still registered
-3. Verify UnifiedSearchService is initialized
+3. Verify UnifiedProviderRegistry is initialized
 
 ## Next Steps
 

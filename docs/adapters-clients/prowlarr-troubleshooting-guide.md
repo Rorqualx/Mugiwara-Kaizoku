@@ -34,7 +34,7 @@ export PROWLARR_URL="http://localhost:9696"
 export PROWLARR_API_KEY="your-api-key-here"
 
 # Run the test
-node scripts/test-prowlarr-api.js
+node scripts/testing/test-prowlarr-api.js
 ```
 
 This will test all endpoints and show you exactly what's working or failing.
@@ -156,9 +156,8 @@ PROWLARR_API_KEY=your-api-key-here
 ### 3. Verify Implementation Files
 All these files are correctly implemented:
 - ✅ `src/utils/prowlarrApi.ts`
-- ✅ `src/utils/prowlarrApi.ts`
 - ✅ `src/pages/api/prowlarr.ts`
-- ✅ `src/components/settings/prowlarr/*.tsx`
+- ✅ `src/components/settings/indexers/ProwlarrConfigSection.tsx`
 
 ## Docker Considerations
 

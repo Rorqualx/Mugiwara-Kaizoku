@@ -45,7 +45,7 @@ sequenceDiagram
     User->>MangaRowCard: Click manga card
     MangaRowCard->>useMangaDetailModal: openModal(anilistId)
     useMangaDetailModal->>MangaDetailModal: Show modal with anilistId
-    MangaDetailModal->>tRPC: anilist.getMangaDetails.useQuery
+    MangaDetailModal->>tRPC: anilist.getMangaDetails.useMutation
     tRPC->>HotDataCache: Check hot_data_cache (Tier 1)
     alt Cache Hit (2-5ms)
         HotDataCache-->>tRPC: Cached data
@@ -108,7 +108,7 @@ UNLOGGED tables persist across server restarts but are lost on PostgreSQL crashe
 
 ### MangaDetailModal
 
-**Location:** `src/components/home/MangaDetailModal.tsx:59-352`
+**Location:** `src/components/home/MangaDetailModal.tsx:30-375`
 
 **Props:**
 ```typescript
@@ -116,8 +116,7 @@ interface MangaDetailModalProps {
   opened: boolean;              // Modal visibility state
   onClose: () => void;          // Close handler
   anilistId: number | null;     // AniList manga ID
-  onQuickAdd?: (anilistId: number) => void;     // Quick Add handler
-  onOpenWizard?: (anilistId: number) => void;   // Import Wizard handler
+  onAdd?: (manga: MangaDetailData) => void | Promise<void>;  // Add to Library handler
 }
 ```
 
@@ -146,7 +145,7 @@ interface MangaDetailModalProps {
 
 ### useMangaDetailModal Hook
 
-**Location:** `src/hooks/useMangaDetailModal.ts:1-35`
+**Location:** `src/hooks/useMangaDetailModal.ts:1-83`
 
 **Returns:**
 ```typescript
@@ -240,7 +239,7 @@ const handleOpenWizard = useCallback((anilistIdToImport: number) => {
 
 ### MangaRow Integration
 
-**Location:** `src/components/home/MangaRow.tsx:122-389`
+**Location:** `src/components/home/MangaRow.tsx:123-376`
 
 **Props Update:**
 ```typescript
@@ -266,7 +265,7 @@ interface MangaRowProps {
 
 ### TrendingBanner Integration
 
-**Location:** `src/components/home/TrendingBanner.tsx:141-483`
+**Location:** `src/components/home/TrendingBanner.tsx:36-457`
 
 **Props Update:**
 ```typescript
@@ -298,7 +297,7 @@ interface TrendingBannerProps {
 
 ### anilist.getMangaDetails
 
-**Location:** `src/server/trpc/routers/anilist.ts:15-107`
+**Location:** `src/server/trpc/routers/anilist.ts:580-621`
 
 **Input Schema:**
 ```typescript
@@ -350,8 +349,9 @@ z.object({
 
 **Caching Strategy:**
 ```typescript
-// Client-side cache (React Query)
-staleTime: 10 * 60 * 1000  // 10 minutes
+// Note: getMangaDetails is implemented as a mutation (useMutation), not useQuery,
+// so there is no client-side React Query cache for this endpoint.
+// Each call triggers a fresh network request to the server-side three-tier cache.
 
 // Server-side cache (Three-tier)
 // 1. Check hot_data_cache (2-5ms)
@@ -367,7 +367,7 @@ staleTime: 10 * 60 * 1000  // 10 minutes
 
 ### Enhanced Props
 
-**Location:** `src/components/addManga/AddMangaModal.tsx:31-42`
+**Location:** `src/components/addManga/AddMangaModal.tsx:48-61`
 
 **Added Prop:**
 ```typescript
@@ -376,13 +376,14 @@ interface AddMangaModalProps {
   onClose: () => void;
   libraryId: ID;
   onComplete?: (mangaId: number) => void;
-  initialAnilistId?: number;  // NEW: Pre-fill wizard with AniList ID
+  initialAnilistId?: number;  // Pre-fill wizard with AniList ID
+  initialMode?: AddMangaInitialMode;  // 'quickAdd' | 'wizard'
 }
 ```
 
 ### Auto-Selection Logic
 
-**Location:** `src/components/addManga/AddMangaModal.tsx:95-128`
+**Location:** `src/components/addManga/AddMangaModal.tsx:197-242`
 
 When `initialAnilistId` is provided:
 1. Fetches AniList data via tRPC
@@ -559,13 +560,13 @@ const handleMangaClick = (anilistId: number) => {
 // Log initialAnilistId value
 console.log('Opening wizard with AniList ID:', addMangaAnilistId);
 
-// Check if data fetch succeeds
-const { data, isLoading, error } = trpc.anilist.getMangaDetails.useQuery(
+// Check if data fetch succeeds (getMangaDetails is a mutation, not a query)
+const mutation = trpc.anilist.getMangaDetails.useMutation();
+mutation.mutate(
   { anilistId: initialAnilistId ?? 0 },
   {
-    enabled: !!initialAnilistId,
     onSuccess: (data) => console.log('AniList data fetched:', data),
-    onError: (error) => console.error('AniList fetch failed:', error)
+    onError: (error) => console.error('AniList fetch failed:', error),
   }
 );
 ```

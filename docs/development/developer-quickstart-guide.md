@@ -78,12 +78,6 @@ The application will be available at [http://localhost:3000](http://localhost:30
 ### Alternative Start Commands
 
 ```bash
-# Start without using Docker
-bun run dev:no-docker
-
-# Start with an existing database (skip setup)
-bun run dev:skip-db
-
 # Production build and start
 bun run build
 bun run start
@@ -94,27 +88,18 @@ bun run start
 If you encounter build issues:
 
 ```bash
-# Clean build artifacts
-bun run clean
-
-# Deep clean (caches, logs, build artifacts)
-bun run deep-clean
-
-# Full reset (everything including node_modules)
-bun run reset
+# Full clean (node_modules, lock files, build artifacts)
+bun run clean:all
 ```
 
 For database issues:
 
 ```bash
-# Reset the database (completely deletes and recreates it)
-bun run reset:db
+# Reset the database (development; deletes and recreates)
+bun run db:reset:dev
 
-# For macOS users (recommended and most reliable on macOS)
-bun run reset:db:mac
-
-# Reset the database with local PostgreSQL
-bun run reset:db:local
+# Safe reset (adds connection checks and schema backup)
+bun run db:reset:safe
 ```
 
 ## 4. Codebase Structure
@@ -188,7 +173,7 @@ Example: `src/server/services/comicvine/service.ts` (createComicVineClient funct
 
 3. Run type checking before committing:
    ```bash
-   npm run type-check
+   bun run type-check
    ```
 
 4. Commit your changes with descriptive messages:
@@ -273,8 +258,8 @@ See Authentication Guide for more details.
 If the build process fails:
 
 1. Make sure you're using bun run (not npm or yarn)
-2. Run `bun run clean` to remove build artifacts
-3. Check for TypeScript errors with `npm run type-check`
+2. Run `bun run clean:all` to remove build artifacts and node_modules
+3. Check for TypeScript errors with `bun run type-check`
 4. Ensure all dependencies are installed with `bun install`
 
 ### Getting Help

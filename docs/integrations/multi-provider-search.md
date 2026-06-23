@@ -10,7 +10,7 @@ The app now supports searching across all enabled metadata providers simultaneou
 
 ### 1. UI Improvements
 
-- **AnilistNativeSettings Component**: Updated the switches to use blue color and position indicator lines for better visual feedback.
+- **AnilistSettings Component**: Updated the switches to use blue color and position indicator lines for better visual feedback.
 - **ComicVineSettings Component**: Added a visual indicator to the API key input field when a key is present.
 
 ### 2. Search Functionality

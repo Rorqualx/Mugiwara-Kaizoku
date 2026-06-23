@@ -17,7 +17,7 @@ The application **actively uses all 4 UNLOGGED cache tables** for high-performan
 
 ### 1. `cache_unified` - Universal Redis-Like Cache
 
-**Primary Provider**: `src/server/cache/UnifiedCacheProvider.ts`
+**Primary Provider**: `src/server/cache/UnifiedCacheProvider/`
 
 **What It Does**:
 - Provides Redis-like caching WITHOUT needing Redis
@@ -775,6 +775,6 @@ The app is well-architected to use these tables effectively and safely! 🚀
 ---
 
 *For implementation details, see:*
-- `src/server/cache/UnifiedCacheProvider.ts`
+- `src/server/cache/UnifiedCacheProvider/`
 - `src/server/auth/PostgresSessionProvider.ts`
 - `src/server/queue/VolatileJobWorker.ts`

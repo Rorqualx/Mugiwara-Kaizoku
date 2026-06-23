@@ -178,7 +178,7 @@ if (isLoading(result)) {
 **Cause**: TypeScript errors in codebase.
 
 **Solution**:
-1. Run `npm run type-check` to identify errors
+1. Run `bun run type-check` to identify errors
 2. Fix all TypeScript errors before building
 3. Check for common errors like missing properties or incorrect types
 
@@ -187,9 +187,9 @@ if (isLoading(result)) {
 **Cause**: Missing dependencies or incorrect imports.
 
 **Solution**:
-1. Verify import paths are correct (use relative paths, not alias paths)
+1. Verify import paths are correct (use `@/` alias paths, not relative paths)
 2. Check that required packages are installed
-3. Run `npm install` to ensure all dependencies are installed
+3. Run `bun install` to ensure all dependencies are installed
 
 ### Runtime Errors
 
@@ -443,7 +443,7 @@ function Component() {
 const { data: libraryData } = trpc.library?.query.useQuery({ id });
 
 // Correct
-const { data: libraryData } = trpc.library.detail.useQuery({ id });
+const { data: libraryData } = trpc.library.get.useQuery({ id });
 ```
 
 2. Add better null checking:

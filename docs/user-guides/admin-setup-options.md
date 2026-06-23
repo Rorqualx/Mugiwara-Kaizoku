@@ -37,27 +37,24 @@ The standard setup page is available at `/setup` when no users exist in the data
 
 For server administrators or when web interfaces are not working, you can use the command-line tool to create an admin user directly.
 
-- **Command**: `npm run create-admin -- --username admin --email admin@example.com --password yourpassword`
+Two scripts are available under `scripts/utilities/`:
+
+- **`create-admin-simple.js`** — non-interactive; creates an admin with hardcoded defaults (`admin` / `admin@kaizoku.local` / `password`). Run once on a fresh database, then change the password immediately after login.
+- **`create-admin.js`** — interactive; prompts you for username, email, and password at the terminal.
+
 - **Features**:
   - Bypasses the browser entirely
   - Direct database access
-  - Useful for automation or scripting
-  - Most reliable method
+  - Most reliable method when the web setup page is unavailable
 
-### Command-Line Options
+### Command-Line Usage
 
 ```bash
-# Basic usage
-npm run create-admin -- --username admin --email admin@example.com --password yourpassword
+# Non-interactive (hardcoded defaults — change password after first login)
+node scripts/utilities/create-admin-simple.js
 
-# Short form
-npm run create-admin -- -u admin -e admin@example.com -p yourpassword
-
-# Force creation even if users already exist
-npm run create-admin -- -u admin -e admin@example.com -p yourpassword --force
-
-# Get help
-npm run create-admin -- --help
+# Interactive (prompts for username, email, password)
+node scripts/utilities/create-admin.js
 ```
 
 ## Troubleshooting

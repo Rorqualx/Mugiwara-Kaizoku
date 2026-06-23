@@ -10,7 +10,7 @@ The application can run in two modes:
 
 ### For Production Use
 ```bash
-bun run start:production
+bun run start:prod
 ```
 - Forces `NODE_ENV=production`
 - Uses `.env.production` if available, falls back to `.env`
@@ -22,23 +22,15 @@ bun run start:production
 bun run dev
 ```
 - Runs in development mode with hot reloading
-- Uses nodemon for auto-restart
+- Uses `dev-integrated.sh` (starts PostgreSQL, Prisma, FlareSolverr, Suwayomi, and Next.js)
 - **Recommended for active development**
-
-```bash
-bun run start:dev
-```
-- Forces `NODE_ENV=development`
-- Runs the standalone build (if available)
-- Useful for testing the production build in development mode
 
 ### Generic Start
 ```bash
 bun run start
 ```
+- Forces `NODE_ENV=production` and runs `bun src/server/index.ts` directly
 - Uses environment settings from `.env` file
-- Runs the standalone build (if available)
-- Falls back to `next start` with a warning
 
 ## Environment Files
 
@@ -49,7 +41,7 @@ bun run start
 
 ### `.env.production` (Production)
 - Contains `NODE_ENV=production`
-- Used when running `bun run start:production`
+- Used when running `bun run start:prod`
 - Should contain production-safe values
 
 ## Why Different Commands?
@@ -62,12 +54,12 @@ bun run start
 ## Best Practices
 
 1. **Local Development**: Use `bun run dev`
-2. **Testing Production Build Locally**: Use `bun run start:production`
-3. **Production Server**: Use `bun run start:production` with proper `.env.production`
+2. **Testing Production Build Locally**: Use `bun run start:prod`
+3. **Production Server**: Use `bun run start:prod` with proper `.env.production`
 
 ## Troubleshooting
 
 If you see `NODE_ENV=development` when expecting production:
 1. Check which command you're using
-2. Use `bun run start:production` to force production mode
+2. Use `bun run start:prod` to force production mode
 3. Verify `.env.production` exists and has `NODE_ENV=production`

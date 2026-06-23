@@ -140,21 +140,25 @@ Events are stored in the `SystemEvent` table with the following schema:
 
 ```prisma
 model SystemEvent {
-  id              String   @id @default(cuid())
-  timestamp       DateTime @default(now())
-  type            String  
-  source          String  
-  level           String  
-  message         String
-  details         Json?   
-  relatedEntityId String?  
-  relatedEntityType String? 
+  id                String   @id
+  timestamp         DateTime @default(now())
+  type              String
+  source            String
+  level             String
+  message           String
+  details           Json?
+  relatedEntityId   String?
+  relatedEntityType String?
+  userId            String?
 
-  @@index([timestamp])
-  @@index([type])
-  @@index([source])
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([level])
   @@index([relatedEntityId, relatedEntityType])
+  @@index([source])
+  @@index([timestamp])
+  @@index([type])
+  @@index([userId])
 }
 ```
 

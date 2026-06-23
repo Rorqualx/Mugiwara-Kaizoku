@@ -243,7 +243,6 @@ quickDownloadMutation.mutate({
 **Bulk Downloads:**
 - 500ms delay between chapters
 - Prevents overwhelming Prowlarr
-- Configurable in `autoSelector.ts:88`
 
 ---
 
@@ -362,9 +361,9 @@ LIMIT 10;
 
 **Check Download Attempts:**
 ```sql
-SELECT * FROM "DownloadAttempt"
-WHERE manga_id = 123
-ORDER BY attempted_at DESC;
+SELECT * FROM "ChapterDispatchAttempt"
+WHERE "mangaId" = 123
+ORDER BY "createdAt" DESC;
 ```
 
 ---

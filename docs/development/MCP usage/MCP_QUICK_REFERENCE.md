@@ -158,8 +158,6 @@ bun run lint
 ## 📖 Full Documentation
 
 - **MCP_USAGE_DIRECTIVE.md** - Complete directive and rules
-- **MCP_IMPLEMENTATION_GUIDE.md** - Server implementation details
-- **docs/development/MCP_SERVERS.md** - Setup and troubleshooting
 - **CLAUDE.md** - Main development guide
 
 ---

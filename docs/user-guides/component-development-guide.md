@@ -664,13 +664,13 @@ Use helper functions to safely process AsyncResult data:
 const title = getDataOr(mangaState, 'Unknown Title');
 
 // Get a property with fallback
-const author = getPropertyOrDefault(mangaState, 'author', 'Unknown Author');
+const author = getProperty(mangaState, 'author', 'Unknown Author');
 
 // Map AsyncResult data (if successful)
 const titleResult = mapResult(mangaState, manga => manga.title);
 
 // Filter array items in AsyncResult data
-const activeChaptersResult = filterArray(
+const activeChaptersResult = filterAsyncResult(
   chaptersResult, 
   chapter => chapter.status === 'active'
 );

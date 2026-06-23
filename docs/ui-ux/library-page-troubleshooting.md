@@ -10,9 +10,8 @@ Several issues were identified:
 
 1. **API Endpoint Mismatch**: The component was using `trpc.library?.query` which doesn't accept an ID parameter in the current router implementation, but the component was passing an ID.
 
-2. **Router Implementation Conflict**: Two different library router implementations exist in the codebase:
+2. **Router Implementation Conflict**: At the time of the bug, two different library router implementations existed in the codebase. The authoritative router is:
    - `/src/server/trpc/routers/library.ts`
-   - `/src/server/trpc/router/library.ts`
    
    The component was calling a query procedure that doesn't match the implementation that's actually being used.
 
@@ -22,7 +21,7 @@ Several issues were identified:
 
 ### Solution
 
-1. **Fix API Call**: Changed from using `trpc.library?.query` to `trpc.library.detail.useQuery` which correctly accepts an ID parameter and exists in the actual router implementation.
+1. **Fix API Call**: Changed from using `trpc.library?.query` to `trpc.library.get.useQuery` which correctly accepts an ID parameter and exists in the actual router implementation.
 
 2. **Improve Error Handling**: Added detailed error messages to help identify issues when libraries can't be found.
 
@@ -56,7 +55,6 @@ Several issues were identified:
 
 - `/src/pages/library/[id].tsx` - Library page component
 - `/src/server/trpc/routers/library.ts` - Library router with `get` endpoint
-- `/src/server/trpc/router/library.ts` - Alternative library router with `detail` endpoint
 - `/src/types/library-page-types.ts` - Type definitions for library data
 
 ## Log Analysis

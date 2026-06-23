@@ -83,8 +83,8 @@ WHERE table_name = 'SystemEvent';
 ### 5. Verify tRPC Router
 Check that the events router is properly registered:
 ```typescript
-// In src/server/trpc/router/index.ts
-import { eventsRouter } from '../routers/events';
+// In src/server/trpc/root.ts
+import { eventsRouter } from './routers/events';
 
 export const appRouter = router({
   // ... other routers

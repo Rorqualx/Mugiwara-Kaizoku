@@ -335,10 +335,7 @@ export function useTRPCQuery<TData, TError>(
 ### Phase 1: Critical Fixes (Immediate)
 
 1. **Replace ALL `isPending` with `isLoading`**
-   ```bash
-   # Run migration script
-   bun run migrate:state-management
-   ```
+   - Use the `useTRPCQuery` wrapper at `@/hooks/useTRPCQuery` to map `isPending` → `isLoading`
 
 2. **Fix race conditions in search components**
    - Add debouncing

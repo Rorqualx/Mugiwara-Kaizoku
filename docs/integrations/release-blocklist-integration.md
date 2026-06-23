@@ -107,18 +107,11 @@ await blocklistService.blockRelease({
 
 ## Testing
 
-Run the test script to verify the integration:
-```bash
-bun run tsx scripts/test-blocklist-integration.ts
-```
-
-This script will:
-1. Add test blocklist entries
-2. Test blocklist checking
-3. Test search filtering (if Prowlarr is configured)
-4. Test download attempt recording
-5. Display blocklist statistics
-6. Clean up test data
+Unit tests for the blocklist service are located in `src/server/services/release-blocklist/__tests__/`:
+- `blocklist-checker.test.ts` - Tests blocklist checking logic
+- `blocklist-manager.test.ts` - Tests adding and managing blocklist entries
+- `alternatives-finder.test.ts` - Tests alternative release discovery
+- `scope-where.test.ts` - Tests blocklist query scoping
 
 ## Future Enhancements
 

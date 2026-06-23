@@ -115,8 +115,11 @@ Some adapter families have their own bases instead of (or alongside)
 
 `AdapterFactory` (`src/server/adapters/AdapterFactory.ts`) is a singleton that
 registers adapter types and creates/caches instances. Built-in registrations
-include `anilist`, `comicvine`, `wikipedia`, `fandom`, `suwayomi-v2`,
-`native_download`, and `website`.
+include `anilist`, `comicvine`, `wikipedia`, `suwayomi-v2`, and `website`.
+(`fandom` and `native_download` are recognised `AdapterType` values and appear
+in `createByProvider`'s mapping, but they are not registered via
+`registerDefaultAdapters` and will return `null` until a concrete adapter is
+registered.)
 
 ```typescript
 import { MetadataProvider } from '@prisma/client';

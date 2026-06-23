@@ -16,30 +16,28 @@ Added filtering to the Fandom adapter to only return entries with "(manga)" in t
 ## Implementation Details
 
 ### Files Modified
-- `src/server/parsers/adapters/FandomAdapter.ts`
+- `src/server/services/fandom/fandom/search.ts`
 
 ### Changes Made
 
-1. **_searchManga method (line 739-744)**:
-   - Added filter before mapping to check if title contains "(manga)"
-   - Only processes entries that match this pattern
+1. **`prioritizeMangaPage` function**:
+   - Finds the actual manga page (entry ending with `(manga)` or `(series)`)
+   - Filters out disambiguation pages, chapter pages, and volume pages
+   - Returns the main manga page first, followed by at most 2 other results
 
-2. **searchAsync method (line 344-349)**:
-   - Added additional filtering at the MangaSearchResult level
-   - Ensures consistency across different search result transformations
-
-3. **searchMangaAsync method (line 1114-1115)**:
-   - Added check to skip non-manga entries when converting to MangaMetadata
-   - Maintains consistency with other search methods
+2. **`filterAndSortResults` function**:
+   - Applies type-based filtering and score-based sorting
+   - Calls `prioritizeMangaPage` to ensure the manga entry is surfaced first
+   - Used by the main search path before results are returned to callers
 
 ### Filter Logic
 ```typescript
-.filter(manga => {
-  // Only include entries with "(manga)" in the title
-  if (!manga || typeof manga !== 'object') return false;
-  const title = typeof manga.title === 'string' ? manga.title : '';
-  return title.toLowerCase().includes('(manga)');
-})
+// prioritizeMangaPage in src/server/services/fandom/fandom/search.ts
+const mainMangaPage = results.find(r =>
+  r.title.toLowerCase().endsWith('(manga)') ||
+  r.title.toLowerCase().endsWith('(series)')
+);
+// Returns [mainMangaPage, ...otherResults.slice(0, 2)]
 ```
 
 ## Benefits

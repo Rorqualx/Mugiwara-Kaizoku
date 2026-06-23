@@ -53,7 +53,7 @@ This guide documents platform compatibility for Mugiwara Kaizoku with Bun 1.3+ r
 - **Node.js**: 20.0.0+ (when using npm/pnpm/yarn)
 - **Bun**: 1.3.0+ (when using Bun as runtime)
 - **PostgreSQL**: 15+ (database)
-- **Java**: 11+ (optional, for Suwayomi integration)
+- **Java**: 21 (optional, for Suwayomi integration)
 
 ---
 
@@ -165,7 +165,7 @@ Error: Cannot find module '@next/swc-darwin-arm64'
 **Manual fix** (if needed):
 ```bash
 # Find Next.js in bun run virtual store
-NEXT_PATH=$(find node_modules/.bun run -name "next@14.1.0*" -type d | head -1)
+NEXT_PATH=$(find node_modules/.pnpm -name "next@14.1.0*" -type d | head -1)
 
 # Create symlink to SWC binary
 cd "$NEXT_PATH/node_modules/@next"
@@ -194,7 +194,7 @@ npm install --save-dev @next/swc-darwin-arm64
 
 ## Package Manager Compatibility
 
-### bun run (Recommended for Node.js)
+### pnpm (Recommended for Node.js)
 
 **Version**: 10.7.1+
 
@@ -559,7 +559,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 
 2. **Cache package managers**:
    - Bun: `~/.bun/install/cache`
-   - pnpm: `bun run store path`
+   - pnpm: `pnpm store path`
    - npm: `npm config get cache`
 
 3. **Test matrix strategically**:
@@ -579,7 +579,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
 
 ### Full Compatibility Matrix
 
-| OS | Arch | Bun | bun run | npm | yarn | Docker | Status |
+| OS | Arch | Bun | pnpm | npm | yarn | Docker | Status |
 |----|------|-----|------|-----|------|--------|--------|
 | macOS 14 | ARM64 | ✅ | ✅ | ✅ | ✅ | N/A | Fully Tested |
 | macOS 14 | x64 | ✅ | ✅ | ✅ | ✅ | N/A | Fully Tested |

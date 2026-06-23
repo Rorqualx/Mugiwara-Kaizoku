@@ -251,23 +251,16 @@ async function fetchManga(id: number): Promise<Manga> {
 **After:**
 
 ```typescript
-import { AsyncResult } from '@/types/shared-types';
+import { AsyncResult, createSuccessResult, createErrorResult } from '@/utils/async-result';
 import { MangaEntity } from '@/types/domain';
 
 async function fetchManga(id: number): Promise<AsyncResult<MangaEntity>> {
   try {
     const response = await apiClient.get(`/manga/${id}`);
-    return { 
-      success: true, 
-      data: response.data 
-    };
+    return createSuccessResult(response.data);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return { 
-      success: false, 
-      error: new Error(`Error fetching manga: ${errorMessage}`),
-      data: null // Optional fallback data
-    };
+    return createErrorResult(new Error(`Error fetching manga: ${errorMessage}`));
   }
 }
 ```
@@ -453,7 +446,7 @@ function isValidManga(manga: unknown): boolean {
 
 ## Testing During Migration
 
-1. Run TypeScript type checking (`npm run typecheck`) frequently
+1. Run TypeScript type checking (`bun run type-check`) frequently
 2. Add unit tests for type guards and validators
 3. Test both success and failure cases for validation
 4. Verify API responses match the expected types
@@ -490,7 +483,7 @@ If you see warnings about deprecated imports, please update your code to use the
 
 If you have questions or encounter issues during migration, please:
 
-1. Check the architecture documentation in `docs/standardized-type-system.md`
+1. Check the architecture documentation in `docs/typescript/type-system-architecture-standardization.md`
 2. Review the type definitions in `src/types/`
 3. Look at validation examples in `src/utils/validation/`
 4. Reach out to the development team on Slack

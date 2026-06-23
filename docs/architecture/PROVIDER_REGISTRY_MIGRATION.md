@@ -114,7 +114,7 @@ While breaking changes were encouraged, we maintained backward compatibility thr
 - `/src/server/trpc/routers/search.ts`
 - `/src/server/trpc/routers/manga.ts`
 - `/src/server/index.ts`
-- `/src/server/trpc/router.ts`
+- `/src/server/trpc/root.ts`
 - `/scripts/testing/test-provider-integration.ts`
 
 ## Testing Checklist

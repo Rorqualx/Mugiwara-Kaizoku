@@ -231,10 +231,10 @@ Use the `handleAsyncResult` utility for rendering different states:
 ```typescript
 const renderResults = () => {
   return handleAsyncResult(searchState, {
-    idle: () => <IdleStateComponent />,
-    loading: () => <LoadingComponent />,
-    error: (error) => <ErrorComponent message={error.message} />,
-    success: (results) => <ResultsComponent data={results} />
+    onIdle: () => <IdleStateComponent />,
+    onLoading: () => <LoadingComponent />,
+    onError: (error) => <ErrorComponent message={error.message} />,
+    onSuccess: (results) => <ResultsComponent data={results} />
   });
 };
 ```
