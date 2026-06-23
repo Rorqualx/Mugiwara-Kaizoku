@@ -1,14 +1,3 @@
-# Typescript Configuration
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Configuration
-
----
 # TypeScript Configuration Guide
 
 This document explains the TypeScript configuration structure and type safety practices in the Mugiwara-Kaizoku project.

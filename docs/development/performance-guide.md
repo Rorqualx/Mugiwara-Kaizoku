@@ -1,7 +1,6 @@
 # Performance Optimization Guide
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-11-03*
 
 ## Overview

@@ -1,7 +1,6 @@
 # Playwright Testing Guide for Mugiwara Kaizoku
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-11-29*
 
 ## Overview

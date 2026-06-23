@@ -1,14 +1,3 @@
-# Library Page Troubleshooting
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Library Page Troubleshooting
-
----
 # Library Page Troubleshooting Guide
 
 ## Issue: "Unknown Library" displaying instead of library name

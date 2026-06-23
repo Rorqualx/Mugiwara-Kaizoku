@@ -1,14 +1,3 @@
-# Typescript Migration Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Migration Guide
-
----
 # TypeScript Migration Guide
 
 This guide outlines the process for migrating from legacy compatibility layers to the new standardized type system in the Mugiwara-Kaizoku application.

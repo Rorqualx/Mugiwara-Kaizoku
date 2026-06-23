@@ -1,7 +1,6 @@
 # Claude Documentation Rules
 
 *Status: Active*  
-*Author: Documentation Team*  
 *Canonical: Yes*  
 *Date: July 11, 2025*
 
@@ -42,9 +41,8 @@ Mandatory rules for Claude when working with Mugiwara Kaizoku documentation. The
 ```markdown
 Required Reading Order:
 1. /docs/architecture/architecture-overview.md - System design
-2. /docs/architecture/architecture-reference.md - Technical patterns
-3. /docs/development/development-guide.md - Coding standards
-4. /docs/typescript/typescript-patterns-guide.md - Type patterns
+2. /docs/development/development-guide.md - Coding standards
+3. /docs/typescript/typescript-patterns-guide.md - Type patterns
 ```
 
 ### Rule 4: Documentation Hierarchy
@@ -100,25 +98,22 @@ Topic Found?
 
 #### For Database Topics:
 - Primary: `/docs/database/database-guide.md`
-- Technical: `/docs/database/database-technical-reference.md`
+- Schema source of truth: `prisma/schema.prisma`
 
 #### For Architecture Topics:
 - Primary: `/docs/architecture/architecture-overview.md`
-- Technical: `/docs/architecture/architecture-reference.md`
 
 #### For Testing Topics:
 - Primary: `/docs/testing/testing-guide.md`
-- Implementation: `/docs/testing/test-implementation-reference.md`
-- Reports: `/docs/testing/test-reports-summary.md`
 
 #### For API/Client Topics:
-- AniList: `/docs/adapters-clients/anilist-guide.md`
-- Fandom: `/docs/adapters-clients/fandom-adapter-guide.md`
-- Clients: `/docs/adapters-clients/download-clients-guide.md`
+- Adapter pattern: `/docs/adapters-clients/adapter-pattern-comprehensive-guide.md`
+- AniList: `/docs/user-guides/integrations/anilist-guide.md`
+- Download clients: `/docs/adapters-clients/download-clients-complete-guide.md`
 
 #### For Configuration:
-- Primary: `/docs/configuration/configuration-system.md`
-- Settings: `/docs/configuration/settings-*.md`
+- Primary: `/docs/configuration/environment-variables.md`
+- Settings UI: `/docs/configuration/settings-ui-implementation-guide.md`
 
 #### For TypeScript:
 - Patterns: `/docs/typescript/typescript-patterns-guide.md`

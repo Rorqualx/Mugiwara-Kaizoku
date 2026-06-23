@@ -1,14 +1,3 @@
-# Environment Variables
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Environment Variables
-
----
 # Environment Variables Guide
 
 This document describes the required environment variables for the Mugiwara-Kaizoku application.

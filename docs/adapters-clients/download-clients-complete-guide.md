@@ -1,7 +1,6 @@
 # Download Clients Integration Guide
 
 *Status: Active*  
-*Author: Documentation Team*  
 *Canonical: Yes*
 *Last Updated: August 2025*
 

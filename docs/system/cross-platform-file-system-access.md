@@ -1,14 +1,3 @@
-# Cross Platform File System Access
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Cross Platform File System Access
-
----
 # Cross-Platform File System Access Implementation
 
 This document describes the implementation of cross-platform file system access in the application, specifically for the library creation functionality.

@@ -1,14 +1,3 @@
-# README
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for README
-
----
 # Features Documentation
 
 This directory contains detailed documentation for all features implemented in Mugiwara-Kaizoku.

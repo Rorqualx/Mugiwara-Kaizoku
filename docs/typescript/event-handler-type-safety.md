@@ -1,14 +1,3 @@
-# Event Handler Type Safety
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Event Handler Type Safety
-
----
 # Event Handler Type Safety Guide
 
 This document outlines best practices for implementing type-safe event handlers in React components within the Mugiwara-Kaizoku project. These patterns help ensure proper type checking, improve code quality, and prevent runtime errors.

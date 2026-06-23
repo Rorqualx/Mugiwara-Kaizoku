@@ -1,14 +1,3 @@
-# Runtime Validation Example
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Runtime Validation Example
-
----
 # Runtime Validation Examples
 
 This document provides examples of using the runtime validation utilities to ensure type safety between compile time and runtime.

@@ -1,14 +1,3 @@
-# Prowlarr Api Flow Diagram
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Prowlarr Api Flow Diagram
-
----
 # Prowlarr API Flow Diagram
 
 ## Current (Correct) Implementation Flow

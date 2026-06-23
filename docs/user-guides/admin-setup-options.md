@@ -1,16 +1,5 @@
 # Admin Setup Options
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Admin Setup Options
-
----
-# Admin Setup Options
-
 This document outlines the different methods available for creating an admin user in Kaizoku, especially useful if you encounter issues with the default setup process.
 
 ## Browser Extension Issues

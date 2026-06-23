@@ -1,14 +1,3 @@
-# Typescript Patterns Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Patterns Guide
-
----
 # TypeScript Patterns Guide
 
 This document outlines the common TypeScript patterns that should be consistently applied across the Mugiwara-Kaizoku codebase to ensure type safety and maintainability.

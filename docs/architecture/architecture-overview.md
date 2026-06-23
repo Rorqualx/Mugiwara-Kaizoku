@@ -1,7 +1,6 @@
 # Architecture Overview
 
 *Status: Active*  
-*Author: Architecture Team*  
 *Canonical: Yes*
 
 ## Overview
@@ -36,7 +35,6 @@ Mugiwara Kaizoku follows a modern web application architecture with:
 
 ## Backend Architecture
 
-[Content from backend-architecture-diagrams.md and architectural-audit.md]
 
 ### Core Components
 1. **API Layer**: tRPC endpoints for type-safe communication
@@ -163,7 +161,6 @@ backfill the source id when an existing row matches.
 
 ## Future Considerations
 
-[Content from backend-consolidation-plan.md]
 
 ### Planned Improvements
 - Microservices migration consideration

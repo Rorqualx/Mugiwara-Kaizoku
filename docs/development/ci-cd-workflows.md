@@ -1,14 +1,3 @@
-# Ci Cd Workflows
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Ci Cd Workflows
-
----
 # CI/CD Workflows for Testing
 
 This document explains the GitHub Actions workflows set up for automated testing in the Mugiwara-Kaizoku project.

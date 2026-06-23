@@ -1,14 +1,3 @@
-# Suwayomi Java 21 Setup
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Suwayomi Java 21 Setup
-
----
 # Suwayomi Java 21 Setup Guide
 
 ## Overview

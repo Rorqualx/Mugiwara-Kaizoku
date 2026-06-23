@@ -1,16 +1,5 @@
 # Documentation Migration Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Documentation Migration Guide
-
----
-# Documentation Migration Guide
-
 > 🔄 **Purpose**: Help developers transition from deprecated documentation to canonical sources
 >
 > Last Updated: January 2025

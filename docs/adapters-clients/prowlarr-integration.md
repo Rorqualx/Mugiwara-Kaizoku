@@ -1,16 +1,5 @@
 # Prowlarr Integration
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Prowlarr Integration
-
----
-# Prowlarr Integration
-
 This document explains how the Prowlarr integration works in Kaizoku and provides guidance for development and troubleshooting.
 
 ## Introduction

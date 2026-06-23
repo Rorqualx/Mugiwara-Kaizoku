@@ -1,16 +1,5 @@
 # Enum Converter Pattern
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Enum Converter Pattern
-
----
-# Enum Converter Pattern
-
 This document describes the Enum Converter Pattern implemented in the Mugiwara-Kaizoku project for handling conversions between domain enums and database/Prisma enums.
 
 ## Problem Statement

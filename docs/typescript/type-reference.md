@@ -1,14 +1,3 @@
-# Type Reference
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Type Reference
-
----
 # TypeScript Type Reference Guide
 
 This document provides a visual reference for the key type structures used throughout the Mugiwara-Kaizoku project.

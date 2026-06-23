@@ -1,16 +1,5 @@
 # Pattern Migration Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Pattern Migration Guide
-
----
-# Pattern Migration Guide
-
 > 📚 **Canonical Documentation**: This guide helps you migrate from deprecated patterns to standardized approaches.
 >
 > Last Updated: January 2025

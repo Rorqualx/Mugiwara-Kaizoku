@@ -1,7 +1,6 @@
 # State Management Standard
 
 *Status: Active*  
-*Author: Development Team*  
 *Canonical: Yes*  
 *Supersedes: loading-state-management-patterns.md*
 

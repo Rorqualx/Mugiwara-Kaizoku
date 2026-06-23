@@ -1,14 +1,3 @@
-# Module Specific Strategies
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Module Specific Strategies
-
----
 # Module-Specific Type Fix Strategies
 
 This document outlines specific strategies for fixing TypeScript errors in each major module of the Mugiwara-Kaizoku codebase. Each module has unique patterns and challenges that require tailored approaches.
@@ -327,17 +316,19 @@ const updateConfig = async (updates: Partial<NotificationConfig>): Promise<void>
 // Before
 const result = trpc.config.getNotificationConfig.useQuery();
 
-// After
-const result = trpc.config.getNotificationConfig.useQuery(undefined, {
-  onSuccess: (data) => {
-    setConfig(data as NotificationConfig);
-    setIsLoading(false);
-  },
-  onError: (error) => {
-    setError(error instanceof Error ? error : new Error(String(error)));
-    setIsLoading(false);
+// After (TanStack Query v5 — useQuery no longer accepts onSuccess/onError;
+// react to the returned data/error instead)
+const result = trpc.config.getNotificationConfig.useQuery();
+
+useEffect(() => {
+  if (result.data) setConfig(result.data as NotificationConfig);
+}, [result.data]);
+
+useEffect(() => {
+  if (result.error) {
+    setError(result.error instanceof Error ? result.error : new Error(String(result.error)));
   }
-});
+}, [result.error]);
 ```
 
 ## Utils Module (154 errors)

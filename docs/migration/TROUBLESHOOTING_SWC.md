@@ -1,7 +1,6 @@
 # Troubleshooting Next.js SWC Binary Issues
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-10-15*
 *Canonical: Yes*
 

@@ -1,14 +1,3 @@
-# Id Conversion Utilities
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Id Conversion Utilities
-
----
 # ID Conversion Utilities
 
 This document provides an overview of the ID conversion utilities implemented in the Mugiwara-Kaizoku project to address TypeScript errors related to ID type compatibility.

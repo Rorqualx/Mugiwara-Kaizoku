@@ -1,14 +1,3 @@
-# Git Hooks Setup
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Git Hooks Setup
-
----
 # Git Hooks Setup for Type Safety
 
 This guide explains how to set up Git hooks to enforce type safety in the Mugiwara-Kaizoku project.

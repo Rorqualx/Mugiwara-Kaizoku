@@ -1,7 +1,6 @@
 # MCP (Model Context Protocol) Usage Directive
 
 *Status: Active*  
-*Author: Development Team*  
 *Created: 2025-10-26*  
 *Based on: CLAUDE.md v2025-10-14*
 

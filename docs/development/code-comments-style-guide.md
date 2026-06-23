@@ -1,14 +1,3 @@
-# Code Comments Style Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Code Comments Style Guide
-
----
 # Kaizoku Code Comments Style Guide
 
 This document outlines the standards and best practices for code comments in the Kaizoku application. Following these guidelines will ensure consistent, informative, and maintainable documentation throughout the codebase.

@@ -1,16 +1,5 @@
 # Integration Adapter Pattern
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Integration Adapter Pattern
-
----
-# Integration Adapter Pattern
-
 > ⚠️ **Note**: This document references the standardized adapter pattern.
 > For the canonical implementation guide, see [adapter-pattern-unified.md](./adapter-pattern-comprehensive-guide.md)
 

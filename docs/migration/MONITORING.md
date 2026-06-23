@@ -1,7 +1,6 @@
 # Monitoring Guide for Bun Runtime
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-10-15*
 
 ---

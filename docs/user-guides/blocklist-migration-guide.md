@@ -1,16 +1,5 @@
 # Blocklist Migration Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Blocklist Migration Guide
-
----
-# Blocklist Migration Guide
-
 ## Overview
 This guide explains how to migrate from the old content-based blocklist system to the new release-based blocklist system.
 

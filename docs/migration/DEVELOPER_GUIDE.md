@@ -1,7 +1,6 @@
 # Developer Guide: Node.js to Bun Migration
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-10-15*
 
 ---

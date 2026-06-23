@@ -1,14 +1,3 @@
-# Mock Components Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Mock Components Guide
-
----
 # Mock Components Guide for Build Process
 
 This document describes the mock components created to facilitate the build process of the Mugiwara-Kaizoku application.

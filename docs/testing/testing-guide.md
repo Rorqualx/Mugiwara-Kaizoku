@@ -1,7 +1,6 @@
 # Testing Guide
 
 *Status: Active*  
-*Author: Testing Team*  
 *Canonical: Yes*
 
 ## Overview
@@ -41,7 +40,6 @@ Comprehensive testing guide for the Mugiwara Kaizoku project, covering testing s
 
 ## Testing Strategy
 
-[Content from test-adoption-guide.md and test-quality-standards.md]
 
 ### Coverage Goals
 - Unit tests: 80% coverage
@@ -67,16 +65,13 @@ describe('MangaService', () => {
 ### Integration Tests
 Testing component interactions and API endpoints.
 
-[Content from test-infrastructure-summary.md]
 
 ### E2E Tests
 Testing complete user workflows.
 
-[Content from testing-guide-unified.md]
 
 ## Writing Tests
 
-[Content from test-template-guide.md and test-fixing-guide.md]
 
 ### Test Structure
 ```typescript
@@ -91,7 +86,6 @@ expect(result).toMatchExpectedOutcome();
 ```
 
 ### Common Patterns
-[Content from test-fixes-patterns.md]
 
 ## Running Tests
 
@@ -144,7 +138,6 @@ npm run test:e2e
 
 ## Best Practices
 
-[Content from test-quality-standards.md]
 
 ### Do's
 - ✅ Use descriptive test names
@@ -162,7 +155,6 @@ npm run test:e2e
 
 ## Troubleshooting
 
-[Content from test-debugging-guide.md]
 
 ### Common Issues
 1. **Flaky Tests**: Use proper async handling

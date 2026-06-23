@@ -1,7 +1,6 @@
 # Suwayomi Setup
 
 *Status: Active*
-*Author: Documentation Team*
 *Canonical: Yes*
 *Last updated: 2026-04-26*
 

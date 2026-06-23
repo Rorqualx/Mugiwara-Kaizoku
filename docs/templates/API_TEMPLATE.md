@@ -1,14 +1,3 @@
-# API_TEMPLATE
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for API_TEMPLATE
-
----
 # [API Endpoint/Service Name] API Documentation
 
 > **Status**: [Draft | Review | Approved]  

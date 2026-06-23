@@ -1,14 +1,3 @@
-# Component Pattern Unified
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Component Pattern Unified
-
----
 # Component Pattern Unified Guide
 
 > 📚 **Canonical Documentation**: This is the authoritative guide for React component patterns in Mugiwara-Kaizoku

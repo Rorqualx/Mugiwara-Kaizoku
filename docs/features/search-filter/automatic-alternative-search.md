@@ -1,16 +1,5 @@
 # Automatic Alternative Search
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Automatic Alternative Search
-
----
-# Automatic Alternative Search
-
 ## Overview
 
 The release blocklist system now includes automatic alternative search functionality. When a release is blocked (due to quality issues, wrong content, etc.), the system automatically searches for alternative releases of the same content.

@@ -1,14 +1,3 @@
-# Typescript Patterns Quick Reference
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Patterns Quick Reference
-
----
 # TypeScript Fix Patterns Quick Reference
 
 This document provides a quick reference for the most important TypeScript patterns established during the 80-phase TypeScript improvement project.

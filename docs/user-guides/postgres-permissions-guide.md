@@ -1,14 +1,3 @@
-# Postgres Permissions Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Postgres Permissions Guide
-
----
 # PostgreSQL Permissions Guide for Mugiwara-Kaizoku
 
 ## Overview

@@ -1,14 +1,3 @@
-# Test Fix Pr Template
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Test Fix Pr Template
-
----
 # Test Fix PR Template
 
 ## Summary

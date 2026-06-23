@@ -1,14 +1,3 @@
-# Typescript Implementation Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Implementation Guide
-
----
 # TypeScript Implementation Guide
 
 This guide provides practical instructions for implementing the fixes outlined in the TypeScript Error Correction Plan. It includes step-by-step processes, examples, and code snippets for developers to follow.

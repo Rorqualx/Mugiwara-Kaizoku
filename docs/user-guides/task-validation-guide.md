@@ -1,14 +1,3 @@
-# Task Validation Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Task Validation Guide
-
----
 # Task Validation Utilities Guide
 
 This document describes the task validation utilities that help ensure type safety and consistency when working with `TaskStatus` and `TaskType` enums throughout the application.

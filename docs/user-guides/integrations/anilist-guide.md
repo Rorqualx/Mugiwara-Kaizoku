@@ -1,14 +1,3 @@
-# Anilist Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Anilist Guide
-
----
 # AniList Integration Guide (Native API)
 
 > ⚠️ **IMPORTANT**: This guide covers Kaizoku's native AniList integration for metadata. 

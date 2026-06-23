@@ -1,14 +1,3 @@
-# Component Development Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Component Development Guide
-
----
 # React Component Development Guide
 
 > 📚 **Canonical Documentation**: This is the authoritative guide for React component development in Mugiwara-Kaizoku

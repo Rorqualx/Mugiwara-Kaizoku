@@ -1,14 +1,3 @@
-# Typescript Configuration Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Configuration Guide
-
----
 # TypeScript Configuration for Error Prevention
 
 ## Recommended tsconfig.json Settings

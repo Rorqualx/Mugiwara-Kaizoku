@@ -1,14 +1,3 @@
-# README
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for README
-
----
 # UI/UX Documentation
 
 This directory contains documentation related to user interface design and user experience improvements.

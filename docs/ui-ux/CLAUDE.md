@@ -1,14 +1,3 @@
-# CLAUDE
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for CLAUDE
-
----
 # Project Guidance for Claude
 
 ## CRITICAL BUILD RULE

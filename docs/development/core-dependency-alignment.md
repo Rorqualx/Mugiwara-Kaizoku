@@ -1,16 +1,5 @@
 # Core Dependency Alignment
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Core Dependency Alignment
-
----
-# Core Dependency Alignment
-
 This document details the core dependency alignment implemented as part of the TypeScript error resolution project.
 
 ## Overview

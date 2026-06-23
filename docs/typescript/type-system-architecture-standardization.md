@@ -1,16 +1,5 @@
 # Type System Architecture Standardization
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Type System Architecture Standardization
-
----
-# Type System Architecture Standardization
-
 > ⚠️ **CANONICAL DOCUMENTATION** - Last Updated: January 2025
 > 
 > This document is the authoritative guide for the Mugiwara-Kaizoku type system architecture.

@@ -1,14 +1,3 @@
-# Startup Commands
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Startup Commands
-
----
 # Mugiwara-Kaizoku Startup Commands
 
 ## Understanding Environment Modes

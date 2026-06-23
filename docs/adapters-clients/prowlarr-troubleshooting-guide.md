@@ -1,14 +1,3 @@
-# Prowlarr Troubleshooting Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Prowlarr Troubleshooting Guide
-
----
 # Prowlarr Integration Guide & Troubleshooting
 
 ## Quick Summary

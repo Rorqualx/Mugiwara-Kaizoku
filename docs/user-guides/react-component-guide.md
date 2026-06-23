@@ -1,14 +1,3 @@
-# React Component Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for React Component Guide
-
----
 # React Component Type Safety Patterns
 
 This document outlines the patterns and best practices for type-safe React components in the Mugiwara-Kaizoku project.

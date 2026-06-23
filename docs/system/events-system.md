@@ -1,16 +1,5 @@
 # Events System
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Events System
-
----
-# Events System
-
 The Kaizoku Events System provides a comprehensive solution for tracking and monitoring system activities across all components of the application. It replaces the previous mock implementation with a real database-backed system that offers improved observability, troubleshooting capabilities, and audit logging.
 
 ## Features

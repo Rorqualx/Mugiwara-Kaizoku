@@ -1,16 +1,5 @@
 # Developer Quickstart Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Developer Quickstart Guide
-
----
-# Developer Quickstart Guide
-
 This guide will help you get started with the Mugiwara-Kaizoku project quickly as a new developer.
 
 ## 1. Project Overview

@@ -1,14 +1,3 @@
-# Calendar User Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Calendar User Guide
-
----
 # Calendar Feature - User Guide
 
 ## Overview

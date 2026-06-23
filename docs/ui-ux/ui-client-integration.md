@@ -1,7 +1,6 @@
 # UI Client Integration Guide
 
 *Status: Active*  
-*Author: Documentation Team*  
 *Canonical: Yes*
 
 ## Overview

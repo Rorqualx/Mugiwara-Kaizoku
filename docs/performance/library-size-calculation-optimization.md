@@ -1,7 +1,6 @@
 # Library Size Calculation Performance Optimization
 
 *Status: Completed*
-*Author: Performance Team*
 *Date: 2025-09-20*
 
 ## Overview

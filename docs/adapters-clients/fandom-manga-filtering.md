@@ -1,14 +1,3 @@
-# Fandom Manga Filtering
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Fandom Manga Filtering
-
----
 # Fandom Search Results Filtering
 
 ## Problem

@@ -1,14 +1,3 @@
-# Events Tab Quick Reference
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Events Tab Quick Reference
-
----
 # Events Tab Navigation - Quick Reference
 
 ## Problem & Solution

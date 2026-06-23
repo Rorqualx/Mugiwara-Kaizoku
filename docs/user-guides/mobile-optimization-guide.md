@@ -1,16 +1,5 @@
 # Mobile Optimization Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Mobile Optimization Guide
-
----
-# Mobile Optimization Guide
-
 ## Overview
 
 This guide documents the comprehensive mobile optimization implemented in the Mugiwara Kaizoku application. The optimization follows a mobile-first approach with Progressive Web App (PWA) capabilities.

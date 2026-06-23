@@ -1,14 +1,3 @@
-# Typescript Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Guide
-
----
 # TypeScript Guide
 
 This guide consolidates all TypeScript-related documentation for the Mugiwara-Kaizoku project, including configuration, patterns, best practices, and migration strategies.

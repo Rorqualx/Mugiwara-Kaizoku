@@ -1,7 +1,6 @@
 # Database Guide
 
 *Status: Active*  
-*Author: Database Team*  
 *Canonical: Yes*
 
 ## Overview
@@ -32,45 +31,29 @@ The Mugiwara Kaizoku project uses PostgreSQL with Prisma ORM for database manage
 
 ## Schema Design
 
-### Core Tables
-[Content will be extracted from DATABASE_SCHEMA_RECREATION.md]
+The schema is the single source of truth in
+[`prisma/schema.prisma`](../../prisma/schema.prisma) (40+ models). Browse that file
+for the current tables, relationships, indexes, and constraints; generated types
+come from `@prisma/client`.
 
-### Relationships
-[Content will be extracted from schema files]
-
-### Indexes and Constraints
-[Content will be extracted from smart-database-system.md]
-
-## Smart Database System
-
-[Content will be extracted from smart-database-system.md and smart-database-system-summary.md]
-
-### Features
-- Automated data validation
-- Trigger-based updates
-- Performance optimizations
-- Data integrity checks
+Notable caching tables are PostgreSQL **UNLOGGED** tables (e.g. `cache_unified`,
+`hot_data_cache`, `sessions_cache`) used as a Redis-like hot cache — see
+[UNLOGGED tables usage](../features/caching/UNLOGGED_TABLES_USAGE.md).
 
 ## Schema Recreation
 
-[Content will be extracted from DATABASE_SCHEMA_RECREATION.md]
+Migrations are applied with `bun run migrate` (`prisma migrate deploy && prisma generate`).
+For a from-scratch recreation see the
+[Prisma Migration Guide](../migration/PRISMA_MIGRATION_GUIDE.md):
 
-### Steps
-1. Backup existing data
-2. Drop current schema
-3. Apply migrations
-4. Restore data
-5. Verify integrity
+1. Back up existing data
+2. Apply migrations to a fresh database
+3. Verify integrity
 
 ## Maintenance & Cleanup
 
-[Content will be extracted from schema-cleanup-summary.md]
-
-### Regular Tasks
-- Index optimization
-- Vacuum operations
-- Statistics updates
-- Backup procedures
+Routine tasks: index optimization, `VACUUM` / `ANALYZE`, statistics updates, and
+regular backups.
 
 ## Best Practices
 

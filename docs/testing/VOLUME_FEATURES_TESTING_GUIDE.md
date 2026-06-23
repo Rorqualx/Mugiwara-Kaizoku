@@ -1,7 +1,6 @@
 # Volume Organization Features Testing Guide
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-10-16*
 
 ## Overview

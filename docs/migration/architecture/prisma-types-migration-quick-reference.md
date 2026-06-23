@@ -1,14 +1,3 @@
-# Prisma Types Migration Quick Reference
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Prisma Types Migration Quick Reference
-
----
 # PrismaTypes Migration Quick Reference
 
 ## 🚀 Quick Migration Guide

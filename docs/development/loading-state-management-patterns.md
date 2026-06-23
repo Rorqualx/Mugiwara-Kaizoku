@@ -1,16 +1,5 @@
 # Loading State Management Patterns
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Loading State Management Patterns
-
----
-# Loading State Management Patterns
-
 This document describes the recommended patterns for managing loading states in the Mugiwara-Kaizoku application.
 
 ## Overview

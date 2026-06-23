@@ -1,14 +1,3 @@
-# Schema Recreation Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Schema Recreation Guide
-
----
 # Schema Recreation Guide for Mugiwara-Kaizoku
 
 This guide explains how the schema recreation approach works in the Mugiwara-Kaizoku project and provides troubleshooting steps for common issues.

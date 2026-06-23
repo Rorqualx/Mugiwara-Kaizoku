@@ -1,14 +1,3 @@
-# DEVELOPMENT_RULES
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for DEVELOPMENT_RULES
-
----
 # Development Rules to Prevent TypeScript Errors
 
 This document defines strict rules to prevent common TypeScript errors in the Mugiwara-Kaizoku project.

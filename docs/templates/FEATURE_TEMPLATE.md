@@ -1,14 +1,3 @@
-# FEATURE_TEMPLATE
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for FEATURE_TEMPLATE
-
----
 # [Feature/Component Name]
 
 > **Status**: [Draft | Review | Approved]  

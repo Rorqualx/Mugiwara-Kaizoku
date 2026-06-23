@@ -1,14 +1,3 @@
-# MIGRATION_TEMPLATE
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for MIGRATION_TEMPLATE
-
----
 # Migration Guide: [Old Feature] to [New Feature]
 
 > **Status**: [Draft | Review | Approved]  

@@ -1,16 +1,5 @@
 # Configuration Validation Patterns
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Configuration Validation Patterns
-
----
-# Configuration Validation Patterns
-
 This document outlines standardized patterns for handling and validating configuration in adapter implementations.
 
 ## Overview

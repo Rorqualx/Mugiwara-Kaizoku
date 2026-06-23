@@ -1,14 +1,3 @@
-# Bug Fix Documentation Template
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Bug Fix Documentation Template
-
----
 # Fixing [Issue Name]
 
 Brief description of the issue and its impact on Kaizoku.

@@ -1,14 +1,3 @@
-# Asyncresult Pattern Complete Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Asyncresult Pattern Complete Guide
-
----
 # AsyncResult Pattern Complete Guide
 
 ## Table of Contents

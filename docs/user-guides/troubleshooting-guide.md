@@ -1,14 +1,3 @@
-# Troubleshooting Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Troubleshooting Guide
-
----
 # Mugiwara-Kaizoku Troubleshooting Guide
 
 This comprehensive guide provides solutions for common issues encountered when developing and running the Mugiwara-Kaizoku manga management application.

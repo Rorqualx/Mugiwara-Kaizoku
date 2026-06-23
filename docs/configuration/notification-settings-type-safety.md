@@ -1,14 +1,3 @@
-# Notification Settings Type Safety
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Notification Settings Type Safety
-
----
 # NotificationSettings Component Type Safety Improvements
 
 This document outlines specific type safety improvements for the `NotificationSettings.tsx` component.

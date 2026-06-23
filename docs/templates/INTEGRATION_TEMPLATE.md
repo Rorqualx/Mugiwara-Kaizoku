@@ -1,14 +1,3 @@
-# INTEGRATION_TEMPLATE
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for INTEGRATION_TEMPLATE
-
----
 # [Integration Name] Integration Guide
 
 > **Status**: [Draft | Review | Approved]  

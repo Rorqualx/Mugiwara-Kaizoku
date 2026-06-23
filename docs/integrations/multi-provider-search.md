@@ -1,14 +1,3 @@
-# Multi Provider Search
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Multi Provider Search
-
----
 # Multi-Provider Search Implementation
 
 This document outlines the changes made to implement multi-provider search functionality in the Kaizoku app.

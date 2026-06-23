@@ -1,16 +1,5 @@
 # Task Enum Migration Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Task Enum Migration Guide
-
----
-# Task Enum Migration Guide
-
 This document outlines the strategy for migrating the `TaskType` and `TaskStatus` enums from their legacy definitions to the standardized domain-driven type system.
 
 ## Background

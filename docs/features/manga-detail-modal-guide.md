@@ -1,7 +1,6 @@
 # Manga Detail Modal - Feature Guide
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-10-19*
 *Canonical: Yes*
 

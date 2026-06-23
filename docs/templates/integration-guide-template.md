@@ -1,14 +1,3 @@
-# Integration Guide Template
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Integration Guide Template
-
----
 # [Integration Name] Integration
 
 Brief description of the integration and its purpose in Kaizoku.

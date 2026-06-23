@@ -1,14 +1,3 @@
-# Provider Selection Ui
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Provider Selection Ui
-
----
 # Provider Selection UI
 
 This document describes the Provider Selection UI feature, which allows users to choose which metadata provider to use for specific fields in a manga's metadata.

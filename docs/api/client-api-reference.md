@@ -1,7 +1,6 @@
 # API Client Reference
 
 *Status: Active*  
-*Author: Documentation Team*  
 *Canonical: Yes*
 
 ## Overview

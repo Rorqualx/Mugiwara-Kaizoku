@@ -1,16 +1,5 @@
 # Search Result Type Compatibility
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Search Result Type Compatibility
-
----
-# Search Result Type Compatibility
-
 ## Overview
 
 This document explains the type compatibility solutions implemented for search results in the Mugiwara-Kaizoku application. Search results from different providers (AniList, MangaDex, ComicVine, etc.) have slightly different data structures that need to be normalized to ensure type safety across the application.

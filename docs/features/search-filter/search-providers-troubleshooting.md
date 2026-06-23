@@ -1,16 +1,5 @@
 # Search Providers Troubleshooting
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Search Providers Troubleshooting
-
----
-# Search Providers Troubleshooting
-
 ## Issue: No Results in Add Manga Search
 
 If you're experiencing an issue where the Add Manga popup in the library page isn't finding any results despite search service API keys being enabled, this document will help you resolve the issue.

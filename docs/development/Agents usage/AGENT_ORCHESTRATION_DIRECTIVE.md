@@ -1,7 +1,6 @@
 # Agent Orchestration Directive - Parallel Task Execution
 
 *Status: Active*  
-*Author: Development Team*  
 *Created: 2025-10-26*  
 *Based on: CLAUDE.md v2025-10-14 + Multi-Agent Best Practices*
 

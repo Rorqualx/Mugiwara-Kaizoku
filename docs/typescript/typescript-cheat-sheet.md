@@ -1,14 +1,3 @@
-# Typescript Cheat Sheet
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Cheat Sheet
-
----
 # TypeScript Safety Cheat Sheet
 
 A quick reference guide for maintaining type safety in the Mugiwara-Kaizoku codebase.

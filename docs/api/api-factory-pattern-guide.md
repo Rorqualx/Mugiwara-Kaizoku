@@ -1,7 +1,6 @@
 # API Factory Pattern Documentation
 
 *Status: Active*  
-*Author: API Team*  
 *Canonical: Yes*  
 *Date: September 2, 2025*
 

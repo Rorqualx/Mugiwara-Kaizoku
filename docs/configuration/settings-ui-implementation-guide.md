@@ -1,14 +1,3 @@
-# Settings Ui Implementation Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Settings Ui Implementation Guide
-
----
 # Settings UI Implementation Guide
 
 ## Overview

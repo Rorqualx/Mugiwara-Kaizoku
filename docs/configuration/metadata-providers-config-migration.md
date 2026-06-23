@@ -1,14 +1,3 @@
-# Metadata Providers Config Migration
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Metadata Providers Config Migration
-
----
 # Comprehensive Metadata Provider Configuration Migration Plan
 
 ## Overview

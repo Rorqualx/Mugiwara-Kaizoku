@@ -1,14 +1,3 @@
-# Smart Permissions Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Smart Permissions Guide
-
----
 # Smart Permissions System for Mugiwara-Kaizoku
 
 ## Overview

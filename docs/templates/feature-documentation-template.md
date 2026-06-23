@@ -1,14 +1,3 @@
-# Feature Documentation Template
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Feature Documentation Template
-
----
 # Feature Name
 
 Brief description of the feature and its purpose in Kaizoku.

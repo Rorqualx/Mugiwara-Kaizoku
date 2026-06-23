@@ -1,14 +1,3 @@
-# README
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for README
-
----
 # Documentation Templates
 
 This directory contains standardized templates for creating consistent documentation across the Mugiwara-Kaizoku project.

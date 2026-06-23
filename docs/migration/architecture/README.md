@@ -1,14 +1,3 @@
-# README
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for README
-
----
 # Architecture & Migration Documentation
 
 This directory contains documentation related to system architecture and various migration efforts.

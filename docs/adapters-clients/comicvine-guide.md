@@ -1,14 +1,3 @@
-# Comicvine Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Comicvine Guide
-
----
 # ComicVine Integration Guide
 
 ## Table of Contents

@@ -1,16 +1,5 @@
 # Events Page Debug Guide
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Events Page Debug Guide
-
----
-# Events Page Debug Guide
-
 ## Issue Summary
 The events page at http://localhost:3000/system/events is not working properly - navigation gets stuck when accessing the page.
 

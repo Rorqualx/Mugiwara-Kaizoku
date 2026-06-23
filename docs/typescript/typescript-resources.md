@@ -1,14 +1,3 @@
-# Typescript Resources
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Resources
-
----
 # TypeScript Learning Resources
 
 This document provides a curated list of resources for deepening your understanding of TypeScript and type safety practices. These resources are particularly relevant to the patterns and practices used in the Mugiwara-Kaizoku project.

@@ -1,14 +1,3 @@
-# Development Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Development Guide
-
----
 # Mugiwara-Kaizoku Development Guide
 
 This guide provides solutions for common development environment issues and recommendations for working with the codebase.

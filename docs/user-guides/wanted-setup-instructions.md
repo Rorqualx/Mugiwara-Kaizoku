@@ -1,14 +1,3 @@
-# Wanted Setup Instructions
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Wanted Setup Instructions
-
----
 # Wanted Pages Setup Instructions
 
 ## Quick Start

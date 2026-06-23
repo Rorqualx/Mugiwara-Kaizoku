@@ -1,14 +1,3 @@
-# Error Handling Comprehensive Guide
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Error Handling Comprehensive Guide
-
----
 # Enhanced Error Handling Comprehensive Guide
 
 ## Table of Contents

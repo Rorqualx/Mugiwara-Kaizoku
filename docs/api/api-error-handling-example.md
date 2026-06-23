@@ -1,14 +1,3 @@
-# Api Error Handling Example
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Api Error Handling Example
-
----
 # Enhanced API Error Handling Examples
 
 ## Overview

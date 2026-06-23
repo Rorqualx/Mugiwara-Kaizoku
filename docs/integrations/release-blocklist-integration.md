@@ -1,16 +1,5 @@
 # Release Blocklist Integration
 
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Release Blocklist Integration
-
----
-# Release Blocklist Integration
-
 ## Overview
 
 The release blocklist feature has been integrated into the download manager to prevent downloading of known problematic releases. This feature automatically filters out blocked releases during search and prevents their download.

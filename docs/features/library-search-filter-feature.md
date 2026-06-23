@@ -1,14 +1,3 @@
-# Library Search Filter Feature
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Library Search Filter Feature
-
----
 # Library Search & Filter Feature
 
 ## Overview

@@ -1,14 +1,3 @@
-# Typescript Patterns
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Typescript Patterns
-
----
 # TypeScript Patterns Reference
 
 This document provides a reference for common TypeScript patterns used in the Mugiwara-Kaizoku project to maintain type safety.

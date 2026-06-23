@@ -1,14 +1,3 @@
-# Pull Request Template
-
-*Status: Active*  
-*Author: Documentation Team*  
-*Canonical: Yes*
-
-## Overview
-
-Documentation for Pull Request Template
-
----
 # Fix failing tests in SearchResults, ErrorHandler, Register API, and ClientLayout components
 
 ## Summary

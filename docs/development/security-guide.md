@@ -1,7 +1,6 @@
 # Security Guidelines
 
 *Status: Active*
-*Author: Development Team*
 *Last Updated: 2025-11-08*
 
 ## Overview
