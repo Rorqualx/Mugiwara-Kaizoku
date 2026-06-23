@@ -4,6 +4,25 @@ A self-hosted manga library manager. Tracks your collection, enriches metadata f
 
 **Status:** v0.9.0 — pre-release. Public 1.0 in progress; expect rough edges.
 
+> Inspired by [oae/kaizoku](https://github.com/oae/kaizoku) — Mugiwara-Kaizoku began as an homage to that project but has since been **completely rewritten** from the ground up into a new application with its own architecture and feature set. Full credit to [@oae](https://github.com/oae) for the original idea.
+
+---
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Home — trending banner & continue reading](docs/screenshots/Screenshot%202026-06-22%20at%207.43.59%E2%80%AFPM.png) | ![Discovery — trending & most popular](docs/screenshots/Screenshot%202026-06-22%20at%207.44.36%E2%80%AFPM.png) |
+| Home — trending banner & continue reading | Discovery — trending & most popular |
+| ![Library — your manga collection](docs/screenshots/Screenshot%202026-06-22%20at%207.43.31%E2%80%AFPM.png) | ![Release calendar & monitored series](docs/screenshots/Screenshot%202026-06-22%20at%207.51.04%E2%80%AFPM.png) |
+| Library — your manga collection | Release calendar & monitored series |
+| ![Title detail — overview & metadata](docs/screenshots/Screenshot%202026-06-22%20at%207.45.26%E2%80%AFPM.png) | ![Title detail — gallery & sources](docs/screenshots/Screenshot%202026-06-22%20at%207.45.41%E2%80%AFPM.png) |
+| Title detail — overview & metadata | Title detail — gallery & sources |
+| ![Volumes & chapters](docs/screenshots/Screenshot%202026-06-22%20at%207.46.22%E2%80%AFPM.png) | ![Chapter detail & download history](docs/screenshots/Screenshot%202026-06-22%20at%207.46.33%E2%80%AFPM.png) |
+| Volumes & chapters | Chapter detail & download history |
+| ![Metadata provider binding](docs/screenshots/Screenshot%202026-06-22%20at%207.48.12%E2%80%AFPM.png) | ![Settings & preferences](docs/screenshots/Screenshot%202026-06-22%20at%207.52.44%E2%80%AFPM.png) |
+| Metadata provider binding | Settings & preferences |
+
 ---
 
 ## What it does

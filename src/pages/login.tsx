@@ -150,7 +150,7 @@ function LoginPage(): React.ReactElement {
   }
   return <Container size="xs" py="xl">
       <Title order={2} ta="center" mb="lg">
-        Login to Kaizoku
+        Login to Mugiwara Kaizoku
       </Title>
       
       <Paper withBorder shadow="md" p={30} radius="md" mt="xl">
