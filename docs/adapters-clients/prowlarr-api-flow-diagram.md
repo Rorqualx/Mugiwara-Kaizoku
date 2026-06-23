@@ -57,7 +57,7 @@ const indexers = await client.getIndexers();
 
 ### 2. Client Formats Request
 ```typescript
-// prowlarrClient.ts
+// prowlarrApi.ts
 async getIndexers() {
   return this.makeRequest({
     method: 'GET',

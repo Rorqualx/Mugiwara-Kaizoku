@@ -92,7 +92,7 @@ OpenJDK 64-Bit Server VM (build 21.0.0+35-2513, mixed mode, sharing)
 
 ## Production Setup
 
-The production startup scripts (`scripts/start.sh` and `scripts/start-production.sh`) automatically detect and use Java 21 from Homebrew locations if available.
+In production the app is started with `bun run start:prod` (`bun src/server/index.ts`); in the Docker image Java 21 (`temurin-21-jre`) is already on the PATH. For local production runs, ensure a Java 21 JRE is on your PATH (see the install steps above).
 
 ### Manual PATH Configuration
 
@@ -144,5 +144,5 @@ The application's scripts handle this automatically by checking common Homebrew 
 
 - `/src/server/services/suwayomi/utils.ts` - Java version detection logic
 - `/scripts/install-java-21.sh` - Automated Java 21 installation script
-- `/scripts/start.sh` - Startup script with Java 21 PATH configuration
-- `/scripts/start-production.sh` - Production startup script with Java 21 PATH configuration
+- `scripts/install-java-21.sh` - Installs/locates a Java 21 JRE
+- Production start: `bun run start:prod` (`bun src/server/index.ts`)

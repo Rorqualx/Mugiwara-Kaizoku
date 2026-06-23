@@ -353,7 +353,7 @@ getChapterFile: protectedProcedure
 
 ---
 
-## 📚 Manga Detail Integration (`src/server/trpc/routers/manga.ts`)
+## 📚 Manga Detail Integration (`src/server/trpc/routers/manga/`)
 
 ### getMangaById (line ~200)
 
@@ -695,7 +695,7 @@ time curl 'http://localhost:3000/api/trpc/home.getTop100'
 
 1. ✅ **Apply home.ts integration** - Start with Top 100
 2. ✅ **Apply reader.ts integration** - Critical for UX
-3. ✅ **Apply manga.ts integration** - Frequently accessed
+3. ✅ **Apply manga/ integration** - Frequently accessed
 4. ✅ **Create warming job** - Keep cache hot
 5. ✅ **Monitor performance** - Verify improvements
 6. ✅ **Add dashboard** - Track hot cache stats

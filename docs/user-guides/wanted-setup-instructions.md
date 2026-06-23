@@ -56,7 +56,6 @@ bun run dev
 Navigate to these URLs:
 - **Missing Items**: http://localhost:3000/wanted/missing
 - **Latest Downloads**: http://localhost:3000/wanted/downloads
-- **Download History**: http://localhost:3000/wanted/history
 - **Blocklist**: http://localhost:3000/wanted/blocklist
 
 ## Features
@@ -71,12 +70,6 @@ Navigate to these URLs:
 - Success/failure statistics
 - Download size and speed metrics
 - Filter by status and date
-
-### History Page
-- Complete download history
-- Advanced filtering options
-- Pagination for large datasets
-- Export functionality (UI ready)
 
 ### Blocklist Page
 - Manage blocked manga/chapters/sources

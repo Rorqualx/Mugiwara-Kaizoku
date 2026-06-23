@@ -44,18 +44,7 @@ The standard setup page is available at `/setup` when no users exist in the data
   - Guided setup process
   - Automatic redirection to login page after completion
 
-## Option 2: Standalone HTML Form
-
-If you're experiencing issues with the standard setup page (such as browser extension conflicts or stylesheet errors), you can use the standalone HTML form.
-
-- **URL**: `/admin-setup.html`
-- **Features**:
-  - Minimal dependencies
-  - No React components
-  - Works with JavaScript disabled
-  - Less likely to be affected by browser extensions
-
-## Option 3: Command-Line Tool
+## Option 2: Command-Line Tool
 
 For server administrators or when web interfaces are not working, you can use the command-line tool to create an admin user directly.
 
@@ -89,24 +78,12 @@ npm run create-admin -- --help
 If you're experiencing issues with the standard setup page, try:
 
 1. Disabling browser extensions, especially ad blockers or privacy tools
-2. Using the standalone HTML form at `/admin-setup.html`
-3. Using a different browser
-4. Using the command-line tool as a last resort
+2. Using a different browser
+3. Using the command-line tool as a last resort
 
 ### Debug Tools
 
-We've added several debug tools to help diagnose issues with the admin creation process:
-
-1. **Debug Admin Page**: A dedicated debug page at `/debug-admin.html` that provides:
-   - A simplified admin creation form
-   - Real-time debug logs viewer
-   - Testing tools for CSP, API, and database connection
-
-2. **Debug Logs API**: Access detailed logs at `/api/debug-logs` to see what's happening during the admin creation process.
-
-3. **CSP Test Page**: Test if Content Security Policy is working correctly at `/csp-test.html`.
-
-These tools can help identify where the admin creation process is failing, whether it's at the form validation, API, or database level.
+- **CSP Test Page**: Test if Content Security Policy is working correctly at `/csp-test.html`.
 
 ### Form Submission Errors
 

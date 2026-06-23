@@ -40,12 +40,11 @@ async function searchManga(query: string, limit: number, offset: number): Promis
 
 ```typescript
 // src/server/services/mangadex/manga.service.ts
-import { 
-  isArray, 
-  isObject, 
-  hasProperty, 
-  isString, 
-  transformApiResponse 
+import {
+  isArray,
+  isObject,
+  hasProperty,
+  isString
 } from '@/utils/validation';
 
 async function searchManga(query: string, limit: number, offset: number): Promise<MangaSearch[]> {
@@ -54,38 +53,35 @@ async function searchManga(query: string, limit: number, offset: number): Promis
       params: { title: query, limit, offset }
     });
     
-    // Safe: Validate response structure before using it
-    return transformApiResponse<MangaSearch[]>(
-      response.data,
-      // Validate top-level response structure
-      (data) => isObject(data) && hasProperty(data, 'data') && isArray(data.data),
-      // Transform validated data to expected type
-      (data) => {
-        const responseData = data as { data: unknown[] };
-        
-        // Further validate and transform each manga item
-        return responseData.data
-          .filter((item): item is Record<string, unknown> => 
-            isObject(item) && 
-            hasProperty(item, 'id') && isString(item.id) &&
-            hasProperty(item, 'attributes') && isObject(item.attributes)
-          )
-          .map(item => {
-            const attributes = item.attributes as Record<string, unknown>;
-            
-            // Transform to our internal MangaSearch type
-            return {
-              id: item.id as string,
-              title: hasProperty(attributes, 'title') && isObject(attributes.title) 
-                ? extractTitle(attributes.title) 
-                : 'Unknown Title',
-              // ... other fields with validation
-            };
-          });
-      },
-      // Fallback value if validation fails
-      []
-    );
+    // Safe: validate the top-level response structure with the guard helpers
+    // before using it (no `transformApiResponse` helper exists — validate inline).
+    if (
+      !isObject(response.data) ||
+      !hasProperty(response.data, 'data') ||
+      !isArray(response.data.data)
+    ) {
+      return []; // Fallback value if validation fails
+    }
+
+    // Further validate and transform each manga item
+    return response.data.data
+      .filter((item): item is Record<string, unknown> =>
+        isObject(item) &&
+        hasProperty(item, 'id') && isString(item.id) &&
+        hasProperty(item, 'attributes') && isObject(item.attributes)
+      )
+      .map(item => {
+        const attributes = item.attributes as Record<string, unknown>;
+
+        // Transform to our internal MangaSearch type
+        return {
+          id: item.id as string,
+          title: hasProperty(attributes, 'title') && isObject(attributes.title)
+            ? extractTitle(attributes.title)
+            : 'Unknown Title',
+          // ... other fields with validation
+        };
+      });
   } catch (error) {
     logger.error(`MangaDex search error: ${error}`);
     return [];

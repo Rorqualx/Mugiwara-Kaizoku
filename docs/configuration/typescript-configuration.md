@@ -29,7 +29,7 @@ The main `tsconfig.json` provides a standardized configuration for the entire pr
 ```json
 {
   "compilerOptions": {
-    "target": "es2017",
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -38,7 +38,7 @@ The main `tsconfig.json` provides a standardized configuration for the entire pr
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
@@ -58,7 +58,7 @@ The main `tsconfig.json` provides a standardized configuration for the entire pr
 The project uses the Node.js module resolution strategy enhanced with path aliases:
 
 ```json
-"moduleResolution": "node",
+"moduleResolution": "bundler",
 "baseUrl": ".",
 "paths": {
   "@/*": ["./src/*"]

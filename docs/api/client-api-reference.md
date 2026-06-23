@@ -1445,10 +1445,10 @@ We established two valid import paths for different use cases:
 import { trpc } from '../utils/trpc-client/index';
 
 // Resilient import - for critical infrastructure components
-import { trpc } from '../utils/trpc-monkey-patch';
+import { trpc } from '@/utils/trpc-client';
 ```
 
-The `trpc-monkey-patch` version provides automatic fallbacks for missing endpoints while still indicating errors correctly.
+The `@/utils/trpc-client` version provides automatic fallbacks for missing endpoints while still indicating errors correctly.
 
 ### 2. Improved Error Handling in useCompatibleQuery
 
@@ -1556,7 +1556,7 @@ console.error('Initialization Error:', {
 ```typescript
 // Inconsistent imports across the codebase
 import { trpc } from '../utils/trpc-client/index';
-import { trpc } from '../utils/trpc-monkey-patch';
+import { trpc } from '@/utils/trpc-client';
 import { trpc } from '../utils/trpcClient';
 ```
 
@@ -1567,7 +1567,7 @@ import { trpc } from '../utils/trpcClient';
 import { trpc } from '../utils/trpc-client/index';
 
 // Critical infrastructure components:
-import { trpc } from '../utils/trpc-monkey-patch';
+import { trpc } from '@/utils/trpc-client';
 ```
 
 #### Error Handling
@@ -2407,7 +2407,7 @@ Replaced all references to the mock tRPC client with the real implementation.
 
 ### Changes Made:
 
-1. **Updated trpc-monkey-patch.ts**
+1. **Updated trpc-client**
    - Changed import from `./trpcClient` to `./trpc-client/index`
    - Now uses the real tRPC client as the base for the proxy
 

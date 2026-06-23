@@ -27,7 +27,7 @@ Added filtering to the Fandom adapter to only return entries with "(manga)" in t
 ## Implementation Details
 
 ### Files Modified
-- `/src/api/metadataProviders/adapters/fandomAdapter.ts`
+- `src/server/parsers/adapters/FandomAdapter.ts`
 
 ### Changes Made
 

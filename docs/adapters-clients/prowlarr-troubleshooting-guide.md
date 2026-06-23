@@ -166,7 +166,7 @@ PROWLARR_API_KEY=your-api-key-here
 
 ### 3. Verify Implementation Files
 All these files are correctly implemented:
-- ✅ `src/api/prowlarrClient.ts`
+- ✅ `src/utils/prowlarrApi.ts`
 - ✅ `src/utils/prowlarrApi.ts`
 - ✅ `src/pages/api/prowlarr.ts`
 - ✅ `src/components/settings/prowlarr/*.tsx`

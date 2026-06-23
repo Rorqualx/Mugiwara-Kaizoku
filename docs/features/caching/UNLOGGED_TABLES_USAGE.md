@@ -42,7 +42,7 @@ await cacheProvider.clear({ namespace: 'search-results' });
 ```
 
 **Used By**:
-1. **Manga Search** (`src/server/trpc/routers/manga.ts:476`)
+1. **Manga Search** (`src/server/trpc/routers/manga/search-helpers.ts:285`)
    - Caches provider search results for 5 minutes
    - Namespace: `provider-search`
    - Prevents hammering external APIs
@@ -515,7 +515,7 @@ UNLOGGED tables are **automatically truncated** by PostgreSQL after a crash.
 ### Example 1: Caching Search Results
 
 ```typescript
-// src/server/trpc/routers/manga.ts:476
+// src/server/trpc/routers/manga/search-helpers.ts:285
 
 const cacheKey = cacheProvider.generateKey({
   query: searchQuery,

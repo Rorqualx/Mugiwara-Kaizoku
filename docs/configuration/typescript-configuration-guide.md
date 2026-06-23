@@ -51,10 +51,11 @@ Add these settings to your `tsconfig.json` to catch errors during development:
     "jsx": "preserve",                       // Preserve JSX for Next.js
     "skipLibCheck": true,                    // Skip type checking of declaration files
     
-    // Path Mapping (avoid using these)
-    // "paths": {
-    //   "@/*": ["./src/*"]                   // Commented out - use relative imports
-    // }
+    // Path Mapping (REQUIRED — always import via @/ aliases;
+    // deep relative imports are blocked by ESLint no-restricted-imports)
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "src/**/*",
