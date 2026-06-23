@@ -1,8 +1,13 @@
 # Prisma Types Migration Guide
 
+> **Historical:** this documents a one-time migration that has already been
+> completed. The `scripts/migrate-to-prisma-types.ts` helper referenced below is
+> no longer present in the repo; this guide is retained for context on how the
+> codebase arrived at its current Prisma-types conventions.
+
 ## Overview
 
-This guide explains how to use the migration script to enforce Prisma types throughout the codebase, removing all backwards compatibility layers and duplicate type definitions.
+This guide explains the migration that enforced Prisma types throughout the codebase, removing all backwards compatibility layers and duplicate type definitions.
 
 ## What the Migration Does
 
