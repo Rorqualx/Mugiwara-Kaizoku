@@ -558,7 +558,7 @@ protected override log = logger.child({ module: 'AniListAdapter' });
 
 ### Continued Improvements from Previous Fixes
 
-Building on previous fixes documented in [anilist-adapter-fixes.md](./anilist-adapter-fixes.md), this update includes:
+Building on previous fixes documented in anilist-adapter-fixes.md, this update includes:
 
 1. **Enhanced Type Assertions**:
    - Replaced simple `as` assertions with proper type checking using `typeof` and type guards
@@ -955,6 +955,6 @@ If these steps don't resolve the issue, please report the problem with the error
 
 ## See Also
 
-- [AniList User Guide](./anilist-guide-consolidated.md)
-- [AniList Implementation Reference](./anilist-implementation-reference.md)
-- [AniList Troubleshooting](./anilist-troubleshooting.md)
+- AniList User Guide
+- AniList Implementation Reference
+- AniList Troubleshooting

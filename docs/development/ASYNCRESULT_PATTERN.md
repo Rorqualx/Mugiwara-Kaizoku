@@ -384,5 +384,5 @@ As of September 21, 2025:
 ## Further Reading
 
 - [AsyncResult Implementation](/src/utils/async-result.ts)
-- [Migration Report](/ASYNCRESULT_MIGRATION_COMPLETE.md)
-- [Remaining Work](/REMAINING_WORK.md)
+- Migration Report
+- Remaining Work

@@ -54,9 +54,9 @@ Additional feature implementations:
 
 ## 🔗 Related Documentation
 
-- [API Documentation](../api-documentation-standardized.md)
-- [Integration Adapter Pattern](../integration-adapter-pattern.md)
-- [Component Development Guide](../component-development-guide.md)
+- API Documentation
+- [Integration Adapter Pattern](../adapters-clients/integration-adapter-pattern.md)
+- [Component Development Guide](../user-guides/component-development-guide.md)
 
 ## 🚀 Key Features Overview
 

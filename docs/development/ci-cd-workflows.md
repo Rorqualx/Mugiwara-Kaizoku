@@ -98,7 +98,7 @@ Weekly coverage reports are posted to a designated GitHub issue. You can:
 
 3. **Failing Tests**: If a PR has failing tests, it should not be merged until the issues are resolved.
 
-4. **Test Patterns**: Follow the [Test Template Guide](./test-template-guide.md) when writing new tests to ensure they work properly with the CI system.
+4. **Test Patterns**: Follow the Test Template Guide when writing new tests to ensure they work properly with the CI system.
 
 ## Troubleshooting
 

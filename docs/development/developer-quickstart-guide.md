@@ -30,10 +30,9 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
 ### Prerequisites
 
 - Node.js 20+ (as specified in package.json engines)
-- bun run (required, other package managers are not supported)
+- Bun 1.3+ (required; other package managers are not supported)
 - Docker (for database and development environment)
 - Java 21+ (for the bundled Suwayomi engine)
-- [mangal](https://github.com/metafates/mangal) (for downloading manga)
 
 ### First-Time Setup
 
@@ -45,7 +44,7 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
 
 2. Install dependencies:
    ```bash
-   bun run i
+   bun install
    ```
 
 3. Create a `.env` file in the project root:
@@ -55,14 +54,12 @@ The application is built with Next.js, TypeScript, and PostgreSQL, following a s
    NODE_ENV=development
 
    # Database settings
-   DATABASE_URL="postgresql://postgres:kaizoku@localhost:5432/kaizoku"
+   DATABASE_URL="postgresql://kaizoku:kaizoku@localhost:5432/kaizoku"
 
-   # NextAuth settings
+   # NextAuth settings (generate secrets with: openssl rand -base64 32)
    NEXTAUTH_URL=http://localhost:3000
-   NEXTAUTH_SECRET=this-is-a-local-secret-key-change-in-production
-   JWT_EXPIRES_IN=2592000
-   NEXTAUTH_SESSION_STRATEGY=jwt
-   NEXTAUTH_SESSION_MAX_AGE=2592000
+   NEXTAUTH_SECRET=
+   AUTH_SECRET=
 
    # Optional: Suwayomi integration status
    DISABLE_SUWAYOMI=true  # Set to false if you have Java 21+ installed
@@ -135,21 +132,16 @@ bun run reset:db:local
 
 The project follows a clear directory structure:
 
-- **API Clients**: Located in `src/api/` - Handle external service communication
-  - **Base Classes**: `src/api/base/` - Base classes for API clients and providers
-  - **Download Clients**: `src/api/downloadClients/` - Clients for download services
-  - **Metadata Providers**: `src/api/metadataProviders/` - Providers for metadata services
-  - **Adapters**: `src/api/metadataProviders/adapters/` - Adapters for metadata services
-- **React Components**: Located in `src/components/` - UI components
-- **React Hooks**: Located in `src/hooks/` - Custom hooks for state management and data fetching
-- **Types**: Located in `src/types/` - TypeScript type definitions
-  - **Domain Types**: `src/types/domain/` - Core domain entities and types
-- **Utils**: Located in `src/utils/` - Utility functions and helpers
-  - **Converters**: `src/utils/converters/` - Type conversion utilities
-  - **Validation**: `src/utils/validation/` - Type validation utilities
-- **Server**: Located in `src/server/` - Server-side code including tRPC routers and services
-- **Store**: Located in `src/store/` - Global state management
-- **Pages**: Located in `src/pages/` - Next.js page components
+- **Server**: `src/server/` - Server-side code (tRPC routers, services, queue, startup)
+  - **tRPC routers**: `src/server/trpc/routers/`
+  - **Services**: `src/server/services/` - external integrations (mangadex, comicvine, fandom, prowlarr, download, native-download, suwayomi, …)
+  - **Adapters**: `src/server/adapters/` (+ `src/server/parsers/adapters/`) - provider adapters, registered via `AdapterFactory`
+- **React Components**: `src/components/` - UI components
+- **React Hooks**: `src/hooks/` - custom hooks for state management and data fetching
+- **Types**: `src/types/` - TypeScript type definitions (`domain/`, `adapters/`, `api/`)
+- **Utils**: `src/utils/` - utilities (`async-result/`, `validation/`, `id-converters.ts`, …)
+- **Store**: `src/store/` - global state management (Zustand)
+- **Pages**: `src/pages/` - Next.js page + API-route components
 
 ## 5. Key Architectural Patterns
 
@@ -159,15 +151,15 @@ The project uses several architectural patterns that you should understand:
 
 Used for external integrations to standardize API communications. Adapters provide a consistent interface for different external APIs.
 
-Example: `src/api/metadataProviders/adapters/anilistAdapter.ts`
+Example: `src/server/adapters/unified-anilist-adapter.ts`
 
-[Learn more in the Adapter Pattern Guide](./integration-adapter-pattern.md)
+[Learn more in the Adapter Pattern Guide](../adapters-clients/integration-adapter-pattern.md)
 
 ### AsyncResult Pattern
 
 Used for handling asynchronous operations with typed results. This pattern provides type-safe success/error handling.
 
-Example: `src/utils/async-result.ts`
+Example: `src/utils/async-result/`
 
 Basic pattern:
 ```typescript
@@ -178,7 +170,7 @@ type AsyncResult<T, E> =
   | { status: 'idle' };
 ```
 
-[Learn more in the AsyncResult Best Practices Guide](./async-result-pattern-best-practices.md)
+Learn more in the AsyncResult Best Practices Guide
 
 ### Container/Presenter Pattern
 
@@ -190,7 +182,7 @@ Example: `src/components/addManga/steps/searchStep.tsx`
 
 Used for creating client instances with proper configuration. Factory functions encapsulate creation logic and ensure proper initialization.
 
-Example: `src/api/metadataProviders/comicvineClient.ts` (createComicVineClient function)
+Example: `src/server/services/comicvine/service.ts` (createComicVineClient function)
 
 ## 6. Development Workflow
 
@@ -236,9 +228,9 @@ When creating a pull request:
 
 ### Adding a New Metadata Provider
 
-1. Create a new client in `src/api/metadataProviders/`
-2. Create a new adapter in `src/api/metadataProviders/adapters/`
-3. Register the provider in `src/api/metadataProviders/index.ts`
+1. Create a new client in `src/server/services/providers/`
+2. Create a new adapter in `src/server/adapters/`
+3. Register the provider in `src/server/adapters/AdapterFactory.ts`
 4. Add types in `src/types/adapters/`
 5. Add UI components for configuration in `src/components/settings/`
 
@@ -285,7 +277,7 @@ If you encounter authentication problems:
 3. Check that `NEXTAUTH_SECRET` is set
 4. Try creating a new admin user with `bun run create-admin`
 
-See [Authentication Guide](./authentication-guide.md) for more details.
+See Authentication Guide for more details.
 
 #### Build Issues
 
@@ -294,7 +286,7 @@ If the build process fails:
 1. Make sure you're using bun run (not npm or yarn)
 2. Run `bun run clean` to remove build artifacts
 3. Check for TypeScript errors with `npm run type-check`
-4. Ensure all dependencies are installed with `bun run i`
+4. Ensure all dependencies are installed with `bun install`
 
 ### Getting Help
 
@@ -306,12 +298,12 @@ If you're stuck:
 
 ## 9. Additional Resources
 
-- [AsyncResult Pattern Best Practices](./async-result-pattern-best-practices.md)
-- [TypeScript Patterns Reference](./typescript-patterns.md)
-- [Integration Adapter Pattern](./integration-adapter-pattern.md)
-- [Type Safety Guidelines](./typescript-cheat-sheet.md)
-- [Authentication Guide](./authentication-guide.md)
+- AsyncResult Pattern Best Practices
+- [TypeScript Patterns Reference](../typescript/typescript-patterns.md)
+- [Integration Adapter Pattern](../adapters-clients/integration-adapter-pattern.md)
+- [Type Safety Guidelines](../typescript/typescript-cheat-sheet.md)
+- Authentication Guide
 - [Code Comments Style Guide](./code-comments-style-guide.md)
-- [Environment Variables Guide](./environment-variables.md)
-- [Suwayomi Setup Guide](./suwayomi-setup.md)
-- [Build System Documentation](./build-system.md)
+- [Environment Variables Guide](../configuration/environment-variables.md)
+- [Suwayomi Setup Guide](../user-guides/suwayomi-setup.md)
+- Build System Documentation

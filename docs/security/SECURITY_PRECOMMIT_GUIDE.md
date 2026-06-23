@@ -646,6 +646,6 @@ git status
 ---
 
 *For more information, see:*
-- [Security Guide](../security/security-guide.md)
+- [Security Guide](../development/security-guide.md)
 - [Hooks Guide](../development/hooks-guide.md)
 - [CLAUDE.md](../../CLAUDE.md)

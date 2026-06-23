@@ -793,7 +793,7 @@ npm run type-check
 
 The `/commit` command automatically runs ESLint validation and **blocks the commit** if any errors are found.
 
-See [docs/development/hooks-guide.md](./hooks-guide.md) for details.
+See [docs/development/hooks-guide.md](../development/hooks-guide.md) for details.
 
 ---
 

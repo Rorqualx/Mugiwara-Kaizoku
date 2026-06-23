@@ -51,7 +51,7 @@ Key benefits:
 - `npm run build:clean` - Full setup including schema recreation
 - `npm run build:clean:fixed` - Fixed build process that uses direct SQL for NextAuth tables
 
-See also: [Smart Database System](./smart-database-system.md) for intelligent self-healing capabilities.
+See also: Smart Database System for intelligent self-healing capabilities.
 
 ## Common Issues and Solutions
 

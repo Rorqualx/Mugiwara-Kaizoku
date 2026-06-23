@@ -3773,7 +3773,7 @@ Future improvements for this file could include:
 
 ## Related Documentation
 
-- [Download Clients Guide](./download-clients-guide.md) - BitTorrent & Usenet clients
-- [API Client Reference](./api-client-reference.md) - HTTP & API integration
-- [UI Client Guide](./ui-client-guide.md) - Frontend & navigation
+- Download Clients Guide - BitTorrent & Usenet clients
+- API Client Reference - HTTP & API integration
+- UI Client Guide - Frontend & navigation
 

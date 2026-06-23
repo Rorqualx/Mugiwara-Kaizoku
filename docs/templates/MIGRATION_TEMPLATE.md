@@ -225,4 +225,4 @@ A: Until [date], with deprecation warnings starting [date]
 
 ---
 
-**Need help?** Post in #migration-help or check [CANONICAL_DOCS.md](/docs/CANONICAL_DOCS.md)
+**Need help?** Post in #migration-help or check CANONICAL_DOCS.md

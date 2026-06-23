@@ -141,8 +141,8 @@ The project implements several advanced type safety features:
 
 For more detailed information on TypeScript in this project, refer to:
 
-- **[TypeScript Safety Improvements](./typescript-safety-improvements.md)**: Comprehensive guide to type safety patterns used in the project
-- **[Future TypeScript Improvements](./future-typescript-improvements.md)**: Roadmap for future type safety enhancements
+- **TypeScript Safety Improvements**: Comprehensive guide to type safety patterns used in the project
+- **Future TypeScript Improvements**: Roadmap for future type safety enhancements
 
 ## Type Safety Best Practices
 
@@ -248,8 +248,8 @@ If you encounter TypeScript errors:
 5. **Review Error Handling**: Ensure error handling follows type-safe patterns
 
 For common patterns and solutions, consult:
-- [TypeScript Patterns](./typescript-patterns.md) - Reference for common TypeScript patterns used in this project
-- [TypeScript Fixes Summary](./typescript-fixes-summary.md) - Summary of recent fixes to TypeScript errors
-- [TypeScript Error Resolution Patterns](./typescript-error-resolution-patterns.md) - Common error patterns and their solutions
+- [TypeScript Patterns](../typescript/typescript-patterns.md) - Reference for common TypeScript patterns used in this project
+- TypeScript Fixes Summary - Summary of recent fixes to TypeScript errors
+- TypeScript Error Resolution Patterns - Common error patterns and their solutions
 
-For any TypeScript-related issues, consult the [TypeScript Safety Improvements](./typescript-safety-improvements.md) documentation.
+For any TypeScript-related issues, consult the TypeScript Safety Improvements documentation.

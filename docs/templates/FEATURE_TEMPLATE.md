@@ -134,7 +134,7 @@ describe('Component', () => {
 
 - [Link to related doc 1]
 - [Link to related doc 2]
-- See also: [CANONICAL_DOCS.md](/docs/CANONICAL_DOCS.md)
+- See also: CANONICAL_DOCS.md
 
 ## Changelog
 
@@ -143,4 +143,4 @@ describe('Component', () => {
 
 ---
 
-**Questions?** Check [CANONICAL_DOCS.md](/docs/CANONICAL_DOCS.md) or ask in #dev-help
+**Questions?** Check CANONICAL_DOCS.md or ask in #dev-help

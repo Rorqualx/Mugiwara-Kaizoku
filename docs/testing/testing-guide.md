@@ -175,4 +175,4 @@ npm run test:e2e
 ## Related Documentation
 - [Development Guide](../development/development-guide.md)
 - [CI/CD Pipeline](../development/ci-cd-workflows.md)
-- [Code Quality Standards](../development/code-quality.md)
+- Code Quality Standards

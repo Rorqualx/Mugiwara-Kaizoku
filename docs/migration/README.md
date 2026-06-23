@@ -8,12 +8,12 @@
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[MIGRATION_COMPLETION_REPORT.md](./MIGRATION_COMPLETION_REPORT.md)** | Complete migration summary, final status report | Project Managers, Tech Leads |
+| **MIGRATION_COMPLETION_REPORT.md** | Complete migration summary, final status report | Project Managers, Tech Leads |
 | **[DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)** | Day-to-day development with Bun, quick start | All Developers |
 | **[PLATFORM_COMPATIBILITY.md](./PLATFORM_COMPATIBILITY.md)** | Platform-specific setup and issues | Developers, DevOps |
 | **[TROUBLESHOOTING_SWC.md](./TROUBLESHOOTING_SWC.md)** | Detailed SWC binary troubleshooting | Developers (when issues occur) |
-| **[BUN_MIGRATION_IMPLEMENTATION_PLAN.md](./BUN_MIGRATION_IMPLEMENTATION_PLAN.md)** | Original 4-week migration plan | Project Managers |
-| **[BUN_MIGRATION_ANALYSIS.md](./BUN_MIGRATION_ANALYSIS.md)** | Technical analysis and benchmarks | Tech Leads, Architects |
+| **BUN_MIGRATION_IMPLEMENTATION_PLAN.md** | Original 4-week migration plan | Project Managers |
+| **BUN_MIGRATION_ANALYSIS.md** | Technical analysis and benchmarks | Tech Leads, Architects |
 
 ---
 
@@ -261,7 +261,7 @@ GitHub Actions workflow automatically tests:
 1. **General Questions**: [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)
 2. **Platform Issues**: [PLATFORM_COMPATIBILITY.md](./PLATFORM_COMPATIBILITY.md)
 3. **SWC Problems**: [TROUBLESHOOTING_SWC.md](./TROUBLESHOOTING_SWC.md)
-4. **Migration Status**: [MIGRATION_COMPLETION_REPORT.md](./MIGRATION_COMPLETION_REPORT.md)
+4. **Migration Status**: MIGRATION_COMPLETION_REPORT.md
 
 ### Diagnostics
 
@@ -298,7 +298,7 @@ GitHub Actions workflow automatically tests:
 - ✅ 100% script coverage
 - ✅ Zero breaking changes
 
-**See [MIGRATION_COMPLETION_REPORT.md](./MIGRATION_COMPLETION_REPORT.md) for full details**
+**See MIGRATION_COMPLETION_REPORT.md for full details**
 
 ---
 

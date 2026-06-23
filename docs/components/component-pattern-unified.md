@@ -639,9 +639,9 @@ type AsyncResult<T> = /* 4-state pattern */
 
 ## References
 
-- [Type System Architecture](./type-system-architecture-standardization.md)
-- [AsyncResult Pattern](./async-result-standardization.md)
-- [Testing Guide](./../../testing-guide-unified.md)
-- [Error Handling](./standardized-error-handling.md)
+- [Type System Architecture](../typescript/type-system-architecture-standardization.md)
+- AsyncResult Pattern
+- Testing Guide
+- Error Handling
 
 This guide represents the consolidated best practices for React components in the Mugiwara-Kaizoku project. When in doubt, follow these patterns for consistency across the codebase.

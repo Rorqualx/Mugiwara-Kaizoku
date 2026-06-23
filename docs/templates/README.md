@@ -44,7 +44,7 @@ Use this template for documenting:
 ## How to Use Templates
 
 1. **Copy the appropriate template** to your documentation location
-2. **Rename the file** following our [naming conventions](../DOCUMENTATION_NAMING_CONVENTIONS.md)
+2. **Rename the file** following our naming conventions
 3. **Fill in all sections** - delete any that don't apply
 4. **Update the header metadata** (status, author, date)
 5. **Add to CANONICAL_DOCS.md** if it's an authoritative document
@@ -104,9 +104,9 @@ Before submitting documentation:
 
 ## Related Documentation
 
-- [Documentation Naming Conventions](../DOCUMENTATION_NAMING_CONVENTIONS.md)
-- [Documentation Contribution Guide](../DOCUMENTATION_CONTRIBUTION_GUIDE.md)
-- [CANONICAL_DOCS.md](../CANONICAL_DOCS.md)
+- Documentation Naming Conventions
+- Documentation Contribution Guide
+- CANONICAL_DOCS.md
 
 ---
 

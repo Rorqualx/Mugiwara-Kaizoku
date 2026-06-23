@@ -101,7 +101,7 @@ const status = MangaStatus.ONGOING;
 - External APIs may use different values - always map
 - TypeScript will catch most issues during compilation
 
-**Reference**: [manga-status-standardization-final.md](../manga-status-standardization-final.md)
+**Reference**: manga-status-standardization-final.md
 
 ---
 
@@ -184,7 +184,7 @@ export class NewAdapter implements IAdapter {
    import { AdapterError, ValidationError } from '@/types/errors';
    ```
 
-**Reference**: [adapter-pattern-unified.md](../adapter-pattern-unified.md)
+**Reference**: adapter-pattern-unified.md
 
 ---
 
@@ -259,7 +259,7 @@ interface ErrorInfo {
    }
    ```
 
-**Reference**: [async-result-standardization.md](../async-result-standardization.md)
+**Reference**: async-result-standardization.md
 
 ---
 
@@ -312,7 +312,7 @@ const metadata = await aniListService.getMangaById(aniListId);
    // Use only native AniList configuration
    ```
 
-**Reference**: [anilist-native-guide.md](../anilist-native-guide.md)
+**Reference**: anilist-native-guide.md
 
 ---
 
@@ -367,7 +367,7 @@ const session = await getServerSession(authOptions);
    };
    ```
 
-**Reference**: [authentication-standardization.md](../authentication-standardization.md)
+**Reference**: authentication-standardization.md
 
 ---
 
@@ -411,7 +411,7 @@ import { ApiResponse } from '@/types/shared/api';
    - `types/shared/` - Shared types across the application
    - `types/services/` - Service-specific types
 
-**Reference**: [type-system-architecture-standardization.md](../type-system-architecture-standardization.md)
+**Reference**: [type-system-architecture-standardization.md](../typescript/type-system-architecture-standardization.md)
 
 ---
 

@@ -236,4 +236,4 @@ Help improve predictions:
 
 ---
 
-For technical documentation and API details, see the [Developer Guide](/docs/calendar-developer-guide.md).
+For technical documentation and API details, see the Developer Guide.

@@ -284,9 +284,9 @@ curl -X POST \
 
 ## Related Documentation
 
-- [API Client Guide](/docs/api-documentation-standardized.md)
-- [Authentication Guide](/docs/authentication-standardization.md)
-- [Error Handling](/docs/error-handling-standardized.md)
+- API Client Guide
+- Authentication Guide
+- Error Handling
 
 ---
 

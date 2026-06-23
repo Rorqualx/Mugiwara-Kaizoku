@@ -176,4 +176,4 @@ backfill the source id when an existing row matches.
 ## Related Documentation
 - [Database Guide](../database/database-guide.md)
 - [Development Guide](../development/development-guide.md)
-- [API Documentation](../api/api-reference.md)
+- API Documentation

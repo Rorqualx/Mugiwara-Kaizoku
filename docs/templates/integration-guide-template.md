@@ -84,8 +84,8 @@ If applicable, provide API reference information.
 
 ## Related Documentation
 
-- [Related Doc 1](./related-doc-1.md)
-- [Related Doc 2](./related-doc-2.md)
+- Related Doc 1
+- Related Doc 2
 - ...
 
 ## Version Compatibility

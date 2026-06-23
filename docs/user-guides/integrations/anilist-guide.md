@@ -268,6 +268,6 @@ npm run dev
 
 ## See Also
 
-- [AniList User Guide](./anilist-guide-consolidated.md)
-- [AniList Implementation Reference](./anilist-implementation-reference.md)
-- [AniList Troubleshooting](./anilist-troubleshooting.md)
+- AniList User Guide
+- AniList Implementation Reference
+- AniList Troubleshooting

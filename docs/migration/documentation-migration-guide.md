@@ -21,15 +21,15 @@ Documentation for Documentation Migration Guide
 
 | Deprecated Document | Use This Instead | Key Changes |
 |-------------------|-----------------|------------|
-| `adapter-implementation-guide.md` | [adapter-pattern-unified.md](../adapter-pattern-unified.md) | Dual-method pattern (AsyncResult + throws) |
-| `adapter-implementation-patterns.md` | [adapter-pattern-unified.md](../adapter-pattern-unified.md) | Standardized approach |
-| `adapter-interfaces.md` | [adapter-pattern-unified.md](../adapter-pattern-unified.md) | Updated interfaces |
-| `anilist-integration.md` | [anilist-native-guide.md](../anilist-native-guide.md) | No mangal CLI references |
-| `anilist-adapter-implementation.md` | [anilist-native-guide.md](../anilist-native-guide.md) | Native GraphQL only |
-| `auth-system.md` | [authentication-standardization.md](../authentication-standardization.md) | NextAuth.js, not Lucia |
-| `production-auth-setup.md` | [authentication-standardization.md](../authentication-standardization.md) | Correct auth system |
-| `testing-patterns-guide.md` | [testing-guide-unified.md](../../../testing-guide-unified.md) | Consolidated approach |
-| `test-patterns.md` | [testing-guide-unified.md](../../../testing-guide-unified.md) | Single source of truth |
+| `adapter-implementation-guide.md` | adapter-pattern-unified.md | Dual-method pattern (AsyncResult + throws) |
+| `adapter-implementation-patterns.md` | adapter-pattern-unified.md | Standardized approach |
+| `adapter-interfaces.md` | adapter-pattern-unified.md | Updated interfaces |
+| `anilist-integration.md` | anilist-native-guide.md | No mangal CLI references |
+| `anilist-adapter-implementation.md` | anilist-native-guide.md | Native GraphQL only |
+| `auth-system.md` | authentication-standardization.md | NextAuth.js, not Lucia |
+| `production-auth-setup.md` | authentication-standardization.md | Correct auth system |
+| `testing-patterns-guide.md` | testing-guide-unified.md | Consolidated approach |
+| `test-patterns.md` | testing-guide-unified.md | Single source of truth |
 
 ## Why Documents Were Deprecated
 
@@ -62,7 +62,7 @@ Ask yourself:
 
 ### Step 2: Check the Canonical Docs List
 
-Always start with [CANONICAL_DOCS.md](../CANONICAL_DOCS.md) which provides:
+Always start with CANONICAL_DOCS.md which provides:
 - Quick reference decision tree
 - Authoritative document for each topic
 - Critical warnings about common mistakes
@@ -72,25 +72,25 @@ Always start with [CANONICAL_DOCS.md](../CANONICAL_DOCS.md) which provides:
 For the most common issues, dedicated standardization guides exist:
 
 #### For Enum/Status Issues
-→ [manga-status-standardization-final.md](../manga-status-standardization-final.md)
+→ manga-status-standardization-final.md
 - Always use UPPERCASE values
 - Use mapping functions for external data
 - Clear examples of correct usage
 
 #### For Adapter Implementation
-→ [adapter-pattern-unified.md](../adapter-pattern-unified.md)
+→ adapter-pattern-unified.md
 - Dual-method pattern explained
 - Complete implementation template
 - Error handling standards
 
 #### For Integration Confusion
-→ [anilist-native-guide.md](../anilist-native-guide.md)
+→ anilist-native-guide.md
 - Clarifies native vs mangal integration
 - GraphQL query examples
 - No CLI references
 
 #### For Testing Approach
-→ [testing-guide-unified.md](../../../testing-guide-unified.md)
+→ testing-guide-unified.md
 - Single comprehensive guide
 - Best practices consolidated
 - Common patterns explained
@@ -130,7 +130,7 @@ class MyAdapter {
 
 **Migration**: 
 1. Ignore all Lucia references
-2. Read [authentication-standardization.md](../authentication-standardization.md)
+2. Read authentication-standardization.md
 3. Use NextAuth.js patterns and APIs
 
 ### Scenario 3: "I can't find the /types/dto directory mentioned in docs"
@@ -174,7 +174,7 @@ If you see these in documentation, it's likely deprecated:
 ## Getting Unstuck
 
 ### If you're confused:
-1. Check [CANONICAL_DOCS.md](../CANONICAL_DOCS.md) first
+1. Check CANONICAL_DOCS.md first
 2. Look for a standardization guide on your topic
 3. Search for working examples in the codebase
 4. Run validation scripts to identify issues
@@ -217,7 +217,7 @@ A: domain/, adapters/, shared/ (not dto/ or api/)
 A: Dual-method pattern with AsyncResult
 
 **Q: Which testing guide?**
-A: [testing-guide-unified.md](../../../testing-guide-unified.md) only
+A: testing-guide-unified.md only
 
 ---
 

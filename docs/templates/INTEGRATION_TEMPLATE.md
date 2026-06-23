@@ -172,9 +172,9 @@ jest.mock('@/integrations/[name]');
 
 ## Related Documentation
 
-- [Authentication Guide](/docs/authentication-standardization.md)
-- [Error Handling Guide](/docs/error-handling-standardized.md)
-- [CANONICAL_DOCS.md](/docs/CANONICAL_DOCS.md)
+- Authentication Guide
+- Error Handling Guide
+- CANONICAL_DOCS.md
 
 ---
 

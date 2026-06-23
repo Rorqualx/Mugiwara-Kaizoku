@@ -106,4 +106,4 @@ This PR fixes failing tests in [Component/Hook/API Name]. The primary issues wer
 ## Additional Notes
 <!-- Add any other context about the PR here -->
 
-This fix follows the patterns documented in our [Test Patterns Guide](../testing-guide-unified.md) and [Test Fixing Guide](../test-fixing-guide.md).
+This fix follows the patterns documented in our Test Patterns Guide and Test Fixing Guide.

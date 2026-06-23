@@ -15,7 +15,7 @@ This directory contains documentation related to user interface design and user 
 
 ## 📄 Files
 
-### [APPEARANCE_AUDIT.md](./APPEARANCE_AUDIT.md)
+### APPEARANCE_AUDIT.md
 Comprehensive audit of the application's appearance settings and UI components.
 
 ### [CLAUDE.md](./CLAUDE.md)
@@ -23,10 +23,10 @@ Documentation related to Claude AI integration or Claude-specific UI considerati
 
 ## 🔗 Related Documentation
 
-- [Mobile Optimization Guide](../mobile-optimization-guide.md)
-- [Component Development Guide](../component-development-guide.md)
-- [Mantine v7 Analysis](../mantine-v7-analysis.md)
-- [Code Comments Style Guide](../code-comments-style-guide.md)
+- [Mobile Optimization Guide](../user-guides/mobile-optimization-guide.md)
+- [Component Development Guide](../user-guides/component-development-guide.md)
+- Mantine v7 Analysis
+- [Code Comments Style Guide](../development/code-comments-style-guide.md)
 
 ## 🎨 UI Framework
 

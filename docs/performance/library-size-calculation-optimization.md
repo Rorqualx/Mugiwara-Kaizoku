@@ -145,6 +145,6 @@ const librarySizes = useMemo(() => {
    - Track calculation execution time
 
 ## Related Documentation
-- [Performance Guide](../performance/performance-guide.md)
-- [React Optimization Patterns](../react/optimization-patterns.md)
+- [Performance Guide](../development/performance-guide.md)
+- React Optimization Patterns
 - [Architecture Overview](../architecture/architecture-overview.md)

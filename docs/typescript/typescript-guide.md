@@ -365,9 +365,9 @@ describe('Async Operations', () => {
 
 ### Internal Documentation
 
-- [Master Architecture Document](./master-architecture-document.md) - Overall system architecture
-- [AsyncResult Pattern Guide](./asyncresult-pattern-guide.md) - Detailed async handling patterns
-- [Adapter Implementation Guide](./adapter-pattern-unified.md) - Creating new adapters
+- Master Architecture Document - Overall system architecture
+- AsyncResult Pattern Guide - Detailed async handling patterns
+- Adapter Implementation Guide - Creating new adapters
 
 ### External Resources
 

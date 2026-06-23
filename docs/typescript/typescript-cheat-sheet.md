@@ -313,6 +313,6 @@ npx tsc --noEmit --watch
 
 For more detailed information, refer to:
 
-- [TypeScript Safety Improvements](./typescript-safety-improvements.md)
-- [TypeScript Maintenance Plan](./typescript-maintenance-plan.md)
-- [TypeScript Escape Hatches](./typescript-escape-hatches.md)
+- TypeScript Safety Improvements
+- TypeScript Maintenance Plan
+- TypeScript Escape Hatches

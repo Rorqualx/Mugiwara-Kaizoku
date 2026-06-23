@@ -108,7 +108,7 @@ For a more permanent solution:
 
 ## Additional Resources
 
-- [Dev Environment Fixes Documentation](./dev-environment-fixes.md): Detailed explanation of fixes
+- Dev Environment Fixes Documentation: Detailed explanation of fixes
 - [next-auth Documentation](https://next-auth.js.org/): Official next-auth docs
 - [tRPC Documentation](https://trpc.io/docs/): Official tRPC docs
 - [ESM vs CommonJS](https://nodejs.org/api/esm.html#differences-between-es-modules-and-commonjs): Node.js documentation
