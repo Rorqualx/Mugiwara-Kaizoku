@@ -60,7 +60,7 @@ This document serves as the baseline security audit report for the Mugiwara Kaiz
    - Assigned to: **Agent 3**
 
 15. **SQL Injection Risk** (A03:2021 - Injection)
-   - File: `src/server/cache/UnifiedCacheProvider.ts:664` + multiple
+   - File: `src/server/cache/UnifiedCacheProvider/index.ts` + multiple
    - Issue: `$executeRawUnsafe` with string concatenation
    - Impact: SQL injection possible
    - Assigned to: **Agent 4**

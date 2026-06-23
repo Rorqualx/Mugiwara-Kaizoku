@@ -178,8 +178,8 @@ sudo rm -rfP node_modules
 
 The permission fix scripts are automatically integrated with:
 
-1. `scripts/build-clean.sh` - Clean build script
-2. `scripts/dev-integrated.sh` - Development server script
+1. `scripts/build/build-clean.sh` - Clean build script
+2. `scripts/build/dev-integrated.sh` - Development server script
 3. `scripts/database/auto-repair.sh` - Database auto-repair script
 
 These scripts use the error detection system to automatically trigger the appropriate fix scripts when permission errors occur.

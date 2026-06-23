@@ -39,17 +39,7 @@ The app now supports searching across all enabled metadata providers simultaneou
 
 ## Testing
 
-To test these changes, run the following scripts:
-
-```bash
-# Test UI improvements
-node scripts/test-ui-improvements.js
-
-# Fix metadata structure to support multi-provider search
-node scripts/fix-metadata-structure.js
-```
-
-Then navigate to http://localhost:3000/settings/metadata to verify the changes:
+To verify these changes, navigate to http://localhost:3000/settings/metadata and check:
 
 1. The DefaultMetadataProvider component should show that multi-provider search is enabled.
 2. The AnilistNativeSettings switches should have blue color and position indicator lines.

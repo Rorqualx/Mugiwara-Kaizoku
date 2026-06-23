@@ -234,21 +234,21 @@ const title = manga?.title ?? 'Unknown Title';
 **Cause**: Inconsistency between Prisma schema and database schema.
 
 **Solution**:
-1. Run the database fix script:
+1. Run the database auto-repair script:
 ```bash
-./scripts/fix-database.sh
+./scripts/database/auto-repair.sh
 ```
 
-2. If that doesn't work, apply the SQL fixes manually:
+2. If that doesn't work, apply the latest migrations:
 ```bash
-psql -U your_username -d your_database -f scripts/fix-settings-schema.sql
+bun run migrate
 ```
 
 3. For development, consider using a clean database:
 ```bash
 dropdb your_database
 createdb your_database
-npx prisma migrate deploy
+bun run migrate
 ```
 
 #### Problem: "column X of relation Y does not exist"
@@ -256,9 +256,9 @@ npx prisma migrate deploy
 **Cause**: Missing columns in database tables compared to Prisma schema.
 
 **Solution**:
-1. Run the schema fix script:
+1. Apply the latest migrations (reconciles missing columns):
 ```bash
-./scripts/fix-settings-schema.sh
+bun run migrate
 ```
 
 2. If specific columns are missing, add them manually:
@@ -339,11 +339,6 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
 4. Enter your AniList client ID and client secret
 5. Ensure "Use Native Provider" is turned on
 6. Save the settings
-
-Or run the automatic setup script:
-```bash
-node scripts/update-anilist-settings.js [clientId] [clientSecret]
-```
 
 #### Problem: "Manga not found in anilist-native"
 

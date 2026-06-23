@@ -133,5 +133,5 @@ The permissions granted by the fix script are deliberately broad to ensure the a
 ## Related Scripts
 
 - `scripts/database/fix-postgres-permissions.sh`: Script to fix PostgreSQL permissions
-- `scripts/build-clean.sh`: Clean build script with permission error detection
-- `scripts/dev-integrated.sh`: Development server script with permission error detection
+- `scripts/build/build-clean.sh`: Clean build script with permission error detection
+- `scripts/build/dev-integrated.sh`: Development server script with permission error detection

@@ -131,11 +131,7 @@ export const cleanImageURL = cleanImageUrl;        // Deprecated alias
 
 ## Testing
 
-A comprehensive test suite has been created:
-```bash
-# Run image processing tests
-tsx scripts/test-image-processing.ts
-```
+Image-processing behavior is covered by the project test suite (`bun run test`).
 
 Tests cover:
 - URL cleaning and resolution
