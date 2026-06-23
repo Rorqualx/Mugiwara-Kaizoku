@@ -276,7 +276,8 @@ class BrowserLogger extends ContextLogger {
   protected writeLog(level: string, message: string, data: any) {
     // Use console in dev, send to monitoring in prod
     if (process.env.NODE_ENV === 'development') {
-      console[level](message, data);
+      const logFn = console[level] ?? console.log;
+      logFn(message, data);
     } else {
       // Send to monitoring endpoint
       this.sendToMonitoring(level, message, data);

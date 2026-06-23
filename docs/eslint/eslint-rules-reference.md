@@ -798,7 +798,7 @@ See [docs/development/hooks-guide.md](../development/hooks-guide.md) for details
 
 ## Resources
 
-- **ESLint Config**: [eslint.config.mjs](/eslint.config.mjs)
+- **ESLint Config**: [eslint.config.mjs](../../eslint.config.mjs)
 - **TypeScript ESLint**: https://typescript-eslint.io/
 - **React Hooks Rules**: https://react.dev/warnings/invalid-hook-call-warning
 

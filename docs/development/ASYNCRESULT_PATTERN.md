@@ -383,6 +383,6 @@ As of September 21, 2025:
 
 ## Further Reading
 
-- [AsyncResult Implementation](/src/utils/async-result/)
+- [AsyncResult Implementation](../../src/utils/async-result/)
 - Migration Report
 - Remaining Work

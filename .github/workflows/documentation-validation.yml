@@ -87,13 +87,13 @@ jobs:
         ERRORS=${{ steps.validate.outputs.errors }}
         WARNINGS=${{ steps.validate.outputs.warnings }}
 
-        # Baseline: pre-existing broken cross-references from the legacy
-        # docs/ tree. Public-release was a squash; many internal doc links
-        # point at files that were renamed or removed. We gate on
-        # regressions (errors > baseline) rather than the absolute count
-        # so new docs stay clean without forcing a 300-link sweep up front.
-        # Lower this number as the existing breakage gets cleaned up.
-        BASELINE=350
+        # Baseline: max tolerated broken-link errors before CI fails.
+        # The docs tree was swept clean (June 2026): the legacy ~350 broken
+        # cross-references were repointed/removed, so the validator now reports
+        # ~0 errors on a clean checkout. The small headroom absorbs occasional
+        # validator false-positives (e.g. "](" inside fenced code) without
+        # masking a real regression. Keep this tight; lower further if it holds.
+        BASELINE=10
 
         if [ "$ERRORS" -gt "$BASELINE" ]; then
           echo "❌ Documentation validation failed: $ERRORS errors > baseline $BASELINE"
