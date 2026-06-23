@@ -1,8 +1,9 @@
 # Mugiwara-Kaizoku Dockerfile
 #
-# Single-container image with bundled PostgreSQL. FlareSolverr is NOT
-# bundled (yet — Phase C); run `ghcr.io/flaresolverr/flaresolverr:latest`
-# as a sidecar if you need Cloudflare bypass.
+# Single-container image with bundled PostgreSQL. FlareSolverr is bundled
+# too: the app downloads + manages the flaresolverr-go binary as a subprocess
+# (this image ships Google Chrome for it). Set FLARESOLVERR_EXTERNAL_URL to
+# use an external instance instead.
 #
 # Stages:
 #   base   — Ubuntu 22.04 + system deps + PostgreSQL 15 + Java 21 + Bun

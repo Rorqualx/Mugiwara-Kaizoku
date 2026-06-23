@@ -42,13 +42,13 @@ Next.js 14 · React 18 · Mantine v7 · TanStack Query · Zustand · tRPC v11 ·
 
 ## Prerequisites
 
-- **Bun** 1.3+ (or Node 24+ if you really want to)
+- **Bun** 1.3+ (or Node 20+ if you really want to)
 - **PostgreSQL** 14+
 - **Java** runtime (for the bundled Suwayomi engine — see below)
 - ~2 GB free RAM, plus whatever your library needs on disk
 
 Optional (only if you want those features):
-- **FlareSolverr** for Cloudflare-protected sources. Not bundled in the Docker image — run [`ghcr.io/flaresolverr/flaresolverr:latest`](https://github.com/FlareSolverr/FlareSolverr) as a sidecar container. A commented-out service block is included in `docker-compose.yml`; uncomment it and set `FLARESOLVERR_ENABLED=true` on the `app` service to enable.
+- **FlareSolverr** for Cloudflare-protected sources is **bundled** — the app downloads and manages the `flaresolverr-go` binary as a subprocess automatically, and it's enabled by default (`FLARESOLVERR_ENABLED=true`). It needs Google Chrome on the host: this is already included in the Docker image, so install Chrome yourself only for local/dev runs. To use an external instance instead of the managed one, set `FLARESOLVERR_EXTERNAL_URL`.
 - **Prowlarr + a torrent client** (Transmission / Deluge / qBittorrent) or **Usenet client** (SABnzbd / NZBGet) for download automation
 
 ## Quick start (local)
@@ -85,7 +85,7 @@ Two paths to set, everything else is automatic. Visit `http://localhost:3000` an
 
 Postgres, Suwayomi, and FlareSolverr are all bundled inside the image — no sidecar containers needed.
 
-**Want external Postgres / sidecar containers?** See [`docker-compose.advanced.yml`](docker-compose.advanced.yml) for the multi-container layout (separate `db` + `flaresolverr` services). Both compose files use the same image — the entrypoint detects which mode based on `DATABASE_URL`.
+**Want external Postgres?** See [`docker-compose.advanced.yml`](docker-compose.advanced.yml) for the layout that runs Postgres as a separate `db` service (Suwayomi and FlareSolverr stay bundled subprocesses either way). Both compose files use the same image — the entrypoint detects which mode based on `DATABASE_URL`.
 
 ## First run
 
@@ -112,7 +112,6 @@ All configuration is via `.env` (see `.env.example` for the full annotated list)
 | `KAIZOKU_PORT` | no (default 3000) | HTTP port |
 | `KAIZOKU_LOG_PATH` | no | Override the log directory |
 | `DOCKER` | no | Set to `true` only when running inside Docker (switches `BASE_DATA_DIR` to `/app/data`) |
-| `USE_AI_AGENT` | no | Enable the optional local AI agent (requires extra setup) |
 
 Anything not in `.env` falls back to UI-editable settings stored in the DB.
 
@@ -150,8 +149,6 @@ bun run lint               # eslint src
 bun run build              # production build
 bun run start              # run the production build
 ```
-
-Contributing guidelines and code conventions are in [`CLAUDE.md`](CLAUDE.md) (originally written for AI assistance, but it doubles as a human style guide).
 
 ## License
 
