@@ -13,7 +13,8 @@ import {
   IconUser,
   IconShield,
   IconEdit,
-  IconTrash
+  IconTrash,
+  IconHistory
 } from '@tabler/icons-react';
 
 import { formatDate } from '@/utils/formatters/date-formatter';
@@ -24,6 +25,7 @@ interface DesktopUserTableProps {
   users: User[];
   onEditRole: (user: User) => void;
   onDelete: (user: User) => void;
+  onViewActivity: (user: User) => void;
   currentUserId?: string | undefined;
 }
 
@@ -38,6 +40,7 @@ export function DesktopUserTable({
   users,
   onEditRole,
   onDelete,
+  onViewActivity,
   currentUserId
 
 }: DesktopUserTableProps): React.ReactElement {
@@ -85,24 +88,36 @@ export function DesktopUserTable({
               </Text>
             </Table.Td>
             <Table.Td>
-              {currentUserId !== user["id"] &&
-            <Group gap="xs">
-                  <ActionIcon
-                variant="light"
-                color="blue"
-                onClick={() => onEditRole(user)}>
+              <Group gap="xs">
+                <ActionIcon
+                  variant="light"
+                  color="gray"
+                  onClick={() => onViewActivity(user)}
+                  aria-label="View activity">
 
-                    <IconEdit size={16} />
-                  </ActionIcon>
-                  <ActionIcon
-                variant="light"
-                color="red"
-                onClick={() => onDelete(user)}>
+                  <IconHistory size={16} />
+                </ActionIcon>
+                {currentUserId !== user["id"] &&
+                <>
+                    <ActionIcon
+                  variant="light"
+                  color="blue"
+                  onClick={() => onEditRole(user)}
+                  aria-label="Edit role">
 
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-            }
+                      <IconEdit size={16} />
+                    </ActionIcon>
+                    <ActionIcon
+                  variant="light"
+                  color="red"
+                  onClick={() => onDelete(user)}
+                  aria-label="Delete user">
+
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  </>
+                }
+              </Group>
             </Table.Td>
           </Table.Tr>
         )}

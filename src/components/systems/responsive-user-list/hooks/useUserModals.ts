@@ -20,6 +20,8 @@ export function useUserModals(): UserModalState {
   const [roleModalOpened, setRoleModalOpened] = useState(false);
   const [userToUpdateRole, setUserToUpdateRole] = useState<User | null>(null);
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.USER);
+  const [activityOpened, setActivityOpened] = useState(false);
+  const [userToView, setUserToView] = useState<User | null>(null);
 
   const openDeleteModal = useCallback((user: User): void => {
     setUserToDelete(user);
@@ -40,6 +42,15 @@ export function useUserModals(): UserModalState {
     setRoleModalOpened(false);
   }, []);
 
+  const openActivity = useCallback((user: User): void => {
+    setUserToView(user);
+    setActivityOpened(true);
+  }, []);
+
+  const closeActivity = useCallback((): void => {
+    setActivityOpened(false);
+  }, []);
+
   return {
     createOpened,
     openCreate: createHandlers.open,
@@ -54,5 +65,9 @@ export function useUserModals(): UserModalState {
     setSelectedRole,
     openRoleModal,
     closeRoleModal,
+    activityOpened,
+    userToView,
+    openActivity,
+    closeActivity,
   };
 }

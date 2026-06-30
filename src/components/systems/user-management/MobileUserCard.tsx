@@ -18,7 +18,8 @@ import {
   IconDotsVertical,
   IconEdit,
   IconTrash,
-  IconShield
+  IconShield,
+  IconHistory
 } from '@tabler/icons-react';
 
 import { formatDate } from '@/utils/formatters/date-formatter';
@@ -29,6 +30,7 @@ interface MobileUserCardProps {
   user: User;
   onEdit: () => void;
   onDelete: () => void;
+  onViewActivity: () => void;
   isCurrentUser: boolean;
 }
 
@@ -43,6 +45,7 @@ export function MobileUserCard({
   user,
   onEdit,
   onDelete,
+  onViewActivity,
   isCurrentUser
 }: MobileUserCardProps): React.ReactElement {
   return (
@@ -81,31 +84,41 @@ export function MobileUserCard({
           </Box>
         </Group>
 
-        {!isCurrentUser &&
-        <Menu position="bottom-end">
-            <Menu.Target>
-              <ActionIcon variant="subtle" size="lg">
-                <IconDotsVertical size={20} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-              leftSection={<IconEdit size={16} />}
-              onClick={() => { void onEdit(); }}>
+        <Group gap="xs" wrap="nowrap">
+          <ActionIcon
+            variant="subtle"
+            size="lg"
+            color="gray"
+            onClick={() => { void onViewActivity(); }}
+            aria-label="View activity">
+            <IconHistory size={20} />
+          </ActionIcon>
+          {!isCurrentUser &&
+          <Menu position="bottom-end">
+              <Menu.Target>
+                <ActionIcon variant="subtle" size="lg">
+                  <IconDotsVertical size={20} />
+                </ActionIcon>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item
+                leftSection={<IconEdit size={16} />}
+                onClick={() => { void onEdit(); }}>
 
-                Change Role
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item
-              leftSection={<IconTrash size={16} />}
-              color="red"
-              onClick={() => { void onDelete(); }}>
+                  Change Role
+                </Menu.Item>
+                <Menu.Divider />
+                <Menu.Item
+                leftSection={<IconTrash size={16} />}
+                color="red"
+                onClick={() => { void onDelete(); }}>
 
-                Delete User
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        }
+                  Delete User
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          }
+        </Group>
       </Group>
     </Card>);
 

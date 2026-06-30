@@ -12,10 +12,12 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { EventType, EventSource, EventLevel } from '@/server/services/events/eventTypes';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { CHANNEL_PATTERNS } from '@/types/api/v1/websocket';
+import { logSystemEvent } from '@/utils/system-event-logger';
 
 import { getUserId } from './utils';
 
@@ -100,6 +102,25 @@ export const readerHistoryRouter = router({
         'history:created',
         { chapterId: input.chapterId, mangaId: input.mangaId }
       );
+
+      // Persist a user-stamped audit event so reads appear in the per-user
+      // actions log alongside logins/downloads/manga-adds. Fire-and-forget:
+      // a logging hiccup must not fail the read.
+      void logSystemEvent({
+        type: EventType.CHAPTER_READ,
+        source: EventSource.READER,
+        level: EventLevel.INFO,
+        message: `Read chapter (${input.pagesRead} pages, ${input.totalTime}s)`,
+        relatedEntityId: String(input.mangaId),
+        relatedEntityType: 'manga',
+        userId,
+        details: {
+          mangaId: input.mangaId,
+          chapterId: input.chapterId,
+          pagesRead: input.pagesRead,
+          totalTime: input.totalTime,
+        },
+      });
 
       return history;
     }),

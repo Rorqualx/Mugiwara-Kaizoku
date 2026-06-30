@@ -43,6 +43,9 @@ export enum EventType {
   USER_LOGGED_OUT = 'user.logout',
   USER_ACTION = 'user.action',
 
+  // Reader events
+  CHAPTER_READ = 'chapter.read',
+
   // Task events
   TASK_CREATED = 'task.created',
   TASK_STARTED = 'task.started',
@@ -142,7 +145,8 @@ export enum EventSource {
   NATIVE_DOWNLOAD = 'native_download',
   BACKEND = 'backend',
   CALENDAR = 'calendar',
-  QUEUE = 'queue'
+  QUEUE = 'queue',
+  READER = 'reader'
 }
 
 /**
@@ -186,6 +190,8 @@ export const EventTypeToLevel: Record<EventType, EventLevel> = {
   [EventType.USER_LOGGED_IN]: EventLevel.INFO,
   [EventType.USER_LOGGED_OUT]: EventLevel.INFO,
   [EventType.USER_ACTION]: EventLevel.INFO,
+
+  [EventType.CHAPTER_READ]: EventLevel.INFO,
 
   [EventType.TASK_CREATED]: EventLevel.INFO,
   [EventType.TASK_STARTED]: EventLevel.INFO,
@@ -302,6 +308,8 @@ export const EventTypeToDisplay: Record<EventType, { label: string, icon: string
   [EventType.USER_LOGGED_IN]: { label: 'User Login', icon: 'USER' },
   [EventType.USER_LOGGED_OUT]: { label: 'User Logout', icon: 'USER' },
   [EventType.USER_ACTION]: { label: 'User Action', icon: 'USER' },
+
+  [EventType.CHAPTER_READ]: { label: 'Chapter Read', icon: 'book' },
 
   [EventType.TASK_CREATED]: { label: 'Task Created', icon: 'plus' },
   [EventType.TASK_STARTED]: { label: 'Task Started', icon: 'play' },

@@ -33,6 +33,10 @@ export interface UserModalState {
   setSelectedRole: (role: UserRole) => void;
   openRoleModal: (user: User) => void;
   closeRoleModal: () => void;
+  activityOpened: boolean;
+  userToView: User | null;
+  openActivity: (user: User) => void;
+  closeActivity: () => void;
 }
 
 /**

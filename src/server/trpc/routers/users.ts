@@ -75,6 +75,7 @@
 import { router } from '../trpc';
 
 // Import all sub-routers
+import { usersActivityRouter } from './users/activity';
 import { usersAdminRouter } from './users/admin';
 import { usersProfileRouter } from './users/profile';
 import { usersSetupRouter } from './users/setup';
@@ -86,8 +87,10 @@ import { usersSetupRouter } from './users/setup';
  * Maintains backward compatibility with existing API consumers.
  */
 export const usersRouter = router({
-  // Merge all sub-routers using tRPC's procedure spreading
+  // Merge flat sub-routers using tRPC's procedure spreading
   ...usersAdminRouter._def.procedures,
   ...usersProfileRouter._def.procedures,
   ...usersSetupRouter._def.procedures,
+  // Nested namespace: admin per-user activity (users.activity.*)
+  activity: usersActivityRouter,
 });

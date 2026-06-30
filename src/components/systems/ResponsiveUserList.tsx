@@ -25,6 +25,7 @@ import {
 import { useUserModals, useUserManagement } from './responsive-user-list/hooks';
 import { DesktopUserTable } from './user-management/DesktopUserTable';
 import { MobileUserCard } from './user-management/MobileUserCard';
+import { UserActivityDrawer } from './user-management/user-activity-drawer';
 
 import type { ResponsiveUserListProps, User } from './responsive-user-list/types';
 
@@ -59,6 +60,10 @@ export function ResponsiveUserList({
 
   const handleDelete = (user: User): void => {
     modals.openDeleteModal(user);
+  };
+
+  const handleViewActivity = (user: User): void => {
+    modals.openActivity(user);
   };
 
   const confirmUpdateRole = (): void => {
@@ -128,6 +133,7 @@ export function ResponsiveUserList({
                   user={user}
                   onEdit={() => handleEditRole(user)}
                   onDelete={() => handleDelete(user)}
+                  onViewActivity={() => handleViewActivity(user)}
                   isCurrentUser={currentUserId === user.id}
                 />
               ))}
@@ -138,6 +144,7 @@ export function ResponsiveUserList({
             users={users}
             onEditRole={handleEditRole}
             onDelete={handleDelete}
+            onViewActivity={handleViewActivity}
             currentUserId={currentUserId}
           />
         )}
@@ -176,6 +183,12 @@ export function ResponsiveUserList({
         user={modals.userToDelete}
         onConfirm={confirmDelete}
         isMobile={isMobile}
+      />
+
+      <UserActivityDrawer
+        opened={modals.activityOpened}
+        onClose={modals.closeActivity}
+        user={modals.userToView}
       />
     </>
   );
