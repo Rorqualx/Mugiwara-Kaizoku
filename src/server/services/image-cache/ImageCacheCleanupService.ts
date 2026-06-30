@@ -1,13 +1,20 @@
 /**
  * Image Cache Cleanup Service
  *
- * Manages image cache retention by automatically cleaning up old cached images.
+ * Keeps cached cover/banner art permanently so it is downloaded once and never
+ * re-fetched from external CDNs. Every row in `ImageCache` is art proxied through
+ * `/api/image-proxy` (anilist/mangadex/fandom/wikimedia/comicvine), so cleanup is
+ * reference-based: a cached image is kept as long as its `originalUrl` is still
+ * referenced by a live `Metadata` cover/banner/gallery field, and removed only when
+ * nothing references it (e.g. the manga was deleted or re-identified).
+ *
  * Runs as a scheduled cron job (default: daily at 3 AM).
  *
  * Features:
- * - Configurable retention period via IMAGE_CACHE_RETENTION_DAYS (default: 30)
- * - Size cap to prevent unbounded growth (default: 10,000 entries)
- * - Safe deletion with error handling
+ * - Orphan-only eviction (live cover art is never deleted -> never re-downloaded)
+ * - Optional hard entry cap via IMAGE_CACHE_MAX_ENTRIES (default: 0 = disabled).
+ *   When enabled it evicts least-recently-accessed entries AFTER orphan removal,
+ *   so it can delete live covers -- leave it off unless you must bound DB size.
  *
  * @module server/services/image-cache/ImageCacheCleanupService
  */
@@ -21,9 +28,11 @@ import { logger } from '@/utils/logger';
 
 /** Configuration for image cache cleanup */
 interface ImageCacheCleanupConfig {
-  /** Number of days to retain cached images */
-  retentionDays: number;
-  /** Maximum number of cached images to keep */
+  /**
+   * Optional absolute ceiling on cached entries. 0 disables the cap (recommended).
+   * When > 0, least-recently-accessed entries are evicted after orphan removal --
+   * note this can delete live cover art and cause re-downloads.
+   */
   maxEntries: number;
   /** Cron schedule for cleanup job (default: 3 AM daily) */
   schedule: string;
@@ -31,25 +40,84 @@ interface ImageCacheCleanupConfig {
 
 /** Result of a cleanup run */
 interface CleanupResult {
-  deletedByAge: number;
-  deletedByCap: number;
+  /** Entries removed because no live Metadata references their originalUrl */
+  orphansDeleted: number;
+  /** Entries removed by the optional hard entry cap */
+  cappedDeleted: number;
   remainingEntries: number;
 }
+
+/** Delete ids in chunks to stay under Postgres bind-parameter limits */
+const DELETE_CHUNK_SIZE = 1000;
 
 // ============================================================================
 // Cleanup Helpers
 // ============================================================================
 
-/** Delete entries older than the retention cutoff */
-async function deleteExpiredEntries(cutoffDate: Date): Promise<number> {
-  const { count } = await prisma.imageCache.deleteMany({
-    where: { lastAccessed: { lt: cutoffDate } },
+/**
+ * Build the set of external image URLs still referenced by any manga's metadata.
+ * These are the cover/banner/gallery URLs that `ImageCache.originalUrl` mirrors.
+ */
+async function getReferencedUrls(): Promise<Set<string>> {
+  const metas = await prisma.metadata.findMany({
+    select: {
+      cover: true,
+      coverLarge: true,
+      coverExtraLarge: true,
+      coverMedium: true,
+      bannerImage: true,
+      galleryImages: true,
+    },
   });
-  return count;
+
+  const referenced = new Set<string>();
+  for (const m of metas) {
+    const urls = [
+      m.cover,
+      m.coverLarge,
+      m.coverExtraLarge,
+      m.coverMedium,
+      m.bannerImage,
+      ...m.galleryImages,
+    ];
+    for (const url of urls) {
+      if (url) referenced.add(url);
+    }
+  }
+  return referenced;
 }
 
-/** Evict oldest entries when total count exceeds the cap */
+/** Delete the given cache ids in chunks; returns the total deleted */
+async function deleteByIds(ids: number[]): Promise<number> {
+  let deleted = 0;
+  for (let i = 0; i < ids.length; i += DELETE_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + DELETE_CHUNK_SIZE);
+    // Sequential on purpose: deleting chunks one at a time avoids saturating the
+    // connection pool during a large orphan sweep.
+    // eslint-disable-next-line no-await-in-loop
+    const { count } = await prisma.imageCache.deleteMany({
+      where: { id: { in: chunk } },
+    });
+    deleted += count;
+  }
+  return deleted;
+}
+
+/** Delete cache entries whose originalUrl is not referenced by any live metadata */
+async function deleteOrphanedEntries(referenced: Set<string>): Promise<number> {
+  // Select only id + originalUrl -- never load imageData (Bytes) here.
+  const rows = await prisma.imageCache.findMany({
+    select: { id: true, originalUrl: true },
+  });
+  const orphanIds = rows.filter((r) => !referenced.has(r.originalUrl)).map((r) => r.id);
+  if (orphanIds.length === 0) return 0;
+  return deleteByIds(orphanIds);
+}
+
+/** Evict least-recently-accessed entries when total exceeds an enabled cap */
 async function enforceEntryCap(maxEntries: number): Promise<number> {
+  if (maxEntries <= 0) return 0; // disabled
+
   const totalCount = await prisma.imageCache.count();
   if (totalCount <= maxEntries) return 0;
 
@@ -62,10 +130,7 @@ async function enforceEntryCap(maxEntries: number): Promise<number> {
 
   if (oldestEntries.length === 0) return 0;
 
-  const { count } = await prisma.imageCache.deleteMany({
-    where: { id: { in: oldestEntries.map((e) => e.id) } },
-  });
-  return count;
+  return deleteByIds(oldestEntries.map((e) => e.id));
 }
 
 // ============================================================================
@@ -75,8 +140,8 @@ async function enforceEntryCap(maxEntries: number): Promise<number> {
 /**
  * Image Cache Cleanup Service
  *
- * Automatically cleans up old cached images based on configured retention period
- * and enforces a maximum entry count to prevent unbounded database growth.
+ * Reclaims only orphaned cached images (art no live manga references) so that
+ * cover/banner art for existing manga is kept permanently and never re-downloaded.
  */
 export class ImageCacheCleanupService {
   private job: CronJob | null = null;
@@ -85,8 +150,7 @@ export class ImageCacheCleanupService {
 
   constructor(config?: Partial<ImageCacheCleanupConfig>) {
     this.config = {
-      retentionDays: parseInt(process.env['IMAGE_CACHE_RETENTION_DAYS'] ?? '30', 10),
-      maxEntries: parseInt(process.env['IMAGE_CACHE_MAX_ENTRIES'] ?? '10000', 10),
+      maxEntries: parseInt(process.env['IMAGE_CACHE_MAX_ENTRIES'] ?? '0', 10),
       schedule: config?.schedule ?? '0 3 * * *', // 3 AM daily
       ...config,
     };
@@ -103,7 +167,6 @@ export class ImageCacheCleanupService {
       }
 
       logger.info('[ImageCacheCleanup] Starting image cache cleanup service', {
-        retentionDays: this.config.retentionDays,
         maxEntries: this.config.maxEntries,
         schedule: this.config.schedule,
       });
@@ -141,12 +204,12 @@ export class ImageCacheCleanupService {
   }
 
   /**
-   * Run cleanup — deletes images older than retention period and enforces size cap
+   * Run cleanup — removes orphaned cached images and enforces the optional cap
    */
   async runCleanup(): Promise<AsyncResult<CleanupResult, Error>> {
     if (this.isRunning) {
       logger.warn('[ImageCacheCleanup] Already running, skipping');
-      return createSuccessResult({ deletedByAge: 0, deletedByCap: 0, remainingEntries: 0 });
+      return createSuccessResult({ orphansDeleted: 0, cappedDeleted: 0, remainingEntries: 0 });
     }
 
     this.isRunning = true;
@@ -164,32 +227,30 @@ export class ImageCacheCleanupService {
     }
   }
 
-  /** Execute the two-phase cleanup (age eviction + size cap) */
+  /** Execute cleanup: orphan removal, then the optional hard entry cap */
   private async performCleanup(): Promise<AsyncResult<CleanupResult, Error>> {
-    const retentionMs = this.config.retentionDays * 24 * 60 * 60 * 1000;
-    const cutoffDate = new Date(Date.now() - retentionMs);
-
-    // Phase 1: Delete entries older than retention period
-    const deletedByAge = await deleteExpiredEntries(cutoffDate);
-    if (deletedByAge > 0) {
-      logger.info(`[ImageCacheCleanup] Deleted ${deletedByAge} expired entries (older than ${this.config.retentionDays} days)`);
+    // Phase 1: Remove art no live manga references (deleted/re-identified manga).
+    const referenced = await getReferencedUrls();
+    const orphansDeleted = await deleteOrphanedEntries(referenced);
+    if (orphansDeleted > 0) {
+      logger.info(`[ImageCacheCleanup] Deleted ${orphansDeleted} orphaned entries (no live metadata reference)`);
     }
 
-    // Phase 2: Enforce max entries cap (keep most recently accessed)
-    const deletedByCap = await enforceEntryCap(this.config.maxEntries);
-    if (deletedByCap > 0) {
-      logger.info(`[ImageCacheCleanup] Evicted ${deletedByCap} entries to enforce ${this.config.maxEntries} cap`);
+    // Phase 2: Optional hard cap (disabled by default; may evict live covers).
+    const cappedDeleted = await enforceEntryCap(this.config.maxEntries);
+    if (cappedDeleted > 0) {
+      logger.warn(`[ImageCacheCleanup] Evicted ${cappedDeleted} live entries to enforce ${this.config.maxEntries} cap`);
     }
 
     const remainingEntries = await prisma.imageCache.count();
 
     logger.info('[ImageCacheCleanup] Cleanup complete', {
-      deletedByAge,
-      deletedByCap,
+      orphansDeleted,
+      cappedDeleted,
       remainingEntries,
     });
 
-    return createSuccessResult({ deletedByAge, deletedByCap, remainingEntries });
+    return createSuccessResult({ orphansDeleted, cappedDeleted, remainingEntries });
   }
 }
 

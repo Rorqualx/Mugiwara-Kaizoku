@@ -199,8 +199,9 @@ export async function initializeLogRetentionService(): Promise<void> {
  *
  * This function:
  * - Starts the image cache cleanup service that runs daily at 3 AM
- * - Deletes cached images older than IMAGE_CACHE_RETENTION_DAYS (default: 30)
- * - Enforces IMAGE_CACHE_MAX_ENTRIES cap (default: 10,000)
+ * - Deletes only orphaned cached images (cover/banner art no live manga references),
+ *   so cover art for existing manga is kept permanently and never re-downloaded
+ * - Optionally enforces IMAGE_CACHE_MAX_ENTRIES cap (default: 0 = disabled)
  *
  * @throws {Error} If service initialization fails
  */
