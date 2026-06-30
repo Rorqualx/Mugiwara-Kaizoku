@@ -47,7 +47,7 @@
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-import { classifyPhantomChapters, isFileBackedChapter, normalizeChapterTitle } from './types';
+import { classifyPhantomChapters, normalizeChapterTitle } from './types';
 
 import type { MangaPublicationStatus } from '@prisma/client';
 
@@ -68,14 +68,21 @@ interface RealExtent {
 /**
  * Resolve the trusted real extent for the phantom pruners, applying the shared
  * safety gates. Returns null (do not prune) unless the series is finished AND has
- * a plausible chapter scalar:
+ * a chapter scalar:
  *   - finished = terminal publicationStatus, OR a populated Metadata.endDate (an
  *     authoritative "publication ended" signal that survives a stale ONGOING
  *     status — JJK/Berserk both carry one while still flagged ONGOING).
- *   - the real extent is Metadata.chapters (a trusted scalar is REQUIRED — bounding
- *     by downloads alone deleted 265 real, un-downloaded JJK chapters). The
- *     file-backed max only extends the ceiling upward; if a download sits beyond
- *     the scalar, the scalar undercounts (wrong/stale match) so we skip.
+ *   - a trusted scalar (Metadata.chapters > 0) is REQUIRED — bounding by downloads
+ *     alone deleted 265 real, un-downloaded JJK chapters.
+ *
+ * realExtent = max(Metadata.chapters, highest REAL chapter). The download max
+ * RAISES the boundary so real chapters the user downloaded past a stale scalar
+ * (Berserk: files through 390 vs scalar 384) are never treated as phantom — only
+ * rows beyond BOTH the scalar and the downloads are candidates. Crucially this no
+ * longer bails when downloads exceed the scalar (the previous behaviour, which
+ * left the genuine generic phantoms past the downloads — e.g. Berserk 391-395,
+ * One Piece 1186-1207 — untouched). "Real chapter" = an actual file OR a
+ * COMPLETED row with pages.
  */
 async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
   const manga = await prisma.manga.findUnique({
@@ -89,11 +96,14 @@ async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
   if (metaCeiling <= 0) return null;
 
   const maxChResult = await prisma.chapter.aggregate({
-    where: { mangaId, chapterNumber: { not: null }, downloadStatus: 'COMPLETED', pageCount: { gt: 0 } },
+    where: {
+      mangaId,
+      chapterNumber: { not: null },
+      OR: [{ filePath: { not: null } }, { downloadStatus: 'COMPLETED', pageCount: { gt: 0 } }],
+    },
     _max: { chapterNumber: true },
   });
   const maxFileBacked = maxChResult._max.chapterNumber ?? 0;
-  if (maxFileBacked > metaCeiling) return null;
   return { metaCeiling, maxFileBacked, realExtent: Math.max(metaCeiling, maxFileBacked) };
 }
 
@@ -165,28 +175,29 @@ export async function pruneOutOfRangeVolumes(mangaId: number): Promise<number> {
 export async function pruneOutOfRangeChapters(mangaId: number): Promise<number> {
   const extent = await resolveRealExtent(mangaId);
   if (!extent) return 0;
-  const { realExtent, metaCeiling } = extent;
+  const { realExtent, metaCeiling, maxFileBacked } = extent;
 
   const all = await prisma.chapter.findMany({
     where: { mangaId },
     select: { id: true, chapterNumber: true, title: true, pageCount: true, filePath: true },
   });
+  // Candidates sit beyond the real extent (scalar AND downloads) — so real
+  // downloads past a stale scalar are never candidates. In-range titles, used for
+  // duplicate detection, are everything up to that same boundary.
   const beyond = all.filter(c => c.chapterNumber !== null && c.chapterNumber > realExtent);
   if (beyond.length === 0) return 0;
-
   const inRangeTitles = new Set(
-    all.filter(c => c.chapterNumber !== null && c.chapterNumber <= metaCeiling)
+    all.filter(c => c.chapterNumber !== null && c.chapterNumber <= realExtent)
       .map(c => normalizeChapterTitle(c.title)),
   );
-  const maxFileBacked = all.filter(isFileBackedChapter).reduce((mx, c) => Math.max(mx, c.chapterNumber ?? 0), 0);
 
-  const droppable = classifyPhantomChapters(beyond, inRangeTitles, maxFileBacked, metaCeiling);
+  const droppable = classifyPhantomChapters(beyond, inRangeTitles);
   if (droppable.length === 0) return 0;
 
   await prisma.chapter.deleteMany({ where: { id: { in: droppable.map(c => c.id) } } });
   logger.info(
     `[enrichmentPipeline] Pruned ${droppable.length} loose/generic phantom chapter row(s) ` +
-    `for manga ${mangaId} (beyond real extent ${realExtent}, metadata chapters ${metaCeiling})`,
+    `for manga ${mangaId} (beyond real extent ${realExtent} = max(metadata ${metaCeiling}, downloaded ${maxFileBacked}))`,
   );
   return droppable.length;
 }

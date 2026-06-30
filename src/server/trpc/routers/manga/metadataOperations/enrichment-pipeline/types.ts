@@ -367,28 +367,31 @@ export function isFileBackedChapter(c: PhantomClassifiableChapter): boolean {
   return c.filePath !== null || (c.pageCount ?? 0) > 0;
 }
 
-/** More than this many distinct-real-titled rows beyond the ceiling means the
- *  scalar is probably wrong (undercounts) — skip the whole title rather than
- *  risk deleting real chapters. */
+/** More than this many distinct-real-titled rows beyond the real extent means the
+ *  ceiling is probably wrong (undercounts a real run, e.g. Naruto's titled Gaiden
+ *  chapters 701-710 past 700) — skip the whole title rather than risk deleting
+ *  real chapters. */
 export const DISTINCT_REAL_TOLERANCE = 2;
 
 /**
- * Classify a manga's beyond-ceiling chapter rows into droppable phantoms,
- * honoring the scalar-trust guards. Returns [] (skip the whole title) when the
- * ceiling looks untrustworthy:
- *   1. a file-backed chapter exists beyond the ceiling (scalar undercounts), or
- *   2. more than DISTINCT_REAL_TOLERANCE distinct-real-titled rows sit beyond it.
- * Otherwise drops only non-file-backed INTEGER rows that are generic-titled or
- * superset/exact duplicates; decimals, downloads, and distinct-titled rows are
- * always kept.
+ * Classify chapter rows that sit BEYOND the real extent into droppable phantoms.
+ *
+ * The caller must pre-filter `beyond` to rows past `max(metadata chapters,
+ * highest real/downloaded chapter)` — so real downloads that extend past a stale
+ * scalar (Berserk: files through 390 vs scalar 384) are never in `beyond` and are
+ * never deleted. Of what remains, only non-file-backed INTEGER rows that are
+ * generic-titled ("Chapter 391") or superset/exact duplicates are dropped;
+ * decimals, file-backed rows, and distinct-titled rows are always kept.
+ *
+ * Returns [] (skip the whole title) when more than DISTINCT_REAL_TOLERANCE
+ * distinct-real-titled rows sit beyond the extent — that pattern means a real run
+ * continues past the scalar (Naruto Gaiden, Tokyo Ghoul:re) and the ceiling can't
+ * be trusted, so nothing is deleted.
  */
 export function classifyPhantomChapters(
   beyond: PhantomClassifiableChapter[],
   inRangeTitles: Set<string>,
-  maxFileBacked: number,
-  ceiling: number,
 ): PhantomClassifiableChapter[] {
-  if (maxFileBacked > ceiling) return []; // scalar undercounts vs downloaded files
   const droppable: PhantomClassifiableChapter[] = [];
   let distinctReal = 0;
   for (const c of beyond) {
@@ -397,6 +400,6 @@ export function classifyPhantomChapters(
     if (isGenericChapterTitle(c.title) || isDuplicateOverflowTitle(c.title, inRangeTitles)) droppable.push(c);
     else distinctReal++;
   }
-  if (distinctReal > DISTINCT_REAL_TOLERANCE) return []; // scalar likely wrong — skip whole title
+  if (distinctReal > DISTINCT_REAL_TOLERANCE) return []; // real run continues past scalar — skip
   return droppable;
 }
