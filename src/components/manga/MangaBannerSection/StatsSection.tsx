@@ -96,8 +96,11 @@ function getStatusLabel(status: MangaPublicationStatus | undefined | null): stri
  * (e.g. Frieren had Metadata.volumes=0 long after ComicVine added 14
  * volume rows) would otherwise lie about reality.
  *
- * Chapter count is `manga.Chapter.length`. The `chapterLimit=0` trpc
- * call returns all chapters, so the array length is the true count.
+ * Chapter count is the number of real chapter rows — rows with a non-null
+ * chapterNumber. Whole-volume archive rows use the volume-file model (one row
+ * with a NULL chapterNumber per `vN.zip`) and are NOT chapters; counting them
+ * inflated the total (Attack on Titan showed 184 = 144 chapters + 40 volume-file
+ * rows). The `chapterLimit=0` trpc call returns every row, so we filter here.
  */
 function getVolumeCount(manga: MangaWithRelations): number {
   // manga.Volume comes back from the trpc procedure via createMangaRelationsSlim,
@@ -108,7 +111,7 @@ function getVolumeCount(manga: MangaWithRelations): number {
 }
 
 function getChapterCount(manga: MangaWithRelations): number {
-  return manga.Chapter.length;
+  return manga.Chapter.filter(c => c.chapterNumber !== null).length;
 }
 
 /**
