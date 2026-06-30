@@ -59,10 +59,15 @@ function isTerminalStatus(status: MangaPublicationStatus | null | undefined): bo
 interface RealExtent {
   /** Known final chapter scalar (Metadata.chapters), always > 0. */
   metaCeiling: number;
-  /** Highest file-backed (downloaded) chapter, <= metaCeiling. */
+  /** Highest file-backed (downloaded) chapter. */
   maxFileBacked: number;
-  /** max(metaCeiling, maxFileBacked) — the boundary past which rows are phantom. */
+  /** max(metaCeiling, maxFileBacked) — the chapter boundary past which rows are phantom. */
   realExtent: number;
+  /** Trusted volume count (Metadata.volumes), or 0 if unknown. A volume numbered
+   *  beyond this is a phantom even when the chapter scalar is inflated (AoT's
+   *  Metadata.chapters=141 vs real 139, but volumes=34 is correct, so Vol 35 and
+   *  its chapters 140/141 are still caught). */
+  volumeCeiling: number;
 }
 
 /**
@@ -87,13 +92,14 @@ interface RealExtent {
 async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
   const manga = await prisma.manga.findUnique({
     where: { id: mangaId },
-    select: { publicationStatus: true, Metadata: { select: { endDate: true, chapters: true } } },
+    select: { publicationStatus: true, Metadata: { select: { endDate: true, chapters: true, volumes: true } } },
   });
   const hasEndDate = Boolean(manga?.Metadata?.endDate);
   if (!isTerminalStatus(manga?.publicationStatus) && !hasEndDate) return null;
 
   const metaCeiling = manga?.Metadata?.chapters ?? 0;
   if (metaCeiling <= 0) return null;
+  const volumeCeiling = manga?.Metadata?.volumes ?? 0;
 
   const maxChResult = await prisma.chapter.aggregate({
     where: {
@@ -104,7 +110,7 @@ async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
     _max: { chapterNumber: true },
   });
   const maxFileBacked = maxChResult._max.chapterNumber ?? 0;
-  return { metaCeiling, maxFileBacked, realExtent: Math.max(metaCeiling, maxFileBacked) };
+  return { metaCeiling, maxFileBacked, realExtent: Math.max(metaCeiling, maxFileBacked), volumeCeiling };
 }
 
 export async function pruneOutOfRangeVolumes(mangaId: number): Promise<number> {
@@ -175,20 +181,35 @@ export async function pruneOutOfRangeVolumes(mangaId: number): Promise<number> {
 export async function pruneOutOfRangeChapters(mangaId: number): Promise<number> {
   const extent = await resolveRealExtent(mangaId);
   if (!extent) return 0;
-  const { realExtent, metaCeiling, maxFileBacked } = extent;
+  const { realExtent, metaCeiling, maxFileBacked, volumeCeiling } = extent;
+
+  // Chapters living in a volume numbered beyond the trusted volume count are
+  // candidates even when their chapterNumber is within the (possibly inflated)
+  // chapter scalar — AoT Metadata.chapters=141 (real 139) but volumes=34, so the
+  // generic 140/141 in phantom "Vol 35" are only caught via the volume ceiling.
+  const overCeilingVolumeIds = volumeCeiling > 0
+    ? new Set(
+      (await prisma.volume.findMany({
+        where: { mangaId, number: { gt: volumeCeiling } },
+        select: { id: true },
+      })).map(v => v.id),
+    )
+    : new Set<number>();
 
   const all = await prisma.chapter.findMany({
     where: { mangaId },
-    select: { id: true, chapterNumber: true, title: true, pageCount: true, filePath: true },
+    select: { id: true, chapterNumber: true, title: true, pageCount: true, filePath: true, volumeId: true },
   });
-  // Candidates sit beyond the real extent (scalar AND downloads) — so real
-  // downloads past a stale scalar are never candidates. In-range titles, used for
-  // duplicate detection, are everything up to that same boundary.
-  const beyond = all.filter(c => c.chapterNumber !== null && c.chapterNumber > realExtent);
+  // A row is "beyond" when it is past the real chapter extent (scalar AND
+  // downloads) OR sits in an out-of-range volume. Real downloads past a stale
+  // scalar are never candidates (classifyPhantomChapters keeps file-backed rows).
+  const isBeyond = (c: { chapterNumber: number | null; volumeId: number | null }): boolean =>
+    (c.chapterNumber !== null && c.chapterNumber > realExtent) ||
+    (c.volumeId !== null && overCeilingVolumeIds.has(c.volumeId));
+  const beyond = all.filter(isBeyond);
   if (beyond.length === 0) return 0;
   const inRangeTitles = new Set(
-    all.filter(c => c.chapterNumber !== null && c.chapterNumber <= realExtent)
-      .map(c => normalizeChapterTitle(c.title)),
+    all.filter(c => c.chapterNumber !== null && !isBeyond(c)).map(c => normalizeChapterTitle(c.title)),
   );
 
   const droppable = classifyPhantomChapters(beyond, inRangeTitles);
@@ -197,7 +218,8 @@ export async function pruneOutOfRangeChapters(mangaId: number): Promise<number> 
   await prisma.chapter.deleteMany({ where: { id: { in: droppable.map(c => c.id) } } });
   logger.info(
     `[enrichmentPipeline] Pruned ${droppable.length} loose/generic phantom chapter row(s) ` +
-    `for manga ${mangaId} (beyond real extent ${realExtent} = max(metadata ${metaCeiling}, downloaded ${maxFileBacked}))`,
+    `for manga ${mangaId} (beyond real extent ${realExtent} = max(metadata ${metaCeiling}, ` +
+    `downloaded ${maxFileBacked}); volume ceiling ${volumeCeiling})`,
   );
   return droppable.length;
 }
