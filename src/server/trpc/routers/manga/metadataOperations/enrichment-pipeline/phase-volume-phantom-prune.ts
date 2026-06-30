@@ -190,3 +190,64 @@ export async function pruneOutOfRangeChapters(mangaId: number): Promise<number> 
   );
   return droppable.length;
 }
+
+/**
+ * Remove EMPTY phantom volumes a finished series should not have: placeholder-
+ * titled volumes, or volumes numbered beyond the trusted volume count. This
+ * complements pruneOutOfRangeVolumes, which keys off chapterStart (chapter
+ * position) and so misses an empty "Vol 39" of a 38-volume series whose declared
+ * start happens to fall inside the real chapter range. Only EMPTY volumes (zero
+ * linked chapters) are touched, so a volume holding any real chapter is preserved.
+ */
+export async function removeEmptyPhantomVolumes(mangaId: number): Promise<number> {
+  const manga = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { publicationStatus: true, Metadata: { select: { endDate: true, volumes: true } } },
+  });
+  const finished = isTerminalStatus(manga?.publicationStatus) || Boolean(manga?.Metadata?.endDate);
+  if (!finished) return 0;
+  const volumeCeiling = manga?.Metadata?.volumes ?? 0;
+
+  const empties = await prisma.volume.findMany({
+    where: { mangaId, number: { gt: 0 }, chapters: { none: {} } },
+    select: { id: true, number: true, title: true },
+  });
+  const phantomIds = empties
+    .filter(v =>
+      (v.title ?? '').toLowerCase().includes('placeholder') ||
+      (volumeCeiling > 0 && v.number > volumeCeiling),
+    )
+    .map(v => v.id);
+  if (phantomIds.length === 0) return 0;
+
+  await prisma.volume.deleteMany({ where: { id: { in: phantomIds } } });
+  logger.info(
+    `[enrichmentPipeline] Removed ${phantomIds.length} empty phantom volume(s) for manga ${mangaId} ` +
+    `(placeholder-titled or numbered beyond volume ceiling ${volumeCeiling})`,
+  );
+  return phantomIds.length;
+}
+
+/** Aggregate count of phantom artifacts removed by a single sweep. */
+export interface PhantomRemovalResult {
+  /** Out-of-range volumes deleted (chapterStart beyond real extent). */
+  outOfRangeVolumes: number;
+  /** Loose/generic over-ceiling chapters deleted. */
+  chapters: number;
+  /** Empty placeholder / beyond-volume-ceiling volumes deleted. */
+  emptyVolumes: number;
+}
+
+/**
+ * Run every end-of-series phantom sweep for a manga and report what was removed.
+ * Idempotent and safe to call after the enrichment pipeline (which already runs
+ * the same sweeps) — a second pass simply finds nothing. Used as the explicit
+ * phantom-removal step of a metadata reidentify so the DB (and, after the
+ * client refetch, the UI) is left phantom-free.
+ */
+export async function removePhantomArtifacts(mangaId: number): Promise<PhantomRemovalResult> {
+  const outOfRangeVolumes = await pruneOutOfRangeVolumes(mangaId);
+  const chapters = await pruneOutOfRangeChapters(mangaId);
+  const emptyVolumes = await removeEmptyPhantomVolumes(mangaId);
+  return { outOfRangeVolumes, chapters, emptyVolumes };
+}

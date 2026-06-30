@@ -16,6 +16,7 @@ import { logger } from '@/utils/logger';
 
 import { runEnrichmentPipeline } from '../enrichment-pipeline';
 import { extractBoundAniListId } from '../enrichment-pipeline/phase-provider-fetch';
+import { removePhantomArtifacts } from '../enrichment-pipeline/phase-volume-phantom-prune';
 import { handleError } from '../utils';
 
 import { clearAutoBindingsForReidentify } from './clear-auto-bindings';
@@ -120,8 +121,27 @@ export const metadataRefreshProcedures = router({
           { forceRefresh: forceRefresh ?? false, previousAniListId },
         );
 
+        // Explicit phantom-removal step: delete any end-of-series phantom volumes
+        // and chapters this title still carries so a reidentify leaves the DB —
+        // and, after the client refetch on 'completed', the UI — phantom-free.
+        // Idempotent with the pipeline's own finalize sweeps.
+        const removed = await removePhantomArtifacts(id);
+        const removedTotal = removed.outOfRangeVolumes + removed.chapters + removed.emptyVolumes;
+        if (removedTotal > 0) {
+          logger.info(
+            `Reidentify removed phantoms for manga ${id}: ${removed.chapters} chapter(s), `
+            + `${removed.outOfRangeVolumes + removed.emptyVolumes} volume(s)`,
+          );
+        }
+
+        // Re-fetch so the returned manga (and the UI that renders it) reflects the
+        // just-removed phantoms rather than the pre-sweep snapshot.
+        const cleaned = removedTotal > 0
+          ? await ctx.prisma.manga.findUnique({ where: { id }, include: includeMangaRelations })
+          : null;
+
         await emitProgress(id, 'completed', TOTAL_PHASES, 'Metadata refresh complete');
-        return freshManga ?? manga;
+        return cleaned ?? freshManga ?? manga;
       } catch (error: unknown) {
         const errorMessage = handleError(error).message;
         logger.error(`Error refreshing metadata for manga ID ${id}: ${errorMessage}`);

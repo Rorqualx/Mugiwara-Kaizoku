@@ -37,7 +37,7 @@ import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { assignOverflowChapters } from './phase-volume-overflow';
-import { pruneOutOfRangeChapters, pruneOutOfRangeVolumes } from './phase-volume-phantom-prune';
+import { pruneOutOfRangeChapters, pruneOutOfRangeVolumes, removeEmptyPhantomVolumes } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
@@ -701,6 +701,11 @@ async function executeEnrichmentPhases(
   // attached to a volume. Title-aware so real recent chapters (Berserk 384/385)
   // and decimals/downloads survive. Also runs before overflow handling.
   await pruneOutOfRangeChapters(mangaId);
+
+  // Phase 6.26b: Remove EMPTY phantom volumes the chapter-range prune misses —
+  // placeholder-titled or numbered beyond the trusted volume ceiling (e.g. an
+  // empty "Vol 39" of a finished 38-volume series).
+  await removeEmptyPhantomVolumes(mangaId);
 
   // Phase 6.27: Handle chapters beyond the (now phantom-free) last volume range.
   await assignOverflowChapters(mangaId, expectedVolumeCount);
