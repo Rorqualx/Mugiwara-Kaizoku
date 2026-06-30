@@ -15,7 +15,7 @@
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-import { isBonusTitle, type ChapterDataItem } from './types';
+import { isBonusTitle, isGenericChapterTitle, type ChapterDataItem } from './types';
 
 import type { Prisma } from '@prisma/client';
 
@@ -251,10 +251,14 @@ async function updateExistingChapterVolumes(
  * - **E2 (Outlier Filtering)**: Beyond the cap, only keep chapters with rich metadata
  *
  * @param expectedChapterCount - Best estimate of total chapters (0 = unknown, skip filtering)
+ * @param trustedCeiling - Known final chapter for a finished series (null = untrusted).
+ *   When set it replaces the ~1.1× tolerance with an EXACT integer ceiling, so an
+ *   end-of-series overshoot (AoT ch 140/141 past 139) can't survive the merge.
  * @param sourceArrays - Arrays of chapters from each source (e.g. [fandom, wikipedia, comicvine])
  */
 export function mergeAllSourceChapters(
   expectedChapterCount: number,
+  trustedCeiling: number | null,
   ...sourceArrays: ChapterDataItem[][]
 ): ChapterDataItem[] {
   const byNumber = new Map<number, ChapterDataItem>();
@@ -270,11 +274,19 @@ export function mergeAllSourceChapters(
 
   const merged = [...byNumber.values()].sort((a, b) => a.number - b.number);
 
-  // Drop overflow-integer duplicates / misnumbered extras (Dorohedoro phantom-volume class)
-  const deduped = suppressOverflowDuplicateExtras(merged, expectedChapterCount);
+  // Overflow threshold: prefer the trusted finished-series ceiling so the
+  // finale-duplicate / generic-phantom rules treat anything past the real end
+  // as overflow even when expectedChapterCount was inflated by a source list.
+  const overflowThreshold = trustedCeiling !== null && trustedCeiling > 0
+    ? Math.min(expectedChapterCount > 0 ? expectedChapterCount : trustedCeiling, trustedCeiling)
+    : expectedChapterCount;
 
-  // E6 + E2: Cap at 110% of expected, with metadata exception for outliers
-  return applyFusionCap(deduped, expectedChapterCount);
+  // Drop overflow-integer duplicates / misnumbered extras (Dorohedoro phantom-volume class)
+  const deduped = suppressOverflowDuplicateExtras(merged, overflowThreshold);
+
+  // E6 + E2: Cap at 110% of expected (or the exact trusted ceiling), with a
+  // metadata exception for outliers.
+  return applyFusionCap(deduped, expectedChapterCount, trustedCeiling);
 }
 
 /**
@@ -306,11 +318,27 @@ export function suppressOverflowDuplicateExtras(
     if (!isOverflowInteger && ch.title) nonOverflowTitles.add(normalize(ch.title));
   }
 
+  // A re-listed finale often gains a prefix/suffix rather than matching exactly —
+  // e.g. AoT lists ch 139 "Toward the Tree on That Hill" and re-lists it as
+  // overflow ch 144 "Final Episode: Toward the Tree on That Hill". Treat an
+  // overflow title that fully CONTAINS a substantial in-range title as a
+  // duplicate. The length/word guards avoid coincidental short-word matches.
+  const containsInRangeTitle = (normTitle: string): boolean => {
+    for (const inRange of nonOverflowTitles) {
+      if (inRange.length >= 10 && inRange.includes(' ') && normTitle !== inRange && normTitle.includes(inRange)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const kept = chapters.filter(ch => {
     if (!Number.isInteger(ch.number) || ch.number <= expectedChapterCount) return true;
-    const isExactDuplicate = ch.title !== undefined && nonOverflowTitles.has(normalize(ch.title));
+    const normTitle = ch.title !== undefined ? normalize(ch.title) : '';
+    const isExactDuplicate = ch.title !== undefined && nonOverflowTitles.has(normTitle);
+    const isSupersetDuplicate = normTitle !== '' && containsInRangeTitle(normTitle);
     const isMisnumberedExtra = isBonusTitle(ch.title ?? null);
-    return !(isExactDuplicate || isMisnumberedExtra);
+    return !(isExactDuplicate || isSupersetDuplicate || isMisnumberedExtra);
   });
 
   const dropped = chapters.length - kept.length;
@@ -326,18 +354,34 @@ export function suppressOverflowDuplicateExtras(
  * Chapters at or below the cap are always kept.
  * Chapters above the cap are only kept if they have cover OR description
  * metadata — indicating they're likely real chapters, not misparsed data.
+ *
+ * When `trustedCeiling` is set (a finished series with a known final chapter),
+ * the cap is that EXACT integer rather than `expected × 1.1` — so a metadata-poor
+ * end-of-series overshoot (AoT generic ch 140/141 past 139) is dropped while
+ * decimal bonus chapters (139.5) are always preserved.
  */
 function applyFusionCap(
   chapters: ChapterDataItem[],
   expectedChapterCount: number,
+  trustedCeiling: number | null = null,
 ): ChapterDataItem[] {
-  if (expectedChapterCount <= 0) return chapters;
+  const hasTrusted = trustedCeiling !== null && trustedCeiling > 0;
+  if (expectedChapterCount <= 0 && !hasTrusted) return chapters;
 
-  const hardCap = Math.ceil(expectedChapterCount * 1.1);
+  const hardCap = hasTrusted ? trustedCeiling : Math.ceil(expectedChapterCount * 1.1);
 
   return chapters.filter(ch => {
     if (ch.number <= hardCap) return true;
-    // E2: Beyond cap, only keep metadata-rich chapters
+    if (hasTrusted) {
+      // Beyond the EXACT known final chapter, drop only the phantom signature:
+      // a missing or generic ("Chapter 140") title with no other metadata. A
+      // distinct real title, a cover, or a description means it is more likely a
+      // real chapter the scalar undercounts (Black Clover ch 393) than a
+      // fabricated overflow (AoT generic 140/141) — keep it. Decimals are kept.
+      if (!Number.isInteger(ch.number)) return true;
+      return !isGenericChapterTitle(ch.title) || ch.cover !== undefined || ch.description !== undefined;
+    }
+    // E2: Beyond the 110% cap, only keep metadata-rich chapters
     return ch.cover !== undefined || ch.description !== undefined;
   });
 }

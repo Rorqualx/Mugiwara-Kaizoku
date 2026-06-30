@@ -16,6 +16,19 @@ import type {
   UnifiedProviderResults,
   VolumeDataItem,
 } from './types';
+import type { MangaPublicationStatus } from '@prisma/client';
+
+/**
+ * Stored DB signal used as a LAST-RESORT trusted ceiling when the live providers
+ * carry no terminal signal — e.g. Berserk reads as RELEASING on AniList (no
+ * chapters/endDate) yet the library's stored Metadata already knows it concluded
+ * (endDate set) at a known chapter count.
+ */
+export interface StoredTerminalSignal {
+  endDate: Date | null;
+  status: MangaPublicationStatus | null;
+  chapters: number | null;
+}
 
 const log = logger.child('DataAssembly');
 
@@ -24,16 +37,33 @@ const log = logger.child('DataAssembly');
  *
  * @param results - Combined results from Phase 1 (all providers)
  * @param dbChapterCount - Number of chapters currently in the database
+ * @param stored - Stored DB terminal signal (endDate/status/chapters), used as a
+ *   last-resort trusted ceiling when live providers report no terminal signal
  * @returns Assembled and normalized data ready for AI agent processing
  */
 export function assembleSourceData(
   results: UnifiedProviderResults,
   dbChapterCount: number,
+  stored?: StoredTerminalSignal,
 ): SourceDataCollection {
   const sources = extractAllSources(results);
-  const expectedChapterCount = resolveExpectedChapterCount(
+  const rawExpectedChapterCount = resolveExpectedChapterCount(
     results.enrichmentResult, dbChapterCount, sources,
   );
+
+  // A finished series with a trusted scalar has a KNOWN final chapter — clamp
+  // the expected count to it so reconciliation never fabricates placeholders
+  // past the end (e.g. AoT's 140/141 beyond the real 139). null when untrusted,
+  // leaving the existing overshoot-tolerant behaviour unchanged. The plausibility
+  // guard rejects an obviously-broken scalar (e.g. Black Clover AniList chapters=1
+  // against ~370 corroborated source chapters) so real chapters are never clamped.
+  const trustedFinalChapter = plausibleTrustedCeiling(
+    resolveTrustedFinalChapter(results, stored).ceiling, rawExpectedChapterCount,
+  );
+  const expectedChapterCount = trustedFinalChapter !== null
+    ? Math.min(rawExpectedChapterCount || trustedFinalChapter, trustedFinalChapter)
+    : rawExpectedChapterCount;
+
   const gaps = buildGapAnalysis(expectedChapterCount, sources, results);
 
   logAssemblyResult(results, expectedChapterCount, sources, gaps);
@@ -42,6 +72,7 @@ export function assembleSourceData(
     mangaId: results.enrichmentResult.manga.id,
     title: results.enrichmentResult.manga.title,
     expectedChapterCount,
+    trustedFinalChapter,
     sources,
     gaps,
     rawData: buildRawDataSection(results),
@@ -262,6 +293,116 @@ function extractScalarVolumeCount(enrichmentResult: UnifiedProviderResults['enri
   if (!metadata) return null;
   if (typeof metadata['volumes'] === 'number') return metadata['volumes'];
   return null;
+}
+
+/** Result of resolving the trusted end-of-series ceiling. */
+export interface TrustedFinalChapter {
+  /** Known final chapter number, or null when no terminal-status scalar exists. */
+  ceiling: number | null;
+  /** Known final volume number, or null when no terminal-status scalar exists. */
+  volumeCeiling: number | null;
+  /** True only when a terminal-status provider supplied a numeric chapter scalar. */
+  trusted: boolean;
+}
+
+/** Prisma MangaPublicationStatus values that mean the run has ended. AniList
+ *  FINISHED/CANCELLED are mapped to these before being stored in the applied
+ *  match metadata (see anilist/service.ts mapAniListStatusToPrisma). */
+const TERMINAL_PRISMA_STATUSES = new Set<string>(['COMPLETED', 'CANCELLED']);
+/** Jikan/MAL status strings that mean the run has ended. */
+const TERMINAL_MAL_STATUSES = new Set<string>(['finished', 'discontinued']);
+
+/**
+ * Resolve the trusted end-of-series chapter (and volume) ceiling.
+ *
+ * Only a *finished* series has a knowable final chapter — for an ongoing series
+ * the latest provider scalar legitimately lags real releases, so no ceiling is
+ * returned. Sources are tried in reliability order (AniList → MAL →
+ * MangaUpdates) rather than taking the max: AniList's tankōbon chapter count is
+ * the canonical end (139 for Attack on Titan), whereas MAL/others sometimes fold
+ * specials into the integer count (AoT = 141 on MAL). The first terminal source
+ * with a numeric scalar wins.
+ *
+ * Decimals (139.5) and properly bonus-titled extras are never affected by this
+ * ceiling — they are preserved downstream regardless.
+ */
+/** AniList ceiling — status stored as Prisma MangaPublicationStatus on the applied match metadata. */
+function anilistTrustedCeiling(results: UnifiedProviderResults): TrustedFinalChapter | null {
+  const metadata = results.enrichmentResult.appliedMatch?.metadata as Record<string, unknown> | undefined;
+  const status = typeof metadata?.['status'] === 'string' ? metadata['status'].toUpperCase() : '';
+  const chapters = typeof metadata?.['chapters'] === 'number' ? metadata['chapters'] : 0;
+  const volumes = typeof metadata?.['volumes'] === 'number' ? metadata['volumes'] : 0;
+  // A populated endDate is an authoritative "publication concluded" signal even
+  // when the cached status string is a stale ONGOING. AniList only sets endDate
+  // once a series has ended, but the status field can lag (JJK ch 271 and Berserk
+  // ch 383 both carried an endDate while their stored status still read ONGOING —
+  // which let the status-only gate pass phantom generic chapters 272+/384+).
+  const hasEndDate = typeof metadata?.['endDate'] === 'string' && metadata['endDate'].length > 0;
+  if ((!TERMINAL_PRISMA_STATUSES.has(status) && !hasEndDate) || chapters <= 0) return null;
+  return { ceiling: Math.ceil(chapters), volumeCeiling: volumes > 0 ? Math.ceil(volumes) : null, trusted: true };
+}
+
+/** MAL (Jikan) ceiling — status string like "Finished". */
+function malTrustedCeiling(results: UnifiedProviderResults): TrustedFinalChapter | null {
+  const mal = results.malResult;
+  const status = typeof mal?.status === 'string' ? mal.status.toLowerCase() : '';
+  const chapters = mal?.chapters ?? 0;
+  if (!TERMINAL_MAL_STATUSES.has(status) || chapters <= 0) return null;
+  const volumes = mal?.volumes ?? 0;
+  return { ceiling: Math.ceil(chapters), volumeCeiling: volumes > 0 ? Math.ceil(volumes) : null, trusted: true };
+}
+
+/** MangaUpdates ceiling — explicit completed flag + the highest released chapter as the final number. */
+function mangaupdatesTrustedCeiling(results: UnifiedProviderResults): TrustedFinalChapter | null {
+  const mu = results.mangaupdatesResult;
+  if (!mu?.completed || mu.latestChapter <= 0) return null;
+  return { ceiling: Math.ceil(mu.latestChapter), volumeCeiling: null, trusted: true };
+}
+
+/**
+ * Stored-DB ceiling — last resort, used only when the live providers carry no
+ * terminal signal. Trusted when the library already knows the series ended (a
+ * stored endDate or a terminal stored status) AND a stored chapter scalar exists.
+ * This is what lets a reidentify cap Berserk: live AniList reports it RELEASING
+ * with no chapters/endDate, but the stored Metadata already knows it concluded.
+ */
+function storedTrustedCeiling(stored: StoredTerminalSignal | undefined): TrustedFinalChapter | null {
+  if (!stored) return null;
+  const finished = Boolean(stored.endDate) || (stored.status !== null && TERMINAL_PRISMA_STATUSES.has(stored.status));
+  const chapters = stored.chapters ?? 0;
+  if (!finished || chapters <= 0) return null;
+  return { ceiling: Math.ceil(chapters), volumeCeiling: null, trusted: true };
+}
+
+export function resolveTrustedFinalChapter(
+  results: UnifiedProviderResults,
+  stored?: StoredTerminalSignal,
+): TrustedFinalChapter {
+  return anilistTrustedCeiling(results)
+    ?? malTrustedCeiling(results)
+    ?? mangaupdatesTrustedCeiling(results)
+    ?? storedTrustedCeiling(stored)
+    ?? { ceiling: null, volumeCeiling: null, trusted: false };
+}
+
+/** Fraction of the corroborated source count below which a "final chapter"
+ *  scalar is treated as broken and ignored. */
+const CEILING_PLAUSIBILITY_FLOOR = 0.9;
+
+/**
+ * Validate a trusted final-chapter ceiling against the corroborated source count.
+ *
+ * Provider scalars are sometimes badly wrong (a wrong AniList match stores
+ * `chapters: 1` for Black Clover, whose sources list ~370). Honoring such a
+ * ceiling would clamp away hundreds of real chapters. A ceiling is only trusted
+ * when it is at least 90% of the corroborated source count; otherwise this
+ * returns null and the caller falls back to the ordinary overshoot tolerance.
+ * A small overshoot (AoT raw 141 vs ceiling 139) still passes.
+ */
+export function plausibleTrustedCeiling(ceiling: number | null, rawExpectedChapterCount: number): number | null {
+  if (ceiling === null || ceiling <= 0) return null;
+  if (rawExpectedChapterCount > 0 && ceiling < rawExpectedChapterCount * CEILING_PLAUSIBILITY_FLOOR) return null;
+  return ceiling;
 }
 
 /**

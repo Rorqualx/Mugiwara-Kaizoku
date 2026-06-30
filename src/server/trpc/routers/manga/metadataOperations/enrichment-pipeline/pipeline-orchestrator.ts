@@ -28,7 +28,7 @@ import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
 import { reassignBonusChaptersToParentVolumes } from './phase-bonus-reassignment';
 import { reconcileChapterCount, mergeAllSourceChapters } from './phase-chapter-reconciliation';
-import { assembleSourceData } from './phase-data-assembly';
+import { assembleSourceData, resolveTrustedFinalChapter, plausibleTrustedCeiling, type StoredTerminalSignal } from './phase-data-assembly';
 import { phaseDbPersistence } from './phase-db-persistence';
 import { phaseFandomEnrichment } from './phase-fandom-enrichment';
 import { phaseFinalize } from './phase-finalize';
@@ -37,7 +37,7 @@ import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { assignOverflowChapters } from './phase-volume-overflow';
-import { pruneOutOfRangeVolumes } from './phase-volume-phantom-prune';
+import { pruneOutOfRangeChapters, pruneOutOfRangeVolumes } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
@@ -67,6 +67,44 @@ function extractMangaDexChapters(result: UnifiedProviderResults): ChapterDataIte
     }
   }
   return chapters;
+}
+
+/**
+ * Load the stored terminal signal + AniList volume anchor in one query. The
+ * stored endDate/status/chapters act as a last-resort trusted ceiling when live
+ * providers report a finished series as ongoing (Berserk reads RELEASING on
+ * AniList); the volumes field is the cross-validation fallback anchor.
+ */
+async function loadStoredTerminalSignal(mangaId: number): Promise<StoredTerminalSignal & { volumes: number | null }> {
+  const row = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { publicationStatus: true, Metadata: { select: { endDate: true, chapters: true, volumes: true } } },
+  });
+  return {
+    endDate: row?.Metadata?.endDate ?? null,
+    status: row?.publicationStatus ?? null,
+    chapters: row?.Metadata?.chapters ?? null,
+    volumes: row?.Metadata?.volumes ?? null,
+  };
+}
+
+/**
+ * Resolve the volume cross-validation gate context: the chapter ceiling (exact
+ * for a finished series, broken-scalar-safe), whether it's trusted, and the
+ * expected volume count (with the persisted AniList volume anchor as fallback).
+ * The stored terminal signal lets the gate clamp a series whose LIVE provider
+ * data reads ongoing (Berserk).
+ */
+async function resolveVolumeGateContext(
+  mangaId: number,
+  result: UnifiedProviderResults,
+): Promise<{ expectedChapterCount: number | null; volumeTrusted: boolean; expectedVolumeCount: number }> {
+  const storedAnchor = await loadStoredTerminalSignal(mangaId);
+  const { expectedChapterCount, trusted: volumeTrusted } = resolveVolumeGateCeiling(result, storedAnchor);
+  const dbAlVolumes = storedAnchor.volumes;
+  const fallbackAlVolumes = dbAlVolumes !== null && dbAlVolumes > 0 ? dbAlVolumes : undefined;
+  const expectedVolumeCount = extractExpectedVolumeCount(result, fallbackAlVolumes);
+  return { expectedChapterCount, volumeTrusted, expectedVolumeCount };
 }
 
 /**
@@ -109,7 +147,11 @@ async function reconcileFromProviderResults(
   );
 
   const dbChapterCount = await prisma.chapter.count({ where: { mangaId } });
-  const sourceData = assembleSourceData(result, dbChapterCount);
+  // Stored terminal signal — last-resort trusted ceiling when live providers
+  // report no terminal status (e.g. Berserk reads RELEASING on AniList yet the
+  // library already knows it concluded via stored endDate + chapter count).
+  const stored = await loadStoredTerminalSignal(mangaId);
+  const sourceData = assembleSourceData(result, dbChapterCount, stored);
   // ComicVine chapters live inside sourceData.sources.comicvine (parsed from
   // per-vol descriptions by parseComicVineDescriptions). The previous
   // call passed only fandom/wiki/mangadex, silently dropping every CV chapter
@@ -122,7 +164,8 @@ async function reconcileFromProviderResults(
       && mangadexChapters.length === 0 && comicvineChapters.length === 0) return;
 
   const merged = mergeAllSourceChapters(
-    sourceData.expectedChapterCount, fandomChapters, wikiChapters, mangadexChapters, comicvineChapters,
+    sourceData.expectedChapterCount, sourceData.trustedFinalChapter ?? null,
+    fandomChapters, wikiChapters, mangadexChapters, comicvineChapters,
   );
 
   await onProgress?.('reconciling', `Reconciling ${merged.length} source chapters against DB...`);
@@ -446,6 +489,25 @@ function computeExpectedChapterCount(result: UnifiedProviderResults): number | n
 }
 
 /**
+ * Resolve the volume-gate chapter ceiling for cross-validation.
+ *
+ * A finished series with a plausible trusted scalar clamps the ceiling to its
+ * known final chapter and switches the gate to exact (no 1.1× tolerance), so an
+ * end-of-series phantom volume (AoT "Volume 35" @ ch 140 past the real 139) is
+ * rejected. plausibleTrustedCeiling ignores a broken scalar (Black Clover
+ * chapters=1) so a real volume structure is never gated away.
+ */
+function resolveVolumeGateCeiling(
+  result: UnifiedProviderResults,
+  stored?: StoredTerminalSignal,
+): { expectedChapterCount: number | null; trusted: boolean } {
+  const rawExpected = computeExpectedChapterCount(result);
+  const ceiling = plausibleTrustedCeiling(resolveTrustedFinalChapter(result, stored).ceiling, rawExpected ?? 0);
+  if (ceiling === null) return { expectedChapterCount: rawExpected, trusted: false };
+  return { expectedChapterCount: Math.min(rawExpected ?? ceiling, ceiling), trusted: true };
+}
+
+/**
  * Extract the expected volume count from cross-source consensus.
  *
  * Thin wrapper around `resolveExpectedVolumeCount`; preserved as a
@@ -557,20 +619,18 @@ async function executeEnrichmentPhases(
   // description's Contents listing so proposals carry per-chapter granularity.
   const cvWithChapterList = enrichComicVineWithChapterList(comicvineVolumes);
   const proposals = collectVolumeRangeProposals(cvWithChapterList, wikiVolumes, fandomVolumes, mangadexVolumes);
-  const expectedChapterCount = computeExpectedChapterCount(result);
   // iter-PVM-N-tune-1: thread persisted Metadata.volumes as fallback so the
   // AniList anchor stays in the candidate set even when the applied match
-  // drops the field this run (cached fetches, partial-match path, etc.).
-  const dbAnchor = await prisma.manga.findUnique({
-    where: { id: mangaId },
-    select: { Metadata: { select: { volumes: true } } },
-  });
-  const dbAlVolumes = dbAnchor?.Metadata?.volumes ?? null;
-  const fallbackAlVolumes = dbAlVolumes !== null && dbAlVolumes > 0 ? dbAlVolumes : undefined;
-  const expectedVolumeCount = extractExpectedVolumeCount(result, fallbackAlVolumes);
+  // drops the field this run (cached fetches, partial-match path, etc.). Also
+  // surfaces the stored terminal signal (endDate/status/chapters) so the gate can
+  // clamp a finished series whose LIVE provider data reads ongoing (Berserk).
+  const { expectedChapterCount, volumeTrusted, expectedVolumeCount } =
+    await resolveVolumeGateContext(mangaId, result);
 
   // Phase 4: CROSS-VALIDATE + PERSIST validated volume ranges
-  const validatedRanges = crossValidateVolumeRanges(proposals, expectedChapterCount, expectedVolumeCount);
+  const validatedRanges = crossValidateVolumeRanges(
+    proposals, expectedChapterCount, expectedVolumeCount, volumeTrusted,
+  );
   if (validatedRanges.length > 0) {
     await persistValidatedVolumeRanges(mangaId, validatedRanges);
   }
@@ -625,14 +685,25 @@ async function executeEnrichmentPhases(
   await pruneInterleavedSparseVolumeRanges(mangaId);
   await pruneMajoritySparseVolumeRanges(mangaId);
 
-  // Phase 6.25: Create overflow volumes for chapters beyond last volume range
-  await assignOverflowChapters(mangaId, expectedVolumeCount);
-
-  // Phase 6.27: Backstop for the cross-validation discontinuity guard — delete
+  // Phase 6.25: Backstop for the cross-validation discontinuity guard — delete
   // finished-series volumes whose declared range sits entirely beyond the real
-  // chapters and hold zero chapters (ComicVine phantom vols 11-13 = ch 91-117
-  // for a 48-chapter series). Cleans rows persisted by an earlier run.
+  // (file-backed) chapters along with the never-downloadable phantom rows they
+  // hold (ComicVine phantom vols 11-13 = ch 91-117 for a 48-chapter series; AoT
+  // "Volume 35" @ ch 140/141 past the real 139). Runs BEFORE overflow handling
+  // so the phantom volume can't masquerade as the legitimate last volume and
+  // disarm the overflow logic. Cleans rows persisted by an earlier run.
   await pruneOutOfRangeVolumes(mangaId);
+
+  // Phase 6.26: Companion chapter-level sweep for LOOSE (volumeId=NULL) generic
+  // phantoms the volume pass can't see. A reidentify of a finished-but-AniList-
+  // ongoing series (Berserk: live AniList RELEASING, so the merge cap can't fire)
+  // re-creates bare "Chapter 386".."441" past the stored final chapter, none
+  // attached to a volume. Title-aware so real recent chapters (Berserk 384/385)
+  // and decimals/downloads survive. Also runs before overflow handling.
+  await pruneOutOfRangeChapters(mangaId);
+
+  // Phase 6.27: Handle chapters beyond the (now phantom-free) last volume range.
+  await assignOverflowChapters(mangaId, expectedVolumeCount);
 
   // Phase 6.5: Reassign bonus/extra/special chapters to their parent volumes
   const bonusTitleMap = extractBonusTitleMap(comicvineVolumes, validatedRanges);

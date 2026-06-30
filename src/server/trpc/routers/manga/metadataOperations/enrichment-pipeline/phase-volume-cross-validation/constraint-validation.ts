@@ -36,14 +36,23 @@ const CHAPTER_CEILING_MARGIN = 1.1;
 export function validateConstraints(
   ranges: ValidatedVolumeRange[],
   expectedChapterCount: number | null,
+  trusted = false,
 ): ValidatedVolumeRange[] {
   if (ranges.length <= 1) return ranges;
 
   const median = computeMedianChapterCount(ranges);
   const validated: ValidatedVolumeRange[] = [];
 
+  // A finished series with a trusted final-chapter scalar uses an exact ceiling
+  // (margin 1.0) so a volume starting one chapter past the end is rejected;
+  // otherwise the usual 10% tolerance applies.
+  const ceilingMargin = trusted ? 1.0 : CHAPTER_CEILING_MARGIN;
+  const chapterCeiling = expectedChapterCount !== null && expectedChapterCount > 0
+    ? expectedChapterCount * ceilingMargin
+    : null;
+
   for (const range of ranges) {
-    const adjusted = validateSingleRange(range, validated, median, ranges.length, expectedChapterCount);
+    const adjusted = validateSingleRange(range, validated, median, ranges.length, chapterCeiling);
     if (adjusted) validated.push(adjusted);
   }
 
@@ -54,14 +63,17 @@ export function validateConstraints(
 
 /**
  * Cap volume count to prevent runaway volume creation when provider data is inconsistent.
- * Allows up to 10% above expected count to accommodate bonus/special volumes.
+ * Allows up to 10% above expected count to accommodate bonus/special volumes — except for
+ * a finished series with a trusted volume scalar (`trusted`), where the cap is the EXACT
+ * known volume count so an end-of-series phantom volume (AoT "Volume 35" past 34) is dropped.
  */
 export function capVolumeCount(
   ranges: ValidatedVolumeRange[],
   expectedVolumeCount: number,
+  trusted = false,
 ): ValidatedVolumeRange[] {
   if (expectedVolumeCount <= 0 || ranges.length <= expectedVolumeCount) return ranges;
-  const maxAllowed = Math.ceil(expectedVolumeCount * 1.1);
+  const maxAllowed = trusted ? expectedVolumeCount : Math.ceil(expectedVolumeCount * 1.1);
   if (ranges.length <= maxAllowed) return ranges;
 
   const capped = ranges.filter(r => r.volumeNumber <= maxAllowed);
@@ -86,7 +98,7 @@ function validateSingleRange(
   validated: ValidatedVolumeRange[],
   median: number,
   totalCount: number,
-  expectedChapterCount: number | null,
+  chapterCeiling: number | null,
 ): ValidatedVolumeRange | null {
   const count = range.chapterEnd - range.chapterStart + 1;
 
@@ -94,13 +106,10 @@ function validateSingleRange(
   // count is a provider numbering artifact (ComicVine listing vol 11 as chapters
   // 91-99 for a 48-chapter series). Drop it — and because each later volume is
   // measured against the last KEPT volume, the whole broken tail cascades out.
-  if (
-    expectedChapterCount !== null &&
-    expectedChapterCount > 0 &&
-    range.chapterStart > expectedChapterCount * CHAPTER_CEILING_MARGIN
-  ) {
+  // `chapterCeiling` already folds in the trusted/exact-vs-1.1× margin choice.
+  if (chapterCeiling !== null && range.chapterStart > chapterCeiling) {
     log.warn('Dropping volume range starting beyond expected chapter count', {
-      volumeNumber: range.volumeNumber, chapterStart: range.chapterStart, expectedChapterCount,
+      volumeNumber: range.volumeNumber, chapterStart: range.chapterStart, chapterCeiling,
     });
     return null;
   }

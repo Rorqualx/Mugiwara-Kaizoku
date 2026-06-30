@@ -204,6 +204,15 @@ export interface SourceDataCollection {
   mangaId: number;
   title: string;
   expectedChapterCount: number;
+  /**
+   * Hard integer ceiling = the known final chapter number, set ONLY when a
+   * terminal-status provider (AniList FINISHED/CANCELLED, MAL Finished, or
+   * MangaUpdates completed) supplies a numeric scalar. `null` for ongoing
+   * series or when no trusted scalar exists — in which case the ~1.1×
+   * overshoot tolerances apply as before. Used to reject end-of-series
+   * phantom chapters/volumes (e.g. Attack on Titan ch 140/141 past 139).
+   */
+  trustedFinalChapter?: number | null;
   sources: {
     comicvine: ChapterDataItem[];
     fandom: ChapterDataItem[];
@@ -302,4 +311,92 @@ export function createEmptyEnrichmentMaps(): ChapterEnrichmentMaps {
     chapterReleaseDateMap: {},
     volumeDescriptionMap: {},
   };
+}
+
+// ============================================================================
+// Phantom-chapter classification (shared canonical logic)
+//
+// Used by the live pipeline (chapter reconciliation fusion cap + the finalize
+// chapter-level phantom prune) AND the one-shot cleanup survey script, so the
+// "what is a phantom end-of-series chapter" decision lives in exactly one place.
+// ============================================================================
+
+/**
+ * A title that conveys no real information: absent, blank, "Chapter 140", or a
+ * bare number like "393" — the fallback assigned when a provider gave no title.
+ * Real chapters carry distinct prose titles, so this is the primary phantom tell.
+ */
+export function isGenericChapterTitle(title: string | undefined | null): boolean {
+  if (title === undefined || title === null) return true;
+  const t = title.trim();
+  if (t === '') return true;
+  return /^chapter\s+\d+(\.\d+)?$/i.test(t) || /^\d+(\.\d+)?$/.test(t);
+}
+
+/** Normalize a title for duplicate comparison: lowercase, alphanumerics only. */
+export function normalizeChapterTitle(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/**
+ * Whether `title` exact- or superset-duplicates a substantial in-range title —
+ * e.g. AoT's re-listed finale "Final Episode: Toward the Tree on That Hill"
+ * (ch 144) is a superset of ch 139's "Toward the Tree on That Hill".
+ */
+export function isDuplicateOverflowTitle(title: string, inRangeTitles: Set<string>): boolean {
+  const norm = normalizeChapterTitle(title);
+  if (norm === '') return false;
+  if (inRangeTitles.has(norm)) return true;
+  for (const inRange of inRangeTitles) {
+    if (inRange.length >= 10 && inRange.includes(' ') && norm !== inRange && norm.includes(inRange)) return true;
+  }
+  return false;
+}
+
+/** Minimal chapter shape the phantom classifier needs. */
+export interface PhantomClassifiableChapter {
+  id: number;
+  chapterNumber: number | null;
+  title: string;
+  pageCount: number | null;
+  filePath: string | null;
+}
+
+/** A chapter is file-backed (a real download) when it has a file or real pages. */
+export function isFileBackedChapter(c: PhantomClassifiableChapter): boolean {
+  return c.filePath !== null || (c.pageCount ?? 0) > 0;
+}
+
+/** More than this many distinct-real-titled rows beyond the ceiling means the
+ *  scalar is probably wrong (undercounts) — skip the whole title rather than
+ *  risk deleting real chapters. */
+export const DISTINCT_REAL_TOLERANCE = 2;
+
+/**
+ * Classify a manga's beyond-ceiling chapter rows into droppable phantoms,
+ * honoring the scalar-trust guards. Returns [] (skip the whole title) when the
+ * ceiling looks untrustworthy:
+ *   1. a file-backed chapter exists beyond the ceiling (scalar undercounts), or
+ *   2. more than DISTINCT_REAL_TOLERANCE distinct-real-titled rows sit beyond it.
+ * Otherwise drops only non-file-backed INTEGER rows that are generic-titled or
+ * superset/exact duplicates; decimals, downloads, and distinct-titled rows are
+ * always kept.
+ */
+export function classifyPhantomChapters(
+  beyond: PhantomClassifiableChapter[],
+  inRangeTitles: Set<string>,
+  maxFileBacked: number,
+  ceiling: number,
+): PhantomClassifiableChapter[] {
+  if (maxFileBacked > ceiling) return []; // scalar undercounts vs downloaded files
+  const droppable: PhantomClassifiableChapter[] = [];
+  let distinctReal = 0;
+  for (const c of beyond) {
+    if (c.chapterNumber === null || !Number.isInteger(c.chapterNumber)) continue; // keep decimals
+    if (isFileBackedChapter(c)) continue;                                          // keep downloaded
+    if (isGenericChapterTitle(c.title) || isDuplicateOverflowTitle(c.title, inRangeTitles)) droppable.push(c);
+    else distinctReal++;
+  }
+  if (distinctReal > DISTINCT_REAL_TOLERANCE) return []; // scalar likely wrong — skip whole title
+  return droppable;
 }

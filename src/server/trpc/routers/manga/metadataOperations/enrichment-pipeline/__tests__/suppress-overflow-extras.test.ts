@@ -64,4 +64,26 @@ describe('suppressOverflowDuplicateExtras', () => {
     ];
     expect(numbers(suppressOverflowDuplicateExtras(input, 0))).toEqual([169, 200]);
   });
+
+  it('drops an overflow finale whose title is a superset of an in-range chapter title', () => {
+    // Attack on Titan: ch 139 "Toward the Tree on That Hill" is the real finale;
+    // a source re-lists it as overflow ch 144 "Final Episode: Toward the Tree on
+    // That Hill". The prefix means it is not an EXACT duplicate, so the superset
+    // rule must catch it.
+    const input: ChapterDataItem[] = [
+      { number: 139, title: 'Toward the Tree on That Hill' },
+      { number: 144, title: 'Final Episode: Toward the Tree on That Hill' },
+    ];
+    expect(numbers(suppressOverflowDuplicateExtras(input, 139))).toEqual([139]);
+  });
+
+  it('does not superset-drop on a short/single-word in-range title', () => {
+    // Guard against coincidental matches: "Titans" (an in-range title) must not
+    // cause a longer overflow title that happens to contain it to be dropped.
+    const input: ChapterDataItem[] = [
+      { number: 137, title: 'Titans' },
+      { number: 168, title: 'The Last Titans Standing' }, // real beyond-scalar chapter
+    ];
+    expect(numbers(suppressOverflowDuplicateExtras(input, 139))).toEqual([137, 168]);
+  });
 });

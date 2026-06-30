@@ -155,6 +155,7 @@ export function crossValidateVolumeRanges(
   rawProposals: VolumeRangeProposal[],
   expectedChapterCount: number | null,
   expectedVolumeCount?: number,
+  trusted = false,
 ): ValidatedVolumeRange[] {
   if (rawProposals.length === 0) return [];
 
@@ -190,8 +191,8 @@ export function crossValidateVolumeRanges(
       const offsetCorrected = correctUniformOffset(consensusRanges, proposals, byVolume);
       const coherent = sanitizeGlobalCoherence(offsetCorrected, proposals);
       const gapFilled = fillSequenceGaps(coherent, byVolume);
-      const constrained = validateConstraints(gapFilled, expectedChapterCount);
-      return expectedVolumeCount ? capVolumeCount(constrained, expectedVolumeCount) : constrained;
+      const constrained = validateConstraints(gapFilled, expectedChapterCount, trusted);
+      return expectedVolumeCount ? capVolumeCount(constrained, expectedVolumeCount, trusted) : constrained;
     }
     log.warn('Consensus output failed structural-soundness guard — falling back to legacy', {
       consensusVolumes: consensusRanges.length,
@@ -221,11 +222,11 @@ export function crossValidateVolumeRanges(
   const gapFilled = fillSequenceGaps(coherent, byVolume);
 
   // Validate constraints on the full set
-  const constrained = validateConstraints(gapFilled, expectedChapterCount);
+  const constrained = validateConstraints(gapFilled, expectedChapterCount, trusted);
 
   // Cap volume count to prevent runaway creation from inconsistent providers
   const validated = expectedVolumeCount
-    ? capVolumeCount(constrained, expectedVolumeCount)
+    ? capVolumeCount(constrained, expectedVolumeCount, trusted)
     : constrained;
 
   // Debug: log per-volume results and their proposals
