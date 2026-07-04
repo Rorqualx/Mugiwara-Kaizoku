@@ -280,37 +280,6 @@ export function onFullscreenChange(callback: (isFullscreen: boolean) => void): (
     };
 }
 /**
- * Hide mobile browser UI (address bar, etc)
- */
-export function hideMobileBrowserUI(): void {
-    // Scroll to hide address bar
-    window.scrollTo(0, 1);
-    // Set viewport meta tag
-    let viewport = document.querySelector('meta[name="viewport"]');
-    if (!viewport) {
-        viewport = document.createElement('meta');
-        viewport.setAttribute('name', 'viewport');
-        document.head.appendChild(viewport);
-    }
-    viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
-    // iOS specific
-    const iosViewport = document.querySelector('meta[name="apple-mobile-web-app-capable"]');
-    if (!iosViewport) {
-        const meta = document.createElement('meta');
-        meta.setAttribute('name', 'apple-mobile-web-app-capable');
-        meta.setAttribute('content', 'yes');
-        document.head.appendChild(meta);
-    }
-    // Status bar style
-    const statusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-    if (!statusBar) {
-        const meta = document.createElement('meta');
-        meta.setAttribute('name', 'apple-mobile-web-app-status-bar-style');
-        meta.setAttribute('content', 'black-translucent');
-        document.head.appendChild(meta);
-    }
-}
-/**
  * Get safe area insets for notched devices
  */
 export function getSafeAreaInsets(): {
