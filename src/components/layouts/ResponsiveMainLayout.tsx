@@ -54,6 +54,9 @@ export interface ResponsiveMainLayoutProps {
 export function ResponsiveMainLayout({ children, className, onNavbarToggle, navbarCollapsed = false, contentStyle }: ResponsiveMainLayoutProps): React.ReactElement {
   const router = useRouter();
   const { isMobile, isTablet } = useBreakpoint();
+  // Tablets use the same phone-style navigation as mobile (drawer + bottom nav),
+  // so every layout dimension that reserves sidebar space treats them as compact.
+  const isCompact = isMobile || isTablet;
   const { closeNav } = useMobileState();
   // Route detection
   const isHomePage = router.pathname === '/' || router.pathname === '/index';
@@ -85,24 +88,13 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
   }, [router.events, isMobile, isTablet, closeNav]);
   // Responsive navbar configuration
   const navbarConfig = useMemo(() => {
-    if (isMobile) {
-      // Hide navbar on mobile - use bottom nav instead
+    if (isCompact) {
+      // Hide navbar on mobile + tablet - use drawer + bottom nav instead
       return {
         width: 0,
         breakpoint: 'sm' as const,
         collapsed: {
           desktop: true,
-          mobile: true
-        }
-      };
-    } else
-    if (isTablet) {
-      // Collapsible sidebar for tablets
-      return {
-        width: navbarCollapsed ? 0 : 210,
-        breakpoint: 'md' as const,
-        collapsed: {
-          desktop: navbarCollapsed,
           mobile: true
         }
       };
@@ -118,7 +110,7 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
         }
       };
     }
-  }, [isMobile, isTablet, navbarCollapsed]);
+  }, [isCompact, navbarCollapsed]);
   // Responsive shell styles
   const shellStyles = useMemo(() => ({
     root: {
@@ -126,14 +118,14 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
       padding: 0,
       margin: 0,
       overflowX: 'hidden' as const,
-      paddingBottom: isMobile ? 'calc(56px + env(safe-area-inset-bottom, 0))' : '0' // Space for bottom nav + safe area
+      paddingBottom: isCompact ? 'calc(56px + env(safe-area-inset-bottom, 0))' : '0' // Space for bottom nav + safe area
     },
     main: {
       backgroundColor: 'var(--app-background-color)',
       padding: 0,
-      paddingBottom: isMobile ? 'calc(56px + env(safe-area-inset-bottom, 0))' : '0',
+      paddingBottom: isCompact ? 'calc(56px + env(safe-area-inset-bottom, 0))' : '0',
       // Space for bottom nav + safe area
-      minHeight: isMobile ? 'calc(100vh - 56px - 56px - env(safe-area-inset-bottom, 0))' : 'calc(100vh - 56px)',
+      minHeight: isCompact ? 'calc(100vh - 56px - 56px - env(safe-area-inset-bottom, 0))' : 'calc(100vh - 56px)',
       ...(contentStyle ?? {})
     },
     navbar: {
@@ -144,7 +136,7 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
       top: '56px',
       height: 'calc(100vh - 56px)',
       padding: 0,
-      display: isMobile ? 'none' : 'block'
+      display: isCompact ? 'none' : 'block'
     },
     header: {
       backgroundColor: 'var(--app-card-background)',
@@ -156,26 +148,26 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
         padding: 0
       }
     }
-  }), [contentStyle, isMobile]);
+  }), [contentStyle, isCompact]);
   // Responsive action bar styles
   const actionBarStyles = useMemo(() => ({
     position: 'fixed',
     top: '56px',
-    left: isMobile ? '0' : navbarCollapsed ? '0' : '210px',
+    left: isCompact ? '0' : navbarCollapsed ? '0' : '210px',
     right: '0',
     zIndex: 100,
     transition: 'left 0.3s ease-in-out'
-  }) as const, [navbarCollapsed, isMobile]);
+  }) as const, [navbarCollapsed, isCompact]);
   // Responsive content area styles
   const contentAreaStyles = useMemo(() => {
     const hasActionBar = (isHomePage || isLibraryPage) && !isMangaPage;
-    const hasAlphabetJumpBar = isLibraryPage && !isMobile; // Only on library page, hide on mobile
+    const hasAlphabetJumpBar = isLibraryPage && !isCompact; // Only on library page, hide on mobile + tablet
     return {
       marginTop: hasActionBar ? '56px' : '0',
       // Account for action bar height
       paddingTop: hasActionBar ? '56px' : '0',
       // Add 56px padding when action bar is present
-      paddingLeft: isMobile ? '0px' : navbarCollapsed ? '0px' : '210px',
+      paddingLeft: isCompact ? '0px' : navbarCollapsed ? '0px' : '210px',
       paddingRight: hasAlphabetJumpBar ? '30px' : '0px',
       width: '100%',
       display: 'flex',
@@ -184,18 +176,18 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
       minHeight: 'calc(100vh - 56px)',
       transition: 'padding-left 0.3s ease-in-out, padding-right 0.3s ease-in-out'
     } as const;
-  }, [isHomePage, isLibraryPage, isMangaPage, navbarCollapsed, isMobile]);
+  }, [isHomePage, isLibraryPage, isMangaPage, navbarCollapsed, isCompact]);
   return <ErrorBoundary>
       <AppShell header={{
       height: 56
     }} navbar={navbarConfig} padding={0} withBorder styles={shellStyles} {...(className !== undefined && { className })}>
 
         <AppShell.Header>
-          <KaizokuHeaderContent searchSource="main" showMenuButton={isTablet} {...(onNavbarToggle !== undefined && { onMenuClick: onNavbarToggle })} />
+          <KaizokuHeaderContent searchSource="main" {...(onNavbarToggle !== undefined && { onMenuClick: onNavbarToggle })} />
 
         </AppShell.Header>
-        
-        {!isMobile && <AppShell.Navbar>
+
+        {!isCompact && <AppShell.Navbar>
             <KaizokuNavbar />
           </AppShell.Navbar>}
         
@@ -207,8 +199,8 @@ export function ResponsiveMainLayout({ children, className, onNavbarToggle, navb
               <LibraryActionBar libraryId={toNumberId(router.query["id"])} libraryName={String(router.query["name"] ?? '')} />
             </Box>}
           
-          {/* Alphabet jump bar - only on library page, hide on mobile */}
-          {!isSettingsPage && !isMobile && isLibraryPage && !isMangaPage && <AlphabetJumpBar topOffset={112} includeNumeric={true} />}
+          {/* Alphabet jump bar - only on library page, hide on mobile + tablet */}
+          {!isSettingsPage && !isCompact && isLibraryPage && !isMangaPage && <AlphabetJumpBar topOffset={112} includeNumeric={true} />}
           
           <Box style={contentAreaStyles}>
             <Box style={{

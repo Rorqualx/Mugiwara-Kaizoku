@@ -90,37 +90,36 @@ export function ResponsiveNavigation({
     setDrawerOpened(false);
   }, []);
 
+  // Tablets get the same phone-style navigation as mobile (drawer + bottom nav).
+  const showMobileNav = isMobile || isTablet;
+
   // Don't render mobile navigation on desktop
-  if (!isMobile && !isTablet) {
+  if (!showMobileNav) {
     return null;
   }
 
+  // Both mobile and tablet render the same nav; the early return above already
+  // excludes desktop, so no per-element guard is needed here.
   return (
     <>
-      {/* Mobile Navigation Drawer */}
-      {isMobile && (
-        <MobileNavigationDrawer
-          opened={drawerOpened}
-          onClose={handleCloseDrawer}
-          activityCounts={{
-            active: finalActivityCounts.active,
-            failed: finalActivityCounts.failed,
-          }}
-        />
-      )}
+      {/* Navigation Drawer (mobile + tablet) */}
+      <MobileNavigationDrawer
+        opened={drawerOpened}
+        onClose={handleCloseDrawer}
+        activityCounts={{
+          active: finalActivityCounts.active,
+          failed: finalActivityCounts.failed,
+        }}
+      />
 
-      {/* Mobile Bottom Navigation */}
-      {isMobile && (
-        <MobileBottomNavigation
-          onMenuClick={handleOpenDrawer}
-          activityCounts={{
-            active: finalActivityCounts.active,
-            failed: finalActivityCounts.failed
-          }}
-        />
-      )}
-
-      {/* Tablet: handled by ResponsiveMainLayout's collapsible AppShell.Navbar */}
+      {/* Bottom Navigation (mobile + tablet) */}
+      <MobileBottomNavigation
+        onMenuClick={handleOpenDrawer}
+        activityCounts={{
+          active: finalActivityCounts.active,
+          failed: finalActivityCounts.failed
+        }}
+      />
     </>);
 
 }
