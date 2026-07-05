@@ -237,6 +237,15 @@ export default function HomePage(): React.ReactElement {
   // Fetch trending for banner
   const trending = trpc.home.getTrending.useQuery({ limit: 20 }, criticalQueryConfig);
 
+  // AniList reachability - drives the outage banner over the discover hero.
+  // Re-checks periodically so the banner clears on its own once AniList is back.
+  const anilistStatus = trpc.home.getAnilistStatus.useQuery(undefined, {
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const anilistMessage =
+    anilistStatus.data && !anilistStatus.data.available ? anilistStatus.data.message : null;
+
   return (
     <ResponsiveMainLayout>
       <Box
@@ -251,6 +260,7 @@ export default function HomePage(): React.ReactElement {
           manga={transformMangaData(trending.data, seenMangaIds.current, deduplicateManga)}
           loading={trending.isLoading}
           onMangaClick={openModal}
+          statusMessage={anilistMessage}
         />
 
         {/* Main Content Sections */}

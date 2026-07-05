@@ -1,0 +1,12 @@
+-- Make the unified cache durable.
+--
+-- cache_unified was created UNLOGGED (20250925_redis_like_optimization) for
+-- write throughput, but UNLOGGED tables are truncated on crash recovery. That
+-- meant cached AniList discovery titles (trending/popular/genre) could be wiped
+-- by an unclean container restart. Persistence of this data matters more than
+-- raw write speed here, so promote the table to LOGGED (crash-durable / WAL).
+--
+-- SET LOGGED rewrites the table and briefly takes an ACCESS EXCLUSIVE lock;
+-- cache_unified is small, so this is fast. Re-running on an already-LOGGED
+-- table is a no-op, so this is safe to apply repeatedly.
+ALTER TABLE cache_unified SET LOGGED;

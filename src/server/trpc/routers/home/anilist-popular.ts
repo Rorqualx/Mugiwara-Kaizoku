@@ -19,6 +19,7 @@ import { z } from 'zod';
 import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { getRequestUserId } from '@/server/context/request-user-context';
+import { getAnilistHealth, type AnilistHealth } from '@/server/services/anilist/health';
 import * as anilistQueries from '@/server/services/anilist/queries';
 import {
   validatedAnilistClient,
@@ -33,6 +34,7 @@ import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
+import { serveStaleAniList } from './anilist-stale';
 // Import from foundation utils
 import {
   transformAniListMedia,
@@ -106,12 +108,14 @@ export const homeAnilistPopularRouter = router({
         .optional()
     )
     .query(async ({ input }): Promise<TransformedAniListMedia[]> => {
+      const namespace = 'anilist-popular';
+      let cacheKey = '';
       try {
         const limit = input?.limit ?? 20;
         const includeAdult = await getIncludeAdultSetting();
         const formatConfig = await getFormatFilterSettings();
         // Cache key includes adult filter state and format filter state
-        const cacheKey = `popular:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
+        cacheKey = `popular:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
 
         logger.info(`Fetching ${limit} popular manga from AniList (includeAdult: ${includeAdult}, filterWebtoons: ${formatConfig.filterWebtoons}, filterManhwa: ${formatConfig.filterKoreanManhwa})`);
 
@@ -147,7 +151,7 @@ export const homeAnilistPopularRouter = router({
 
         if (!response.data?.Page?.media) {
           logger.warn('No popular manga found from AniList');
-          return [];
+          return await serveStaleAniList(cacheKey, namespace);
         }
 
         // 4. Apply format filtering (experimental) before transformation
@@ -172,8 +176,8 @@ export const homeAnilistPopularRouter = router({
         return popularManga;
       } catch (_error) {
         logger.error('Error in getPopular:', _error);
-        // Return empty array instead of throwing to gracefully handle AniList failures
-        return [];
+        // Serve stale cache if available so Popular survives AniList outages
+        return serveStaleAniList(cacheKey, namespace);
       }
     }),
 
@@ -194,12 +198,14 @@ export const homeAnilistPopularRouter = router({
         .optional()
     )
     .query(async ({ input }): Promise<TransformedAniListMedia[]> => {
+      const namespace = 'anilist-top100';
+      let cacheKey = '';
       try {
         const limit = input?.limit ?? 100;
         const includeAdult = await getIncludeAdultSetting();
         const formatConfig = await getFormatFilterSettings();
         // Cache key includes adult filter state and format filter state
-        const cacheKey = `top100:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
+        cacheKey = `top100:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
 
         logger.info(`Fetching top ${limit} popular manga from AniList (includeAdult: ${includeAdult}, filterWebtoons: ${formatConfig.filterWebtoons}, filterManhwa: ${formatConfig.filterKoreanManhwa})`);
 
@@ -235,7 +241,7 @@ export const homeAnilistPopularRouter = router({
 
         if (!response.data?.Page?.media) {
           logger.warn('No top 100 manga found from AniList');
-          return [];
+          return await serveStaleAniList(cacheKey, namespace);
         }
 
         // 4. Apply format filtering (experimental) before transformation
@@ -260,8 +266,8 @@ export const homeAnilistPopularRouter = router({
         return top100Manga;
       } catch (_error) {
         logger.error('Error in getTop100:', _error);
-        // Return empty array instead of throwing to gracefully handle AniList failures
-        return [];
+        // Serve stale cache if available so Top 100 survives AniList outages
+        return serveStaleAniList(cacheKey, namespace);
       }
     }),
 
@@ -282,12 +288,14 @@ export const homeAnilistPopularRouter = router({
         .optional()
     )
     .query(async ({ input }): Promise<TransformedAniListMedia[]> => {
+      const namespace = 'anilist-trending';
+      let cacheKey = '';
       try {
         const limit = input?.limit ?? 20;
         const includeAdult = await getIncludeAdultSetting();
         const formatConfig = await getFormatFilterSettings();
         // Cache key includes adult filter state and format filter state
-        const cacheKey = `trending:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
+        cacheKey = `trending:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
 
         logger.info(`Fetching ${limit} trending manga from AniList (includeAdult: ${includeAdult}, filterWebtoons: ${formatConfig.filterWebtoons}, filterManhwa: ${formatConfig.filterKoreanManhwa})`);
 
@@ -324,7 +332,7 @@ export const homeAnilistPopularRouter = router({
 
         if (!response.data?.Page?.media) {
           logger.warn('No trending manga found from AniList');
-          return [];
+          return await serveStaleAniList(cacheKey, namespace);
         }
 
         // 4. Apply format filtering (experimental) before transformation
@@ -349,8 +357,20 @@ export const homeAnilistPopularRouter = router({
         return trendingManga;
       } catch (_error) {
         logger.error('Error in getTrending:', _error);
-        // Return empty array instead of throwing to gracefully handle AniList failures
-        return [];
+        // Serve stale cache if available so the hero banner survives AniList outages
+        return serveStaleAniList(cacheKey, namespace);
       }
     }),
+
+  /**
+   * Get AniList health status
+   * Reports whether the AniList API is currently reachable, and its error
+   * message when it isn't. Powers the home-page outage banner. Result is
+   * cached (60s) so it self-clears once AniList recovers.
+   *
+   * @returns { available, message }
+   */
+  getAnilistStatus: publicProcedure.query(async (): Promise<AnilistHealth> => {
+    return getAnilistHealth();
+  }),
 });

@@ -34,6 +34,7 @@ import { publicProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
+import { serveStaleAniList } from './anilist-stale';
 // Import from foundation utils
 import {
   transformAniListMedia,
@@ -252,12 +253,14 @@ export const homeAnilistFilteredRouter = router({
       })
     )
     .query(async ({ input }): Promise<TransformedAniListMedia[]> => {
+      const namespace = 'anilist-genre';
+      let cacheKey = '';
       try {
         const { genre, limit } = input;
         const includeAdult = await getIncludeAdultSetting();
         const formatConfig = await getFormatFilterSettings();
         // Cache key includes adult filter state and format filter state
-        const cacheKey = `genre:${genre}:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
+        cacheKey = `genre:${genre}:${limit}:adult:${includeAdult}:webtoon:${formatConfig.filterWebtoons}:manhwa:${formatConfig.filterKoreanManhwa}`;
 
         logger.info(`[AniList Genre Query] Starting query for genre: ${genre}, limit: ${limit}, includeAdult: ${includeAdult}, filterWebtoons: ${formatConfig.filterWebtoons}, filterManhwa: ${formatConfig.filterKoreanManhwa}`);
 
@@ -307,7 +310,7 @@ export const homeAnilistFilteredRouter = router({
           logger.warn(`[AniList Genre Query] No manga found for genre: ${genre} from AniList`, {
             response: JSON.stringify(response),
           });
-          return [];
+          return await serveStaleAniList(cacheKey, namespace);
         }
 
         // 4. Apply format filtering (experimental) before transformation
@@ -333,8 +336,8 @@ export const homeAnilistFilteredRouter = router({
           genre: input.genre,
           limit: input.limit,
         });
-        // Return empty array instead of throwing to gracefully handle AniList failures
-        return [];
+        // Serve stale cache if available so genre rows survive AniList outages
+        return serveStaleAniList(cacheKey, namespace);
       }
     }),
 

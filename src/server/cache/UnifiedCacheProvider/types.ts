@@ -25,6 +25,12 @@ export interface CacheOptions {
 export interface CacheGetOptions {
   /** Skip the UPDATE query that tracks access count/frequency. Use for bulk reads. */
   skipAccessTracking?: boolean;
+  /**
+   * Return the entry even if it has expired (stale-while-error). Use as a
+   * fallback when the live upstream is unavailable so last-known-good data can
+   * still be served instead of nothing.
+   */
+  allowStale?: boolean;
 }
 
 export interface CacheEntry {

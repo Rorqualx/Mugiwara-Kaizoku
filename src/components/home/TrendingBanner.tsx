@@ -42,6 +42,40 @@ export interface TrendingBannerProps {
   autoPlayInterval?: number;
   /** Click handler for banner - receives AniList ID */
   onMangaClick?: (anilistId: number) => void;
+  /**
+   * AniList outage message. When set, a red/white banner is shown across the top
+   * of the discover hero (the manga underneath are last-known-good/stale).
+   */
+  statusMessage?: string | null;
+}
+
+/**
+ * Red/white outage strip pinned across the top of the discover hero. Shown
+ * while AniList is unavailable; the discovery data underneath is served stale.
+ */
+function AnilistStatusBar({ message }: { message: string }): React.JSX.Element {
+  return (
+    <Box
+      role="status"
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 5,
+        backgroundColor: '#c62828',
+        color: '#ffffff',
+        padding: '6px 16px',
+        textAlign: 'center',
+        fontSize: '0.8rem',
+        fontWeight: 600,
+        lineHeight: 1.3,
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.45)',
+      }}
+    >
+      {message}
+    </Box>
+  );
 }
 
 /**
@@ -82,6 +116,7 @@ export function TrendingBanner({
   loading = false,
   autoPlayInterval = 3000,
   onMangaClick,
+  statusMessage,
 }: TrendingBannerProps): React.JSX.Element {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -190,6 +225,7 @@ export function TrendingBanner({
     return (
       <Box
         style={{
+          position: 'relative',
           width: '100%',
           height: '300px',
           padding: '60px 20px 40px',
@@ -199,6 +235,7 @@ export function TrendingBanner({
           justifyContent: 'center',
         }}
       >
+        {statusMessage && <AnilistStatusBar message={statusMessage} />}
         <Text size="xl" fw={700} c="white">
           Discover Manga
         </Text>
@@ -234,6 +271,9 @@ export function TrendingBanner({
           }
         }}
       >
+      {/* AniList outage strip (data below is last-known-good) */}
+      {statusMessage && <AnilistStatusBar message={statusMessage} />}
+
       {/* Background Image with Animation */}
       <AnimatePresence mode="wait">
         <motion.div

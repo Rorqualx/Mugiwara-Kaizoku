@@ -159,13 +159,22 @@ export class UnifiedCacheProvider {
   }
 
   private async _performGet<T>(key: string, namespace: string, options?: CacheGetOptions): Promise<T | null> {
-    const result = await this.db.$queryRaw<Array<{ cache_value: unknown; expires_at: Date | null; access_count: number }>>`
-      SELECT cache_value, expires_at, access_count
-      FROM cache_unified
-      WHERE cache_key = ${key}
-        AND namespace = ${namespace}
-        AND (expires_at IS NULL OR expires_at > NOW())
-    `;
+    // allowStale drops the freshness filter so callers can serve last-known-good
+    // data when the live upstream is down (stale-while-error).
+    const result = options?.allowStale
+      ? await this.db.$queryRaw<Array<{ cache_value: unknown; expires_at: Date | null; access_count: number }>>`
+          SELECT cache_value, expires_at, access_count
+          FROM cache_unified
+          WHERE cache_key = ${key}
+            AND namespace = ${namespace}
+        `
+      : await this.db.$queryRaw<Array<{ cache_value: unknown; expires_at: Date | null; access_count: number }>>`
+          SELECT cache_value, expires_at, access_count
+          FROM cache_unified
+          WHERE cache_key = ${key}
+            AND namespace = ${namespace}
+            AND (expires_at IS NULL OR expires_at > NOW())
+        `;
 
     if (result.length === 0) {
       this.stats.misses++;
