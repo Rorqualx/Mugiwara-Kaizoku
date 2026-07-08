@@ -6,15 +6,20 @@
  * this manga, how trustworthy is its claim on field F?" — distinct from
  * binding accuracy (which the matcher already encodes).
  *
- * Per the Phase 1.5 deep-dive (D3): hand-tuned initial values, seeded from
- * `bind-loop/parity-*.ts` accuracy data and per-provider domain knowledge.
- * Selector-loop iters refine these.
+ * Base weights are hand-seeded; the per-field OVERRIDES for volumes/chapters/
+ * status are now EMPIRICALLY DERIVED from the metadata-accuracy harness
+ * (`scripts/surveys/metadata-accuracy/`), which fetches each provider directly
+ * and scores field-value accuracy against curated + consensus ground truth.
+ * Re-derive with that harness after collecting more titles; gate weight changes
+ * through `metadata-accuracy/gate.ts` (runs this table through the real selector).
  *
  * Final weight is the per-field override × base weight, capped at 1.0.
  * Fall-through: when a (field, provider) pair has no override, the base
  * weight applies directly.
  *
- * NOT consumed yet — wired up in commit #9 of the deep-dive plan.
+ * LIVE: consumed on every enrichment via select-*.ts → resolveWeight
+ * (phase-provider-fetch.ts applySelectorCutoverInPlace). (An older comment here
+ * said "NOT consumed yet" — that was stale; the cutover went live 2026-05-30.)
  */
 
 import type { MetadataField, SourceName } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
@@ -34,7 +39,11 @@ import type { MetadataField, SourceName } from '@/server/trpc/routers/manga/meta
  * - fandom 0.87 — bind-loop ~87.3%; great on chapter titles, weak on
  *   Metadata-row fields.
  * - comicvine 0.70 — narrow surface, threshold-bound matches inconsistent.
- * - kitsu 0.56 — bind-loop ~56% (known to be the weakest binder).
+ * - kitsu 0.56 — from bind-loop binding accuracy. NOTE: this conflates BINDING
+ *   reliability with FIELD-VALUE reliability; the harness shows Kitsu's field
+ *   values are actually strong (e.g. best-in-class for status/startDate). The
+ *   per-field overrides above should govern where measured — this base only
+ *   applies to unmeasured fields.
  */
 export const PROVIDER_BASE_WEIGHT: Record<SourceName, number> = {
   anilist:      0.95,
@@ -71,6 +80,12 @@ export const PROVIDER_BASE_WEIGHT: Record<SourceName, number> = {
  *   it's not the same field.
  */
 export const FIELD_AUTHORITY_OVERRIDES: Partial<Record<MetadataField, Partial<Record<SourceName, number>>>> = {
+  // volumes/chapters LEFT AT BASELINE. The metadata-accuracy harness found MAL
+  // most accurate here, but the numeric selector's value-clustering already
+  // resolves these near-optimally (gate: 99%/97%), and reweighting — including
+  // flooring MangaUpdates — REGRESSED chapters (a low-accuracy source still
+  // casts a helpful confirming vote when it agrees with the true cluster).
+  // Weight tuning only pays off for genuinely-contested categorical fields.
   chapters: {
     anilist:      0.95,
     mal:          0.92,
@@ -84,6 +99,17 @@ export const FIELD_AUTHORITY_OVERRIDES: Partial<Record<MetadataField, Partial<Re
     mangadex:     0.88,
     mangaupdates: 0.90,
     kitsu:        0.50,
+  },
+  // Empirically derived (metadata-accuracy harness). Candidates: anilist,
+  // mangadex, mal, mangaupdates. MangaDex's ongoing/completed flag is often
+  // stale (23% correct when contested) yet its base weight (0.96) made it the
+  // top status authority, flipping close votes wrong — floored here. MAL is the
+  // measured best (85%). Gate: contested status 76.9% → 84.6%, no regression.
+  status: {
+    mal:          0.95,
+    anilist:      0.82,
+    mangaupdates: 0.60,
+    mangadex:     0.40,
   },
   rating: {
     anilist:      0.95,
