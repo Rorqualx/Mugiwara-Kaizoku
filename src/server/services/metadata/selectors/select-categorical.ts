@@ -25,7 +25,7 @@ import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperatio
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
 
-import type { Candidate, SelectorAlternative, SelectorContext, SelectorResult } from './types';
+import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
 const FIELD_TYPE: FieldType = 'categorical';
 
@@ -41,7 +41,7 @@ interface ValueGroup {
   totalWeight: number;
 }
 
-export function selectCategorical(ctx: SelectorContext): SelectorResult {
+export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
   const parsed = parseAndNormalize(ctx);
   if (parsed.length === 0) {
     return {

@@ -27,7 +27,7 @@ import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperatio
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
 
-import type { Candidate, SelectorAlternative, SelectorContext, SelectorResult } from './types';
+import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
 const FIELD_TYPE: FieldType = 'string';
 
@@ -54,7 +54,7 @@ interface ParsedCandidate {
   score: number;
 }
 
-export function selectString(ctx: SelectorContext): SelectorResult {
+export function selectString(ctx: SelectorContext): RawSelectorResult {
   const parsed = parseAndScore(ctx);
   if (parsed.length === 0) {
     return {

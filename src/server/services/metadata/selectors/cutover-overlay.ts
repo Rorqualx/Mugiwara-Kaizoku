@@ -18,6 +18,8 @@
 
 import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
+import { OBJECTIVE_REVIEW_FIELDS, type FieldReviewMap } from '../field-review';
+
 import type { ShadowSelection } from './shadow-mode';
 
 export interface CutoverResult {
@@ -29,6 +31,8 @@ export interface CutoverResult {
   refusedFields: MetadataField[];
   /** Per-field dissenters for Metadata.fieldAlternatives write. */
   fieldAlternatives: Record<string, Array<{ provider: string; value: unknown; confidence: number }>>;
+  /** Objective fields committed at low confidence / abstained → review badge. */
+  fieldReview: FieldReviewMap;
 }
 
 /**
@@ -54,15 +58,26 @@ export function applySelectorCutover(
     fieldsSkipped: 0,
     refusedFields: [...shadow.refusedFields],
     fieldAlternatives: {},
+    fieldReview: {},
   };
 
   for (const [field, outcome] of shadow.outcomes) {
+    const objective = OBJECTIVE_REVIEW_FIELDS.has(field);
+
     if (outcome.guardRefused) {
       result.fieldsSkipped++;
       continue;
     }
     if (outcome.winnerProvider === null) {
       result.fieldsSkipped++;
+      // Abstain on an objective field with dissent → flag for review and
+      // capture the alternatives (this branch otherwise records nothing).
+      if (objective && outcome.alternatives.length > 0) {
+        result.fieldReview[field] = { state: 'abstained' };
+        result.fieldAlternatives[field] = outcome.alternatives.map(a => ({
+          provider: a.provider, value: a.value, confidence: a.confidence,
+        }));
+      }
       continue;
     }
     // Overlay: replace legacy pick with selector's winner.
@@ -71,6 +86,11 @@ export function applySelectorCutover(
     // eslint-disable-next-line no-param-reassign -- documented in-place overlay
     legacyProvenance[field] = outcome.winnerProvider;
     result.fieldsOverlaid++;
+
+    // Objective field committed at low confidence → flag for review.
+    if (objective && outcome.confidenceClass === 'persist-with-badge') {
+      result.fieldReview[field] = { state: 'low-confidence', confidence: outcome.confidence };
+    }
 
     // Capture dissenters for the fieldAlternatives column.
     if (outcome.alternatives.length > 0) {

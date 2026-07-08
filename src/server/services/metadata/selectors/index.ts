@@ -20,9 +20,8 @@ import { selectList } from './select-list';
 import { selectNumeric } from './select-numeric';
 import { selectString } from './select-string';
 import { selectStructured } from './select-structured';
+import { classifyConfidence, type FieldType } from './thresholds';
 import { getFieldType, type SelectorContext, type SelectorFn, type SelectorResult } from './types';
-
-import type { FieldType } from './thresholds';
 
 export const SELECTORS: Record<FieldType, SelectorFn> = {
   numeric:     selectNumeric,
@@ -38,7 +37,10 @@ export const SELECTORS: Record<FieldType, SelectorFn> = {
  */
 export function selectField(ctx: SelectorContext): SelectorResult {
   const fn = SELECTORS[ctx.fieldType];
-  return fn(ctx);
+  const raw = fn(ctx);
+  // Derive the persistence class in exactly one place, from the winner's
+  // confidence + field-type (drives the review badge for objective fields).
+  return { ...raw, confidenceClass: classifyConfidence(raw.confidence, ctx.fieldType) };
 }
 
 // Re-exports — single import surface for consumers in commits #9 onwards.

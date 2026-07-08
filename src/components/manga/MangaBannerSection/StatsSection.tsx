@@ -11,9 +11,10 @@
 
 import React from 'react';
 
-import { Box, Group, Text, Badge } from '@mantine/core';
+import { Box, Group, Text, Badge, Tooltip } from '@mantine/core';
 import { MangaPublicationStatus } from '@prisma/client';
 import {
+  IconAlertTriangle,
   IconBooks,
   IconCalendar,
   IconTrophy
@@ -28,6 +29,17 @@ import { MultiSourceRating } from './MultiSourceRating';
 import { SeriesPathEditor } from './SeriesPathEditor';
 
 import type { MangaMetadata, MangaWithRelations } from './types';
+
+/** Field-review marker written to providerMetadata.fieldReview by the selector cutover. */
+interface FieldReviewEntry { state: 'low-confidence' | 'abstained'; confidence?: number }
+
+/** Safely read the fieldReview map off providerMetadata (JSON). */
+function readFieldReview(pm: unknown): Record<string, FieldReviewEntry> {
+  if (typeof pm !== 'object' || pm === null || Array.isArray(pm)) return {};
+  const fr = (pm as Record<string, unknown>)['fieldReview'];
+  if (typeof fr !== 'object' || fr === null || Array.isArray(fr)) return {};
+  return fr as Record<string, FieldReviewEntry>;
+}
 
 /**
  * Props for StatsSection component
@@ -127,6 +139,21 @@ export function StatsSection({
 }: StatsSectionProps): React.ReactElement {
   const volumeCount = getVolumeCount(manga);
   const chapterCount = getChapterCount(manga);
+  const fieldReview = readFieldReview(manga.providerMetadata);
+  const reviewBadge = (field: 'volumes' | 'chapters'): React.ReactElement | null => {
+    const entry = fieldReview[field];
+    if (!entry) return null;
+    const why = entry.state === 'abstained'
+      ? 'unresolved — sources disagreed and none was confident'
+      : 'low confidence — sources disagreed on this count';
+    return (
+      <Tooltip label={`This count is flagged for review (${why}). Reidentify or verify.`} withArrow multiline w={240}>
+        <Badge color="orange" size="sm" variant="light" leftSection={<IconAlertTriangle size={12} />}>
+          Review
+        </Badge>
+      </Tooltip>
+    );
+  };
 
   // Count locally available volumes from actual chapters
   const localVolumeCount = countVolumes(manga.Chapter);
@@ -171,15 +198,21 @@ export function StatsSection({
           {/* Volume / Chapter Count Badges — actual counts from the DB,
               same source of truth as the inline header counter above. */}
           {volumeCount > 0 && (
-            <Badge color="indigo" size="lg" variant="light">
-              {volumeCount} Volumes
-            </Badge>
+            <Group gap={4}>
+              <Badge color="indigo" size="lg" variant="light">
+                {volumeCount} Volumes
+              </Badge>
+              {reviewBadge('volumes')}
+            </Group>
           )}
 
           {chapterCount > 0 && (
-            <Badge color="cyan" size="lg" variant="light">
-              {chapterCount} Chapters
-            </Badge>
+            <Group gap={4}>
+              <Badge color="cyan" size="lg" variant="light">
+                {chapterCount} Chapters
+              </Badge>
+              {reviewBadge('chapters')}
+            </Group>
           )}
 
           {/* Status Badge - Use metadata status if available */}

@@ -28,7 +28,7 @@ import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperatio
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
 
-import type { Candidate, SelectorAlternative, SelectorContext, SelectorResult } from './types';
+import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
 const FIELD_TYPE: FieldType = 'list';
 
@@ -84,7 +84,7 @@ interface RankedItem {
   contributors: Contributor[];
 }
 
-export function selectList(ctx: SelectorContext): SelectorResult {
+export function selectList(ctx: SelectorContext): RawSelectorResult {
   const itemMap = collectItems(ctx);
   if (itemMap.size === 0) {
     return {

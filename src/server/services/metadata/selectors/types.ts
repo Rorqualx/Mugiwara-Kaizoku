@@ -13,7 +13,7 @@
 
 import type { MetadataField, SourceName } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
-import type { FieldType } from './thresholds';
+import type { ConfidenceClass, FieldType } from './thresholds';
 
 /**
  * A single provider's claim on a single field for a single manga.
@@ -73,13 +73,22 @@ export interface SelectorAlternative {
 export interface SelectorResult {
   winner: Candidate | null;
   confidence: number;
+  /** Three-way persistence class from `classifyConfidence` — drives the review badge. */
+  confidenceClass: ConfidenceClass;
   alternatives: SelectorAlternative[];
   guardRefused: boolean;
   /** Debugging only — not persisted. */
   reason: string;
 }
 
-export type SelectorFn = (ctx: SelectorContext) => SelectorResult;
+/**
+ * What each per-type selector returns internally. `selectField` derives
+ * `confidenceClass` from `confidence` + field-type and returns the full
+ * `SelectorResult`, so the class is computed in exactly one place.
+ */
+export type RawSelectorResult = Omit<SelectorResult, 'confidenceClass'>;
+
+export type SelectorFn = (ctx: SelectorContext) => RawSelectorResult;
 
 // ============================================================================
 // Field → FieldType registry

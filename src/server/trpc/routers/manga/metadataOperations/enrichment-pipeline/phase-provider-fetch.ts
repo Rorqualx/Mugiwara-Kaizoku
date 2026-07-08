@@ -33,6 +33,7 @@ import { comicvineService } from '@/server/services/comicvine/service';
 import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
 import type { MangaDexManga } from '@/server/services/mangadex/types';
 import { validateBindingFreshness } from '@/server/services/metadata/binding-validators/freshness-check';
+import { writeFieldReview } from '@/server/services/metadata/field-review';
 import { aniListClaimFields, collectCandidates, type ProviderClaim } from '@/server/services/metadata/selectors/collect-candidates';
 import { applySelectorCutover } from '@/server/services/metadata/selectors/cutover-overlay';
 import { persistSelectionAttempt } from '@/server/services/metadata/selectors/persist-attempt';
@@ -1223,6 +1224,10 @@ function applySelectorCutoverInPlace(inputs: ShadowInputs): void {
     const deltas = computeShadowDeltas(shadow, snapshotMetadata, snapshotProvenance);
 
     const cutover = applySelectorCutover(shadow, legacyMetadata, legacyProvenance);
+
+    // Field-review markers (objective fields committed at low confidence or
+    // abstained) → providerMetadata.fieldReview. Fire-and-forget.
+    void writeFieldReview(inputs.mangaId, cutover.fieldReview);
 
     // Stash fieldAlternatives on the result so the persister can write
     // Metadata.fieldAlternatives. Lives on appliedMatch so it flows through

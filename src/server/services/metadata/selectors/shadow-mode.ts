@@ -10,6 +10,7 @@
 
 import type { MetadataField, SourceName } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
+import { type ConfidenceClass } from './thresholds';
 import { getFieldType, type Candidate, type SelectorContext } from './types';
 
 import { selectField } from './index';
@@ -18,6 +19,8 @@ export interface ShadowFieldOutcome {
   winnerProvider: SourceName | null;
   winnerValue: unknown;
   confidence: number;
+  /** Persistence class — 'persist-with-badge' flags a low-confidence commit. */
+  confidenceClass: ConfidenceClass;
   alternatives: Array<{ provider: SourceName; value: unknown; confidence: number }>;
   guardRefused: boolean;
   reason: string;
@@ -49,6 +52,7 @@ export function runShadowSelection(byField: Map<MetadataField, Candidate[]>): Sh
       winnerProvider: result.winner?.provider ?? null,
       winnerValue: result.winner?.value ?? null,
       confidence: result.confidence,
+      confidenceClass: result.confidenceClass,
       alternatives: result.alternatives,
       guardRefused: result.guardRefused,
       reason: result.reason,

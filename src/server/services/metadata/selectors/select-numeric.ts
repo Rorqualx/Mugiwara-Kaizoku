@@ -23,7 +23,7 @@
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
 
-import type { Candidate, SelectorAlternative, SelectorContext, SelectorResult } from './types';
+import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
 const FIELD_TYPE: FieldType = 'numeric';
 
@@ -62,7 +62,7 @@ interface Cluster {
   totalWeight: number;
 }
 
-export function selectNumeric(ctx: SelectorContext): SelectorResult {
+export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
   const parsed = parseAndScore(ctx);
   if (parsed.length === 0) {
     return {

@@ -24,11 +24,11 @@ import { parseRatingJson, type RatingJson } from '@/types/domain/rating-types';
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
 
-import type { Candidate, SelectorAlternative, SelectorContext, SelectorResult } from './types';
+import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
 const FIELD_TYPE: FieldType = 'structured';
 
-export function selectStructured(ctx: SelectorContext): SelectorResult {
+export function selectStructured(ctx: SelectorContext): RawSelectorResult {
   if (ctx.field === 'startDate') return selectDate(ctx, 'earliest');
   if (ctx.field === 'endDate') return selectDate(ctx, 'latest');
   if (ctx.field === 'rating') return selectRating(ctx);
@@ -47,7 +47,7 @@ interface DatedCandidate {
   weight: number;
 }
 
-function selectDate(ctx: SelectorContext, mode: 'earliest' | 'latest'): SelectorResult {
+function selectDate(ctx: SelectorContext, mode: 'earliest' | 'latest'): RawSelectorResult {
   const dated = parseDates(ctx);
   if (dated.length === 0) return emptyResult('no candidates parsed as dates');
 
@@ -116,7 +116,7 @@ interface RatingCandidate {
   weight: number;
 }
 
-function selectRating(ctx: SelectorContext): SelectorResult {
+function selectRating(ctx: SelectorContext): RawSelectorResult {
   const ratings = parseRatings(ctx);
   if (ratings.length === 0) return emptyResult('no candidates parsed as RatingJson');
 
@@ -176,7 +176,7 @@ interface LinkRecord {
   url: string;
 }
 
-function selectExternalLinks(ctx: SelectorContext): SelectorResult {
+function selectExternalLinks(ctx: SelectorContext): RawSelectorResult {
   const links = collectLinks(ctx);
   if (links.size === 0) return emptyResult('no externalLinks candidates emitted entries');
 
@@ -223,7 +223,7 @@ function coerceLink(raw: unknown): LinkRecord | null {
 // galleryImages — URL union with dedup
 // ============================================================================
 
-function selectGallery(ctx: SelectorContext): SelectorResult {
+function selectGallery(ctx: SelectorContext): RawSelectorResult {
   const urls = new Map<string, string>();
   for (const c of ctx.candidates) {
     if (!Array.isArray(c.value)) continue;
@@ -286,7 +286,7 @@ function pickPrimaryContributor(ctx: SelectorContext): Candidate['provider'] {
   return best;
 }
 
-function emptyResult(reason: string, alternatives: SelectorAlternative[] = []): SelectorResult {
+function emptyResult(reason: string, alternatives: SelectorAlternative[] = []): RawSelectorResult {
   return { winner: null, confidence: 0, alternatives, guardRefused: false, reason };
 }
 
