@@ -42,7 +42,7 @@ import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssi
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
-import { maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
+import { maybePlausibilityCheck, maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
 import { isBonusTitle } from './types';
 
 import type { ValidatedVolumeRange } from './phase-volume-cross-validation';
@@ -785,15 +785,11 @@ export async function runEnrichmentPipeline(
       }
     }
 
-    // Post-enrichment hook chain.
-    // 1. If Suwayomi plugin is enabled and matched, sync chapters so source-only
-    //    rows materialize before the dispatcher reads `monitored && missing`.
-    // 2. Trigger auto-download. Replaces the old setTimeout(2000) hook in
-    //    add-manga-events.ts which raced enrichment and read zero Chapter rows.
-    //    Task #25 will swap autoDownloadScheduler.triggerManga for
-    //    unifiedReleaseSearch.run(mangaId).
+    // Post-enrichment hooks: Suwayomi chapter sync, auto-download trigger, and
+    // binding-plausibility flag (see post-enrichment-hooks.ts for rationale).
     await maybeSyncSuwayomiChapters(mangaId);
     await maybeTriggerAutoDownload(mangaId);
+    await maybePlausibilityCheck(mangaId, result);
 
     return { result: result.enrichmentResult, manga, ...(completeness ? { completeness } : {}) };
   });

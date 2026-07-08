@@ -73,6 +73,9 @@ function partitionProviders(pm: Record<string, unknown>): {
     delete newPm[provider];
     cleared.push(provider);
   }
+  // Clear any binding-review flag on reidentify; the next enrichment re-sets it
+  // only if the rebind still yields an implausibly-low count.
+  delete newPm['bindingReview'];
   return { newPm, cleared, preserved };
 }
 
