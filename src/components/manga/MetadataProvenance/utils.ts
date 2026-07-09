@@ -4,44 +4,40 @@
  * @module components/manga/MetadataProvenance/utils
  */
 
+import { ALL_PROVIDERS, PROVIDER_REGISTRY, providerColor, providerLabel } from '@/lib/metadata/provider-registry';
 import type { MetadataProvenance as MetadataProvenanceType } from '@/types/search.types';
 
 import type { ParsedProviders, ProviderData } from './types';
 
 /**
- * Provider color mapping
+ * Provider color mapping — sourced from the provider registry so all 8
+ * providers are covered (this map previously only knew anilist/fandom/comicvine
+ * and rendered the other five as raw lowercase strings).
  */
 export const PROVIDER_COLORS: Record<string, string> = {
-  anilist: 'blue',
-  fandom: 'green',
-  comicvine: 'red',
-  default: 'gray'
+  ...Object.fromEntries(ALL_PROVIDERS.map((p) => [p, PROVIDER_REGISTRY[p].color])),
+  default: 'gray',
 };
 
 /**
- * Provider display label mapping
+ * Provider display label mapping — sourced from the provider registry (all 8).
  */
-export const PROVIDER_LABELS: Record<string, string> = {
-  anilist: 'AniList',
-  fandom: 'Fandom',
-  comicvine: 'ComicVine'
-};
+export const PROVIDER_LABELS: Record<string, string> = Object.fromEntries(
+  ALL_PROVIDERS.map((p) => [p, PROVIDER_REGISTRY[p].label]),
+);
 
 /**
- * Get color for a provider with fallback
+ * Get color for a provider with fallback (delegates to the registry).
  */
 export function getProviderColor(provider: string | undefined): string {
-  if (!provider) {
-    return PROVIDER_COLORS['default'] ?? 'gray';
-  }
-  return PROVIDER_COLORS[provider] ?? PROVIDER_COLORS['default'] ?? 'gray';
+  return providerColor(provider);
 }
 
 /**
- * Get display label for a provider with fallback
+ * Get display label for a provider with fallback (delegates to the registry).
  */
 export function getProviderLabel(provider: string): string {
-  return PROVIDER_LABELS[provider] ?? provider;
+  return providerLabel(provider);
 }
 
 /**

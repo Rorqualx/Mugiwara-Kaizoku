@@ -19,8 +19,10 @@
  * Hellsing/MHA ~1×), with nothing in the 4×–16× band.
  */
 
-/** Anchor providers — excluded from the plausibility consensus. */
-export const PLAUSIBILITY_ANCHORS = new Set(['anilist', 'mal']);
+import { ANCHOR_PROVIDERS } from '@/lib/metadata/provider-registry';
+
+/** Anchor providers — excluded from the plausibility consensus (from the registry). */
+export const PLAUSIBILITY_ANCHORS = new Set<string>(ANCHOR_PROVIDERS);
 
 /** A non-anchor source must have ≥ this many agreeing peers to form consensus. */
 export const PLAUSIBILITY_MIN_AGREE = 2;

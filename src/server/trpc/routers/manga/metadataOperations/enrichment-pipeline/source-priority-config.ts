@@ -14,10 +14,17 @@
  */
 
 
-/** Source identifiers used in the priority config. All 8 currently-wired providers. */
-export type SourceName =
-  | 'anilist' | 'mangadex' | 'mal' | 'kitsu' | 'mangaupdates'
-  | 'comicvine' | 'fandom' | 'wikipedia';
+/**
+ * Source identifiers used in the priority config. All 8 currently-wired
+ * providers. DERIVED from the provider registry (`keyof typeof
+ * PROVIDER_REGISTRY`) and re-exported here so the many existing
+ * `import type { SourceName } from '.../source-priority-config'` sites keep
+ * working unchanged. This is a type-only re-export (erased at build), so the
+ * registry ↔ this-file cycle carries no runtime edge.
+ */
+import type { SourceName } from '@/lib/metadata/provider-registry';
+
+export type { SourceName };
 
 /** Chapter-level fields that support per-field priority */
 export type ChapterField = 'title' | 'cover' | 'description' | 'pages' | 'releaseDate' | 'volume';

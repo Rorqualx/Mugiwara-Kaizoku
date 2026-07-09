@@ -16,6 +16,7 @@
  * rate is calibrated.
  */
 
+import { ALL_PROVIDERS, bindMinFor } from '@/lib/metadata/provider-registry';
 import type { SourceName } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 import { logger } from '@/utils/logger';
 
@@ -27,16 +28,9 @@ import { logger } from '@/utils/logger';
  * Below these floors, the current matcher would no longer have accepted
  * the binding — so the binding is presumptively stale.
  */
-export const MIN_BIND_SCORE: Record<SourceName, number> = {
-  anilist:      0.70, // dice coefficient on title match
-  mangadex:     0.70,
-  mal:          0.65,
-  mangaupdates: 0.60,
-  kitsu:        0.55,
-  fandom:       0.55,
-  wikipedia:    0.55,
-  comicvine:    0.55, // matches MIN_TITLE_SIMILARITY in language-aware-matcher.ts
-};
+export const MIN_BIND_SCORE: Record<SourceName, number> = Object.fromEntries(
+  ALL_PROVIDERS.map((p) => [p, bindMinFor(p)]),
+) as Record<SourceName, number>;
 
 export interface BindingFreshnessResult {
   /** True when the binding is presumptively stale (currentScore < threshold). */

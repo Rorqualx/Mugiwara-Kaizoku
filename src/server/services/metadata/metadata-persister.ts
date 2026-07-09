@@ -13,6 +13,7 @@
  * @module MetadataPersistenceService
  */
 
+import { ANCHOR_PROVIDERS } from '@/lib/metadata/provider-registry';
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { parseFieldAlternatives } from '@/types/domain/field-alternatives-types';
@@ -411,7 +412,7 @@ export class MetadataPersistenceService {
   ): Set<string> {
     const refused = new Set<string>();
     const guardedFields: Array<'volumes' | 'chapters'> = ['volumes', 'chapters'];
-    const anchorSources = new Set(['anilist', 'mal']);
+    const anchorSources = new Set<string>(ANCHOR_PROVIDERS);
     const DRIFT_TOLERANCE = 0.2;
 
     for (const field of guardedFields) {

@@ -20,15 +20,14 @@
  * Pure function — no DB, no I/O.
  */
 
+import { isAnchor } from '@/lib/metadata/provider-registry';
+
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
 
 import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
 const FIELD_TYPE: FieldType = 'numeric';
-
-/** Anchor providers — only these can carry an existing value the guard protects. */
-const ANCHOR_SOURCES = new Set(['anilist', 'mal'] as const);
 
 /**
  * Per-field cluster tolerance. Default 5% — chosen to absorb the difference
@@ -208,9 +207,9 @@ function shouldRefuseDrift(ctx: SelectorContext, winnerValue: number): boolean {
   const winnerProvider = pickProvider(ctx);
   if (winnerProvider === null) return false;
   // Anchor-overwrites-anchor: not the guard's concern.
-  if (ANCHOR_SOURCES.has(winnerProvider as 'anilist' | 'mal')) return false;
+  if (isAnchor(winnerProvider)) return false;
   // Existing wasn't from an anchor: nothing to protect.
-  if (!ANCHOR_SOURCES.has(existingProvider as 'anilist' | 'mal')) return false;
+  if (!isAnchor(existingProvider)) return false;
   const drift = Math.abs(winnerValue - existing) / Math.max(Math.abs(existing), 1);
   return drift > DRIFT_TOLERANCE;
 }
