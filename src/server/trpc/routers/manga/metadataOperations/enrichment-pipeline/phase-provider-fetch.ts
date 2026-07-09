@@ -21,6 +21,7 @@
  * English-first filtering (especially ComicVine).
  */
 
+import { matchConfidenceFor, enabledDefaultFor, ALL_PROVIDERS } from '@/lib/metadata/provider-registry';
 import { prisma } from '@/server/db';
 import type { AniListMangaDetails } from '@/server/services/anilist/service';
 import { anilistService } from '@/server/services/anilist/service';
@@ -32,6 +33,7 @@ import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvin
 import { comicvineService } from '@/server/services/comicvine/service';
 import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
 import type { MangaDexManga } from '@/server/services/mangadex/types';
+import { getRejectedIds, recordBinding } from '@/server/services/metadata/binding-record';
 import { validateBindingFreshness } from '@/server/services/metadata/binding-validators/freshness-check';
 import { writeFieldReview } from '@/server/services/metadata/field-review';
 import { aniListClaimFields, collectCandidates, type ProviderClaim } from '@/server/services/metadata/selectors/collect-candidates';
@@ -62,16 +64,9 @@ const log = logger.child('PhaseProviderFetch');
 async function loadEnabledProviders(): Promise<Set<string>> {
   // Default: all on except `mal` and `kitsu` (matches `metadataProvidersEnabledMigration` defaults).
   // `kitsu` defaults off to soak before flipping the migration default.
-  const PROVIDER_DEFAULTS: Record<string, boolean> = {
-    anilist: true,
-    mangadex: true,
-    comicvine: false,
-    mangaupdates: true,
-    fandom: true,
-    wikipedia: true,
-    mal: false,
-    kitsu: false,
-  };
+  const PROVIDER_DEFAULTS: Record<string, boolean> = Object.fromEntries(
+    ALL_PROVIDERS.map((id) => [id, enabledDefaultFor(id)]),
+  );
   try {
     const { getConfigBoolean } = await import('@/server/utils/configReader');
     const ids = Object.keys(PROVIDER_DEFAULTS);
@@ -126,17 +121,25 @@ export async function phaseProviderFetch(
     where: { id: mangaId },
     select: { selectedSourceId: true, providerMetadata: true },
   });
-  // Manual pin (selectedSourceId) wins. Otherwise reuse the AniList id already
-  // bound in providerMetadata.anilist.providerId so re-enrichment fetches by ID
-  // instead of re-searching by title. AniList's search can't reproduce some
-  // titles at all (e.g. "Völundio ~Divergent Sword Saga~" returns nothing for
-  // EVERY title/synonym variant, but id 123314 resolves fine) — and a failed
-  // AniList anchor cascades into garbage ComicVine/Wikipedia matches. REIDENTIFY
-  // clears providerMetadata.anilist first (clearAutoBindingsForReidentify), so
-  // this fallback only fires when the binding is intentionally being kept.
+  // Binding-as-record (#2): durable rejections for this manga's AniList
+  // bindings. A rejected id must NOT be re-pinned or re-picked — that is what
+  // breaks the sticky-id reidentify loop (Attack on Titan bound to the "No
+  // Regrets" spinoff).
+  const rejectedAlIds = await getRejectedIds(mangaId, 'anilist');
+
+  // Manual pin (selectedSourceId) always wins. Otherwise reuse the AniList id
+  // already auto-bound in providerMetadata.anilist.providerId so re-enrichment
+  // fetches by ID instead of re-searching by title — AniList's search can't
+  // reproduce some titles at all (e.g. "Völundio ~Divergent Sword Saga~" returns
+  // nothing for EVERY title/synonym variant, but id 123314 resolves fine), and a
+  // failed AniList anchor cascades into garbage ComicVine/Wikipedia matches.
+  // NOTE: clearAutoBindingsForReidentify does NOT clear providerMetadata.anilist
+  // (AniList is its preserved anchor), so an auto binding survives reidentify —
+  // hence we must skip it here when it has been rejected, forcing the matcher to
+  // run. A rejected AUTO id drops to null; a manual pin is never filtered.
+  const boundAlId = extractBoundAniListId(mangaPin?.providerMetadata);
   const pinnedAlId = mangaPin?.selectedSourceId
-    ?? extractBoundAniListId(mangaPin?.providerMetadata)
-    ?? null;
+    ?? (boundAlId && !rejectedAlIds.has(boundAlId) ? boundAlId : null);
 
   // Only fetch from enabled providers (all in parallel).
   // Each call is capped at 60s so a hung provider can't stall the whole phase.
@@ -149,7 +152,7 @@ export async function phaseProviderFetch(
   // step then discarded.
   const [anilistSettled, mangadexSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId), T, 'anilist-fetch') : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId, rejectedAlIds), T, 'anilist-fetch') : noop,
       enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch') : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch') : noop,
       enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId), T, 'wikipedia-fetch') : noop,
@@ -158,6 +161,19 @@ export async function phaseProviderFetch(
     ]);
 
   const anilistData = anilistSettled.status === 'fulfilled' ? anilistSettled.value : null;
+
+  // Binding-as-record (#2): persist the fresh AUTO match as a durable binding
+  // (with its score). Pin-fetched entities leave matchScore undefined and are
+  // the existing binding, not a new decision — skip those.
+  if (anilistData && typeof anilistData.matchScore === 'number') {
+    void recordBinding({
+      mangaId,
+      provider: 'anilist',
+      providerId: String(anilistData.id),
+      origin: 'auto',
+      score: anilistData.matchScore,
+    });
+  }
 
   // Phase 3 #2 — sticky-binding freshness check. Skipped when the entity
   // was pin-fetched (matchScore undefined → manual binding) or when there's
@@ -670,8 +686,12 @@ async function fetchAniListByPinnedId(pinnedId: string | null | undefined): Prom
  */
 async function fetchAniListDirect(
   title: string, pinnedId?: string | null, fallbackId?: string | null,
+  rejectedIds?: Set<string>,
 ): Promise<AniListDirectResult | null> {
   await anilistService.initialize();
+
+  const isRejected = (id: string | null | undefined): boolean =>
+    id !== null && id !== undefined && (rejectedIds?.has(id) ?? false);
 
   const pinned = await fetchAniListByPinnedId(pinnedId);
   if (pinned) return pinned;
@@ -697,15 +717,21 @@ async function fetchAniListDirect(
       results = Array.from(byId.values());
     }
   }
+  // Binding-as-record (#2): drop rejected entities before scoring so the matcher
+  // cannot re-land a known-wrong id (e.g. the "No Regrets" spinoff for Attack on
+  // Titan). With AniList corrected, the MangaDex links.al cross-ref then follows
+  // the right entity automatically.
+  if (rejectedIds && rejectedIds.size > 0) {
+    results = results.filter((r) => !rejectedIds.has(String(r.id)));
+  }
   if (results.length === 0) {
-    // The fresh title search found nothing. On reidentify the bound id was
-    // cleared before the pipeline ran (clearAutoBindingsForReidentify), so a
-    // correct binding would otherwise be destroyed whenever AniList's search
-    // can't reproduce the title — e.g. "Völundio ~Divergent Sword Saga~"
-    // returns 0 results for every title/synonym variant, but id 123314 resolves
-    // fine. Fall back to the previous binding rather than failing the anchor
-    // (a failed AniList anchor cascades into garbage ComicVine/Wikipedia matches).
-    const fallback = await fetchAniListByPinnedId(fallbackId);
+    // The fresh title search found nothing (or every hit was rejected). AniList's
+    // search can't reproduce some titles at all — e.g. "Völundio ~Divergent Sword
+    // Saga~" returns 0 results for every title/synonym variant, but id 123314
+    // resolves fine — so fall back to the previous binding rather than failing the
+    // anchor (a failed AniList anchor cascades into garbage ComicVine/Wikipedia
+    // matches). Skip the fallback when that previous id has itself been rejected.
+    const fallback = isRejected(fallbackId) ? null : await fetchAniListByPinnedId(fallbackId);
     if (fallback) {
       log.info('AniList: title search empty — falling back to previous binding id', { title, fallbackId });
       return fallback;
@@ -1272,7 +1298,7 @@ function buildClaimsForShadow(inputs: ShadowInputs): ProviderClaim[] {
 
 function pushAniListClaim(anilist: AniListDirectResult | null, claims: ProviderClaim[]): void {
   if (!anilist) return;
-  claims.push({ provider: 'anilist', matchConfidence: 0.95, fields: aniListClaimFields(anilist.details) });
+  claims.push({ provider: 'anilist', matchConfidence: matchConfidenceFor('anilist'), fields: aniListClaimFields(anilist.details) });
 }
 
 function pushMangaDexClaim(mangadex: MangaDexDirectResult | null, claims: ProviderClaim[]): void {
@@ -1281,7 +1307,7 @@ function pushMangaDexClaim(mangadex: MangaDexDirectResult | null, claims: Provid
   if (mangadex.description) fields['summary'] = mangadex.description;
   if (mangadex.contentRating) fields['contentRating'] = mangadex.contentRating;
   if (mangadex.publicationDemographic) fields['publicationDemographic'] = mangadex.publicationDemographic;
-  claims.push({ provider: 'mangadex', matchConfidence: 0.95, fields });
+  claims.push({ provider: 'mangadex', matchConfidence: matchConfidenceFor('mangadex'), fields });
 }
 
 function pushMangaUpdatesClaim(
@@ -1292,14 +1318,14 @@ function pushMangaUpdatesClaim(
   if (!mangaupdates) return;
   claims.push({
     provider: 'mangaupdates',
-    matchConfidence: 0.92,
+    matchConfidence: matchConfidenceFor('mangaupdates'),
     fields: buildMangaUpdatesMetadataSupplements({}, mangaupdates, comicvine?.publisherName),
   });
 }
 
 function pushMALClaim(mal: MALDirectResult | null, claims: ProviderClaim[]): void {
   if (!mal) return;
-  claims.push({ provider: 'mal', matchConfidence: 0.92, fields: buildMALMetadataSupplements({}, mal) });
+  claims.push({ provider: 'mal', matchConfidence: matchConfidenceFor('mal'), fields: buildMALMetadataSupplements({}, mal) });
 }
 
 function pushKitsuClaim(kitsu: KitsuDirectResult | null, claims: ProviderClaim[]): void {
@@ -1312,14 +1338,14 @@ function pushKitsuClaim(kitsu: KitsuDirectResult | null, claims: ProviderClaim[]
   if (kitsu.posterImageUrl) fields['cover'] = kitsu.posterImageUrl;
   if (kitsu.chapterCount && kitsu.chapterCount > 0) fields['chapters'] = kitsu.chapterCount;
   if (kitsu.volumeCount && kitsu.volumeCount > 0) fields['volumes'] = kitsu.volumeCount;
-  claims.push({ provider: 'kitsu', matchConfidence: 0.85, fields });
+  claims.push({ provider: 'kitsu', matchConfidence: matchConfidenceFor('kitsu'), fields });
 }
 
 function pushComicVinePublisherClaim(comicvine: ComicVineDirectResult | null, claims: ProviderClaim[]): void {
   if (!comicvine?.publisherName) return;
   claims.push({
     provider: 'comicvine',
-    matchConfidence: 0.85,
+    matchConfidence: matchConfidenceFor('comicvine'),
     fields: { publishers: [comicvine.publisherName] },
   });
 }

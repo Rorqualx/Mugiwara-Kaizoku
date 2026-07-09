@@ -14,6 +14,7 @@ import { TRPCError } from '@trpc/server';
 
 
 import { eventEmitter } from '@/server/services/eventEmitter';
+import { clearRejection, recordBinding, recordRejection } from '@/server/services/metadata/binding-record';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
@@ -92,6 +93,15 @@ function parseProviderMetadata(raw: unknown): Record<string, unknown> {
     return raw as Record<string, unknown>;
   }
   return {};
+}
+
+/** Read `entry.providerId` (string|number) as a non-empty string, else undefined. */
+function readEntryProviderId(entry: unknown): string | undefined {
+  if (typeof entry !== 'object' || entry === null) return undefined;
+  const pid = (entry as Record<string, unknown>)['providerId'];
+  if (typeof pid === 'string' && pid.length > 0) return pid;
+  if (typeof pid === 'number' && Number.isFinite(pid)) return String(pid);
+  return undefined;
 }
 
 /**
@@ -240,6 +250,11 @@ export const bindingRouter = router({
         });
 
         logger.info(`Successfully bound manga ID ${mangaId} to ${provider} ID ${providerId}`);
+        // Binding-as-record: a deliberate manual bind is durable provenance and
+        // always wins — record it and clear any prior rejection of this id so a
+        // user can override an auto-rejection.
+        await recordBinding({ mangaId, provider, providerId, origin: 'manual' });
+        await clearRejection(mangaId, provider, providerId);
         await invalidateMangaCache(mangaId);
         await eventEmitter.emit('manga:updated', { mangaId });
 
@@ -290,6 +305,7 @@ export const bindingRouter = router({
       try {
         const currentProviderMetadata = parseProviderMetadata(manga.providerMetadata);
         const wasBound = provider in currentProviderMetadata;
+        const unboundId = readEntryProviderId(currentProviderMetadata[provider]);
         delete currentProviderMetadata[provider];
 
         await ctx.prisma.manga.update({
@@ -298,6 +314,13 @@ export const bindingRouter = router({
             providerMetadata: currentProviderMetadata as Prisma.InputJsonValue
           }
         });
+
+        // Binding-as-record: an explicit unbind is a durable "don't re-pick this"
+        // signal. Record it so re-enrichment won't auto-rebind the same entity
+        // (reversible — a later manual bind clears it).
+        if (unboundId) {
+          await recordRejection({ mangaId, provider, providerId: unboundId, reason: 'manual unbind' });
+        }
 
         let cleanupSummary = '';
         if (provider === 'comicvine') {

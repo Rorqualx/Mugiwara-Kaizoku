@@ -18,6 +18,7 @@
 
 import { prisma } from '@/server/db';
 import { unifiedReleaseSearch } from '@/server/services/library/releaseDispatcher/dispatch';
+import { recordRejection } from '@/server/services/metadata/binding-record';
 import {
   detectImplausibleCount,
   PLAUSIBILITY_ANCHORS,
@@ -99,6 +100,16 @@ function parseProviderMetadata(raw: unknown): Record<string, unknown> {
     : {};
 }
 
+/** Read `providerMetadata.<provider>.providerId` (string|number) as a string, else null. */
+function readBoundProviderId(pm: Record<string, unknown>, provider: string): string | null {
+  const entry = pm[provider];
+  if (typeof entry !== 'object' || entry === null) return null;
+  const pid = (entry as Record<string, unknown>)['providerId'];
+  if (typeof pid === 'string' && pid.length > 0) return pid;
+  if (typeof pid === 'number' && Number.isFinite(pid)) return String(pid);
+  return null;
+}
+
 const nonAnchorCandidates = (raw: Array<{ source: string; count: number }>): CountCandidate[] =>
   raw
     .filter(r => !PLAUSIBILITY_ANCHORS.has(r.source))
@@ -165,6 +176,20 @@ export async function maybePlausibilityCheck(
         data: { providerMetadata: merged as Prisma.InputJsonValue },
       });
       logger.warn(`[enrichmentPipeline] binding-review flag set for manga ${mangaId} — suspected wrong binding`, { finding });
+
+      // Binding-as-record: the implausibly-low count means the current anchor
+      // (AniList) is bound to the wrong entity. Record a durable REJECTION of
+      // that id so the next reidentify re-runs the matcher instead of re-fetching
+      // the stuck id (the Attack-on-Titan loop). Reversible via a manual bind.
+      const boundAlId = readBoundProviderId(pm, 'anilist');
+      if (boundAlId) {
+        await recordRejection({
+          mangaId,
+          provider: 'anilist',
+          providerId: boundAlId,
+          reason: `plausibility: ${finding.field} ${finding.stored} vs consensus ${finding.consensus} (${finding.ratio}x)`,
+        });
+      }
     } else if (hadFlag) {
       // Clear ONLY on positive corroboration of the flagged field — not on mere
       // absence of detection (contaminated witnesses can hide the problem).

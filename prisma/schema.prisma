@@ -3008,6 +3008,36 @@ model MetadataSelectionAttempt {
   @@index([selectorVersion, createdAt])
 }
 
+/// Binding-as-record (#2): durable, first-class record of provider-binding
+/// DECISIONS and their provenance. The live binding still lives in
+/// `Manga.providerMetadata.<provider>` (payload/cache); this table is the
+/// durable memory the enrichment loop consults so a wrong auto-binding can be
+/// REJECTED and not re-picked on reidentify (the Attack-on-Titan sticky-id
+/// loop). One append-only row per decision; the current state per
+/// (manga, provider) is the latest un-superseded row.
+model ProviderBinding {
+  id           BigInt    @id @default(autoincrement())
+  mangaId      Int
+  /// 'anilist' | 'mangadex' | 'mal' | 'mangaupdates' | 'kitsu' | 'comicvine' | 'fandom' | 'wikipedia'
+  provider     String
+  /// The external entity id this decision concerns. For 'rejected' rows this is
+  /// the id that must NOT be re-picked.
+  providerId   String
+  /// 'manual' = user pin; 'auto' = pipeline pick; 'rejected' = must not re-pick this providerId.
+  origin       String
+  /// Matcher score at bind time (auto bindings); null otherwise.
+  score        Float?
+  /// Human/diagnostic reason, e.g. 'plausibility: volumes 2 vs consensus 34 (17x)'.
+  reason       String?
+  createdAt    DateTime  @default(now())
+  /// Set when a later decision overrides this row — chiefly when a user manually
+  /// binds a previously-rejected id, which supersedes (clears) the rejection.
+  supersededAt DateTime?
+
+  @@index([mangaId, provider, createdAt])
+  @@index([mangaId, provider, origin])
+}
+
 /// Phase 5 Sprint #1: AniList recommendation graph. Per-manga "similar
 /// manga" edges sourced from AL's
 /// `Media.recommendations.edges[].node.mediaRecommendation`. Distinct from

@@ -631,7 +631,14 @@ async function persistProviderBindings(
 
     for (const [provider, providerId] of discoveries) {
       const section = (merged[provider] ?? {}) as Record<string, unknown>;
-      if (section['providerId']) continue; // already bound — skip
+      // Binding-as-record (#2): preserve MANUAL bindings, but let an AUTO binding
+      // refresh when the matcher re-picked a different entity. The old
+      // `if (section.providerId) continue` skipped ALL existing ids, so a
+      // corrected rematch (e.g. Attack on Titan moving off the rejected spinoff)
+      // left the stale id in providerMetadata even though Metadata.sourceId
+      // updated — the two stores then disagreed.
+      if (section['manual'] === true) continue; // manual pin is durable — never clobber
+      if (section['providerId'] === providerId) continue; // unchanged — no-op write
       merged[provider] = { ...section, providerId, boundAt };
       changed = true;
     }
