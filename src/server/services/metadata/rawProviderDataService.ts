@@ -8,6 +8,7 @@
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '@/server/db';
+import { parseProviderMetadata } from '@/server/services/metadata/provider-metadata-utils';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -60,16 +61,6 @@ export async function updateRawProviderData(
     logger.error(`Error updating rawProviderData: ${errorMessage}`);
     return createErrorResult(new Error(`RawProviderData update failed: ${errorMessage}`));
   }
-}
-
-/**
- * Parse provider metadata from unknown type
- */
-function parseProviderMetadata(providerMetadata: unknown): Record<string, unknown> {
-  if (typeof providerMetadata === 'string') {
-    return JSON.parse(providerMetadata) as Record<string, unknown>;
-  }
-  return providerMetadata as Record<string, unknown>;
 }
 
 /**

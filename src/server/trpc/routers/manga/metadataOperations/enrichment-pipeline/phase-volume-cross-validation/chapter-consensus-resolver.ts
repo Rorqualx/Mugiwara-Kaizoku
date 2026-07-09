@@ -20,8 +20,8 @@
  * Aggregation:
  *   - 0 sources                 -> { count: 0, confidence: 'unknown' }
  *   - 1 source                  -> { count: that, confidence: 'low' }
- *   - >=2 within +/-2 of a seed -> median of cluster, confidence 'high'
- *     if every source participates, 'medium' otherwise
+ *   - >=2 within +/-2 of a seed -> min(median, smallest member), confidence
+ *     'high' if every source participates, 'medium' otherwise
  *   - No cluster found          -> min(sources), confidence 'low'
  *
  * Window is +/-2 (volume resolver uses +/-1) because chapter counts have
@@ -31,18 +31,23 @@
  * Fandom and ComicVine are intentionally excluded. Fandom chapter lists
  * frequently include omake/extras; CV `issueCount` is per-issue (often
  * per-volume for manga), not per-chapter, so it's not a comparable signal.
+ *
+ * The cluster-vote mechanics live in the shared `count-consensus` primitive;
+ * this file supplies the chapter-specific candidate collection, window, and
+ * cluster-winner rule.
  */
+
+import {
+  minFallback,
+  resolveCountConsensus,
+  type CountConfidence,
+  type CountConsensus,
+} from './count-consensus';
 
 import type { UnifiedProviderResults } from '../types';
 
-export type ChapterConfidence = 'high' | 'medium' | 'low' | 'unknown';
-
-export interface ChapterConsensus {
-  count: number;
-  confidence: ChapterConfidence;
-  sources: string[];
-  raw: Array<{ source: string; count: number }>;
-}
+export type ChapterConfidence = CountConfidence;
+export type ChapterConsensus = CountConsensus;
 
 const CLUSTER_WINDOW = 2;
 
@@ -99,49 +104,23 @@ function collectCandidates(
   return out;
 }
 
-function median(nums: number[]): number {
-  if (nums.length === 0) return 0;
-  const sorted = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[mid] ?? 0;
-  return Math.round(((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2);
-}
-
+/**
+ * Aggregate chapter-count candidates into a consensus value.
+ *
+ * Chapter specifics vs the shared primitive: cluster window is ±(2 + bonus),
+ * and the winning cluster collapses to the LOWER of (median, smallest member)
+ * so a bonus-inflated count can't lift the cap above the numbered set (the
+ * bonus stubs are added separately). The no-cluster tie-break is a plain min.
+ */
 export function aggregateChapterConsensus(
   candidates: Array<{ source: string; count: number }>,
   bonusChapterCount = 0,
 ): ChapterConsensus {
-  if (candidates.length === 0) return { count: 0, confidence: 'unknown', sources: [], raw: [] };
-  if (candidates.length === 1) {
-    const c = candidates[0];
-    if (!c) return { count: 0, confidence: 'unknown', sources: [], raw: [] };
-    return { count: c.count, confidence: 'low', sources: [c.source], raw: candidates };
-  }
-
-  const window = effectiveWindow(bonusChapterCount);
-  let bestCluster: Array<{ source: string; count: number }> = [];
-  for (const seed of candidates) {
-    const cluster = candidates.filter(c => Math.abs(c.count - seed.count) <= window);
-    if (cluster.length > bestCluster.length) bestCluster = cluster;
-  }
-
-  if (bestCluster.length >= 2) {
-    // The cluster includes both numbered-only and includes-bonus counts —
-    // take the LOWER of (median, smallest cluster member) as the consensus
-    // so we don't accidentally cap the manifest above the numbered set.
-    // The bonus stubs are added separately.
-    const consensusCount = Math.min(
-      median(bestCluster.map(c => c.count)),
-      ...bestCluster.map(c => c.count),
-    );
-    const confidence: ChapterConfidence = bestCluster.length === candidates.length ? 'high' : 'medium';
-    return { count: consensusCount, confidence, sources: bestCluster.map(c => c.source), raw: candidates };
-  }
-
-  const sorted = [...candidates].sort((a, b) => a.count - b.count);
-  const lowest = sorted[0];
-  if (!lowest) return { count: 0, confidence: 'unknown', sources: [], raw: candidates };
-  return { count: lowest.count, confidence: 'low', sources: [lowest.source], raw: candidates };
+  return resolveCountConsensus(candidates, {
+    window: effectiveWindow(bonusChapterCount),
+    clusterWinner: (medianValue, members) => Math.min(medianValue, ...members.map(c => c.count)),
+    fallback: minFallback,
+  });
 }
 
 export function resolveExpectedChapterCount(

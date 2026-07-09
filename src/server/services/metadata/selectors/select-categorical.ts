@@ -24,6 +24,7 @@ import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperatio
 
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
+import { computeAgreementConfidence, pickWeightedWinner } from './weighted-winner';
 
 import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
@@ -54,17 +55,14 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
   }
 
   const groups = groupByNormalizedValue(parsed);
-  const winnerGroup = pickWinningGroup(groups);
+  const winnerGroup = pickWeightedWinner(groups, 'selectCategorical');
   const totalWeight = parsed.reduce((sum, p) => sum + p.weight, 0);
   const agreement = totalWeight > 0 ? winnerGroup.totalWeight / totalWeight : 0;
 
   const winnerParsed = pickGroupRepresentative(winnerGroup);
   // Per-candidate confidence in this group context. Dampening matches
   // selectNumeric's shape so cross-field-type metrics align.
-  const winnerConfidence =
-    winnerGroup.totalWeight > 0
-      ? Math.min(1, agreement * (winnerParsed.weight / winnerGroup.totalWeight) + agreement * 0.5)
-      : agreement;
+  const winnerConfidence = computeAgreementConfidence(agreement, winnerParsed.weight, winnerGroup.totalWeight);
 
   const alternatives = buildAlternatives(parsed, winnerParsed);
   const decision = classifyConfidence(winnerConfidence, FIELD_TYPE);
@@ -201,18 +199,6 @@ function groupByNormalizedValue(parsed: ParsedCandidate[]): ValueGroup[] {
     }
   }
   return [...byNorm.values()];
-}
-
-function pickWinningGroup(groups: ValueGroup[]): ValueGroup {
-  const sorted = [...groups].sort((a, b) => {
-    if (b.totalWeight !== a.totalWeight) return b.totalWeight - a.totalWeight;
-    return b.members.length - a.members.length;
-  });
-  const winner = sorted[0];
-  if (!winner) {
-    throw new Error('selectCategorical: pickWinningGroup called with empty groups[]');
-  }
-  return winner;
 }
 
 function pickGroupRepresentative(group: ValueGroup): ParsedCandidate {

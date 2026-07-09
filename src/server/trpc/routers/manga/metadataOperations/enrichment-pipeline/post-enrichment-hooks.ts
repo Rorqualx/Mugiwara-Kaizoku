@@ -24,6 +24,7 @@ import {
   PLAUSIBILITY_ANCHORS,
   type CountCandidate,
 } from '@/server/services/metadata/plausibility-check';
+import { parseProviderMetadata, readProviderId } from '@/server/services/metadata/provider-metadata-utils';
 import { syncSuwayomiChapters } from '@/server/services/suwayomi/chapter-sync';
 import { readSuwayomiPluginConfig } from '@/server/services/suwayomi/manga-matcher';
 import { logger } from '@/utils/logger';
@@ -82,32 +83,6 @@ export async function maybeTriggerAutoDownload(mangaId: number): Promise<void> {
   } catch (err) {
     logger.warn(`[enrichmentPipeline] auto-download check failed for manga ${mangaId}`, { err });
   }
-}
-
-function parseProviderMetadata(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>)
-        : {};
-    } catch {
-      return {};
-    }
-  }
-  return typeof raw === 'object' && raw !== null && !Array.isArray(raw)
-    ? (raw as Record<string, unknown>)
-    : {};
-}
-
-/** Read `providerMetadata.<provider>.providerId` (string|number) as a string, else null. */
-function readBoundProviderId(pm: Record<string, unknown>, provider: string): string | null {
-  const entry = pm[provider];
-  if (typeof entry !== 'object' || entry === null) return null;
-  const pid = (entry as Record<string, unknown>)['providerId'];
-  if (typeof pid === 'string' && pid.length > 0) return pid;
-  if (typeof pid === 'number' && Number.isFinite(pid)) return String(pid);
-  return null;
 }
 
 const nonAnchorCandidates = (raw: Array<{ source: string; count: number }>): CountCandidate[] =>
@@ -181,7 +156,7 @@ export async function maybePlausibilityCheck(
       // (AniList) is bound to the wrong entity. Record a durable REJECTION of
       // that id so the next reidentify re-runs the matcher instead of re-fetching
       // the stuck id (the Attack-on-Titan loop). Reversible via a manual bind.
-      const boundAlId = readBoundProviderId(pm, 'anilist');
+      const boundAlId = readProviderId(pm, 'anilist');
       if (boundAlId) {
         await recordRejection({
           mangaId,

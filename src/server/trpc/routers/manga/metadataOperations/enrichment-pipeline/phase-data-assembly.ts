@@ -47,7 +47,7 @@ export function assembleSourceData(
   stored?: StoredTerminalSignal,
 ): SourceDataCollection {
   const sources = extractAllSources(results);
-  const rawExpectedChapterCount = resolveExpectedChapterCount(
+  const rawExpectedChapterCount = estimateChapterCountFromAssembly(
     results.enrichmentResult, dbChapterCount, sources,
   );
 
@@ -157,7 +157,11 @@ function logAssemblyResult(
 }
 
 /**
- * Resolve expected chapter count from the best available source.
+ * Estimate an expected chapter-count ceiling from assembled source data.
+ *
+ * NOTE: distinct from the canonical cross-source `resolveExpectedChapterCount`
+ * in `chapter-consensus-resolver.ts` (cluster-vote). This is an older, divergent
+ * MAX-with-guards heuristic used only here in Phase 3 gap detection; kept as-is.
  *
  * Takes the MAX across all credible signals rather than short-circuiting
  * on the first non-zero value. This prevents under-counting when AniList
@@ -173,7 +177,7 @@ function logAssemblyResult(
  * - DB count (last resort)
  */
 // eslint-disable-next-line complexity -- complexity 25: 5-source candidate collection + 2 sanity guards (3x best-list cap, 1.2x scalar cap) that each prevent a specific data-quality issue documented inline; restructuring would lose the guard ordering
-function resolveExpectedChapterCount(
+function estimateChapterCountFromAssembly(
   enrichmentResult: UnifiedProviderResults['enrichmentResult'],
   dbChapterCount: number,
   sources: SourceDataCollection['sources'],

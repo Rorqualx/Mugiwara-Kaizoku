@@ -20,23 +20,27 @@
  *   - 1 source   -> { count: that, confidence: 'low' }
  *   - >=2 within +/-1 -> median of cluster, confidence 'high' if all
  *     sources participate, 'medium' otherwise
- *   - No cluster -> min(sources), confidence 'low' (tight cap is safer
- *     than a loose one when sources disagree)
+ *   - No cluster -> source-priority pick (mangadex > anilist > mal >
+ *     wikipedia), confidence 'low'
  *
  * MangaUpdates has no volume count field (only `latestChapter`) so it
  * does NOT participate.
+ *
+ * The cluster-vote mechanics live in the shared `count-consensus` primitive;
+ * this file supplies the volume-specific candidate collection and tie-break.
  */
+
+import {
+  priorityThenMinFallback,
+  resolveCountConsensus,
+  type CountConfidence,
+  type CountConsensus,
+} from './count-consensus';
 
 import type { UnifiedProviderResults } from '../types';
 
-export type VolumeConfidence = 'high' | 'medium' | 'low' | 'unknown';
-
-export interface VolumeConsensus {
-  count: number;
-  confidence: VolumeConfidence;
-  sources: string[];
-  raw: Array<{ source: string; count: number }>;
-}
+export type VolumeConfidence = CountConfidence;
+export type VolumeConsensus = CountConsensus;
 
 /** Read AniList volume count from the applied match, when present. */
 function appliedAniListVolumes(result: UnifiedProviderResults): number {
@@ -88,60 +92,31 @@ function collectCandidates(
   return out;
 }
 
-function median(nums: number[]): number {
-  if (nums.length === 0) return 0;
-  const sorted = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[mid] ?? 0;
-  return Math.round(((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2);
-}
-
 /**
  * Aggregate volume-count candidates into a consensus value.
  *
  * Exposed for unit tests and the audit script. The pipeline callsite
  * uses `resolveExpectedVolumeCount` (which composes this + collection).
+ *
+ * Volume specifics vs the shared primitive: cluster window ±1, the winning
+ * cluster collapses to its median, and the no-cluster tie-break prefers rich
+ * per-volume sources.
+ *
+ * iter-PVM-N-tune-1: the no-cluster fallback prefers MDX (per-volume granular
+ * data, empirically the most reliable for vol counts) over AL/MAL/WP scalars.
+ * Previously fell back to `min()` "to keep the cap tight" but that picked
+ * outlier WP stubs over rich MDX (Cyborg 009: AL=27,MDX=19,MAL=15,WP=1 →
+ * min picked 1, capping 19 MDX vols to 2). Priority: mangadex >
+ * anilist/anilist-db > mal > wikipedia, then a defensive min.
  */
 export function aggregateConsensus(
   candidates: Array<{ source: string; count: number }>,
 ): VolumeConsensus {
-  if (candidates.length === 0) return { count: 0, confidence: 'unknown', sources: [], raw: [] };
-  if (candidates.length === 1) {
-    const c = candidates[0];
-    if (!c) return { count: 0, confidence: 'unknown', sources: [], raw: [] };
-    return { count: c.count, confidence: 'low', sources: [c.source], raw: candidates };
-  }
-
-  // Find the largest cluster where every member is within +/-1 of the cluster median.
-  // Try every candidate as a seed; pick the largest cluster.
-  let bestCluster: Array<{ source: string; count: number }> = [];
-  for (const seed of candidates) {
-    const cluster = candidates.filter(c => Math.abs(c.count - seed.count) <= 1);
-    if (cluster.length > bestCluster.length) bestCluster = cluster;
-  }
-
-  if (bestCluster.length >= 2) {
-    const consensusCount = median(bestCluster.map(c => c.count));
-    const confidence: VolumeConfidence = bestCluster.length === candidates.length ? 'high' : 'medium';
-    return { count: consensusCount, confidence, sources: bestCluster.map(c => c.source), raw: candidates };
-  }
-
-  // iter-PVM-N-tune-1: no cluster. Prefer MDX (per-volume granular data,
-  // empirically the most reliable for vol counts) over AL/MAL/WP scalars.
-  // Previously fell back to `min()` "to keep the cap tight" but that picked
-  // outlier WP stubs over rich MDX (Cyborg 009: AL=27,MDX=19,MAL=15,WP=1 →
-  // min picked 1, capping 19 MDX vols to 2). Source priority: mangadex >
-  // anilist/anilist-db > mal > wikipedia.
-  const priority = ['mangadex', 'anilist', 'anilist-db', 'mal', 'wikipedia'];
-  for (const source of priority) {
-    const c = candidates.find(x => x.source === source);
-    if (c) return { count: c.count, confidence: 'low', sources: [c.source], raw: candidates };
-  }
-  // Defensive: no recognized source — fall back to min.
-  const sorted = [...candidates].sort((a, b) => a.count - b.count);
-  const lowest = sorted[0];
-  if (!lowest) return { count: 0, confidence: 'unknown', sources: [], raw: candidates };
-  return { count: lowest.count, confidence: 'low', sources: [lowest.source], raw: candidates };
+  return resolveCountConsensus(candidates, {
+    window: 1,
+    clusterWinner: (medianValue) => medianValue,
+    fallback: priorityThenMinFallback(['mangadex', 'anilist', 'anilist-db', 'mal', 'wikipedia']),
+  });
 }
 
 /**

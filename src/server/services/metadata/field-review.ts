@@ -17,6 +17,7 @@
 
 
 import { prisma } from '@/server/db';
+import { parseProviderMetadata } from '@/server/services/metadata/provider-metadata-utils';
 import { logger } from '@/utils/logger';
 
 import type { Prisma } from '@prisma/client';
@@ -33,22 +34,6 @@ export interface FieldReviewEntry {
 }
 
 export type FieldReviewMap = Record<string, FieldReviewEntry>;
-
-function parseProviderMetadata(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>)
-        : {};
-    } catch {
-      return {};
-    }
-  }
-  return typeof raw === 'object' && raw !== null && !Array.isArray(raw)
-    ? (raw as Record<string, unknown>)
-    : {};
-}
 
 /**
  * Merge-write the current field-review set onto `providerMetadata.fieldReview`,

@@ -1,3 +1,4 @@
+import { parseProviderMetadata } from '@/server/services/metadata/provider-metadata-utils';
 import { logger } from '@/utils/logger';
 import { MangaFileParser } from '@/utils/parsers/mangaFileParser';
 
@@ -28,24 +29,6 @@ export interface ClearAutoBindingsResult {
   deletedStubChapters: number;
   resetUserChapters: number;
   resetDerivedCounts: boolean;
-}
-
-function parseProviderMetadata(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      return {};
-    }
-    return {};
-  }
-  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  return {};
 }
 
 function isManualBinding(entry: unknown): boolean {

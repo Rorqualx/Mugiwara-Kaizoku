@@ -24,6 +24,7 @@ import { isAnchor } from '@/lib/metadata/provider-registry';
 
 import { resolveWeight } from './authority';
 import { classifyConfidence, type FieldType } from './thresholds';
+import { computeAgreementConfidence, pickWeightedWinner } from './weighted-winner';
 
 import type { Candidate, SelectorAlternative, SelectorContext, RawSelectorResult } from './types';
 
@@ -75,7 +76,7 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
 
   const tolerance = CLUSTER_TOLERANCE[ctx.field] ?? DEFAULT_CLUSTER_TOLERANCE;
   const clusters = clusterByValue(parsed, tolerance);
-  const winningCluster = pickWinningCluster(clusters);
+  const winningCluster = pickWeightedWinner(clusters, 'selectNumeric');
   const totalWeight = parsed.reduce((sum, p) => sum + p.weight, 0);
   const agreement = totalWeight > 0 ? winningCluster.totalWeight / totalWeight : 0;
 
@@ -83,10 +84,7 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
   const winnerWeight = winnerParsed.weight;
   // Per-candidate confidence: own weight / cluster total. Falls back to
   // agreement so a sole-candidate field still gets a meaningful number.
-  const winnerConfidence =
-    winnerWeight > 0 && winningCluster.totalWeight > 0
-      ? Math.min(1, agreement * (winnerWeight / winningCluster.totalWeight) + agreement * 0.5)
-      : agreement;
+  const winnerConfidence = computeAgreementConfidence(agreement, winnerWeight, winningCluster.totalWeight);
 
   const alternatives = buildAlternatives(parsed, winnerParsed);
   const decision = classifyConfidence(winnerConfidence, FIELD_TYPE);
@@ -163,19 +161,6 @@ function withinTolerance(a: number, b: number, tolerance: number): boolean {
   if (tolerance === 0) return a === b;
   const base = Math.max(Math.abs(a), Math.abs(b), 1);
   return Math.abs(a - b) / base <= tolerance;
-}
-
-function pickWinningCluster(clusters: Cluster[]): Cluster {
-  // Sort by totalWeight desc, then by member count desc (more agreement = stronger).
-  const sorted = [...clusters].sort((a, b) => {
-    if (b.totalWeight !== a.totalWeight) return b.totalWeight - a.totalWeight;
-    return b.members.length - a.members.length;
-  });
-  const winner = sorted[0];
-  if (!winner) {
-    throw new Error('selectNumeric: pickWinningCluster called with empty clusters[]');
-  }
-  return winner;
 }
 
 function pickClusterRepresentative(cluster: Cluster): ParsedCandidate {

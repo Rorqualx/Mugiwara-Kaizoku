@@ -15,6 +15,7 @@ import { TRPCError } from '@trpc/server';
 
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { clearRejection, recordBinding, recordRejection } from '@/server/services/metadata/binding-record';
+import { parseProviderMetadata, readProviderId } from '@/server/services/metadata/provider-metadata-utils';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
@@ -72,37 +73,6 @@ async function fetchProviderMetadata(
 // ============================================================================
 // Helpers
 // ============================================================================
-
-/**
- * Safely parse providerMetadata which may be stored as a JSON string (double-serialized)
- * or as a plain object.
- */
-function parseProviderMetadata(raw: unknown): Record<string, unknown> {
-  if (typeof raw === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // ignore parse errors
-    }
-    return {};
-  }
-  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  return {};
-}
-
-/** Read `entry.providerId` (string|number) as a non-empty string, else undefined. */
-function readEntryProviderId(entry: unknown): string | undefined {
-  if (typeof entry !== 'object' || entry === null) return undefined;
-  const pid = (entry as Record<string, unknown>)['providerId'];
-  if (typeof pid === 'string' && pid.length > 0) return pid;
-  if (typeof pid === 'number' && Number.isFinite(pid)) return String(pid);
-  return undefined;
-}
 
 /**
  * Drop the artifacts a ComicVine binding leaves behind in tables outside of
@@ -305,7 +275,7 @@ export const bindingRouter = router({
       try {
         const currentProviderMetadata = parseProviderMetadata(manga.providerMetadata);
         const wasBound = provider in currentProviderMetadata;
-        const unboundId = readEntryProviderId(currentProviderMetadata[provider]);
+        const unboundId = readProviderId(currentProviderMetadata, provider);
         delete currentProviderMetadata[provider];
 
         await ctx.prisma.manga.update({
