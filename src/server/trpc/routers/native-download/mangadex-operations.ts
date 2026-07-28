@@ -415,6 +415,7 @@ export const mangadexOperationsRouter = router({
     .input(z.object({
       enabled: z.boolean().optional(),
       preferredLanguage: z.string().optional(),
+      allowLanguageFallback: z.boolean().optional(),
       dataSaverMode: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -422,6 +423,9 @@ export const mangadexOperationsRouter = router({
       const updates: Parameters<typeof mangadexConfigService.updateDownloadConfig>[0] = {};
       if (input.enabled !== undefined) updates.enabled = input.enabled;
       if (input.preferredLanguage !== undefined) updates.preferredLanguage = input.preferredLanguage;
+      if (input.allowLanguageFallback !== undefined) {
+        updates.allowLanguageFallback = input.allowLanguageFallback;
+      }
       if (input.dataSaverMode !== undefined) updates.dataSaverMode = input.dataSaverMode;
       await mangadexConfigService.updateDownloadConfig(updates);
       // publicProcedure caches getDownloadConfig results for 30s; clear so

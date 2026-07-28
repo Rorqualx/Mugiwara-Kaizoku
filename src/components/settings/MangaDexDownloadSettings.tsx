@@ -36,12 +36,14 @@ import { SettingsSwitch } from './SettingsSwitch';
 interface MangaDexDownloadConfig {
   enabled: boolean;
   preferredLanguage: string;
+  allowLanguageFallback: boolean;
   dataSaverMode: boolean;
 }
 
 const DEFAULT_CONFIG: MangaDexDownloadConfig = {
   enabled: true,
   preferredLanguage: 'en',
+  allowLanguageFallback: false,
   dataSaverMode: false
 };
 
@@ -79,6 +81,7 @@ export function MangaDexDownloadSettings(): React.ReactElement {
       setConfig({
         enabled: configData.enabled,
         preferredLanguage: configData.preferredLanguage,
+        allowLanguageFallback: configData.allowLanguageFallback,
         dataSaverMode: configData.dataSaverMode
       });
     }
@@ -90,6 +93,7 @@ export function MangaDexDownloadSettings(): React.ReactElement {
     updateConfig.mutate({
       enabled: config.enabled,
       preferredLanguage: config.preferredLanguage,
+      allowLanguageFallback: config.allowLanguageFallback,
       dataSaverMode: config.dataSaverMode
     });
   };
@@ -129,6 +133,20 @@ export function MangaDexDownloadSettings(): React.ReactElement {
               disabled={isLoading || saving}
               searchable
               clearable={false}
+            />
+          </Box>
+
+          {/* Language fallback — off by default. MangaDex often has zero
+              uploads in the preferred language for licensed series (publisher
+              takedowns) while other languages remain, so enabling this can
+              silently fill a library with translations you can't read. */}
+          <Box className={classes['item']}>
+            <SettingsSwitch
+              label="Allow other languages when preferred is unavailable"
+              description="Off: chapters MangaDex only has in other languages are left for Prowlarr/Suwayomi. On: download any available translation as a fallback."
+              checked={config.allowLanguageFallback}
+              onChange={(event) => updateSetting('allowLanguageFallback', event.currentTarget.checked)}
+              disabled={isLoading || saving}
             />
           </Box>
 

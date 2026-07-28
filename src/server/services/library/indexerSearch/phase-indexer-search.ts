@@ -192,7 +192,12 @@ async function loadSearchInput(
   const altTitles = buildAltTitles(manga.title, manga.Metadata?.synonyms);
   const chapters = await prisma.chapter.findMany({
     where: buildChapterWhere(mangaId, scope),
-    select: { id: true, chapterNumber: true, mangadexId: true, suwayomiChapterId: true },
+    // `language` feeds the MangaDex adapter's preferred-language gate — without
+    // it every stored binding looks unknown-language and the gate can't reject
+    // a wrong-language UUID.
+    select: {
+      id: true, chapterNumber: true, mangadexId: true, suwayomiChapterId: true, language: true,
+    },
   });
   return {
     mangaId: manga.id,
@@ -212,16 +217,16 @@ export async function phaseIndexerSearch(
   mangaId: number,
   options?: IndexerSearchOptions,
 ): Promise<ReleaseCandidate[]> {
+  const scopeMode = options?.scope?.mode ?? 'ALL_MISSING';
+  const preferredLanguage = options?.preferredLanguage;
+
   const input = await loadSearchInput(mangaId, options?.scope);
   if (!input) {
     log.warn('Manga not found for indexer search', { mangaId });
     return [];
   }
   if (input.missingChapters.length === 0) {
-    log.info('No chapters in scope; skipping indexer search', {
-      mangaId,
-      scope: options?.scope?.mode ?? 'ALL_MISSING',
-    });
+    log.info('No chapters in scope; skipping indexer search', { mangaId, scope: scopeMode });
     return [];
   }
 
@@ -233,7 +238,7 @@ export async function phaseIndexerSearch(
     missingChapters: input.missingChapters.length,
     enabledSources: [...enabled].join(','),
     forceRefresh: options?.forceRefresh ?? false,
-    scope: options?.scope?.mode ?? 'ALL_MISSING',
+    scope: scopeMode,
   });
 
   const t = PROVIDER_TIMEOUT_MS;
@@ -246,7 +251,7 @@ export async function phaseIndexerSearch(
 
   const sourceTasks: Array<{ source: SearchSource; task: Promise<ReleaseCandidate[] | null> }> = [];
   if (enabled.has('prowlarr')) sourceTasks.push({ source: 'prowlarr', task: withTimeoutOrNull(searchProwlarr(input.mangaTitle, input.altTitles, input.mangaId), t, 'prowlarr-search') });
-  if (isManga && enabled.has('mangadex')) sourceTasks.push({ source: 'mangadex', task: withTimeoutOrNull(searchMangaDex(input.mangaId, input.missingChapters), t, 'mangadex-search') });
+  if (isManga && enabled.has('mangadex')) sourceTasks.push({ source: 'mangadex', task: withTimeoutOrNull(searchMangaDex(input.mangaId, input.missingChapters, preferredLanguage), t, 'mangadex-search') });
   if (isManga && enabled.has('suwayomi')) sourceTasks.push({ source: 'suwayomi', task: withTimeoutOrNull(searchSuwayomi(input.mangaId, input.missingChapters), t, 'suwayomi-search') });
   if (isComic && enabled.has('getcomics')) sourceTasks.push({ source: 'getcomics', task: withTimeoutOrNull(searchGetComics(input.mangaTitle), t, 'getcomics-search') });
 

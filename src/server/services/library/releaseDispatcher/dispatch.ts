@@ -963,10 +963,16 @@ export async function runUnifiedReleaseSearch(
     return summary;
   }
 
-  const candidates = await phaseIndexerSearch(
-    mangaId,
-    options.scope ? { scope: options.scope } : undefined,
-  );
+  // Resolve the effective language *before* the search so the MangaDex adapter
+  // filters on the same value the Phase 2b `language_mismatch` gate re-checks
+  // below. If the adapter used the global config while the gate used this
+  // per-user value, every candidate the adapter emitted could be rejected.
+  const preferredLanguage = await loadPreferredLanguage(options.initiatedByUserId);
+
+  const candidates = await phaseIndexerSearch(mangaId, {
+    ...(options.scope ? { scope: options.scope } : {}),
+    preferredLanguage,
+  });
 
   // Bridge the silent gap between indexer-search returning and the dispatch
   // loop completing. The toast otherwise freezes on the last per-source
@@ -988,11 +994,10 @@ export async function runUnifiedReleaseSearch(
   const prowlarrCoverage = options.nativeOnly
     ? new Set<number>()
     : estimateProwlarrCoverage(prowlarrCands);
-  const [inFlight, failedSourcesByChapterId, mediaType, preferredLanguage, downloadMode] = await Promise.all([
+  const [inFlight, failedSourcesByChapterId, mediaType, downloadMode] = await Promise.all([
     readInFlightChapterNumbers(mangaId),
     loadFailedSourcesForManga(mangaId),
     loadDispatchMediaType(mangaId),
-    loadPreferredLanguage(options.initiatedByUserId),
     loadDownloadMode(options.initiatedByUserId),
   ]);
   const ctx: DispatchContext = {

@@ -187,6 +187,7 @@ export const CONFIG_KEY_VALIDATORS: Record<string, z.ZodTypeAny> = {
 
   // MangaDex metadata-side defaults (parallel to the download-side ones)
   'mangadex.preferredLanguage': languageCode,
+  'mangadex.allowLanguageFallback': boolValue,
   'mangadex.includeAdult': boolValue,
   'mangadex.defaultContentRating': mangaDexContentRating,
 };

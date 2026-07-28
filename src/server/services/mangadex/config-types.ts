@@ -35,6 +35,16 @@ export interface MangaDexMetadataConfig {
 export interface MangaDexDownloadConfig {
   enabled: boolean;
   preferredLanguage: string;
+  /**
+   * When true, a chapter with no `preferredLanguage` translation on MangaDex
+   * may be downloaded in *any* available language. Defaults to false: the
+   * language preference is a hard filter, and chapters MangaDex only carries
+   * in other languages are left for Prowlarr/Suwayomi to satisfy.
+   *
+   * Historically this was implicitly `true` and unconfigurable, which is how
+   * es-la/ca/vi chapters landed in English-only libraries.
+   */
+  allowLanguageFallback: boolean;
   dataSaverMode: boolean;
   rateLimit: MangaDexRateLimit;
 }
@@ -48,6 +58,7 @@ export interface MangaDexConfig {
   metadataEnabled: boolean;
   downloadEnabled: boolean;
   preferredLanguage: string;
+  allowLanguageFallback: boolean;
   includeAdult: boolean;
   defaultContentRating: ContentRating[];
   dataSaverMode: boolean;
@@ -70,6 +81,7 @@ export const DEFAULT_MANGADEX_METADATA_CONFIG: MangaDexMetadataConfig = {
 export const DEFAULT_MANGADEX_DOWNLOAD_CONFIG: MangaDexDownloadConfig = {
   enabled: true,
   preferredLanguage: 'en',
+  allowLanguageFallback: false,
   dataSaverMode: false,
   rateLimit: DEFAULT_RATE_LIMIT,
 };
@@ -78,6 +90,7 @@ export const DEFAULT_MANGADEX_CONFIG: MangaDexConfig = {
   metadataEnabled: true,
   downloadEnabled: true,
   preferredLanguage: 'en',
+  allowLanguageFallback: false,
   includeAdult: false,
   defaultContentRating: ['safe', 'suggestive'],
   dataSaverMode: false,

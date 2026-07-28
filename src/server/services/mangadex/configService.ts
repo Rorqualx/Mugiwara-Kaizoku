@@ -38,6 +38,7 @@ const CONFIG_KEYS = {
   METADATA_ENABLED: 'mangadex.enabled',
   DOWNLOAD_ENABLED: 'mangadex.download.enabled',
   PREFERRED_LANGUAGE: 'mangadex.preferredLanguage',
+  ALLOW_LANGUAGE_FALLBACK: 'mangadex.allowLanguageFallback',
   INCLUDE_ADULT: 'mangadex.includeAdult',
   DEFAULT_CONTENT_RATING: 'mangadex.defaultContentRating',
   DATA_SAVER_MODE: 'mangadex.dataSaverMode',
@@ -94,6 +95,7 @@ class MangaDexConfigService {
     return {
       enabled: full.downloadEnabled,
       preferredLanguage: full.preferredLanguage,
+      allowLanguageFallback: full.allowLanguageFallback,
       dataSaverMode: full.dataSaverMode,
       rateLimit: full.rateLimit,
     };
@@ -150,6 +152,9 @@ class MangaDexConfigService {
     if (updates.preferredLanguage !== undefined) {
       writes.push([CONFIG_KEYS.PREFERRED_LANGUAGE, updates.preferredLanguage]);
     }
+    if (updates.allowLanguageFallback !== undefined) {
+      writes.push([CONFIG_KEYS.ALLOW_LANGUAGE_FALLBACK, String(updates.allowLanguageFallback)]);
+    }
     if (updates.dataSaverMode !== undefined) {
       writes.push([CONFIG_KEYS.DATA_SAVER_MODE, String(updates.dataSaverMode)]);
     }
@@ -188,6 +193,10 @@ class MangaDexConfigService {
       metadataEnabled: this.parseBoolean(map.get(CONFIG_KEYS.METADATA_ENABLED), DEFAULT_MANGADEX_METADATA_CONFIG.enabled),
       downloadEnabled: this.parseBoolean(map.get(CONFIG_KEYS.DOWNLOAD_ENABLED), DEFAULT_MANGADEX_DOWNLOAD_CONFIG.enabled),
       preferredLanguage: map.get(CONFIG_KEYS.PREFERRED_LANGUAGE) ?? DEFAULT_MANGADEX_CONFIG.preferredLanguage,
+      allowLanguageFallback: this.parseBoolean(
+        map.get(CONFIG_KEYS.ALLOW_LANGUAGE_FALLBACK),
+        DEFAULT_MANGADEX_CONFIG.allowLanguageFallback,
+      ),
       includeAdult: this.parseBoolean(map.get(CONFIG_KEYS.INCLUDE_ADULT), DEFAULT_MANGADEX_CONFIG.includeAdult),
       defaultContentRating: this.parseContentRating(map.get(CONFIG_KEYS.DEFAULT_CONTENT_RATING)),
       dataSaverMode: this.parseBoolean(map.get(CONFIG_KEYS.DATA_SAVER_MODE), DEFAULT_MANGADEX_CONFIG.dataSaverMode),

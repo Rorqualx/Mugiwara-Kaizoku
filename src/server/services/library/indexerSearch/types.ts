@@ -80,4 +80,14 @@ export interface IndexerSearchOptions {
   forceRefresh?: boolean;
   /** Narrow the search to a subset of chapters. */
   scope?: ReleaseScope;
+  /**
+   * Effective MangaDex `translatedLanguage` preference for this run, already
+   * resolved against the initiating user's override. The search phase has no
+   * userId of its own, so the dispatcher — which does — passes its resolved
+   * value down. Both sides must agree: the adapter filters candidates by it
+   * and the dispatcher's `language_mismatch` gate re-checks the same value,
+   * so a divergence would let the gate reject everything the adapter emits.
+   * Omitted → the adapter falls back to the global config.
+   */
+  preferredLanguage?: string;
 }
