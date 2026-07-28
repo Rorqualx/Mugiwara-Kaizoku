@@ -12,12 +12,15 @@
  */
 
 import { prisma } from '@/server/db';
+import { mangadexConfigService } from '@/server/services/mangadex/configService';
+import { isPreferredLanguage } from '@/server/services/mangadex/language-match';
 import {
   diceCoefficient,
   hasEditionMismatch,
   normalizeTitle,
 } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/utils';
 import { logger } from '@/utils/logger';
+
 
 import { suwayomiConfigService } from './configService';
 import { getSuwayomiGraphQLClient } from './graphql/client';
@@ -29,6 +32,13 @@ const log = logger.child('SuwayomiMatcher');
 
 /** Confidence threshold below which we refuse to persist a match */
 const MATCH_THRESHOLD = 0.85;
+
+/**
+ * Suwayomi's pseudo-language for the built-in "Local source" (user-supplied
+ * files). It carries no translation of its own, so it is never excluded by
+ * the language filter.
+ */
+const LOCAL_SOURCE_LANG = 'localsourcelang';
 
 /** Per-manga config persisted to Manga.suwayomiPluginConfig */
 export interface SuwayomiPluginConfig {
@@ -341,6 +351,42 @@ async function runSourceFanout<S, R>(
  * `Manga.suwayomiPluginConfig`. Best-effort: failures per source are
  * logged and dropped, the function never throws.
  */
+/**
+ * Is this Suwayomi source allowed to serve chapters, given the preferred
+ * language?
+ *
+ * Suwayomi installs one source per language (MangaFire ships as en / es /
+ * es-419 / fr / ja / pt / pt-BR, and so on). Auto-discovery used to fan out
+ * across all of them and rank purely on title score, so a Spanish MangaFire
+ * could outscore an English one and get persisted as the binding. Reuses the
+ * MangaDex family matcher, which handles both `es` ⊃ `es-419` and the reverse.
+ *
+ * The built-in Local source is always eligible: it serves user-supplied files
+ * and reports a sentinel language rather than a real one.
+ */
+export function isEligibleSourceLanguage(lang: string, preferred: string): boolean {
+  if (lang === LOCAL_SOURCE_LANG) return true;
+  return isPreferredLanguage(lang, preferred);
+}
+
+/**
+ * Effective download language. Shares `mangadex.preferredLanguage` — it is the
+ * single "what language do I read in" setting, not a MangaDex-specific one
+ * (the MangaDex download adapter reads the same key).
+ */
+async function loadPreferredLanguage(): Promise<string> {
+  try {
+    const cfg = await mangadexConfigService.getDownloadConfig();
+    const lang = cfg.preferredLanguage.trim();
+    return lang.length > 0 ? lang : 'en';
+  } catch (err: unknown) {
+    log.warn('Failed to load preferred language; defaulting to en', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 'en';
+  }
+}
+
 export async function matchMangaAcrossAllSuwayomiSources(
   mangaId: number,
 ): Promise<SuwayomiMatchResult> {
@@ -353,10 +399,21 @@ export async function matchMangaAcrossAllSuwayomiSources(
   }
 
   let sources: Array<{ id: number; name: string }> = [];
+  let sourcesBeforeLanguageFilter = 0;
   try {
     const client = getSuwayomiGraphQLClient();
     const all = await client.getSources();
-    sources = all.map((s) => ({ id: s.id, name: s.name }));
+    sourcesBeforeLanguageFilter = all.length;
+    const preferred = await loadPreferredLanguage();
+    sources = all
+      .filter((s) => isEligibleSourceLanguage(s.lang, preferred))
+      .map((s) => ({ id: s.id, name: s.name }));
+    log.info('Suwayomi: source list filtered by language', {
+      mangaId,
+      preferredLanguage: preferred,
+      total: sourcesBeforeLanguageFilter,
+      eligible: sources.length,
+    });
   } catch (err) {
     log.error('Failed to list Suwayomi sources for auto-discovery', {
       mangaId, error: err instanceof Error ? err.message : String(err),
@@ -367,10 +424,15 @@ export async function matchMangaAcrossAllSuwayomiSources(
     };
   }
   if (sources.length === 0) {
-    return {
-      matched: false, confidence: 0, candidatesConsidered: 0,
-      reason: 'No Suwayomi sources installed',
-    };
+    // Distinguish "nothing installed" from "everything installed is in the
+    // wrong language" — the second is a settings problem the user can fix by
+    // installing an extension for their language, and reads as a silent
+    // no-match otherwise.
+    const reason = sourcesBeforeLanguageFilter > 0
+      ? `No Suwayomi source matches the preferred language (${sourcesBeforeLanguageFilter} installed, all other languages)`
+      : 'No Suwayomi sources installed';
+    log.info('Suwayomi: no eligible sources', { mangaId, reason });
+    return { matched: false, confidence: 0, candidatesConsidered: 0, reason };
   }
 
   log.info('Suwayomi: auto-discovering across all sources', {
