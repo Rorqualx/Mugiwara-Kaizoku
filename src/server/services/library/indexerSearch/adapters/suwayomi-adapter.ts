@@ -26,6 +26,8 @@ import { JobType } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { getSuwayomiGraphQLClient } from '@/server/services/suwayomi/graphql/client';
 import {
+  boundSourceStillEligible,
+  clearSuwayomiBinding,
   matchMangaAcrossAllSuwayomiSources,
   matchMangaOnSuwayomi,
   readSuwayomiPluginConfig,
@@ -64,7 +66,20 @@ async function ensureSuwayomiMatched(mangaId: number): Promise<number | null> {
       select: { suwayomiPluginConfig: true },
     });
     const cfg = readSuwayomiPluginConfig(manga?.suwayomiPluginConfig ?? null);
-    if (cfg.mangaId !== undefined) return cfg.mangaId;
+    if (cfg.mangaId !== undefined) {
+      // A cached binding short-circuits discovery, so a source that is no
+      // longer language-eligible (bound before the filter existed, or the user
+      // changed their preferred language) would serve wrong-language chapters
+      // indefinitely. Drop it and fall through to re-discovery.
+      if (cfg.sourceId !== undefined && !(await boundSourceStillEligible(cfg.sourceId))) {
+        log.info('Suwayomi: bound source is not in the preferred language; rebinding', {
+          mangaId, staleSourceId: cfg.sourceId,
+        });
+        await clearSuwayomiBinding(mangaId);
+      } else {
+        return cfg.mangaId;
+      }
+    }
     if (cfg.sourceId !== undefined) {
       log.info('Suwayomi: auto-matching unmatched manga (source pinned)', { mangaId, sourceId: cfg.sourceId });
       const result = await matchMangaOnSuwayomi({ mangaId, sourceId: cfg.sourceId });

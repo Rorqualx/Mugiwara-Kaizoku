@@ -34,11 +34,22 @@ const log = logger.child('SuwayomiMatcher');
 const MATCH_THRESHOLD = 0.85;
 
 /**
- * Suwayomi's pseudo-language for the built-in "Local source" (user-supplied
- * files). It carries no translation of its own, so it is never excluded by
- * the language filter.
+ * Suwayomi source `lang` values that are not a single concrete language and
+ * must not be filtered out:
+ *
+ *  - `localsourcelang` — the built-in Local source (user-supplied files); it
+ *    carries no translation of its own.
+ *  - `all` — the Mihon convention for a source that serves many languages
+ *    (Cubari, and most proxy/aggregator extensions). Such a source *can*
+ *    serve the preferred language, so excluding it loses real coverage.
+ *
+ * `other` is deliberately NOT here: it means "a language outside the standard
+ * list", i.e. explicitly not the preferred one.
  */
-const LOCAL_SOURCE_LANG = 'localsourcelang';
+const LANGUAGE_AGNOSTIC_SOURCE_LANGS: ReadonlySet<string> = new Set([
+  'localsourcelang',
+  'all',
+]);
 
 /** Per-manga config persisted to Manga.suwayomiPluginConfig */
 export interface SuwayomiPluginConfig {
@@ -361,11 +372,11 @@ async function runSourceFanout<S, R>(
  * could outscore an English one and get persisted as the binding. Reuses the
  * MangaDex family matcher, which handles both `es` ⊃ `es-419` and the reverse.
  *
- * The built-in Local source is always eligible: it serves user-supplied files
- * and reports a sentinel language rather than a real one.
+ * Language-agnostic sources (Local source, and `all`-language aggregators like
+ * Cubari) are always eligible — see {@link LANGUAGE_AGNOSTIC_SOURCE_LANGS}.
  */
 export function isEligibleSourceLanguage(lang: string, preferred: string): boolean {
-  if (lang === LOCAL_SOURCE_LANG) return true;
+  if (LANGUAGE_AGNOSTIC_SOURCE_LANGS.has(lang)) return true;
   return isPreferredLanguage(lang, preferred);
 }
 
@@ -374,6 +385,61 @@ export function isEligibleSourceLanguage(lang: string, preferred: string): boole
  * single "what language do I read in" setting, not a MangaDex-specific one
  * (the MangaDex download adapter reads the same key).
  */
+/**
+ * Is the source a persisted binding points at still allowed under the current
+ * language preference?
+ *
+ * Bindings short-circuit auto-discovery, so a binding made before the language
+ * filter existed — or one that was fine until the user changed their preferred
+ * language — would otherwise keep serving wrong-language chapters forever. The
+ * caller clears such a binding and lets discovery re-run.
+ *
+ * Returns true when the source can't be resolved (extension uninstalled, or
+ * Suwayomi unreachable): we can't prove the binding is wrong, and dropping
+ * bindings on a transient GraphQL failure would be far more destructive than
+ * leaving one in place.
+ */
+export async function boundSourceStillEligible(sourceId: string): Promise<boolean> {
+  try {
+    const preferred = await loadPreferredLanguage();
+    const client = getSuwayomiGraphQLClient();
+    const all = await client.getSources();
+    const match = all.find((s) => String(s.id) === sourceId);
+    if (!match) return true;
+    return isEligibleSourceLanguage(match.lang, preferred);
+  } catch (err: unknown) {
+    log.warn('Could not verify bound source language; leaving binding intact', {
+      sourceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return true;
+  }
+}
+
+/**
+ * Drop the source/manga binding so the next search re-runs auto-discovery.
+ * Preserves the rest of the plugin config (notably `enabled`).
+ */
+export async function clearSuwayomiBinding(mangaId: number): Promise<void> {
+  const manga = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { suwayomiPluginConfig: true },
+  });
+  const cfg = readSuwayomiPluginConfig(manga?.suwayomiPluginConfig ?? null);
+  const next: SuwayomiPluginConfig = { ...cfg };
+  delete next.sourceId;
+  delete next.mangaId;
+  delete next.slug;
+  delete next.matchConfidence;
+  await prisma.manga.update({
+    where: { id: mangaId },
+    data: { suwayomiPluginConfig: next as unknown as Prisma.InputJsonValue },
+  });
+  log.info('Suwayomi binding cleared (wrong-language source)', {
+    mangaId, clearedSourceId: cfg.sourceId,
+  });
+}
+
 async function loadPreferredLanguage(): Promise<string> {
   try {
     const cfg = await mangadexConfigService.getDownloadConfig();
