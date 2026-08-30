@@ -380,16 +380,24 @@ async function updateExistingMangaDexChapter(
   });
 }
 
+/**
+ * Conflict-safe insert: `skipDuplicates` maps to INSERT ... ON CONFLICT DO
+ * NOTHING, so a writer racing us on the partial unique index
+ * `Chapter_mangaId_chapterNumber_unique` (or `mangadexId`) never produces a
+ * unique-violation error in the Postgres log. Returns true when a row was
+ * actually inserted; false means we lost the race and should fall back to
+ * updating the existing row.
+ */
 async function createMangaDexChapter(
   payload: MangaDexDownloadPayload,
   result: MangaDexDownloadResult,
   fileName: string,
-): Promise<void> {
+): Promise<boolean> {
   // `index` is an Int sort key in the schema; multiply to preserve ordering
   // for decimal chapter numbers (e.g. 1, 1.5, 2 -> 1000, 1500, 2000).
   const sortIndex = Math.round((payload.chapterNumber ?? 0) * 1000);
-  await prisma.chapter.create({
-    data: {
+  const created = await prisma.chapter.createMany({
+    data: [{
       mangadexId: payload.mangadexChapterId,
       mangaId: payload.mangaId,
       title: payload.metadata?.title ?? `Chapter ${payload.chapterNumber ?? '?'}`,
@@ -398,8 +406,10 @@ async function createMangaDexChapter(
       number: payload.chapterNumber ?? null,
       language: payload.metadata?.language ?? null,
       ...buildDownloadCompletionData(result, fileName),
-    },
+    }],
+    skipDuplicates: true,
   });
+  return created.count > 0;
 }
 
 /**
@@ -418,7 +428,21 @@ async function upsertChapterFromDownload(
     if (existing) {
       await updateExistingMangaDexChapter(existing, payload, result, fileName);
     } else {
-      await createMangaDexChapter(payload, result, fileName);
+      const created = await createMangaDexChapter(payload, result, fileName);
+      if (!created) {
+        // Lost a lookup/insert race: another writer created the row between
+        // findExisting and the insert. Re-resolve and update it instead.
+        const raced = await findExistingChapterForMangaDex(payload);
+        if (raced) {
+          await updateExistingMangaDexChapter(raced, payload, result, fileName);
+        } else {
+          log.warn('Chapter insert skipped by unique constraint but no matching row found', {
+            mangaId: payload.mangaId,
+            mangadexChapterId: payload.mangadexChapterId,
+            chapterNumber: payload.chapterNumber ?? null,
+          });
+        }
+      }
     }
     // Bust the manga.get cache so the UI sees the new COMPLETED chapter on
     // its next refetch. Without this, the manga detail page can sit on a

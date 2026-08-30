@@ -147,14 +147,22 @@ async function updateExistingSuwayomiChapter(
   });
 }
 
+/**
+ * Conflict-safe insert: `skipDuplicates` maps to INSERT ... ON CONFLICT DO
+ * NOTHING, so a writer racing us on the partial unique index
+ * `Chapter_mangaId_chapterNumber_unique` (or `suwayomiChapterId`) never
+ * produces a unique-violation error in the Postgres log. Returns true when a
+ * row was actually inserted; false means we lost the race and should fall
+ * back to updating the existing row.
+ */
 async function createSuwayomiChapter(
   payload: SuwayomiDownloadPayload,
   result: SuwayomiDownloadResult,
   fileName: string,
-): Promise<void> {
+): Promise<boolean> {
   const sortIndex = Math.round((payload.chapterNumber ?? 0) * 1000);
-  await prisma.chapter.create({
-    data: {
+  const created = await prisma.chapter.createMany({
+    data: [{
       suwayomiChapterId: String(payload.suwayomiChapterId),
       mangaId: payload.mangaId,
       title: payload.metadata?.title ?? `Chapter ${payload.chapterNumber ?? '?'}`,
@@ -163,8 +171,10 @@ async function createSuwayomiChapter(
       number: payload.chapterNumber ?? null,
       language: payload.metadata?.language ?? null,
       ...buildDownloadCompletionData(result, fileName),
-    },
+    }],
+    skipDuplicates: true,
   });
+  return created.count > 0;
 }
 
 /**
@@ -183,7 +193,21 @@ async function upsertChapterFromDownload(
     if (existing) {
       await updateExistingSuwayomiChapter(existing, payload, result, fileName);
     } else {
-      await createSuwayomiChapter(payload, result, fileName);
+      const created = await createSuwayomiChapter(payload, result, fileName);
+      if (!created) {
+        // Lost a lookup/insert race: another writer created the row between
+        // findExisting and the insert. Re-resolve and update it instead.
+        const raced = await findExistingChapterForSuwayomi(payload);
+        if (raced) {
+          await updateExistingSuwayomiChapter(raced, payload, result, fileName);
+        } else {
+          log.warn('Chapter insert skipped by unique constraint but no matching row found', {
+            mangaId: payload.mangaId,
+            suwayomiChapterId: payload.suwayomiChapterId,
+            chapterNumber: payload.chapterNumber ?? null,
+          });
+        }
+      }
     }
     // Bust the manga.get cache so the UI sees the new COMPLETED chapter on
     // its next refetch. Without this, the manga detail page can sit on a

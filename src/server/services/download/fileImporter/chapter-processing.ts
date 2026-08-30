@@ -17,6 +17,7 @@ import { DownloadStatus } from '@prisma/client';
 import { getGlobalConfigService } from '@/server/services/config/globalConfigService';
 import { getConversionService } from '@/server/services/conversion';
 import { normalizeFileFormat } from '@/server/services/conversion/format-normalization';
+import type { FileOrganizationConfig } from '@/server/services/fileOrganization/configService';
 import { isSuccess } from '@/utils/async-result';
 import { extractChapterNumber, extractVolumeNumber } from '@/utils/file-utils';
 import { logger } from '@/utils/logger';
@@ -135,6 +136,174 @@ async function resolveDestFilePath(
   }
 }
 
+/** Shared state for one PACK import run. */
+interface PackImportContext {
+  mangaId: number;
+  destDir: string;
+  mangaTitle: string;
+  fileOrgConfig: FileOrganizationConfig;
+  prismaClient: PrismaClient;
+  /** Chapter numbers already present in the DB or created earlier in this run. */
+  seenChapterNumbers: Set<number>;
+}
+
+type PackFileOutcome =
+  | { status: 'created'; chapterId: number }
+  | { status: 'duplicate' }
+  | { status: 'failed' };
+
+/**
+ * Conflict-safe insert of one chapter row. `skipDuplicates` maps to
+ * INSERT ... ON CONFLICT DO NOTHING, so a duplicate on the partial unique
+ * index `Chapter_mangaId_chapterNumber_unique` (or `(mangaId, index)`) is a
+ * silent skip instead of a unique-violation error in the Postgres log.
+ * Returns the created row id, or null when the insert was skipped.
+ */
+async function insertPackChapterRow(
+  ctx: PackImportContext,
+  row: {
+    index: number;
+    title: string;
+    chapterNumber: number;
+    volume: number | null;
+    destFile: string;
+    fileName: string;
+    size: number;
+  }
+): Promise<number | null> {
+  const createResult = await ctx.prismaClient.chapter.createMany({
+    data: [{
+      mangaId: ctx.mangaId,
+      index: row.index,
+      title: row.title,
+      chapterNumber: row.chapterNumber,
+      volume: row.volume,
+      filePath: row.destFile,
+      fileName: row.fileName,
+      downloadStatus: DownloadStatus.COMPLETED,
+      size: Math.floor(row.size),
+      fileFormat: normalizeFileFormat(row.fileName),
+      releaseDate: new Date(),
+      language: 'en',
+      updatedAt: new Date()
+    }],
+    skipDuplicates: true
+  });
+
+  if (createResult.count === 0) return null;
+
+  const createdRow = await ctx.prismaClient.chapter.findUnique({
+    where: { mangaId_index: { mangaId: ctx.mangaId, index: row.index } },
+    select: { id: true }
+  });
+  return createdRow?.id ?? null;
+}
+
+/** Queue a format-conversion job for the imported file when configured. */
+async function maybeQueueConversion(
+  mangaId: number,
+  chapterId: number,
+  destFile: string,
+  fileName: string
+): Promise<void> {
+  const fileExtension = path.extname(fileName).slice(1).toLowerCase();
+  const conversionCheck = await shouldConvertFile(fileExtension);
+  if (conversionCheck.shouldConvert && conversionCheck.targetFormat) {
+    await createConversionJob(mangaId, chapterId, destFile, fileExtension, conversionCheck.targetFormat);
+  }
+}
+
+/**
+ * Import a single PACK file: dedup check, conflict-safe row insert, then the
+ * library file copy (in that order — the copy happens only AFTER a successful
+ * row create so duplicates/failures never leave orphaned files in the library;
+ * a failed copy rolls the row back).
+ */
+async function importSinglePackFile(
+  ctx: PackImportContext,
+  sourceFile: string,
+  nextIndex: number
+): Promise<PackFileOutcome> {
+  const originalFileName = path.basename(sourceFile);
+
+  // Parse filename to extract chapter/volume info
+  const parsed = MangaFileParser.parse(originalFileName);
+  const chapterNumber = parsed.chapter ?? extractChapterNumber(originalFileName);
+  const volumeNumber = parsed.volume ?? extractVolumeNumber(originalFileName);
+  const resolvedChapterNumber = chapterNumber ?? nextIndex;
+
+  // Skip duplicates (already in DB from a prior import, or a second file in
+  // this pack resolving to the same chapter number) without touching the DB.
+  if (ctx.seenChapterNumbers.has(resolvedChapterNumber)) {
+    logger.debug(`[FileImporter] Skipping duplicate chapter ${resolvedChapterNumber} (${originalFileName})`, {
+      mangaId: ctx.mangaId,
+      chapterNumber: resolvedChapterNumber
+    });
+    return { status: 'duplicate' };
+  }
+
+  // Apply file naming template if configured
+  const fileName = generateFileName(originalFileName, ctx.mangaTitle, chapterNumber, volumeNumber, ctx.fileOrgConfig);
+  if (fileName !== originalFileName) {
+    logger.info(`[FileImporter] Renamed: ${originalFileName} -> ${fileName}`);
+  }
+
+  // Resolve destination path (with volume folder if configured)
+  const destFile = await resolveDestFilePath(ctx.destDir, fileName, volumeNumber, ctx.mangaTitle);
+
+  // Size comes from the source file — the library copy hasn't happened yet.
+  const stats = await fs.stat(sourceFile);
+
+  const chapterTitle = parsed.title !== '' ? parsed.title : `Chapter ${resolvedChapterNumber}`;
+  let chapterId: number | null;
+  try {
+    chapterId = await insertPackChapterRow(ctx, {
+      index: nextIndex,
+      title: chapterTitle,
+      chapterNumber: resolvedChapterNumber,
+      volume: volumeNumber,
+      destFile,
+      fileName,
+      size: stats.size
+    });
+  } catch (error) {
+    logger.error(`[FileImporter] Failed to create chapter for ${fileName}:`, error);
+    return { status: 'failed' };
+  }
+
+  ctx.seenChapterNumbers.add(resolvedChapterNumber);
+
+  if (chapterId === null) {
+    // Lost a race: another writer inserted this chapter between our pre-load
+    // and the insert. Nothing was copied yet, so just move on.
+    logger.debug(`[FileImporter] Chapter ${resolvedChapterNumber} already exists (conflict skip)`, {
+      mangaId: ctx.mangaId,
+      chapterNumber: resolvedChapterNumber
+    });
+    return { status: 'duplicate' };
+  }
+
+  // Copy the file into the library AFTER the row exists; if the copy fails,
+  // roll the row back so we never keep a COMPLETED chapter without a file.
+  try {
+    await fs.copyFile(sourceFile, destFile);
+    logger.debug(`[FileImporter] Copied ${fileName} to ${destFile}`);
+  } catch (error) {
+    logger.error(`[FileImporter] Failed to copy ${fileName}, rolling back chapter row:`, error);
+    try {
+      await ctx.prismaClient.chapter.deleteMany({ where: { id: chapterId } });
+      ctx.seenChapterNumbers.delete(resolvedChapterNumber);
+    } catch (rollbackError) {
+      logger.error(`[FileImporter] Failed to roll back chapter ${chapterId}:`, rollbackError);
+    }
+    return { status: 'failed' };
+  }
+
+  logger.info(`[FileImporter] Created chapter ${chapterId}: ${chapterTitle}`);
+  await maybeQueueConversion(ctx.mangaId, chapterId, destFile, fileName);
+  return { status: 'created', chapterId };
+}
+
 /**
  * Create chapter records from extracted files (PACK mode)
  *
@@ -178,85 +347,49 @@ export async function createChaptersFromFiles(
 
   let nextIndex = (highestChapter?.index ?? 0) + 1;
 
+  // Pre-load existing chapter numbers so re-imports of the same pack are
+  // skipped BEFORE any file copy or DB write. The partial unique index
+  // `Chapter_mangaId_chapterNumber_unique` (WHERE chapterNumber IS NOT NULL)
+  // rejects duplicates at the DB level; without this guard every re-import
+  // hammered Postgres with unique-violation errors.
+  const existingRows = await prismaClient.chapter.findMany({
+    where: { mangaId, chapterNumber: { not: null } },
+    select: { chapterNumber: true }
+  });
+  const seenChapterNumbers = new Set<number>();
+  for (const row of existingRows) {
+    if (row.chapterNumber !== null) seenChapterNumbers.add(row.chapterNumber);
+  }
+
+  const ctx: PackImportContext = {
+    mangaId,
+    destDir,
+    mangaTitle,
+    fileOrgConfig,
+    prismaClient,
+    seenChapterNumbers
+  };
+
+  let skippedDuplicates = 0;
   for (const sourceFile of sortedFiles) {
-    const originalFileName = path.basename(sourceFile);
-
-    // Parse filename to extract chapter/volume info
-    const parsed = MangaFileParser.parse(originalFileName);
-    const chapterNumber = parsed.chapter ?? extractChapterNumber(originalFileName);
-    const volumeNumber = parsed.volume ?? extractVolumeNumber(originalFileName);
-
-    // Apply file naming template if configured
-    const fileName = generateFileName(originalFileName, mangaTitle, chapterNumber, volumeNumber, fileOrgConfig);
-    if (fileName !== originalFileName) {
-      logger.info(`[FileImporter] Renamed: ${originalFileName} -> ${fileName}`);
-    }
-
-    // Resolve destination path (with volume folder if configured)
-    const destFile = await resolveDestFilePath(destDir, fileName, volumeNumber, mangaTitle);
-
-    // Copy file to library
-    try {
-      await fs.copyFile(sourceFile, destFile);
-      logger.debug(`[FileImporter] Copied ${fileName} to ${destFile}`);
-    } catch (error) {
-      logger.error(`[FileImporter] Failed to copy ${fileName}:`, error);
-      continue; // Skip this file but continue with others
-    }
-
-    // Get file size
-    const stats = await fs.stat(destFile);
-    const size = stats.size;
-
-    // Create chapter record
-    try {
-      const chapter = await prismaClient.chapter.create({
-        data: {
-          mangaId,
-          index: nextIndex,
-          title: parsed.title || `Chapter ${chapterNumber ?? nextIndex}`,
-          chapterNumber: chapterNumber ?? nextIndex,
-          volume: volumeNumber,
-          filePath: destFile,
-          fileName,
-          downloadStatus: DownloadStatus.COMPLETED,
-          size: Math.floor(size),
-          fileFormat: normalizeFileFormat(fileName),
-          releaseDate: new Date(),
-          language: 'en',
-          updatedAt: new Date()
-        }
-      });
-
-      createdChapterIds.push(chapter.id);
-      logger.info(`[FileImporter] Created chapter ${chapter.id}: ${chapter.title}`);
-
-      // Check if format conversion is needed
-      const fileExtension = path.extname(fileName).slice(1).toLowerCase();
-      const conversionCheck = await shouldConvertFile(fileExtension);
-
-      if (conversionCheck.shouldConvert && conversionCheck.targetFormat) {
-        await createConversionJob(
-          mangaId,
-          chapter.id,
-          destFile,
-          fileExtension,
-          conversionCheck.targetFormat
-        );
-      }
-
+    const outcome = await importSinglePackFile(ctx, sourceFile, nextIndex);
+    if (outcome.status === 'created') {
+      createdChapterIds.push(outcome.chapterId);
       nextIndex++;
-    } catch (error) {
-      logger.error(`[FileImporter] Failed to create chapter for ${fileName}:`, error);
+    } else if (outcome.status === 'duplicate') {
+      skippedDuplicates++;
     }
   }
 
-  if (createdChapterIds.length < sortedFiles.length) {
+  if (createdChapterIds.length + skippedDuplicates < sortedFiles.length) {
     logger.warn(`[FileImporter] Some chapters failed to create from PACK`, {
       expected: sortedFiles.length,
       created: createdChapterIds.length,
+      skippedDuplicates,
       mangaId
     });
+  } else if (skippedDuplicates > 0) {
+    logger.info(`[FileImporter] Skipped ${skippedDuplicates} duplicate chapters from PACK`, { mangaId });
   }
 
   logger.info(`[FileImporter] Created ${createdChapterIds.length} chapters from PACK`);

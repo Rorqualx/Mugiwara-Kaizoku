@@ -92,9 +92,12 @@ async function fetchSuwayomiChapters(suwayomiMangaId: number): Promise<ChapterTy
 }
 
 /**
- * Insert one Chapter row for a Suwayomi-only chapter. Returns true on success;
- * swallows conflicts (unique index on suwayomiChapterId, race with reconciler)
- * and returns false so the caller can keep going.
+ * Insert one Chapter row for a Suwayomi-only chapter. Returns true when a row
+ * was actually inserted. Uses a conflict-safe insert (`createMany` with
+ * `skipDuplicates` = INSERT ... ON CONFLICT DO NOTHING) so conflicts on the
+ * partial unique index `Chapter_mangaId_chapterNumber_unique`, on
+ * `suwayomiChapterId`, or on `(mangaId, index)` never reach Postgres as
+ * unique-violation errors — they come back as `count: 0`.
  */
 async function createSingleSuwayomiChapter(
   ctx: SyncContext,
@@ -104,8 +107,8 @@ async function createSingleSuwayomiChapter(
     // Placeholder fileName follows the reconciler convention (c001.cbz);
     // the real path is set later when the dispatcher downloads the chapter.
     const placeholderFileName = `c${Math.round(sw.chapterNumber).toString().padStart(3, '0')}.cbz`;
-    await prisma.chapter.create({
-      data: {
+    const result = await prisma.chapter.createMany({
+      data: [{
         mangaId: ctx.kaizokuMangaId,
         suwayomiChapterId: String(sw.id),
         title: sw.name.trim() !== '' ? sw.name : `Chapter ${sw.chapterNumber}`,
@@ -116,8 +119,17 @@ async function createSingleSuwayomiChapter(
         monitored: true,
         downloadStatus: ChapterStatus.PENDING,
         updatedAt: new Date(),
-      },
+      }],
+      skipDuplicates: true,
     });
+    if (result.count === 0) {
+      log.debug('Skipped creating Suwayomi-only chapter row (already exists)', {
+        kaizokuMangaId: ctx.kaizokuMangaId,
+        suwayomiChapterId: sw.id,
+        chapterNumber: sw.chapterNumber,
+      });
+      return false;
+    }
     return true;
   } catch (err) {
     log.debug('Skipped creating Suwayomi-only chapter row', {
@@ -135,6 +147,11 @@ async function createSingleSuwayomiChapter(
  * Kaizoku row by chapterNumber. New rows carry `suwayomiChapterId` only
  * (mangadexId stays null) so the dispatcher tags them as native-Suwayomi
  * candidates. Returns the count of rows created.
+ *
+ * Intra-run duplicates (same chapter number uploaded twice by different
+ * scanlators) are deduped here BEFORE hitting the DB — the dedup map used by
+ * the caller is built once per run, so without this every same-number pair
+ * produced a unique-violation error on every sync.
  */
 async function applyChapterCreates(
   ctx: SyncContext,
@@ -142,7 +159,18 @@ async function applyChapterCreates(
 ): Promise<number> {
   if (suwayomiChapters.length === 0) return 0;
   let created = 0;
+  const seenNumbers = new Set<string>();
   for (const sw of suwayomiChapters) {
+    const key = sw.chapterNumber.toFixed(2);
+    if (seenNumbers.has(key)) {
+      log.debug('Skipped intra-run duplicate Suwayomi chapter', {
+        kaizokuMangaId: ctx.kaizokuMangaId,
+        suwayomiChapterId: sw.id,
+        chapterNumber: sw.chapterNumber,
+      });
+      continue;
+    }
+    seenNumbers.add(key);
     // eslint-disable-next-line no-await-in-loop -- intentional sequential write to honor unique-index conflicts
     const ok = await createSingleSuwayomiChapter(ctx, sw);
     if (ok) created++;
