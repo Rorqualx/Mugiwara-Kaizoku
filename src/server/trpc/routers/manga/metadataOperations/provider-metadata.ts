@@ -12,6 +12,7 @@ import { z } from 'zod';
 
 
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -190,6 +191,7 @@ export const metadataProviderProcedures = router({
     }))
     .mutation(async ({ input, ctx }): Promise<ProviderMetadataResult> => {
       const { mangaId, provider } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
 
       logger.info(`Fetching provider metadata for manga ID ${mangaId}, provider: ${provider}`);
 

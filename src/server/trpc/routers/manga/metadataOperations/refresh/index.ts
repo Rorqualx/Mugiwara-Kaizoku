@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import { realtimeEmitter, type MetadataRefreshPhase } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { includeMangaRelations } from '@/server/trpc/routers/manga/shared';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
@@ -76,6 +77,7 @@ export const metadataRefreshProcedures = router({
     )
     .mutation(async ({ input, ctx }) => {
       const { id, forceRefresh } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), id);
 
       logger.info(`Refreshing metadata for manga ID ${id}`);
 

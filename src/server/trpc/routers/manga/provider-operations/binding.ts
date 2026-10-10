@@ -17,6 +17,7 @@ import { eventEmitter } from '@/server/services/eventEmitter';
 import { clearRejection, recordBinding, recordRejection } from '@/server/services/metadata/binding-record';
 import { parseProviderMetadata, readProviderId } from '@/server/services/metadata/provider-metadata-utils';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -178,6 +179,7 @@ export const bindingRouter = router({
     .input(bindProviderSchema)
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string; metadata: Record<string, unknown> | null }> => {
       const { mangaId, provider, providerId, fetchMetadata } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Binding manga ID ${mangaId} to ${provider} ID ${providerId}`);
 
       const manga = await ctx.prisma.manga.findUnique({
@@ -260,6 +262,7 @@ export const bindingRouter = router({
     .input(unbindProviderSchema)
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string }> => {
       const { mangaId, provider } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Unbinding manga ID ${mangaId} from ${provider}`);
 
       const manga = await ctx.prisma.manga.findUnique({
@@ -334,6 +337,7 @@ export const bindingRouter = router({
     .input(bindSchema)
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string }> => {
       const { mangaId, anilistId, title } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Binding manga ID ${mangaId} to AniList ID ${anilistId}`);
 
       const manga = await ctx.prisma.manga.findUnique({

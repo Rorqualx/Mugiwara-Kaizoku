@@ -12,6 +12,7 @@ import { TRPCError } from '@trpc/server';
 
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 import { mapToMangaStatus } from '@/utils/status-mapper';
@@ -375,6 +376,7 @@ export const providerMergeRouter = router({
     .input(updateProviderPreferencesSchema)
     .mutation(async ({ input, ctx }): Promise<unknown> => {
       const { id, preferences } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), id);
       logger.info(`Updating provider preferences for manga ID ${id}`);
 
       const manga = await requireManga(ctx.prisma, id);
@@ -398,6 +400,7 @@ export const providerMergeRouter = router({
     .input(mergeMetadataFromProvidersSchema)
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string; fieldSources: Record<string, string[]> }> => {
       const { mangaId, fieldSelections } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`Merging metadata from providers for manga ID ${mangaId}, ${fieldSelections.length} fields selected`);
 
       const manga = await requireManga(ctx.prisma, mangaId);

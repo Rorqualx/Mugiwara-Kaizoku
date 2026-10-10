@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { realtimeEmitter, type MetadataRefreshPhase } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -78,6 +79,7 @@ export const metadataCoreProcedures = router({
     .input(updateMetadataSchema)
     .mutation(async ({ input, ctx }): Promise<MangaWithRelations> => {
       const { id, metadata } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), id);
 
       logger.info(`Updating metadata for manga ID ${id}`);
 
@@ -146,8 +148,9 @@ export const metadataCoreProcedures = router({
    */
   updateProviderPreferences: protectedProcedure
     .input(updateProviderPreferencesSchema)
-    .mutation(async ({ input }): Promise<Prisma.MangaGetPayload<{ include: { Metadata: true } }>> => {
+    .mutation(async ({ input, ctx }): Promise<Prisma.MangaGetPayload<{ include: { Metadata: true } }>> => {
       const { id, preferences } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), id);
 
       logger.info(`Updating provider preferences for manga ID ${id}`);
 
@@ -209,6 +212,7 @@ export const metadataCoreProcedures = router({
     }))
     .mutation(async ({ input, ctx }): Promise<{ mangaId: number; field: string; value: string }> => {
       const { mangaId, field, value } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`[pinFieldOverride] mangaId=${mangaId} field=${field}`);
 
       const manga = await ctx.prisma.manga.findUnique({
@@ -268,8 +272,9 @@ export const metadataCoreProcedures = router({
       mangaId: z.number(),
       title: z.string()
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { mangaId, title } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
       logger.info(`[oneClickEnrich] MUTATION CALLED for manga ID ${mangaId}: "${title}"`);
 
       const TOTAL_PHASES = 10;
