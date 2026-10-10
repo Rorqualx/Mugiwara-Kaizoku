@@ -8,6 +8,7 @@
 import { describe, it, expect } from '@jest/globals';
 import { MangaPublicationStatus } from '@prisma/client';
 
+import type { AniListMangaDetails } from '@/server/services/anilist/service';
 import { selectField } from '@/server/services/metadata/selectors';
 import { collectCandidates } from '@/server/services/metadata/selectors/collect-candidates';
 import { getFieldType } from '@/server/services/metadata/selectors/types';
@@ -161,5 +162,65 @@ describe('claims other than status are unchanged by the move', () => {
     expect(fieldsOf('mal')).toEqual(['averageScore', 'chapters', 'rating', 'volumes']);
     expect(fieldsOf('mangaupdates')).toEqual(['chapters', 'genres', 'publishers']);
     expect(fieldsOf('comicvine')).toEqual(['publishers']);
+  });
+});
+
+// Plan 3.3: the AniList claim used to carry no tags/authors/artists, so on a
+// MangaUpdates-bound title the selector's pick was MangaUpdates alone and
+// replaced the AniList values the legacy chain had produced.
+describe('AniList tags and staff reach the selector', () => {
+  const anilist = {
+    details: {
+      id: 1,
+      title: { english: 'One Piece', romaji: 'ONE PIECE', native: 'ONE PIECE' },
+      tags: [
+        { name: 'Pirates', category: 'Theme-Other' },
+        { name: 'Shounen', category: 'Demographic' },
+        { name: 'Ensemble Cast', category: 'Cast-Main Cast' },
+      ],
+      staff: {
+        edges: [
+          { role: 'Story & Art', node: { name: { full: 'Eiichirou Oda' } } },
+          { role: 'Illustration (ch 1145)', node: { name: { full: 'Midori Matsuda' } } },
+          { role: 'Touch-up Art & Lettering (English: vol 34)', node: { name: { full: 'Susan Daigle-Leach' } } },
+          { role: 'Translator (English)', node: { name: { full: 'Stephen Paul' } } },
+        ],
+      },
+    } as unknown as AniListMangaDetails,
+  };
+  const mangaupdates = mu({
+    categories: ['Pirate/s', 'Ensemble Cast', 'Devil Fruit/s'],
+    authors: [
+      { name: 'ODA Eiichiro', type: 'Author', authorId: 1 },
+      { name: 'ODA Eiichiro', type: 'Artist', authorId: 1 },
+    ],
+  });
+
+  function pick(field: 'tags' | 'authors' | 'artists'): { value: string[]; provider: string | undefined } {
+    const byField = collectCandidates(buildClaimsForShadow({ ...NONE, anilist, mangaupdates }));
+    const result = selectField({
+      mangaId: 1, field, fieldType: getFieldType(field), candidates: byField.get(field) ?? [],
+      existingValue: null, existingProvider: null,
+    });
+    return { value: (result.winner?.value ?? []) as string[], provider: result.winner?.provider };
+  }
+
+  it('emits tags (without theme-category tags), authors and artists on the AniList claim', () => {
+    const fields = buildClaimsForShadow({ ...NONE, anilist })[0]?.fields ?? {};
+    expect(fields['tags']).toEqual(['Shounen', 'Ensemble Cast']);
+    expect(fields['authors']).toEqual(['Eiichirou Oda']);
+    // The edition's letterer and a one-chapter guest are not the series' artists.
+    expect(fields['artists']).toEqual(['Eiichirou Oda']);
+    expect(fields).not.toHaveProperty('themes');
+  });
+
+  it('unions AniList tags with MangaUpdates categories', () => {
+    const { value } = pick('tags');
+    expect(value).toEqual(expect.arrayContaining(['Shounen', 'Ensemble Cast', 'Pirate/s', 'Devil Fruit/s']));
+    expect(value.filter(v => v === 'Ensemble Cast')).toHaveLength(1);
+  });
+
+  it.each(['authors', 'artists'] as const)('stores one %s entry for the two spellings, in AniList form', (field) => {
+    expect(pick(field)).toEqual({ value: ['Eiichirou Oda'], provider: 'anilist' });
   });
 });

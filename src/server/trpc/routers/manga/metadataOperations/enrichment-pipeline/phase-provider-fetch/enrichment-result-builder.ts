@@ -8,6 +8,7 @@
 
 import type { AniListMangaDetails } from '@/server/services/anilist/service';
 import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvine/service';
+import { extractAniListStaffCredits, splitAniListTags } from '@/server/services/metadata/selectors/anilist-extractors';
 import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { mapToMangaStatus } from '@/utils/status-mapper';
@@ -126,7 +127,14 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
 
   // Merge Kitsu supplements (age rating, alt titles, fallback synopsis)
   const kitsuSupplements = buildKitsuMetadataSupplements(metadata, kitsu);
+  const titlesBeforeKitsu = { count: countAlternativeTitles(metadata), provider: perFieldProvenance['alternativeTitles'] };
   assignWithProvenance(metadata, perFieldProvenance, 'kitsu', kitsuSupplements);
+  // Kitsu appends to the title list instead of replacing it, so the entry
+  // keeps naming whoever supplied most of the list (it read "kitsu" for one
+  // extra romanisation on top of a dozen AniList titles).
+  if (titlesBeforeKitsu.provider !== undefined && countAlternativeTitles(metadata) <= titlesBeforeKitsu.count * 2) {
+    perFieldProvenance['alternativeTitles'] = titlesBeforeKitsu.provider;
+  }
 
   const sources = buildSourcesList(mangadex, anilist, comicvine);
   if (mangaupdates) sources.push('mangaupdates');
@@ -180,6 +188,11 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
     },
     enrichedData,
   };
+}
+
+function countAlternativeTitles(metadata: Record<string, unknown>): number {
+  const titles = metadata['alternativeTitles'];
+  return Array.isArray(titles) ? titles.length : 0;
 }
 
 /**
@@ -279,23 +292,11 @@ function buildAniListCoreFields(
   }
   if (details.startDate?.year) fields['startDate'] = formatAniListDate(details.startDate);
   if (details.endDate?.year) fields['endDate'] = formatAniListDate(details.endDate);
-  if (details.tags) {
-    // AniList tags have a `category` field (at runtime — the narrower
-    // AniListMangaDetails type hides it). Anything under a "Theme-*" category
-    // (e.g. Theme-Action, Theme-Drama, Theme-Other) is a theme, not a tag.
-    // This unblocks Metadata.themes which was universally empty in v2 baseline.
-    const themes: string[] = [];
-    const tags: string[] = [];
-    for (const t of details.tags) {
-      if (!t.name) continue;
-      const name = t.name;
-      const tAny = t as { category?: string };
-      if (typeof tAny.category === 'string' && /^theme/i.test(tAny.category)) themes.push(name);
-      else tags.push(name);
-    }
-    if (tags.length > 0) fields['tags'] = tags;
-    if (themes.length > 0) fields['themes'] = themes;
-  }
+  // Theme-category tags go to Metadata.themes; the split is shared with the
+  // selector's AniList claim (see selectors/anilist-extractors.ts).
+  const { tags, themes } = splitAniListTags(details);
+  if (tags.length > 0) fields['tags'] = tags;
+  if (themes.length > 0) fields['themes'] = themes;
   // Fields the persister reads but the previous builder never set:
   if (details.format) fields['format'] = details.format;
   if (details.countryOfOrigin) fields['countryOfOrigin'] = details.countryOfOrigin;
@@ -308,33 +309,13 @@ function buildAniListCoreFields(
 /** Extract authors, artists, and all staff credits from AniList staff edges */
 function extractAniListStaff(details: AniListMangaDetails): Record<string, unknown> {
   if (!details.staff?.edges) return {};
+  const { authors, artists, staff } = extractAniListStaffCredits(details);
   const result: Record<string, unknown> = {};
-  const authorRole = /\b(story|original\s*creator|original\s*story|writer|author)\b/i;
-  const artistRole = /\b(art|illustrat(?:or|ion)|artist|comic)\b/i;
-  const authors = details.staff.edges
-    .filter(e => typeof e.role === 'string' && authorRole.test(e.role))
-    .map(e => e.node?.name?.full)
-    .filter((n): n is string => typeof n === 'string');
-  if (authors.length > 0) result['authors'] = [...new Set(authors)];
-
-  const artists = details.staff.edges
-    .filter(e => typeof e.role === 'string' && artistRole.test(e.role))
-    .map(e => e.node?.name?.full)
-    .filter((n): n is string => typeof n === 'string');
-  if (artists.length > 0) result['artists'] = [...new Set(artists)];
-
-  // Full staff credits by role — fall-through to a JSON blob for the UI.
-  // Covers editors, translators, letterers, producers, etc., which don't
-  // fit into author/artist buckets but are still worth surfacing.
-  const allStaff = details.staff.edges
-    .map(e => {
-      const name = e.node?.name?.full;
-      const role = e.role;
-      if (typeof name !== 'string' || typeof role !== 'string') return null;
-      return { name, role };
-    })
-    .filter((s): s is { name: string; role: string } => s !== null);
-  if (allStaff.length > 0) result['staff'] = allStaff;
+  if (authors.length > 0) result['authors'] = authors;
+  if (artists.length > 0) result['artists'] = artists;
+  // Full staff credits by role — a JSON blob for the UI covering editors,
+  // translators, letterers and others that fit neither bucket.
+  if (staff.length > 0) result['staff'] = staff;
   return result;
 }
 

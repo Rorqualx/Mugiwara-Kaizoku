@@ -54,7 +54,7 @@ export interface WikipediaFetchResult {
   /**
    * The chapter total the article states for itself, or null when
    * `data.chapters` is merely computed from the extracted list (its length,
-   * or the "highest number + 1" the best-match finder writes). A computed
+   * or the highest-number total the best-match finder writes). A computed
    * total is the list again, not a second fact about the series.
    */
   declaredChapterCount: number | null;
@@ -63,7 +63,9 @@ export interface WikipediaFetchResult {
 /**
  * Totals that can be read straight off a chapter list. Mirrors
  * `calculateAccurateChapterCount` in the Wikipedia best-match finder (highest
- * regular number + epilogues + 1) plus the plain length and highest number.
+ * regular number + epilogues, + 1 when the list has a chapter 0) plus the
+ * plain length and highest number. The "+ 1" forms are listed whether or not
+ * a chapter 0 exists: a total one past the list is still the list.
  */
 function listDerivedTotals(chapters: WikipediaChapter[]): Set<number> {
   let maxRegular = 0;
@@ -78,7 +80,7 @@ function listDerivedTotals(chapters: WikipediaChapter[]): Set<number> {
     const parsed = parseInt(label, 10);
     if (!isNaN(parsed)) maxRegular = Math.max(maxRegular, parsed);
   }
-  return new Set([chapters.length, maxRegular, maxRegular + 1, maxRegular + maxEpilogue + 1]);
+  return new Set([chapters.length, maxRegular, maxRegular + 1, maxRegular + maxEpilogue, maxRegular + maxEpilogue + 1]);
 }
 
 function declaredChapterCountOf(data: WikipediaMangaData, extracted: WikipediaChapter[]): number | null {

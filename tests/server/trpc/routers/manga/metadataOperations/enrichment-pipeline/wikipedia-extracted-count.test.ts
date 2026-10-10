@@ -111,7 +111,8 @@ describe('fetchWikipediaDataWithExtraction', () => {
     findBestMatch.mockResolvedValue(article(100, { chapters: 139 }));
     expect((await fetchWikipediaDataWithExtraction('Series'))?.declaredChapterCount).toBe(139);
 
-    // Length, highest number, and the best-match finder's "highest + 1".
+    // Length / highest number, and the "+ 1" the best-match finder adds when
+    // the list has a chapter 0 (and used to add always).
     for (const computed of [100, 101]) {
       findBestMatch.mockResolvedValue(article(100, { chapters: computed }));
       // eslint-disable-next-line no-await-in-loop -- sequential by design: one mock per call
@@ -119,6 +120,16 @@ describe('fetchWikipediaDataWithExtraction', () => {
     }
     findBestMatch.mockResolvedValue(article(100));
     expect((await fetchWikipediaDataWithExtraction('Series'))?.declaredChapterCount).toBeNull();
+  });
+
+  it('treats the epilogue-inclusive total as computed from the list', async () => {
+    // Plan 3.4 a: the finder now reports highest + epilogues (no "+ 1").
+    const withEpilogues = article(100);
+    withEpilogues.chapterList?.push({ number: 'Epilogue 1', title: 'A' }, { number: 'Epilogue 2', title: 'B' });
+    findBestMatch.mockResolvedValue({ ...withEpilogues, chapters: 102 });
+    const fetched = await fetchWikipediaDataWithExtraction('Series');
+    expect(fetched?.declaredChapterCount).toBeNull();
+    expect(fetched?.data.chapterList?.some(isPlaceholder)).toBe(false);
   });
 
   it('returns null when Wikipedia has nothing', async () => {

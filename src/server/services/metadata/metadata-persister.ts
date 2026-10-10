@@ -15,6 +15,7 @@
 
 import { ANCHOR_PROVIDERS } from '@/lib/metadata/provider-registry';
 import { prisma } from '@/server/db';
+import { dropSupersededProvenanceKeys } from '@/server/services/metadata/selectors/column-mapping';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { parseFieldAlternatives } from '@/types/domain/field-alternatives-types';
 import { parseRatingJson } from '@/types/domain/rating-types';
@@ -208,6 +209,9 @@ export class MetadataPersistenceService {
         for (const [k, v] of Object.entries(metadataProvenance)) {
           if (!refused.has(k)) mergedProvenance[k] = v;
         }
+        // The selector overlay keys provenance on column names; retire the
+        // legacy spelling of the same column left by earlier enrichments.
+        dropSupersededProvenanceKeys(mergedProvenance, metadataProvenance, pinnedFields);
 
         // Phase 0: persist the rich ProvenanceEntry shape forward-compatible
         // with Phase 1.5's confidence + alternatives. In-memory we still use

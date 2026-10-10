@@ -1,5 +1,4 @@
 // @file-size-justified: Specialized Fandom wiki parser with multi-format volume/chapter extraction logic
-/* eslint-disable max-lines -- Parser with cohesive volume/chapter extraction that cannot be cleanly split */
 /**
  * Bulleted List Parser for Fandom Wikis
  *
@@ -19,6 +18,7 @@
 
 import { load } from 'cheerio';
 
+import { extractWikiListChapterNumber } from '@/server/parsers/chapter-number-extractor';
 import { logger } from '@/utils/logger';
 
 import type { Cheerio, CheerioAPI } from 'cheerio';
@@ -56,39 +56,11 @@ export interface BulletedParseResult {
 /**
  * Extracts chapter number from text.
  * Supports: "Chapter 1", "Ch. 1", "Stage.01", "Stage 1", "1:", "001", etc.
- * Also supports Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1
+ * Also supports Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1.
+ * Dates, page counts and ISBNs are refused by the shared helper.
  */
 function extractChapterNumber(text: string): number | null {
-  // Special handling for Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1, 0.2, etc.
-  const zeroChapterPatterns = [
-    /chapter\s*0+-(\d+)/i,        // Chapter 0-1 → 0.1
-    /^0+-(\d+)(?:\.|$|\s)/,       // 000-1, 000-1. → 0.1
-    /\b0+-(\d+)\b/,               // 000-1 anywhere → 0.1
-  ];
-  for (const pattern of zeroChapterPatterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      return parseFloat(`0.${match[1]}`);
-    }
-  }
-
-  // Match patterns: "Chapter 1", "Ch. 1", "Stage.01", "Stage 1", "1:", "001", etc.
-  const patterns = [
-    /Chapter\s*(\d+(?:\.\d+)?)/i,
-    /Ch\.\s*(\d+(?:\.\d+)?)/i,
-    /Stage\.?\s*(\d+(?:\.\d+)?)/i, // Evangelion uses "Stage.01" format
-    /^(\d+)[\s:.\-–—]/,
-    /^(\d+)$/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      return parseFloat(match[1]);
-    }
-  }
-
-  return null;
+  return extractWikiListChapterNumber(text, { stageMarker: true, bareNumber: 'delimited' });
 }
 
 /**

@@ -22,6 +22,8 @@ import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperatio
 
 import { OBJECTIVE_REVIEW_FIELDS, type FieldReviewMap } from '../field-review';
 
+import { adoptColumnProvenanceKeys, writeWinnerToColumn } from './column-mapping';
+
 import type { ShadowSelection } from './shadow-mode';
 
 export interface CutoverResult {
@@ -44,7 +46,10 @@ export interface CutoverResult {
  *
  * Behavior per field:
  *  - Selector picked a winner with confidence above its type's threshold →
- *    overlay (replace legacy value + provenance).
+ *    overlay (replace legacy value + provenance), written under the key the
+ *    persister reads and stamped under the column name (column-mapping.ts).
+ *    Summary keeps a legacy description of 80+ characters; synonyms are the
+ *    legacy list plus the selector's additions.
  *  - Selector refused via drift-guard → keep legacy. Field appears in
  *    `refusedFields`.
  *  - Selector returned null (all candidates failed) → keep legacy if any,
@@ -90,12 +95,14 @@ export function applySelectorCutover(
       }
       continue;
     }
-    // Overlay: replace legacy pick with selector's winner.
-    // eslint-disable-next-line no-param-reassign -- documented in-place overlay
-    legacyMetadata[field] = outcome.winnerValue;
-    // eslint-disable-next-line no-param-reassign -- documented in-place overlay
-    legacyProvenance[field] = outcome.winnerProvider;
-    result.fieldsOverlaid++;
+    // Overlay: replace legacy pick with selector's winner, under the key the
+    // persister reads. For summary and synonyms the legacy value may be kept
+    // or merged instead (decision D3) — see column-mapping.ts.
+    const written = writeWinnerToColumn(
+      field, { value: outcome.winnerValue, provider: outcome.winnerProvider }, legacyMetadata, legacyProvenance,
+    );
+    if (written) result.fieldsOverlaid++;
+    else result.fieldsSkipped++;
 
     // Objective field committed at low confidence → flag for review.
     if (objective && outcome.confidenceClass === 'persist-with-badge') {
@@ -111,6 +118,9 @@ export function applySelectorCutover(
       }));
     }
   }
+
+  // One provenance entry per column, whichever chain supplied the value.
+  adoptColumnProvenanceKeys(legacyMetadata, legacyProvenance);
 
   return result;
 }

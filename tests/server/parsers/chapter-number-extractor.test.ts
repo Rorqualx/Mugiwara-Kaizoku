@@ -12,6 +12,7 @@ import {
   parsePrequelMinor,
   parseVolumeToken,
   extractChapterNumberFromText,
+  extractWikiListChapterNumber,
 } from '@/server/parsers/chapter-number-extractor';
 
 describe('parseChapterToken', () => {
@@ -74,5 +75,71 @@ describe('extractChapterNumberFromText', () => {
   it('returns null for non-chapter text', () => {
     expect(extractChapterNumberFromText('Characters')).toBeNull();
     expect(extractChapterNumberFromText('Volume covers')).toBeNull();
+  });
+});
+
+// Hardening plan 3.4 d: both Fandom `extractChapterNumber` copies route here.
+describe('extractWikiListChapterNumber', () => {
+  const perVolume = (text: string): number | null => extractWikiListChapterNumber(text, { bareNumber: 'leading' });
+  const bulleted = (text: string): number | null =>
+    extractWikiListChapterNumber(text, { stageMarker: true, bareNumber: 'delimited' });
+
+  const variants: Array<[string, (text: string) => number | null]> = [['per-volume', perVolume], ['bulleted', bulleted]];
+  describe.each(variants)('%s options', (_name, extract) => {
+    it.each([
+      ['Chapter 5: Title', 5],
+      ['5. Title', 5],
+      ['Ch. 12', 12],
+      ['Chapter 10.5 - Extra', 10.5],
+      ['Chapter 0-1', 0.1],
+      ['000-2', 0.2],
+      ['978. The Brats Arrive', 978],
+      ['Chapter 978', 978],
+      ['5. Title (March 4, 2016)', 5],
+      ['Chapter 7 (192 pages, ISBN 978-4-08-880000-0)', 7],
+    ] as Array<[string, number]>)('%p -> %p', (text, expected) => {
+      expect(extract(text)).toBe(expected);
+    });
+
+    it.each([
+      'March 4, 2016',
+      'Released March 4, 2016',
+      '4 March 2016',
+      '4th of March, 2016',
+      '2016-03-04',
+      '3/4/2016',
+      '04.03.2016',
+      '192 pages',
+      '192 pp.',
+      '978-4-08-882029-3',
+      'ISBN 978-4-08-882029-3',
+      '978-0-123-45678-9',
+      '4-08-882029-X',
+      'Search results',
+    ])('%p is not a chapter', (text) => {
+      expect(extract(text)).toBeNull();
+    });
+  });
+
+  it('reads "ch" only as a word, not inside one', () => {
+    expect(perVolume('Launch 3')).toBeNull();
+    expect(perVolume('Ch 3')).toBe(3);
+  });
+
+  it('keeps each parser\'s own bare-number rule', () => {
+    expect(perVolume('12 Title')).toBe(12);
+    expect(bulleted('12 Title')).toBe(12);
+    expect(perVolume('12th Division')).toBe(12);
+    expect(bulleted('12th Division')).toBeNull();
+    expect(bulleted('001')).toBe(1);
+  });
+
+  it('accepts the Stage marker only where asked', () => {
+    expect(bulleted('Stage.01 Angel Attack')).toBe(1);
+    expect(perVolume('Stage.01 Angel Attack')).toBeNull();
+  });
+
+  it('keeps a title that opens with a number and a month-like word', () => {
+    expect(perVolume('12 May Flowers')).toBe(12);
   });
 });

@@ -181,30 +181,31 @@ async function enrichMangaData(
   }
 
   // Step 7: Finalize manga info with all collected data
-  return finalizeMangaInfo(updatedMangaInfo, volumesWithDetails, allChapters);
+  // `mangaInfo.chapters` is what the infobox states; `updatedMangaInfo.chapters`
+  // may by now be the volume extractor's own tally of the same list.
+  return finalizeMangaInfo(updatedMangaInfo, volumesWithDetails, allChapters, mangaInfo.chapters);
 }
 
 /**
- * Finalize manga info by setting volume and chapter data
+ * Chapter count implied by a chapter list: the highest regular chapter number
+ * plus epilogues, plus one only when the list really has a chapter 0. Counting
+ * by number instead of array length avoids counting duplicates.
  *
- * @param mangaInfo - Base manga information
- * @param volumes - Final list of volumes
- * @param chapters - Final list of chapters
- * @returns Finalized manga information
- */
-/**
- * Calculate accurate chapter count from chapter list
- * Uses max chapter number + 1 (to account for chapter 0) instead of array length
- * This avoids counting duplicates and properly handles epilogues
+ * The "+1 for chapter 0" used to be unconditional, so every series without a
+ * chapter 0 was reported one chapter too long — an ongoing title then gained a
+ * placeholder for a chapter that does not exist yet.
  *
  * @param chapters - Array of chapters
- * @returns Accurate chapter count
+ * @returns Chapter count implied by the list
  */
-function calculateAccurateChapterCount(chapters: WikipediaChapter[]): number {
+export function calculateAccurateChapterCount(chapters: WikipediaChapter[]): number {
   if (chapters.length === 0) return 0;
 
   let maxRegularChapter = 0;
   let maxEpilogueOffset = 0;
+  // Only an exact 0 is "chapter 0": parseInt would also read 0 out of a bonus
+  // chapter numbered 0.5.
+  const hasChapterZero = chapters.some(ch => /^\s*0+\s*$/.test(String(ch.number)));
 
   chapters.forEach((ch) => {
     const chNum = String(ch.number);
@@ -226,33 +227,50 @@ function calculateAccurateChapterCount(chapters: WikipediaChapter[]): number {
     }
   });
 
-  // Total = max regular chapter + epilogues + 1 (for chapter 0 if present)
-  const total = maxRegularChapter + maxEpilogueOffset + 1;
+  const total = maxRegularChapter + maxEpilogueOffset + (hasChapterZero ? 1 : 0);
 
-  logger.info(`[Wikipedia] Calculated chapter count: maxRegular=${maxRegularChapter}, epilogues=${maxEpilogueOffset}, total=${total}`);
+  logger.info(`[Wikipedia] Calculated chapter count: maxRegular=${maxRegularChapter}, epilogues=${maxEpilogueOffset}, chapterZero=${hasChapterZero}, total=${total}`);
 
   return total;
 }
 
-function finalizeMangaInfo(
+/**
+ * Finalize manga info by setting volume and chapter data
+ *
+ * @param mangaInfo - Base manga information
+ * @param volumes - Final list of volumes
+ * @param chapters - Final list of chapters
+ * @param infoboxChapters - Chapter count the article states for itself, if any; kept when the list does not exceed it
+ * @returns Finalized manga information
+ */
+export function finalizeMangaInfo(
   mangaInfo: WikipediaMangaData,
   volumes: WikipediaVolume[],
-  chapters: WikipediaChapter[]
+  chapters: WikipediaChapter[],
+  infoboxChapters?: number,
 ): WikipediaMangaData {
   // Create a new object instead of mutating the parameter
   const result = { ...mangaInfo };
+  // The count the article states for itself is a separate fact from the list
+  // and is kept — unless the list already goes past it. "Stated" is whatever
+  // the info extractor found, and that is sometimes not a total at all
+  // (Frieren and Attack on Titan report 1 and 2 beside lists of 83 and 139).
+  const countFor = (list: WikipediaChapter[]): number => {
+    const implied = calculateAccurateChapterCount(list);
+    return infoboxChapters !== undefined && infoboxChapters >= implied ? infoboxChapters : implied;
+  };
 
   // Set chapter list if we have chapters
   if (chapters.length > 0) {
     result.chapterList = chapters;
-    // Use accurate chapter count based on max chapter number, not array length
-    result.chapters = calculateAccurateChapterCount(chapters);
+    // Based on max chapter number, not array length
+    result.chapters = countFor(chapters);
   } else if (volumes.length > 0) {
     // Generate chapter list from volumes if needed
     const generatedChapters = generateMissingChapterList(volumes);
     if (generatedChapters.length > 0) {
       result.chapterList = generatedChapters;
-      result.chapters = calculateAccurateChapterCount(generatedChapters);
+      result.chapters = countFor(generatedChapters);
     }
   }
 

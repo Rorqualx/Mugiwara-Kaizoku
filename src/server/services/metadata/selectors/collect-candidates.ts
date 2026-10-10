@@ -15,6 +15,7 @@
 import type { AniListMangaDetails } from '@/server/services/anilist/service';
 import type { MetadataField, SourceName } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
+import { extractAniListStaffCredits, splitAniListTags } from './anilist-extractors';
 import { FIELD_TYPE_REGISTRY, type Candidate } from './types';
 
 /**
@@ -101,8 +102,8 @@ function mapKeyToField(rawKey: string): MetadataField | null {
 /**
  * Convert an AniListMangaDetails object into a flat `fields` dict suitable
  * for `ProviderClaim`. Mirrors the field surface that the Object.assign
- * chain in `enrichment-result-builder.ts` reads — minus the post-processing
- * (theme extraction, staff role splitting, rating JSON construction).
+ * chain in `enrichment-result-builder.ts` reads. Tags and staff go through
+ * the same extractors the legacy chain uses (`anilist-extractors.ts`).
  *
  * Implementation: a declarative table of (field, extractor) pairs so the
  * branching count stays small even as fields are added.
@@ -129,6 +130,11 @@ const ANILIST_FIELD_EXTRACTORS: ReadonlyArray<readonly [string, AniListExtractor
   ['chapters',        d => (typeof d.chapters === 'number' ? d.chapters : null)],
   ['volumes',         d => (typeof d.volumes === 'number' ? d.volumes : null)],
   ['genres',          d => (Array.isArray(d.genres) && d.genres.length > 0 ? d.genres : null)],
+  // Theme-category tags are left out on purpose: no other provider emits
+  // `themes`, so the legacy chain's value already reaches the column intact.
+  ['tags',            d => nonEmpty(splitAniListTags(d).tags)],
+  ['authors',         d => nonEmpty(extractAniListStaffCredits(d).authors)],
+  ['artists',         d => nonEmpty(extractAniListStaffCredits(d).artists)],
   ['status',          d => (typeof d.status === 'string' ? d.status : null)],
   ['averageScore',    d => (typeof d.averageScore === 'number' ? d.averageScore : null)],
   ['popularity',      d => (typeof d.popularity === 'number' ? d.popularity : null)],
@@ -141,6 +147,10 @@ const ANILIST_FIELD_EXTRACTORS: ReadonlyArray<readonly [string, AniListExtractor
     ? { value: d.averageScore, source: 'anilist' as const }
     : null)],
 ];
+
+function nonEmpty(list: string[]): string[] | null {
+  return list.length > 0 ? list : null;
+}
 
 function extractAniListExternalLinks(d: AniListMangaDetails): unknown {
   if (!Array.isArray(d.externalLinks)) return null;

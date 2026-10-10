@@ -45,6 +45,39 @@ export async function updateVolumeRanges(
   logger.info(`[enrichmentPipeline] Updated ${volUpdated} volumes with Fandom chapter ranges`);
 }
 
+interface ChapterRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * Whether Fandom's range for a volume should replace the stored one.
+ *
+ * Fandom's range must be a superset of the stored range and strictly wider —
+ * the stored (Wikipedia) range undercounted — without being unreasonably
+ * wider (Vol 23: 69-71 → 37-98 means Fandom numbers its volumes differently),
+ * and it must not reach into a neighbouring volume's range: Dandadan's open
+ * volume 25 was widened from 214-248 to 211-248 while volume 24 ends at 213.
+ *
+ * @param previousEnd last chapter of the nearest lower volume with a range
+ * @param nextStart first chapter of the nearest higher volume with a range
+ */
+export function acceptsFandomWidening(
+  stored: ChapterRange,
+  fandom: ChapterRange,
+  previousEnd: number | null,
+  nextStart: number | null,
+): boolean {
+  const storedSpan = stored.end - stored.start;
+  const fandomSpan = fandom.end - fandom.start;
+  const isSupersetAndWider = fandom.start <= stored.start && fandom.end >= stored.end && fandomSpan > storedSpan;
+  if (!isSupersetAndWider) return false;
+  if (fandomSpan > storedSpan * 3 + 2) return false;
+  if (previousEnd !== null && fandom.start <= previousEnd) return false;
+  if (nextStart !== null && fandom.end >= nextStart) return false;
+  return true;
+}
+
 /**
  * Cross-validate Phase 2 (Wikipedia) volume ranges against Fandom's chapterVolumeMap.
  *
@@ -55,6 +88,7 @@ export async function updateVolumeRanges(
  * Does NOT use Fandom ranges when:
  * - Fandom's volume map is unreliable (checked before calling this function)
  * - Fandom uses different volume numbers than Wikipedia (no matching volume number)
+ * - the wider range would overlap a neighbouring volume (see `acceptsFandomWidening`)
  */
 export async function crossValidateVolumeRanges(
   mangaId: number,
@@ -69,40 +103,30 @@ export async function crossValidateVolumeRanges(
   if (dbVolumes.length === 0 || Object.keys(fandomVolumeMap).length === 0) return;
 
   const fandomRanges = buildVolRangesFromMap(fandomVolumeMap);
+  // Working copy in volume order, updated as corrections land so each
+  // volume is checked against its neighbours' current ranges.
+  const ranges = dbVolumes.map(v => ({ number: v.number, start: v.chapterStart as number, end: v.chapterEnd as number }));
 
   let corrected = 0;
-  for (const dbVol of dbVolumes) {
-    const fandomRange = fandomRanges[dbVol.number];
+  for (const [i, current] of ranges.entries()) {
+    const fandomRange = fandomRanges[current.number];
     if (!fandomRange) continue;
 
-    const wikiStart = dbVol.chapterStart as number;
-    const wikiEnd = dbVol.chapterEnd as number;
-    const { start: fandomStart, end: fandomEnd } = fandomRange;
+    const previousEnd = ranges[i - 1]?.end ?? null;
+    const nextStart = ranges[i + 1]?.start ?? null;
+    if (!acceptsFandomWidening(current, fandomRange, previousEnd, nextStart)) continue;
 
-    // Fandom range must be a superset of Wikipedia's range (same or wider on both ends)
-    // and strictly wider overall — this means Wikipedia undercounted
-    const wikiSpan = wikiEnd - wikiStart;
-    const fandomSpan = fandomEnd - fandomStart;
-    const isSupersetAndWider =
-      fandomStart <= wikiStart &&
-      fandomEnd >= wikiEnd &&
-      fandomSpan > wikiSpan;
-
-    // Reject corrections where Fandom's range is unreasonably wider than Wikipedia's
-    // (e.g., Vol 23: 69-71 → 37-98 means Fandom has wrong volume numbers)
-    const isReasonablyWider = fandomSpan <= wikiSpan * 3 + 2;
-
-    if (isSupersetAndWider && isReasonablyWider) {
-      // eslint-disable-next-line no-await-in-loop -- Sequential DB updates for volume range correction
-      await prisma.volume.updateMany({
-        where: { mangaId, number: dbVol.number },
-        data: { chapterStart: fandomStart, chapterEnd: fandomEnd },
-      });
-      corrected++;
-      logger.debug(
-        `[enrichmentPipeline] Cross-validation: Vol ${dbVol.number} corrected from ${wikiStart}-${wikiEnd} to ${fandomStart}-${fandomEnd}`,
-      );
-    }
+    // eslint-disable-next-line no-await-in-loop -- Sequential DB updates for volume range correction
+    await prisma.volume.updateMany({
+      where: { mangaId, number: current.number },
+      data: { chapterStart: fandomRange.start, chapterEnd: fandomRange.end },
+    });
+    corrected++;
+    logger.debug(
+      `[enrichmentPipeline] Cross-validation: Vol ${current.number} corrected from ${current.start}-${current.end} to ${fandomRange.start}-${fandomRange.end}`,
+    );
+    current.start = fandomRange.start;
+    current.end = fandomRange.end;
   }
 
   if (corrected > 0) {

@@ -53,6 +53,51 @@ describe('selectList', () => {
     });
   });
 
+  describe('person names', () => {
+    // The registry's bind confidence for MangaUpdates (0.92) — below AniList's
+    // 0.95, which is what makes AniList's spelling the heavier one.
+    const muCand = (value: string[], field: Candidate['field']): Candidate =>
+      ({ field, provider: 'mangaupdates', value, matchConfidence: 0.92 });
+
+    it('merges name-order, case, punctuation and diacritic variants into one entry', () => {
+      const result = selectList(ctx('authors', [
+        muCand(['ODA Eiichiro', 'Inagaki, Riichirou'], 'authors'),
+        cand('anilist',      ['Eiichiro Oda', 'Riichirou Inagaki', 'Kōhei Horikoshi'], 'authors'),
+        cand('kitsu',        ['Kohei Horikoshi'], 'authors'),
+      ]));
+      expect([...(result.winner?.value as string[])].sort()).toEqual(
+        ['Eiichiro Oda', 'Kōhei Horikoshi', 'Riichirou Inagaki'],
+      );
+    });
+
+    it('keeps the higher-weight provider\'s spelling whatever the claim order', () => {
+      const al = cand('anilist', ['Eiichiro Oda'], 'artists');
+      const mu = muCand(['EIICHIRO ODA'], 'artists');
+      expect(selectList(ctx('artists', [al, mu])).winner?.value).toEqual(['Eiichiro Oda']);
+      expect(selectList(ctx('artists', [mu, al])).winner?.value).toEqual(['Eiichiro Oda']);
+    });
+
+    it('merges long-vowel romanisation variants', () => {
+      const result = selectList(ctx('authors', [
+        cand('anilist', ['Eiichirou Oda', 'Kentarou Miura', 'Tsugumi Ooba', 'Yuusuke Murata'], 'authors'),
+        muCand(['ODA Eiichiro', 'MIURA Kentaro', 'OHBA Tsugumi', 'MURATA Yusuke'], 'authors'),
+      ]));
+      expect(result.winner?.value).toEqual(['Eiichirou Oda', 'Kentarou Miura', 'Tsugumi Ooba', 'Yuusuke Murata']);
+    });
+
+    it('does not merge different people who share a token', () => {
+      const result = selectList(ctx('authors', [
+        cand('anilist', ['Eiichiro Oda', 'Tetsuo Oda'], 'authors'),
+      ]));
+      expect(result.winner?.value).toHaveLength(2);
+    });
+
+    it('leaves genre keys order-sensitive (names only)', () => {
+      const result = selectList(ctx('genres', [cand('anilist', ['Slice of Life', 'Life of Slice'], 'genres')]));
+      expect(result.winner?.value).toHaveLength(2);
+    });
+  });
+
   describe('confidence', () => {
     it('floors single-contributor confidence so sparse fields still persist', () => {
       const result = selectList(ctx('synonyms', [

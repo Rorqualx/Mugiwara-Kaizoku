@@ -16,6 +16,7 @@
 
 import * as cheerio from 'cheerio';
 
+import { extractWikiListChapterNumber } from '@/server/parsers/chapter-number-extractor';
 import { logger } from '@/utils/logger';
 
 import { discoverVolumePagesViaApi, discoverVolumePagesViaCategory, discoverVolumePagesViaEmbeddedin, extractVolumeNumberFromTitle } from './per-volume-iterator/allpages-discovery';
@@ -246,36 +247,12 @@ async function findVolumeUrlPattern(
 // ============================================================================
 
 /**
- * Extracts chapter number from text like "Chapter 1", "Ch. 12", etc.
- * Also supports Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1
+ * Extracts chapter number from text like "Chapter 1", "Ch. 12", "12 Title".
+ * Also supports Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1.
+ * Dates, page counts and ISBNs are refused by the shared helper.
  */
 function extractChapterNumber(text: string): number | null {
-  // Special handling for Volume 0 prequel format: "Chapter 0-1", "000-1" → 0.1, 0.2, etc.
-  const zeroChapterPatterns = [
-    /chapter\s*0+-(\d+)/i,        // Chapter 0-1 → 0.1
-    /^0+-(\d+)(?:\.|$|\s)/,       // 000-1, 000-1. → 0.1
-    /\b0+-(\d+)\b/,               // 000-1 anywhere → 0.1
-  ];
-  for (const pattern of zeroChapterPatterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) {
-      return parseFloat(`0.${match[1]}`);
-    }
-  }
-
-  // "Chapter 1" or "Chapter 1: Title"
-  const chapterMatch = text.match(/chapter\s*(\d+(?:\.\d+)?)/i);
-  if (chapterMatch?.[1]) return parseFloat(chapterMatch[1]);
-
-  // "Ch. 1" or "Ch 12"
-  const chMatch = text.match(/ch\.?\s*(\d+(?:\.\d+)?)/i);
-  if (chMatch?.[1]) return parseFloat(chMatch[1]);
-
-  // Just a number at start
-  const numberMatch = text.match(/^(\d+(?:\.\d+)?)/);
-  if (numberMatch?.[1]) return parseFloat(numberMatch[1]);
-
-  return null;
+  return extractWikiListChapterNumber(text, { bareNumber: 'leading' });
 }
 
 /**

@@ -27,6 +27,13 @@ FROM "Manga" m LEFT JOIN "Metadata" md ON md.id = m."metadataId"
 WHERE :manga = 0 OR m.id = :manga
 ORDER BY m.id;
 
+\echo == lists and mapped columns
+SELECT m.id, cardinality(md.synonyms) AS synonyms, md."idMal", md.cover, md."coverExtraLarge", md."coverLarge", md."coverMedium",
+       md.tags, md.synonyms
+FROM "Manga" m LEFT JOIN "Metadata" md ON md.id = m."metadataId"
+WHERE :manga = 0 OR m.id = :manga
+ORDER BY m.id;
+
 \echo == provenance
 SELECT m.id, f.key, f.value->>'provider'
 FROM "Manga" m, jsonb_each(m."providerMetadata"::jsonb->'metadataProvenance') f

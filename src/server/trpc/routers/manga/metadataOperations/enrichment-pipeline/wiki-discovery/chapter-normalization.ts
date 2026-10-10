@@ -16,6 +16,25 @@ import type { ChapterDataItem, VolumeDataItem } from '../types';
 const log = logger.child('ChapterNormalization');
 
 // ============================================================================
+// ISBN-prefix guard
+// ============================================================================
+
+/**
+ * Whether a chapter numbered 978 or 979 is really the prefix of an ISBN-13
+ * ("978-4-08-…") misread from a volume table.
+ *
+ * The misread shows up as a lone 978/979 far from the rest of the list. A
+ * series that actually reaches those chapters also lists 977 or 980, and its
+ * chapters 978 and 979 used to be thrown away with the fragments.
+ *
+ * @param present every chapter number in the list `num` came from
+ */
+export function isIsbnPrefixFragment(num: number, present: ReadonlySet<number>): boolean {
+  if (num !== 978 && num !== 979) return false;
+  return !present.has(977) && !present.has(980);
+}
+
+// ============================================================================
 // Wikipedia Chapter Normalization
 // ============================================================================
 
@@ -34,10 +53,16 @@ export function normalizeWikipediaChapters(data: WikipediaMangaData): ChapterDat
     ? Math.ceil(declaredCount * 2.5)
     : 0; // 0 = no cap (infobox missing or stale)
 
+  const present = new Set<number>();
+  for (const ch of data.chapterList) {
+    const n = extractWikipediaChapterNumber(ch);
+    if (n !== null) present.add(n);
+  }
+
   for (const ch of data.chapterList) {
     const num = extractWikipediaChapterNumber(ch);
     if (num === null || num < 0) continue;
-    if (num === 978 || num === 979) continue;
+    if (isIsbnPrefixFragment(num, present)) continue;
     if (maxReasonable > 0 && num > maxReasonable) continue;
     if (isLikelyYearContamination(num, declaredCount, data.chapterList)) continue;
 
@@ -151,10 +176,11 @@ export function normalizeFandomChapters(
   data: { chapterList?: Array<Record<string, unknown>>; volumeList?: Array<Record<string, unknown>> },
 ): ChapterDataItem[] {
   const byNumber = new Map<number, ChapterDataItem>();
+  const present = collectFandomChapterNumbers(data);
 
   if (data.chapterList) {
     for (const ch of data.chapterList) {
-      const item = normalizeSingleFandomChapter(ch);
+      const item = normalizeSingleFandomChapter(ch, present);
       if (item) byNumber.set(item.number, item);
     }
   }
@@ -167,7 +193,7 @@ export function normalizeFandomChapters(
       const rd = asString(vol['releaseDate']);
       if (vn !== null && rd) volDateMap.set(vn, rd);
     }
-    const nestedChapters = extractNestedVolumeChapters(data.volumeList);
+    const nestedChapters = extractNestedVolumeChapters(data.volumeList, present);
     for (const item of nestedChapters) {
       if (!byNumber.has(item.number)) {
         byNumber.set(item.number, item);
@@ -193,11 +219,28 @@ function stripHtmlTags(text: string): string {
   return text.replace(/<[^>]*>/g, '').trim();
 }
 
+/** Every chapter number Fandom returned, flat list and per-volume lists together. */
+function collectFandomChapterNumbers(
+  data: { chapterList?: Array<Record<string, unknown>>; volumeList?: Array<Record<string, unknown>> },
+): Set<number> {
+  const present = new Set<number>();
+  const add = (ch: Record<string, unknown>): void => {
+    const n = parseNum(ch['chapterNumber'] ?? ch['number']);
+    if (n !== null) present.add(n);
+  };
+  for (const ch of data.chapterList ?? []) add(ch);
+  for (const vol of data.volumeList ?? []) {
+    const chapters = vol['chapters'];
+    if (Array.isArray(chapters)) for (const ch of chapters as Array<Record<string, unknown>>) add(ch);
+  }
+  return present;
+}
+
 /** Normalize a single chapter entry from the flat chapterList */
-function normalizeSingleFandomChapter(ch: Record<string, unknown>): ChapterDataItem | null {
+function normalizeSingleFandomChapter(ch: Record<string, unknown>, present: ReadonlySet<number>): ChapterDataItem | null {
   const num = parseNum(ch['chapterNumber'] ?? ch['number']);
   if (num === null || num <= 0) return null;
-  if (num === 978 || num === 979) return null;
+  if (isIsbnPrefixFragment(num, present)) return null;
 
   const item: ChapterDataItem = { number: num };
   const rawTitle = asString(ch['title']);
@@ -219,6 +262,7 @@ function normalizeSingleFandomChapter(ch: Record<string, unknown>): ChapterDataI
 /** Extract and normalize chapters nested inside volumeList[].chapters */
 function extractNestedVolumeChapters(
   volumeList: Array<Record<string, unknown>>,
+  present: ReadonlySet<number>,
 ): ChapterDataItem[] {
   const items: ChapterDataItem[] = [];
 
@@ -231,7 +275,7 @@ function extractNestedVolumeChapters(
     for (const ch of chapters as Array<Record<string, unknown>>) {
       const num = parseNum(ch['chapterNumber'] ?? ch['number']);
       if (num === null || num <= 0) continue;
-      if (num === 978 || num === 979) continue;
+      if (isIsbnPrefixFragment(num, present)) continue;
 
       const item: ChapterDataItem = { number: num };
       const title = asString(ch['title']);

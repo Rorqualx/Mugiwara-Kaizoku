@@ -71,8 +71,13 @@ interface Contributor {
 }
 
 interface ItemAccum {
-  /** Canonical-cased display form picked from the first contributor. */
+  /**
+   * Display form. First contributor's spelling, except for person names,
+   * where the heaviest contributor's spelling wins (see `addItem`).
+   */
   display: string;
+  /** Weight of the contributor whose spelling `display` carries. */
+  displayWeight: number;
   /** Σ weights across all contributors. */
   totalWeight: number;
   contributors: Contributor[];
@@ -173,16 +178,62 @@ function addItem(
   if (existing) {
     existing.totalWeight += candidateWeight;
     existing.contributors.push({ provider, weight: candidateWeight });
+    if (PERSON_NAME_FIELDS.has(field) && prefersSpelling(display, candidateWeight, existing)) {
+      existing.display = display;
+      existing.displayWeight = candidateWeight;
+    }
   } else {
     itemMap.set(key, {
       display,
+      displayWeight: candidateWeight,
       totalWeight: candidateWeight,
       contributors: [{ provider, weight: candidateWeight }],
     });
   }
 }
 
+/** Fields whose items are person names, keyed by `normalizePersonKey`. */
+const PERSON_NAME_FIELDS: ReadonlySet<MetadataField> = new Set<MetadataField>(['authors', 'artists']);
+
+/**
+ * Fold the spellings of a romanised long vowel onto one form: AniList writes
+ * "Eiichirou Oda" and "Kentarou Miura" where MangaUpdates writes "ODA
+ * Eiichiro" and "MIURA Kentaro" (and others "Ohba" for "Ooba"). Applied to
+ * the comparison key only, never to what is stored.
+ */
+function foldLongVowels(token: string): string {
+  return token.replace(/ou|oo|oh(?![aeiouy])/gu, 'o').replace(/uu/gu, 'u');
+}
+
+/**
+ * Key a person's name on its tokens, ignoring their order, case, punctuation,
+ * diacritics and long-vowel romanisation — AniList writes "Eiichirou Oda",
+ * MangaUpdates "ODA Eiichiro", and without this one author is stored twice.
+ */
+function normalizePersonKey(display: string): string {
+  return display
+    .normalize('NFKD')
+    .replace(/\p{M}+/gu, '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(token => token.length > 0)
+    .map(foldLongVowels)
+    .sort()
+    .join(' ');
+}
+
+/**
+ * Whether a later contributor's spelling should replace the kept one: the
+ * heavier provider wins; an exact tie falls to string order so the result
+ * does not depend on which claim was read first.
+ */
+function prefersSpelling(display: string, weight: number, kept: ItemAccum): boolean {
+  if (weight !== kept.displayWeight) return weight > kept.displayWeight;
+  return display < kept.display;
+}
+
 function normalizeListKey(display: string, field: MetadataField): string {
+  if (PERSON_NAME_FIELDS.has(field)) return normalizePersonKey(display);
   const lowered = display.toLowerCase().replace(/[\s_-]+/gu, ' ').trim();
   const alias = TAG_ALIASES.get(lowered);
   if (alias && (field === 'genres' || field === 'tags' || field === 'themes')) return alias;

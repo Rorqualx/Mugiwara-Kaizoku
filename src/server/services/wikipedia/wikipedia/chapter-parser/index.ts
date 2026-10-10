@@ -123,6 +123,47 @@ function filterArtifactChapters(chapters: WikipediaChapter[]): WikipediaChapter[
 }
 
 /**
+ * `N. "Title"` rows: "00. Title", "123. Title", "1050. Title", "12.5. Title".
+ *
+ * - The lookbehind stops a match from starting inside a longer number; the
+ *   old three-digit pattern read "1050." as chapter "050".
+ * - Quotes are straight (U+0022) or curly (U+201C/U+201D), written as escapes:
+ *   the literal curly quotes this class once held had been flattened to three
+ *   ASCII quotes, so curly-quoted titles never matched.
+ */
+const NUMBERED_QUOTED_CHAPTER = /(?<![\d.])(\d{1,4}(?:\.\d+)?)\.\s*[\u0022\u201C\u201D]([^\u0022\u201C\u201D]+)[\u0022\u201C\u201D]?/g;
+
+/** How close another chapter number must be for a four-digit number to count as part of the list. */
+const FOUR_DIGIT_NEIGHBOUR_SPAN = 2;
+
+/**
+ * Numbered, quoted chapter rows from page HTML.
+ *
+ * Four digits also fit a year ('2019. "Title"' in a bibliography or awards
+ * list), so a number of 1000 or more is kept only when the list plausibly
+ * reaches it — another extracted number lies within two of it, as in any run
+ * of consecutive chapters. A lone four-digit number is dropped.
+ */
+export function extractNumberedQuotedChapters(html: string): ChapterMatch[] {
+  const matches: ChapterMatch[] = [];
+  for (const match of html.matchAll(NUMBERED_QUOTED_CHAPTER)) {
+    const [fullMatch, chapterNumber, chapterTitle] = match;
+    if (chapterNumber === undefined || chapterTitle === undefined) continue;
+    matches.push({ fullMatch, chapterNumber, chapterTitle });
+  }
+
+  const numbers = new Set(matches.map(m => Math.floor(parseFloat(m.chapterNumber))));
+  return matches.filter(m => {
+    const n = Math.floor(parseFloat(m.chapterNumber));
+    if (n < 1000) return true;
+    for (let d = 1; d <= FOUR_DIGIT_NEIGHBOUR_SPAN; d++) {
+      if (numbers.has(n - d) || numbers.has(n + d)) return true;
+    }
+    return false;
+  });
+}
+
+/**
  * Extract chapter matches from HTML content
  *
  * Looks for numbered chapters with quotes and special chapters.
@@ -145,22 +186,11 @@ function extractChapterMatches(html: string, hints?: ChapterListFormatHints): Ch
   }
 
   // Try numbered chapters with quotes (Fire Force and Chainsaw Man style)
-  // Look for patterns like "00. Title" or "123. Title"
-  // Note: Match both curly quotes ("") and regular double quotes (")
-  const regexMatches = [...html.matchAll(/(\d{1,3}(?:\.\d+)?)\.\s*["""]([^"""]+)["""]?/g)];
+  const regexChapterMatches = extractNumberedQuotedChapters(html);
 
   // Also try ordered list format (Jujutsu Kaisen style)
   // Pattern: <ol start="N"><li>"Title"<span...
   const olMatches = tryOrderedListExtraction(html);
-
-  // Convert to ChapterMatch objects from regex matches
-  const regexChapterMatches: ChapterMatch[] = regexMatches
-    .filter(match => match[1] !== undefined && match[2] !== undefined)
-    .map(match => ({
-      fullMatch: match[0],
-      chapterNumber: match[1] as string,
-      chapterTitle: match[2] as string
-    }));
 
   // Decide between ol and regex matches using hints when available
   let allChapterMatches: ChapterMatch[];
@@ -189,8 +219,8 @@ function extractChapterMatches(html: string, hints?: ChapterListFormatHints): Ch
   });
 
   // Also capture special chapters (Epilogue, Prologue, etc.)
-  // Note: Match both curly quotes ("") and regular double quotes (")
-  const specialChapterPattern = /(Epilogue|Prologue|Introduction|Intro|Final Chapter|Special|Extra|Omake|Bonus)\s*(\d*)\s*:?\s*["""]([^"""]+)["""]/gi;
+  // Straight (U+0022) and curly (U+201C/U+201D) double quotes, as escapes.
+  const specialChapterPattern = /(Epilogue|Prologue|Introduction|Intro|Final Chapter|Special|Extra|Omake|Bonus)\s*(\d*)\s*:?\s*[\u0022\u201C\u201D]([^\u0022\u201C\u201D]+)[\u0022\u201C\u201D]/gi;
   const specialMatches = [...html.matchAll(specialChapterPattern)];
 
   // Add special chapters to the matches, but skip duplicates
