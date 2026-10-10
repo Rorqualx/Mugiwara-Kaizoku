@@ -14,7 +14,7 @@
 import { z } from 'zod';
 
 import { unifiedProviderRegistry } from '@/server/services/search/UnifiedProviderRegistry';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logging';
 
@@ -51,7 +51,7 @@ export const searchCoreRouter = router({
    * @param {string} [input.sortOrder] - Sort order
    * @returns {Promise<SearchResponseWithErrors>} Results with error tracking
    */
-  withProviderWithErrors: publicProcedure
+  withProviderWithErrors: cachedProtectedProcedure
     .input(z.object({
       provider: z.string(),
       query: z.string().min(3),
@@ -119,7 +119,7 @@ export const searchCoreRouter = router({
    * @param {string} [input.sortOrder] - Sort order
    * @returns {Promise<SearchResult[]>} Search results
    */
-  withProvider: publicProcedure
+  withProvider: cachedProtectedProcedure
     .input(z.object({
       provider: z.string(),
       query: z.string().min(3),

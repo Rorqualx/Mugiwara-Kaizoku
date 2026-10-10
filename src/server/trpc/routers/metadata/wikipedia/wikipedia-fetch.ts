@@ -15,7 +15,7 @@ import type { WikipediaParseResult } from '@/server/services/wikipedia/adaptive'
 import { adaptiveExtract } from '@/server/services/wikipedia/wikipedia/manga-extractor';
 import type { WikipediaMangaData } from '@/server/services/wikipedia/wikipedia/types';
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -358,7 +358,7 @@ export const wikipediaFetchRouter = router({
   /**
    * Fetch enhanced metadata from Wikipedia
    */
-  fetchWikipediaMetadata: publicProcedure
+  fetchWikipediaMetadata: protectedProcedure
     .input(
       z.object({
         title: z.string().min(1),

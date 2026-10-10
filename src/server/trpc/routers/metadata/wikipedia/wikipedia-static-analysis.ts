@@ -18,8 +18,9 @@ import type {
   WikipediaStructureAnalysis,
   WikitableAnalysis,
 } from '@/server/services/wikipedia/adaptive/types';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { fetchPublicUrl, requireUrlHost } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -86,19 +87,22 @@ const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; MuggiwaraBot/1.0)';
 /**
  * Fetches HTML content from a URL with timeout.
  */
+const WIKIPEDIA_DOMAINS = ['wikipedia.org'] as const;
+
 async function fetchHtml(url: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
+    requireUrlHost(url, WIKIPEDIA_DOMAINS);
+    const response = await fetchPublicUrl(url, {
       method: 'GET',
       signal: controller.signal,
       headers: {
         'User-Agent': DEFAULT_USER_AGENT,
         Accept: 'text/html',
       },
-    });
+    }, WIKIPEDIA_DOMAINS);
 
     clearTimeout(timeoutId);
 
@@ -195,7 +199,7 @@ export const wikipediaStaticAnalysisRouter = router({
    * Use this before full parsing to inform parser selection and
    * detect if a dedicated list page should be used instead.
    */
-  analyzeWikipediaUrl: publicProcedure
+  analyzeWikipediaUrl: protectedProcedure
     .input(analyzeWikipediaUrlInputSchema)
     .mutation(async ({ input }): Promise<WikipediaAnalysisResponse> => {
       const { url } = input;

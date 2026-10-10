@@ -19,14 +19,14 @@ import { z } from 'zod';
 
 
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
 import { mergeMetadata, parseFandomUrl, type EnhancedMetadataResult } from './helpers';
 
 export const fandomEnhancedRouter = router({
-  fetchEnhancedMangaMetadata: publicProcedure
+  fetchEnhancedMangaMetadata: protectedProcedure
     .input(z.object({
       mangaPageUrl: z.string().url(),
       includeGallery: z.boolean().default(true)

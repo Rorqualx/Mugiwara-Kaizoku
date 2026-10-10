@@ -11,7 +11,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { detectErrorType } from '@/server/services/search/unified-registry/registry-utils';
-import { protectedProcedure, uncachedPublicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import type { ProviderErrorInfo } from '@/types/search-types/provider.types';
@@ -372,7 +372,7 @@ export const searchRouter = router({
   /**
    * Search for manga
    *
-   * NOTE: Using uncachedPublicProcedure because:
+   * NOTE: Deliberately not cachedProtectedProcedure because:
    * 1. Different search queries need different results (cache key collision risk)
    * 2. Providers have their own internal caching (search-helpers.ts cacheProvider)
    * 3. tRPC-level caching was causing all queries to return first query's results
@@ -380,7 +380,7 @@ export const searchRouter = router({
    * @param input Object containing source and keyword
    * @returns Array of search results
    */
-  search: uncachedPublicProcedure.input(searchSchema).query(async ({ input }): Promise<StandardizedMangaResult[]> => {
+  search: protectedProcedure.input(searchSchema).query(async ({ input }): Promise<StandardizedMangaResult[]> => {
     logger.info(`Manga search request: source=${input["source"]}, keyword=${input.keyword}`);
 
     // Use our enhanced provider registry initialization
@@ -438,12 +438,12 @@ export const searchRouter = router({
   /**
    * Search for manga across multiple providers
    *
-   * NOTE: Using uncachedPublicProcedure - providers have their own caching
+   * NOTE: Not cachedProtectedProcedure - providers have their own caching
    *
    * @param input Object containing title and array of providers to search
    * @returns Object with search results grouped by provider, plus any provider errors
    */
-  searchAcrossProviders: uncachedPublicProcedure.input(providerConfirmationSearchSchema).query(async ({ input }): Promise<{ results: Record<string, StandardizedMangaResult[]>; providerErrors: ProviderErrorInfo[] }> => {
+  searchAcrossProviders: protectedProcedure.input(providerConfirmationSearchSchema).query(async ({ input }): Promise<{ results: Record<string, StandardizedMangaResult[]>; providerErrors: ProviderErrorInfo[] }> => {
     logger.info(`Multi-provider search request for title: ${input["title"]}, providers: ${input.providers.join(', ')}`);
 
     try {
@@ -477,7 +477,7 @@ export const searchRouter = router({
    * @param input Object containing title and array of providers to search
    * @returns Object with search results grouped by provider, including metadata from all sources
    */
-  searchProviderConfirmation: uncachedPublicProcedure.input(providerConfirmationSearchSchema).query(async ({ input }): Promise<{ results: Record<string, StandardizedMangaResult[]>; providerErrors: ProviderErrorInfo[] }> => {
+  searchProviderConfirmation: protectedProcedure.input(providerConfirmationSearchSchema).query(async ({ input }): Promise<{ results: Record<string, StandardizedMangaResult[]>; providerErrors: ProviderErrorInfo[] }> => {
     logger.info(`Provider confirmation search for title: ${input["title"]}, requested providers: ${input.providers.join(', ')}`);
 
     try {

@@ -12,6 +12,9 @@ services:
     image: ghcr.io/rorqualx/mugiwara-kaizoku:latest
     container_name: kaizoku
     restart: unless-stopped
+    # Must exceed the entrypoint's KAIZOKU_STOP_TIMEOUT (50s) so the app can
+    # drain jobs and the bundled Postgres can shut down cleanly on `docker stop`.
+    stop_grace_period: 60s
     ports:
       - "3000:3000"
     environment:

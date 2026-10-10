@@ -45,7 +45,7 @@ import { z } from 'zod';
 
 import { prisma } from '../db';
 
-import { publicProcedure } from './procedures';
+import { protectedProcedure, publicProcedure } from './procedures';
 // Import ALL routers from the consolidated routers directory ONLY
 import { activityRouter } from './routers/activity';
 import { anilistRouter } from './routers/anilist';
@@ -211,7 +211,7 @@ export const appRouter = router({
     timestamp: new Date()
   })),
 
-  getLatestChapters: publicProcedure
+  getLatestChapters: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(100).default(10) }).optional())
     .query(async ({ input }) => {
       const limit = input?.limit || 10;

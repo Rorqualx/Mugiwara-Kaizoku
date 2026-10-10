@@ -12,7 +12,7 @@ import { prisma } from '@/server/db';
 import { schedule as scheduleChapterCheck } from '@/server/queue/checkChapters';
 import { checkOutOfSyncChapters as checkOutOfSyncChaptersJob } from '@/server/queue/checkOutOfSyncChapters';
 import { enqueueFixOutOfSyncChaptersTask } from '@/server/queue/fixOutOfSyncChapters';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createSuccessResult } from '@/utils/async-result';
 import { toStringId } from '@/utils/id-converters';
@@ -29,7 +29,7 @@ import { idSchema, mangaIdSchema } from './helpers';
 /**
  * Get all chapters for a manga
  */
-const getAllChapters = publicProcedure
+const getAllChapters = protectedProcedure
   .input(idSchema)
   .query(async ({ input, ctx }) => {
     try {

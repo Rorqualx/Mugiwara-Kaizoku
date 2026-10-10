@@ -9,7 +9,7 @@
 import { z } from 'zod';
 
 import { scanlationGroupService } from '@/server/services/scanlation/ScanlationGroupService';
-import { publicProcedure, protectedProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -22,7 +22,7 @@ export const scanlationGroupRouter = router({
   /**
    * Get a scanlation group by ID
    */
-  getGroup: publicProcedure
+  getGroup: protectedProcedure
     .input(z.object({
       groupId: z.string(),
       fetchIfMissing: z.boolean().default(true)
@@ -38,7 +38,7 @@ export const scanlationGroupRouter = router({
   /**
    * Get all groups for a manga
    */
-  getMangaGroups: publicProcedure
+  getMangaGroups: protectedProcedure
     .input(z.object({
       mangaId: z.number(),
       language: z.string().optional()
@@ -54,7 +54,7 @@ export const scanlationGroupRouter = router({
   /**
    * Search for scanlation groups
    */
-  searchGroups: publicProcedure
+  searchGroups: protectedProcedure
     .input(z.object({
       query: z.string().min(1),
       limit: z.number().min(1).max(100).default(20)
@@ -93,7 +93,7 @@ export const scanlationGroupRouter = router({
   /**
    * Get preferred groups for a manga
    */
-  getPreferredGroups: publicProcedure
+  getPreferredGroups: protectedProcedure
     .input(z.object({
       mangaId: z.number(),
       language: z.string().optional()
@@ -109,7 +109,7 @@ export const scanlationGroupRouter = router({
   /**
    * Get excluded groups for a manga
    */
-  getExcludedGroups: publicProcedure
+  getExcludedGroups: protectedProcedure
     .input(z.object({
       mangaId: z.number(),
       language: z.string().optional()

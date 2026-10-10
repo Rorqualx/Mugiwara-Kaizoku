@@ -155,6 +155,17 @@ export const protectedProcedure = procedure
   });
 
 /**
+ * Cached protected procedure - Requires authenticated user, 30s response cache
+ *
+ * The cache is keyed on the request input, NOT on the user, so use this only
+ * for catalog/provider lookups whose result is the same for every user
+ * (AniList discovery, provider search). Anything that reads library or
+ * per-user state must use `protectedProcedure`.
+ * Auth runs before the cache, so an unauthenticated caller never gets a hit.
+ */
+export const cachedProtectedProcedure = protectedProcedure.use(cachingMiddleware(30000));
+
+/**
  * Settings procedure - No caching for settings queries
  *
  * Use for settings endpoints that should always return fresh data:
@@ -326,6 +337,7 @@ export default {
   public: publicProcedure,
   uncachedPublic: uncachedPublicProcedure,
   protected: protectedProcedure,
+  cachedProtected: cachedProtectedProcedure,
   admin: adminProcedure,
   system: systemProcedure,
   settings: settingsProcedure,

@@ -50,6 +50,13 @@ jest.mock('next-auth/next', () => ({
   getServerSession: mockGetServerSession,
 }));
 
+// The outbound-URL guard resolves the host before fetching; keep tests offline.
+const mockDnsLookup = jest.fn();
+
+jest.mock('node:dns/promises', () => ({
+  lookup: mockDnsLookup,
+}));
+
 // Mock cheerio with proper selector-based lookup
 jest.mock('cheerio', () => ({
   load: jest.fn((html: string) => {
@@ -139,6 +146,49 @@ describe('website-operations Router', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockFetch.mockReset();
+    // Procedures are protectedProcedure: every call needs a session.
+    mockGetServerSession.mockResolvedValue({ user: { id: 'user-1', role: 'USER' } });
+    mockDnsLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+  });
+
+  it('rejects unauthenticated callers', async () => {
+    mockGetServerSession.mockResolvedValue(null);
+    const { nativeDownloadWebsiteOperationsRouter } = await import(
+      '@/server/trpc/routers/native-download/website-operations'
+    );
+    const caller = nativeDownloadWebsiteOperationsRouter.createCaller(createMockContext());
+
+    await expect(
+      caller.validateSelector({ url: 'https://example.com', selector: '.x' })
+    ).rejects.toMatchObject({ code: 'UNAUTHORIZED' });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'http://127.0.0.1:9091/transmission/rpc',
+    'http://localhost:5432/',
+    'http://192.168.50.185/',
+  ])('refuses to fetch private URL %s', async (url) => {
+    const { nativeDownloadWebsiteOperationsRouter } = await import(
+      '@/server/trpc/routers/native-download/website-operations'
+    );
+    const caller = nativeDownloadWebsiteOperationsRouter.createCaller(createMockContext());
+
+    await expect(caller.validateSelector({ url, selector: '.x' })).rejects.toThrow();
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a public hostname that resolves to a private address', async () => {
+    mockDnsLookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
+    const { nativeDownloadWebsiteOperationsRouter } = await import(
+      '@/server/trpc/routers/native-download/website-operations'
+    );
+    const caller = nativeDownloadWebsiteOperationsRouter.createCaller(createMockContext());
+
+    await expect(
+      caller.validateSelector({ url: 'https://rebind.example.com', selector: '.x' })
+    ).rejects.toThrow();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   describe('validateSelector procedure', () => {
@@ -155,6 +205,8 @@ describe('website-operations Router', () => {
     beforeEach(() => {
       mockFetch.mockResolvedValue({
         ok: true,
+        status: 200,
+        headers: new Headers(),
         text: jest.fn().mockResolvedValue(mockHtml),
       });
     });
@@ -266,6 +318,7 @@ describe('website-operations Router', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
+        headers: new Headers(),
         statusText: 'Not Found'
       });
 
@@ -326,6 +379,8 @@ describe('website-operations Router', () => {
     beforeEach(() => {
       mockFetch.mockResolvedValue({
         ok: true,
+        status: 200,
+        headers: new Headers(),
         text: jest.fn().mockResolvedValue(mockHtml),
       });
     });

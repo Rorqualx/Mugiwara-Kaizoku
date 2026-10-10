@@ -7,7 +7,7 @@
  */
 
 import { detectErrorType } from '@/server/services/search/unified-registry/registry-utils';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import type { ProviderErrorInfo } from '@/types/search-types/provider.types';
 import { logger } from '@/utils/logger';
@@ -96,7 +96,7 @@ async function searchProvider(
 }
 
 export const searchAcrossRouter = router({
-  searchAcrossProviders: publicProcedure
+  searchAcrossProviders: protectedProcedure
     .input(providerConfirmationSearchSchema)
     .query(async ({ input }): Promise<{ results: Record<string, unknown[]>; providerErrors: ProviderErrorInfo[] }> => {
       logger.info(`Multi-provider search request for title: ${input.title}, providers: ${input.providers.join(', ')}`);

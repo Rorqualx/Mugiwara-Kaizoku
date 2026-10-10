@@ -14,7 +14,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
-import { publicProcedure, protectedProcedure as _protectedProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 
 import {
@@ -62,7 +62,7 @@ export const volumeQueriesRouter = router({
    * Returns all volumes for a specified manga with optional chapter
    * and progress inclusion.
    */
-  list: publicProcedure
+  list: protectedProcedure
     .input(volumeListSchema)
     .query(async ({ ctx, input }): Promise<VolumeWithRelations[]> => {
       const userId = getUserId(ctx);
@@ -88,7 +88,7 @@ export const volumeQueriesRouter = router({
    * Returns a volume with all related data including creators,
    * characters, themes, genres, and story arcs.
    */
-  get: publicProcedure
+  get: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }): Promise<VolumeWithRelations> => {
       const volume = await ctx.prisma.volume.findUnique({
@@ -118,7 +118,7 @@ export const volumeQueriesRouter = router({
    * Returns a volume with all chapters that are linked to it,
    * ordered by chapter number.
    */
-  getWithChapters: publicProcedure
+  getWithChapters: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(async ({ ctx, input }): Promise<VolumeWithChapters> => {
       const volume = await ctx.prisma.volume.findUnique({
@@ -150,7 +150,7 @@ export const volumeQueriesRouter = router({
    *
    * Searches for a volume by ISBN (10 or 13 digit format).
    */
-  getByIsbn: publicProcedure
+  getByIsbn: protectedProcedure
     .input(z.object({ isbn: z.string().min(10).max(20) }))
     .query(async ({ ctx, input }): Promise<VolumeWithRelations | null> => {
       const normalizedIsbn = input.isbn.replace(/[-\s]/g, '');
@@ -182,7 +182,7 @@ export const volumeQueriesRouter = router({
    * Searches volumes by various criteria including title, ISBN,
    * publisher, and source.
    */
-  search: publicProcedure
+  search: protectedProcedure
     .input(volumeSearchSchema)
     .query(async ({ ctx, input }): Promise<{ volumes: VolumeWithRelations[]; total: number }> => {
       const where: Prisma.VolumeWhereInput = {};
@@ -241,7 +241,7 @@ export const volumeQueriesRouter = router({
    *
    * Returns the total number of volumes for a manga.
    */
-  getCount: publicProcedure
+  getCount: protectedProcedure
     .input(z.object({ mangaId: z.number().int().positive() }))
     .query(async ({ ctx, input }): Promise<number> => {
       return ctx.prisma.volume.count({

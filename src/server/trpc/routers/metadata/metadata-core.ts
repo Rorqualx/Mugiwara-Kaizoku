@@ -21,7 +21,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { TRPCErrors, toTRPCError } from '@/server/trpc/errors';
-import { adminProcedure, protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { isError } from '@/utils/async-result';
@@ -61,7 +61,7 @@ export const metadataCoreRouter = router({
   /**
    * Get field preferences (now global, no Settings FK)
    */
-  fieldPreferences: publicProcedure.query(async (): Promise<MetadataFieldPreference[]> => {
+  fieldPreferences: protectedProcedure.query(async (): Promise<MetadataFieldPreference[]> => {
     try {
       // Field preferences are now global (no FK to Settings)
       const extendedPrisma = prisma as unknown as ExtendedPrismaClient;
@@ -131,7 +131,7 @@ export const metadataCoreRouter = router({
    * Get provider strength data for fields
    * @returns {ProviderStrengths} Provider field strength ratings
    */
-  providerStrengths: publicProcedure.query((): ProviderStrengths => {
+  providerStrengths: protectedProcedure.query((): ProviderStrengths => {
     // This is currently hardcoded in the UI component, but could be moved to the server
     // and made configurable in the future
     const strengths: ProviderStrengths = {
@@ -202,7 +202,7 @@ export const metadataCoreRouter = router({
   /**
    * Get metadata conflicts for a manga
    */
-  getConflicts: publicProcedure
+  getConflicts: protectedProcedure
     .input(GetConflictsSchema)
     .query(async ({ input }): Promise<MetadataConflict[]> => {
       try {
@@ -310,7 +310,7 @@ export const metadataCoreRouter = router({
    * Clears cached metadata from CacheUnified table. Can optionally clear
    * cache for a specific manga or clear all metadata cache entries.
    */
-  clearMetadataCache: publicProcedure
+  clearMetadataCache: protectedProcedure
     .input(
       z
         .object({
@@ -529,7 +529,7 @@ export const metadataCoreRouter = router({
    * with the per-pass selections summary + shadow deltas where the selector
    * disagreed with the Object.assign chain.
    */
-  getSelectionHistory: publicProcedure
+  getSelectionHistory: protectedProcedure
     .input(z.object({ mangaId: z.number().int().positive(), limit: z.number().int().min(1).max(50).optional() }))
     .query(async ({ input }) => {
       const limit = input.limit ?? 10;

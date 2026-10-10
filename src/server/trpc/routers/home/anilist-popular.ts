@@ -30,7 +30,7 @@ import {
   getUserConfigOverride,
   getUserConfigValue,
 } from '@/server/services/config/user-config-service';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -99,7 +99,7 @@ export const homeAnilistPopularRouter = router({
    * @input limit - Number of results (default 20, max 50)
    * @returns Array of popular manga from AniList
    */
-  getPopular: publicProcedure
+  getPopular: cachedProtectedProcedure
     .input(
       z
         .object({
@@ -189,7 +189,7 @@ export const homeAnilistPopularRouter = router({
    * @input limit - Number of results (default 100, max 100)
    * @returns Array of top popular manga from AniList
    */
-  getTop100: publicProcedure
+  getTop100: cachedProtectedProcedure
     .input(
       z
         .object({
@@ -279,7 +279,7 @@ export const homeAnilistPopularRouter = router({
    * @input limit - Number of results (default 20, max 50)
    * @returns Array of trending manga from AniList
    */
-  getTrending: publicProcedure
+  getTrending: cachedProtectedProcedure
     .input(
       z
         .object({
@@ -370,7 +370,7 @@ export const homeAnilistPopularRouter = router({
    *
    * @returns { available, message }
    */
-  getAnilistStatus: publicProcedure.query(async (): Promise<AnilistHealth> => {
+  getAnilistStatus: cachedProtectedProcedure.query(async (): Promise<AnilistHealth> => {
     return getAnilistHealth();
   }),
 });

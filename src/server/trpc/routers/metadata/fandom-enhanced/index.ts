@@ -15,7 +15,7 @@ import { z } from 'zod';
 
 import { calculateTotalChapters } from '@/server/services/metadata/chapter-count-helpers';
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -32,7 +32,7 @@ export const metadataFandomEnhancedRouter = router({
   /**
    * Parse a Fandom URL with enhanced chapter metadata (including covers)
    */
-  parseFandomUrlEnhanced: publicProcedure
+  parseFandomUrlEnhanced: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),

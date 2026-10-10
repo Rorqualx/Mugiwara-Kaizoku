@@ -9,7 +9,7 @@
 
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { detectErrorType } from '@/server/services/search/unified-registry/registry-utils';
-import { uncachedPublicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import {
   isProviderMetadataRecord,
@@ -372,7 +372,7 @@ async function searchConfirmationProvider(
 
 export const providerConfirmationSearchRouter = router({
   /** Enhanced provider confirmation search with metadata enrichment */
-  searchProviderConfirmation: uncachedPublicProcedure
+  searchProviderConfirmation: protectedProcedure
     .input(providerConfirmationSearchSchema)
     .query(async ({ input }): Promise<{ results: Record<string, unknown[]>; providerErrors: ProviderErrorInfo[] }> => {
       logger.info(

@@ -189,15 +189,35 @@ if [ "$start_bundled_postgres" = "true" ]; then
       -c "CREATE DATABASE \"${POSTGRES_DB}\" OWNER \"${POSTGRES_USER}\";"
   fi
 
-  # Trap SIGTERM/SIGINT to bring postgres down cleanly when the container stops
+  # Bring postgres down cleanly when the container stops. SIGINT is the
+  # postmaster's "fast shutdown": it disconnects clients and checkpoints, so
+  # the next boot does not need crash recovery.
   cleanup() {
     if [ -n "$POSTGRES_PID" ] && kill -0 "$POSTGRES_PID" 2>/dev/null; then
       echo -e "${YELLOW}📡 Stopping PostgreSQL (pid $POSTGRES_PID)${NC}"
-      kill -TERM "$POSTGRES_PID" 2>/dev/null || true
+      kill -INT "$POSTGRES_PID" 2>/dev/null || true
       wait "$POSTGRES_PID" 2>/dev/null || true
     fi
   }
-  trap cleanup SIGTERM SIGINT EXIT
+
+  # Bash only runs a trap between commands, so a stop signal that arrives while
+  # a foreground child is running is deferred until that child exits. The app
+  # is therefore launched in the background and wait-ed on (see section 3);
+  # this handler forwards the signal to it. Before the app exists (migrations),
+  # there is nothing to drain, so stop postgres and leave.
+  APP_PID=""
+  STOP_REQUESTED=false
+  on_stop_signal() {
+    STOP_REQUESTED=true
+    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+      echo -e "${YELLOW}📡 Stop requested — forwarding SIGTERM to app (pid $APP_PID)${NC}"
+      kill -TERM "$APP_PID" 2>/dev/null || true
+    else
+      exit 143
+    fi
+  }
+  trap on_stop_signal SIGTERM SIGINT
+  trap cleanup EXIT
 fi
 
 # Wait for the database (bundled or external) to be reachable
@@ -293,14 +313,46 @@ if [[ "$NODE_ENV" == "production" ]]; then
   # exec into the app under the 'app' user. If bundled postgres is running,
   # it stays as a child of this process (PID 1 is the entrypoint shell).
   if [ "$start_bundled_postgres" = "true" ]; then
-    # Keep postgres as a sibling — run app in foreground, NOT exec
+    # Keep postgres as a sibling — run the app in the BACKGROUND and wait on
+    # it, so on_stop_signal fires immediately instead of after the app exits.
     gosu app env DATABASE_URL="$DATABASE_URL" \
       NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
       AUTH_SECRET="$AUTH_SECRET" \
-      "$@"
-    APP_EXIT=$?
+      "$@" &
+    APP_PID=$!
+
+    # `wait` returns early (>128) when a trapped signal arrives, so loop until
+    # the app is really gone. Once a stop was requested, give the app
+    # KAIZOKU_STOP_TIMEOUT seconds to drain, then kill it so postgres still
+    # gets a clean shutdown inside the container's stop grace period
+    # (compose: stop_grace_period must exceed this value).
+    : "${KAIZOKU_STOP_TIMEOUT:=50}"
+    set +e
+    APP_EXIT=0
+    STOP_DEADLINE=""
+    while kill -0 "$APP_PID" 2>/dev/null; do
+      if [ "$STOP_REQUESTED" = "true" ]; then
+        if [ -z "$STOP_DEADLINE" ]; then
+          STOP_DEADLINE=$(( $(date +%s) + KAIZOKU_STOP_TIMEOUT ))
+        elif [ "$(date +%s)" -ge "$STOP_DEADLINE" ]; then
+          echo -e "${RED}⏱️  App did not exit within ${KAIZOKU_STOP_TIMEOUT}s — killing it${NC}"
+          kill -KILL "$APP_PID" 2>/dev/null
+        fi
+        # Poll: a bare `wait` here could block past the deadline.
+        sleep 1
+      else
+        wait "$APP_PID"
+        APP_EXIT=$?
+      fi
+    done
+    # Reap and pick up the real exit status (wait is idempotent for a reaped
+    # child only once, so keep the earlier value if this one reports 127).
+    wait "$APP_PID" 2>/dev/null
+    FINAL_EXIT=$?
+    [ "$FINAL_EXIT" -ne 127 ] && APP_EXIT=$FINAL_EXIT
+    set -e
     cleanup
-    exit $APP_EXIT
+    exit "$APP_EXIT"
   else
     exec gosu app env DATABASE_URL="$DATABASE_URL" \
       NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \

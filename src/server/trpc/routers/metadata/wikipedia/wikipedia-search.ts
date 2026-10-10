@@ -12,12 +12,12 @@
 import { z } from 'zod';
 
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
 export const wikipediaSearchRouter = router({
-  searchWikipedia: publicProcedure
+  searchWikipedia: cachedProtectedProcedure
     .input(
       z.object({
         query: z.string().min(1),

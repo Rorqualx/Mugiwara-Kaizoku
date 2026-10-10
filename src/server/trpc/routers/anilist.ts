@@ -27,7 +27,7 @@ import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { anilistClient } from '@/server/services/anilist/client';
 import * as anilistQueries from '@/server/services/anilist/queries';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -518,7 +518,7 @@ export const anilistRouter = router({
    * @param {number} perPage - Results per page (default: 10)
    * @returns Search results array with page info
    */
-  searchManga: publicProcedure
+  searchManga: protectedProcedure
     .input(
       z.object({
         query: z.string().min(1),
@@ -577,7 +577,7 @@ export const anilistRouter = router({
    * const manga = await trpc.anilist.getMangaDetails.query({ anilistId: 30013 }); // One Piece
    * ```
    */
-  getMangaDetails: publicProcedure
+  getMangaDetails: protectedProcedure
     .input(
       z.object({
         /** AniList manga ID */

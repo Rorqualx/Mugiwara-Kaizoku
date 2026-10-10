@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 import { adaptiveParse, toVolumeDetails } from '@/server/services/fandom/adaptive';
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -399,7 +399,7 @@ async function parseFandomUrlInternal(
 // ============================================================================
 
 export const metadataFandomUrlParserRouter = router({
-  parseFandomUrl: publicProcedure
+  parseFandomUrl: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),

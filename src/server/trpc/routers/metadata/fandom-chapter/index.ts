@@ -17,8 +17,9 @@
 import { z } from 'zod';
 
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { isHostInDomains } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 import { handleError } from '../metadata-utils';
@@ -43,7 +44,7 @@ export const metadataFandomChapterRouter = router({
   /**
    * Fetch metadata for a specific Fandom chapter page
    */
-  fetchFandomChapterMetadata: publicProcedure
+  fetchFandomChapterMetadata: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -56,7 +57,7 @@ export const metadataFandomChapterRouter = router({
           const { url, forceRefresh } = input;
 
           // Validate it's a Fandom URL
-          if (!url.includes('fandom.com')) {
+          if (!isHostInDomains(new URL(url).hostname, ['fandom.com'])) {
             throw TRPCErrors.badRequest('Not a valid Fandom wiki URL');
           }
 

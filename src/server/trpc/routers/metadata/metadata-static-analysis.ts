@@ -19,8 +19,9 @@ import type {
   StaticAnalysisResult,
 } from '@/server/services/fandom/adaptive/static-analyzer';
 import { analyzePageStructure } from '@/server/services/fandom/adaptive/static-analyzer';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { fetchPublicUrl, requirePublicUrl } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -84,7 +85,8 @@ async function fetchHtml(url: string, timeoutMs: number = DEFAULT_TIMEOUT_MS): P
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
+    await requirePublicUrl(url);
+    const response = await fetchPublicUrl(url, {
       method: 'GET',
       signal: controller.signal,
       headers: {
@@ -162,7 +164,7 @@ export const metadataStaticAnalysisRouter = router({
    *
    * Use this before full parsing to inform the parser selection.
    */
-  analyzeUrl: publicProcedure
+  analyzeUrl: protectedProcedure
     .input(analyzeUrlInputSchema)
     .mutation(async ({ input }): Promise<StaticAnalysisResponse> => {
       const { url } = input;

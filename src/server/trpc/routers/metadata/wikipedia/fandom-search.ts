@@ -15,7 +15,7 @@
 import { z } from 'zod';
 
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
 import { logger } from '@/utils/logger';
@@ -35,7 +35,7 @@ interface FandomWikiSearchHit {
 }
 
 export const fandomSearchRouter = router({
-  searchFandomWikis: publicProcedure.
+  searchFandomWikis: cachedProtectedProcedure.
   input(z.object({
     title: z.string(),
     wikis: z.array(z.string()).optional()

@@ -30,7 +30,7 @@ import {
   getUserConfigOverride,
   getUserConfigValue,
 } from '@/server/services/config/user-config-service';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -245,7 +245,7 @@ export const homeAnilistFilteredRouter = router({
    * @input limit - Number of results (default 20)
    * @returns Array of manga with the specified genre from AniList
    */
-  getByGenre: publicProcedure
+  getByGenre: cachedProtectedProcedure
     .input(
       z.object({
         genre: z.string().min(1),
@@ -347,7 +347,7 @@ export const homeAnilistFilteredRouter = router({
    *
    * @returns Array of genre strings from AniList
    */
-  getAvailableGenres: publicProcedure.query((): readonly string[] => {
+  getAvailableGenres: cachedProtectedProcedure.query((): readonly string[] => {
     try {
       logger.info('Returning common AniList genres');
 
@@ -370,7 +370,7 @@ export const homeAnilistFilteredRouter = router({
    * @input limit - Number of results (default 20)
    * @returns Array of manga with the specified format from AniList
    */
-  getByFormat: publicProcedure
+  getByFormat: cachedProtectedProcedure
     .input(
       z.object({
         format: z.enum(['NOVEL', 'ONE_SHOT', 'MANGA']),
@@ -472,7 +472,7 @@ export const homeAnilistFilteredRouter = router({
    * @input limit - Number of results (default 20)
    * @returns Array of new series from AniList
    */
-  getNewSeries: publicProcedure
+  getNewSeries: cachedProtectedProcedure
     .input(
       z
         .object({

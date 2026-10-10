@@ -18,7 +18,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -40,7 +40,7 @@ export const nativeDownloadOperationsRouter = router({
   /**
    * Search for manga across native download sources
    */
-  searchManga: publicProcedure
+  searchManga: protectedProcedure
     .input(searchMangaInput)
     .query(async ({ input }) => {
       try {
@@ -196,7 +196,7 @@ export const nativeDownloadOperationsRouter = router({
   /**
    * Cancel a download
    */
-  cancelDownload: publicProcedure
+  cancelDownload: protectedProcedure
     .input(
       z.object({
         id: z.string()
@@ -257,7 +257,7 @@ export const nativeDownloadOperationsRouter = router({
   /**
    * Retry a failed download
    */
-  retryDownload: publicProcedure
+  retryDownload: protectedProcedure
     .input(
       z.object({
         id: z.string()

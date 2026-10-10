@@ -15,7 +15,7 @@ import { DownloadManager } from '@/server/services/download/downloadManager';
 import { loadAcceptedTitles } from '@/server/services/prowlarr/accepted-titles';
 import { ProwlarrMangaSearch } from '@/server/services/prowlarr/mangaSearch';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import type {
@@ -237,7 +237,7 @@ export const downloadRouter = router({
     return response;
   }),
 
-  searchProwlarr: publicProcedure.input(z.object({
+  searchProwlarr: protectedProcedure.input(z.object({
     query: z.string(),
     mangaId: z.number()
   })).query(async ({ input }): Promise<unknown[]> => {
@@ -272,7 +272,7 @@ export const downloadRouter = router({
     return [];
   }),
 
-  getChapterDownloadHistory: publicProcedure.input(z.object({
+  getChapterDownloadHistory: protectedProcedure.input(z.object({
     chapterId: z.number()
   })).query(async ({ input }): Promise<Array<{
     timestamp: Date;
@@ -325,7 +325,7 @@ export const downloadRouter = router({
     });
   }),
 
-  getMangaDownloadHistory: publicProcedure.input(z.object({
+  getMangaDownloadHistory: protectedProcedure.input(z.object({
     mangaId: z.number()
   })).query(async ({ input }): Promise<Array<{
     timestamp: Date;

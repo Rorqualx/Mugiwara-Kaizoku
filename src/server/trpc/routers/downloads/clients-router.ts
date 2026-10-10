@@ -20,7 +20,7 @@
 import { z } from 'zod';
 
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -60,6 +60,9 @@ interface ClientTestResult {
  * Provides operations for managing download client configuration
  * and testing connections.
  */
+/** Config keys under `download.<type>.` that hold credentials. */
+const SECRET_CONFIG_KEY = /(password|apikey|api_key|token|secret)$/i;
+
 export const downloadsClientsRouter = router({
   /**
    * List available download clients
@@ -67,7 +70,7 @@ export const downloadsClientsRouter = router({
    * Returns a static list of supported download client types
    * with their names and support status.
    */
-  list: publicProcedure.query((): DownloadClientInfo[] => {
+  list: protectedProcedure.query((): DownloadClientInfo[] => {
     return [
       { id: 'transmission', name: 'Transmission', supported: true },
       { id: 'deluge', name: 'Deluge', supported: true },
@@ -85,7 +88,7 @@ export const downloadsClientsRouter = router({
    * ESLint fix: Uses getEnabledClients() which uses Promise.all
    * instead of await-in-loop pattern.
    */
-  getConfig: publicProcedure.query(async (): Promise<{
+  getConfig: adminProcedure.query(async (): Promise<{
     type: string;
     enabled: boolean;
     config: Record<string, string>;
@@ -95,7 +98,15 @@ export const downloadsClientsRouter = router({
       const clients = await getEnabledClients();
       // Return first enabled client as primary (for backwards compatibility)
       const firstClient = clients[0];
-      return firstClient ?? null;
+      if (!firstClient) return null;
+      // Never send stored credentials back to a browser; updateConfig only
+      // overwrites them when a new value is supplied.
+      return {
+        ...firstClient,
+        config: Object.fromEntries(
+          Object.entries(firstClient.config).filter(([key]) => !SECRET_CONFIG_KEY.test(key))
+        ),
+      };
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -119,7 +130,7 @@ export const downloadsClientsRouter = router({
    * @returns true when the configuration was persisted
    * @throws TRPCError when the configuration could not be saved
    */
-  updateConfig: protectedProcedure
+  updateConfig: adminProcedure
     .input(downloadClientConfigSchema)
     .mutation(
       async ({ input, ctx }): Promise<boolean> => {
@@ -185,7 +196,7 @@ export const downloadsClientsRouter = router({
    * If input is provided, tests that specific client configuration.
    * Otherwise, tests the first enabled client.
    */
-  test: protectedProcedure
+  test: adminProcedure
     .input(z.union([downloadClientConfigSchema, z.undefined()]).optional())
     .mutation(async ({ input }): Promise<ClientTestResult> => {
       try {

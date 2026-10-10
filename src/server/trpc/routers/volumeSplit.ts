@@ -16,7 +16,7 @@ import { getVolumeSplitter } from '@/server/services/download/volumeSplitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { logger } from '@/utils/logger';
 
-import { protectedProcedure, publicProcedure } from '../procedures';
+import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 import type { Prisma } from '@prisma/client';
@@ -58,7 +58,7 @@ export const volumeSplitRouter = router({
    * Analyzes the volume and returns detected chapters with confidence scores
    * without actually splitting the file.
    */
-  previewSplit: publicProcedure
+  previewSplit: protectedProcedure
     .input(previewSplitSchema)
     .query(async ({ input }) => {
       try {
@@ -207,7 +207,7 @@ export const volumeSplitRouter = router({
    *
    * Returns information about previously split volumes
    */
-  getSplitResults: publicProcedure
+  getSplitResults: protectedProcedure
     .input(getSplitResultsSchema)
     .query(async ({ input }) => {
       try {
@@ -293,7 +293,7 @@ export const volumeSplitRouter = router({
    *
    * Returns current progress state for a specific operation
    */
-  getProgress: publicProcedure
+  getProgress: protectedProcedure
     .input(z.object({ operationId: z.string().min(1) }))
     .query(({ input }) => {
       try {
@@ -331,7 +331,7 @@ export const volumeSplitRouter = router({
    *
    * Returns progress for all currently running operations
    */
-  getActiveOperations: publicProcedure
+  getActiveOperations: protectedProcedure
     .query(() => {
       try {
         logger.debug('[VolumeSplitRouter] Getting all active operations');

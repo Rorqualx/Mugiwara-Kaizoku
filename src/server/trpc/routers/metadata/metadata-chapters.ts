@@ -14,8 +14,9 @@
 import { z } from 'zod';
 
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { rejectPrivateRedirect, requirePublicUrl } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 
@@ -30,7 +31,7 @@ export const metadataChaptersRouter = router({
    * Parse enhanced volumes with chapter details
    * Extracts volume and chapter information from a Fandom wiki page
    */
-  parseEnhancedVolumes: publicProcedure
+  parseEnhancedVolumes: protectedProcedure
     .input(z.object({
       volumesPageUrl: z.string().url(),
       extractChapterUrls: z.boolean().default(true)
@@ -57,11 +58,13 @@ export const metadataChaptersRouter = router({
         const { parseVolumeTables } = await import('@/server/services/metadata/utils/fandomTableParser');
 
         // Fetch the page
+        await requirePublicUrl(input.volumesPageUrl);
         const response = await axios.get(input.volumesPageUrl, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; MangaManager/1.0)'
           },
-          timeout: 30000
+          timeout: 30000,
+          beforeRedirect: rejectPrivateRedirect
         });
 
         // Extract wiki base URL for converting relative URLs to absolute
@@ -138,7 +141,7 @@ export const metadataChaptersRouter = router({
    * Fetch chapter details for specific chapters
    * Batch fetches chapter details with rate limiting and progress tracking
    */
-  fetchChapterDetails: publicProcedure
+  fetchChapterDetails: protectedProcedure
     .input(z.object({
       chapterUrls: z.array(z.string().url()),
       mangaId: z.number()
@@ -192,7 +195,7 @@ export const metadataChaptersRouter = router({
    * Fetches chapter details in batches and returns results progressively
    * Includes multi-tier caching for improved performance
    */
-  fetchChapterDetailsProgressive: publicProcedure
+  fetchChapterDetailsProgressive: protectedProcedure
     .input(z.object({
       chapterUrls: z.array(z.string().url()),
       mangaId: z.number(),

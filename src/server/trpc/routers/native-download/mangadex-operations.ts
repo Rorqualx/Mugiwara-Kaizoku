@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { mangadexClient, mangadexConfigService, extractScanlationGroups } from '@/server/services/mangadex';
 import { getNativeDownloadManager } from '@/server/services/native-download/NativeDownloadManager';
-import { publicProcedure, protectedProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -147,7 +147,7 @@ export const mangadexOperationsRouter = router({
   /**
    * Search for chapters on MangaDex
    */
-  searchChapters: publicProcedure
+  searchChapters: protectedProcedure
     .input(z.object({
       mangadexId: z.string(),
       language: z.string().optional(),
@@ -206,7 +206,7 @@ export const mangadexOperationsRouter = router({
   /**
    * Get download info for a chapter (preview)
    */
-  getDownloadInfo: publicProcedure
+  getDownloadInfo: protectedProcedure
     .input(z.object({
       chapterId: z.string()
     }))
@@ -402,7 +402,7 @@ export const mangadexOperationsRouter = router({
    * `enabled` here is `mangadex.download.enabled` — distinct from the
    * metadata-provider toggle.
    */
-  getDownloadConfig: publicProcedure.query(async () => {
+  getDownloadConfig: protectedProcedure.query(async () => {
     return mangadexConfigService.getDownloadConfig();
   }),
 
@@ -428,10 +428,6 @@ export const mangadexOperationsRouter = router({
       }
       if (input.dataSaverMode !== undefined) updates.dataSaverMode = input.dataSaverMode;
       await mangadexConfigService.updateDownloadConfig(updates);
-      // publicProcedure caches getDownloadConfig results for 30s; clear so
-      // the UI's refetch sees the new value immediately.
-      const { cache } = await import('@/server/cache/cache-adapter');
-      await cache.clear('trpc:nativeDownload.getDownloadConfig:*');
       return { success: true };
     }),
 
@@ -439,7 +435,7 @@ export const mangadexOperationsRouter = router({
    * Get the MangaDex metadata-side config (metadata-provider settings).
    * `enabled` here is `mangadex.enabled`.
    */
-  getMetadataConfig: publicProcedure.query(async () => {
+  getMetadataConfig: protectedProcedure.query(async () => {
     return mangadexConfigService.getMetadataConfig();
   }),
 
@@ -463,17 +459,13 @@ export const mangadexOperationsRouter = router({
       if (input.includeAdult !== undefined) updates.includeAdult = input.includeAdult;
       if (input.defaultContentRating !== undefined) updates.defaultContentRating = input.defaultContentRating;
       await mangadexConfigService.updateMetadataConfig(updates);
-      // publicProcedure caches getMetadataConfig results for 30s; clear so
-      // the UI's refetch sees the new value immediately.
-      const { cache } = await import('@/server/cache/cache-adapter');
-      await cache.clear('trpc:nativeDownload.getMetadataConfig:*');
       return { success: true };
     }),
 
   /**
    * Health check for MangaDex API
    */
-  healthCheck: publicProcedure.query(async () => {
+  healthCheck: protectedProcedure.query(async () => {
     const isHealthy = await mangadexClient.healthCheck();
     return {
       status: isHealthy ? 'ok' : 'error',

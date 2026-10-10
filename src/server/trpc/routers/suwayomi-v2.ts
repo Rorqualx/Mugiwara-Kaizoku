@@ -31,7 +31,7 @@ import { suwayomiService } from '@/server/services/suwayomi/service';
 import { isSuccess, isError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
-import { protectedProcedure, publicProcedure } from '../procedures';
+import { cachedProtectedProcedure, protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 // SECURITY: Use execFile instead of exec to prevent command injection
@@ -54,7 +54,7 @@ function getAdapter(): SuwayomiSourceAdapter {
 }
 
 /**
- * Wipe the publicProcedure query caches that depend on the installed
+ * Wipe the cachedProtectedProcedure query caches that depend on the installed
  * extension set. Install/uninstall mutations call this so the UI's
  * post-mutation refetch returns fresh state instead of the 30s-cached
  * snapshot from before the change — without it, the Install button
@@ -111,7 +111,7 @@ export const suwayomiV2Router = router({
   /**
    * Check if Java is installed
    */
-  checkJava: publicProcedure.query(async () => {
+  checkJava: cachedProtectedProcedure.query(async () => {
     try {
       const status = await suwayomiService.getJavaStatus();
       return { available: status.available, version: status.version };
@@ -124,7 +124,7 @@ export const suwayomiV2Router = router({
   /**
    * Check if Suwayomi server is running
    */
-  isServerRunning: publicProcedure.query(async () => {
+  isServerRunning: cachedProtectedProcedure.query(async () => {
     try {
       return await suwayomiService.isServerRunning();
     } catch (error) {
@@ -189,7 +189,7 @@ export const suwayomiV2Router = router({
   /**
    * Get server running status
    */
-  getServerStatus: publicProcedure.query(async () => {
+  getServerStatus: cachedProtectedProcedure.query(async () => {
     const isRunning = await suwayomiService.isServerRunning();
     return {
       isRunning,
@@ -207,7 +207,7 @@ export const suwayomiV2Router = router({
    * Suwayomi adapter for chapter candidates — distinct from whether the
    * JVM process is running (which `getServerStatus` reports).
    */
-  getIndexerEnabled: publicProcedure.query(async () => {
+  getIndexerEnabled: cachedProtectedProcedure.query(async () => {
     const { configService } = await import('@/server/services/config/configService');
     if (!configService.isInitialized()) await configService.initialize();
     const value = (await configService.get<boolean>('suwayomi.enabled') as boolean | null) ?? false;
@@ -227,7 +227,7 @@ export const suwayomiV2Router = router({
       if (!configService.isInitialized()) await configService.initialize();
       await configService.set('suwayomi.enabled', input.enabled, { source: ConfigSource.DATABASE });
 
-      // publicProcedure caches query results for 30s; invalidate the
+      // cachedProtectedProcedure caches query results for 30s; invalidate the
       // companion getIndexerEnabled cache entries so the UI's refetch
       // sees the new value immediately instead of the stale previous one.
       const { cache } = await import('@/server/cache/cache-adapter');
@@ -261,7 +261,7 @@ export const suwayomiV2Router = router({
   /**
    * Get all installed sources
    */
-  getSources: publicProcedure.query(async () => {
+  getSources: cachedProtectedProcedure.query(async () => {
     if (!(await ensureServerRunning())) {
       return { sources: [], error: 'Server not running' };
     }
@@ -283,7 +283,7 @@ export const suwayomiV2Router = router({
   /**
    * Get all extensions (installed and available)
    */
-  getExtensions: publicProcedure.query(async () => {
+  getExtensions: cachedProtectedProcedure.query(async () => {
     if (!(await ensureServerRunning())) {
       return { extensions: [], error: 'Server not running' };
     }
@@ -323,7 +323,7 @@ export const suwayomiV2Router = router({
         return { success: false, error: null };
       }
 
-      // publicProcedure caches query results for 30s; without clearing
+      // cachedProtectedProcedure caches query results for 30s; without clearing
       // the getExtensions/getSources cache the UI's post-install refetch
       // returns the stale "not installed" snapshot, so the Install button
       // doesn't flip to the Installed badge until a hard reload. Wipe
@@ -354,7 +354,7 @@ export const suwayomiV2Router = router({
         return { success: false, error: null };
       }
 
-      // Same publicProcedure 30s cache as install — without invalidation
+      // Same cachedProtectedProcedure 30s cache as install — without invalidation
       // the badges + browse-catalog rows keep showing the pre-uninstall
       // state on the next refetch.
       await invalidateExtensionCaches();
@@ -362,7 +362,7 @@ export const suwayomiV2Router = router({
       return { success: result.data, error: null };
     }),
 
-  getChapterPages: publicProcedure
+  getChapterPages: cachedProtectedProcedure
     .input(chapterIdSchema)
     .query(async ({ input }) => {
       if (!(await ensureServerRunning())) {
@@ -388,7 +388,7 @@ export const suwayomiV2Router = router({
    * keiyoushi catalog presence (any installed extensions known), and
    * FlareSolverr availability.
    */
-  getInfrastructureStatus: publicProcedure.query(async () => {
+  getInfrastructureStatus: cachedProtectedProcedure.query(async () => {
     const isRunning = await suwayomiService.isServerRunning();
     let catalogConfigured = false;
     let extensionCount = 0;

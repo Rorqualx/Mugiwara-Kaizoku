@@ -16,9 +16,10 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { unwrapResultAsync } from '@/server/trpc/unwrap-result';
+import { isHostInDomains } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 import {
@@ -200,7 +201,7 @@ async function scrapeVolumeChaptersFallback(volumeUrl: string): Promise<{
 }
 
 export const metadataComicvineOpsRouter = router({
-  fetchComicVineIssues: publicProcedure
+  fetchComicVineIssues: protectedProcedure
     .input(z.object({ volumeId: z.string() }))
     .mutation(async ({ input }) => {
       const { volumeId } = input;
@@ -211,7 +212,7 @@ export const metadataComicvineOpsRouter = router({
       return { volumeId, issues };
     }),
 
-  enrichComicvine: publicProcedure
+  enrichComicvine: protectedProcedure
     .input(z.object({
       result: z.object({
         id: z.string(),
@@ -224,7 +225,7 @@ export const metadataComicvineOpsRouter = router({
     }))
     .mutation(({ input }) => ({ ...input.result, enhancedWithWikipedia: false, wikipediaData: null })),
 
-  scrapeComicVineChapters: publicProcedure
+  scrapeComicVineChapters: protectedProcedure
     .input(z.object({ volumeUrls: z.array(z.string()).optional(), seriesUrl: z.string().optional() }))
     .mutation(async ({ input }): Promise<{ volumes: Array<ScrapedVolumeItem | null> }> => {
       const { volumeUrls, seriesUrl } = input;
@@ -249,7 +250,7 @@ export const metadataComicvineOpsRouter = router({
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Either volumeUrls or seriesUrl must be provided' });
     }),
 
-  scrapeComicVineVolumeUrls: publicProcedure
+  scrapeComicVineVolumeUrls: protectedProcedure
     .input(z.object({ seriesUrl: z.string() }))
     .mutation(async ({ input }): Promise<{
       volumeUrls: Array<{ volumeNumber: number; url: string; coverImageUrl?: string; title?: string; summary?: string }>;
@@ -265,7 +266,7 @@ export const metadataComicvineOpsRouter = router({
       return { volumeUrls, fromApi: false };
     }),
 
-  scrapeComicVineVolume: publicProcedure
+  scrapeComicVineVolume: protectedProcedure
     .input(z.object({ volumeUrl: z.string().url() }))
     .mutation(async ({ input }): Promise<{
       volumeDetails: Array<{ volumeNumber: number; title: string; summary: string; coverUrl: string; chapters: MappedChapter[] }>;
@@ -274,7 +275,7 @@ export const metadataComicvineOpsRouter = router({
       const { volumeUrl } = input;
       logger.info(`[ComicVine scrapeComicVineVolume] Called with URL: ${volumeUrl}`);
 
-      if (!volumeUrl.includes('comicvine.gamespot.com')) {
+      if (!isHostInDomains(new URL(volumeUrl).hostname, ['comicvine.gamespot.com'])) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid ComicVine URL' });
       }
 
@@ -295,7 +296,7 @@ export const metadataComicvineOpsRouter = router({
       return { volumeDetails: [scraped], totalChapters: scraped.totalChapters };
     }),
 
-  warmupFlareSolverr: publicProcedure
+  warmupFlareSolverr: protectedProcedure
     .input(z.object({ volumeId: z.string().optional() }))
     .mutation(async ({ input }): Promise<{ warmedUp: boolean; message: string }> => {
       logger.info('[FlareSolverr Warmup] Starting warmup for ComicVine scraping');
@@ -311,7 +312,7 @@ export const metadataComicvineOpsRouter = router({
       return { warmedUp: false, message: `Warmup failed: ${result.error ?? 'Unknown error'}` };
     }),
 
-  testProvider: publicProcedure
+  testProvider: protectedProcedure
     .input(z.object({ provider: z.string(), config: z.record(z.any()).optional() }))
     .mutation(async ({ input }): Promise<boolean> => {
       logger.info(`Testing provider connection: ${input.provider}`);

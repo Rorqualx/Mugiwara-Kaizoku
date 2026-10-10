@@ -23,7 +23,7 @@
 import { z } from 'zod';
 
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { unwrapResultOrThrow } from '@/server/trpc/unwrap-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
@@ -546,7 +546,7 @@ export const metadataAnilistRouter = router({
    * - Publication data (volumes, chapters, dates)
    * - Tags and genres
    */
-  fetchAnilistMetadata: publicProcedure
+  fetchAnilistMetadata: protectedProcedure
     .input(
       z.object({
         url: z.string().optional(),

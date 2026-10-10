@@ -17,7 +17,7 @@
 import { z } from 'zod';
 
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -127,7 +127,7 @@ export const metadataFandomFetchRouter = router({
   /**
    * Fetch enhanced metadata from a Fandom URL (cover, description, etc.)
    */
-  fetchFandomMetadata: publicProcedure
+  fetchFandomMetadata: protectedProcedure
     .input(z.object({
       url: z.string().url()
     }))

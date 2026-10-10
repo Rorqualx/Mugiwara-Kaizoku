@@ -11,7 +11,7 @@ import { z } from 'zod';
 
 import { logger } from '@/utils/logger';
 
-import { publicProcedure } from '../procedures';
+import { cachedProtectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 const log = logger.child('BrowseDiscoverRouter');
@@ -133,7 +133,7 @@ const EMPTY_PAGE = { manga: [], pageInfo: { total: 0, hasNextPage: false, curren
 
 export const browseDiscoverRouter = router({
   /** Search for an author/artist on AniList and return their manga bibliography. */
-  getAuthorBibliography: publicProcedure
+  getAuthorBibliography: cachedProtectedProcedure
     .input(z.object({ name: z.string().min(1) }))
     .query(async ({ input }) => {
       const data = await queryAniList<ALStaffResponse>(SEARCH_STAFF, { search: input.name, perPage: 3 });
@@ -145,7 +145,7 @@ export const browseDiscoverRouter = router({
     }),
 
   /** Search AniList for manga by genre. */
-  searchByGenre: publicProcedure
+  searchByGenre: cachedProtectedProcedure
     .input(z.object({
       genre: z.string().min(1),
       page: z.number().min(1).default(1),
@@ -160,7 +160,7 @@ export const browseDiscoverRouter = router({
     }),
 
   /** Search AniList for manga by tag. */
-  searchByTag: publicProcedure
+  searchByTag: cachedProtectedProcedure
     .input(z.object({
       tag: z.string().min(1),
       page: z.number().min(1).default(1),

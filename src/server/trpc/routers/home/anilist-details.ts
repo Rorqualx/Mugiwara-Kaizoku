@@ -13,7 +13,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { validatedAnilistClient } from '@/server/services/anilist/validated-client';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -36,7 +36,7 @@ export const homeAnilistDetailsRouter = router({
    * @input id - AniList manga ID (required)
    * @returns Detailed manga information including description, characters, staff, relations, recommendations
    */
-  getMangaDetails: publicProcedure
+  getMangaDetails: cachedProtectedProcedure
     .input(z.object({
       id: z.number(),
     }))

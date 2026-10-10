@@ -16,8 +16,9 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { fetchPublicUrl, requirePublicUrl } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 import { validateWebsiteInput, websiteValidator } from './utils';
@@ -153,7 +154,7 @@ export const nativeDownloadWebsiteOperationsRouter = router({
    * Fetch website content for visual inspector
    * Proxies remote website HTML to bypass CORS restrictions
    */
-  fetchWebsiteContent: publicProcedure
+  fetchWebsiteContent: protectedProcedure
     .input(
       z.object({
         url: z.string().url('Must be a valid URL'),
@@ -166,7 +167,8 @@ export const nativeDownloadWebsiteOperationsRouter = router({
         const sanitizeHtml = (await import('sanitize-html')).default;
 
         // Fetch the page using fetch API with custom headers
-        const response = await fetch(input.url, {
+        await requirePublicUrl(input.url);
+        const response = await fetchPublicUrl(input.url, {
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -228,7 +230,7 @@ export const nativeDownloadWebsiteOperationsRouter = router({
    * Validate a CSS or XPath selector against fetched HTML
    * Returns match count and sample results for testing
    */
-  validateSelector: publicProcedure
+  validateSelector: protectedProcedure
     .input(
       z.object({
         url: z.string().url('Must be a valid URL'),
@@ -242,7 +244,8 @@ export const nativeDownloadWebsiteOperationsRouter = router({
       try {
         const cheerio = await import('cheerio');
 
-        const response = await fetch(input.url, {
+        await requirePublicUrl(input.url);
+        const response = await fetchPublicUrl(input.url, {
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

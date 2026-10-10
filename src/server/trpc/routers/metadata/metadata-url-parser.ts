@@ -18,7 +18,7 @@ import { z } from 'zod';
 
 import type { Context } from '@/server/trpc/context';
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -47,7 +47,7 @@ export const metadataUrlParserRouter = router({
    * Auto-detects provider type and delegates to specialized parsers.
    * Returns parsed metadata with confidence score and parser type.
    */
-  parseMetadataUrl: publicProcedure
+  parseMetadataUrl: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),

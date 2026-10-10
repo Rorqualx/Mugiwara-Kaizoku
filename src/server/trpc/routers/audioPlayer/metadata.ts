@@ -14,7 +14,7 @@ import { z } from 'zod';
 
 import { extractAudioMetadata, detectAudioFormat } from '@/server/services/conversion/utils/audio-extractor';
 import type { AudioMetadata, AudioChapter } from '@/server/services/conversion/utils/audio-extractor';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 
 import { getUserId, SUPPORTED_AUDIO_FORMATS, AUDIO_MIME_TYPES } from './utils';
@@ -262,7 +262,7 @@ export const audioPlayerMetadataRouter = router({
    *
    * Returns the list of supported audio file formats.
    */
-  getSupportedFormats: publicProcedure.query((): {
+  getSupportedFormats: cachedProtectedProcedure.query((): {
     formats: readonly string[];
     mimeTypes: Record<string, string>;
   } => {

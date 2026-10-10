@@ -24,7 +24,7 @@ import { logger } from '@/utils/logger';
 
 
 
-import { protectedProcedure, publicProcedure } from '../procedures';
+import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 import { isAdmin, requireUserId } from './_shared/library-access';
@@ -95,7 +95,7 @@ export const getcomicsRouter = router({
   /**
    * Get current GetComics settings
    */
-  getSettings: publicProcedure.query(async (): Promise<GetComicsSettings> => {
+  getSettings: protectedProcedure.query(async (): Promise<GetComicsSettings> => {
     let settings = await prisma.getComicsSettings.findUnique({
       where: { id: 'default' },
     });
@@ -152,12 +152,6 @@ export const getcomicsRouter = router({
         update: updateData,
       });
 
-      // publicProcedure caches getSettings results for 30s; clear so the
-      // UI's refetch (and the dispatcher's loadEnabledSources read) sees
-      // the new value immediately.
-      const { cache } = await import('@/server/cache/cache-adapter');
-      await cache.clear('trpc:getcomics.getSettings:*');
-
       logger.info('[GetComics] Updated settings', { input });
       return settings;
     }),
@@ -165,7 +159,7 @@ export const getcomicsRouter = router({
   /**
    * Search GetComics for comics
    */
-  search: publicProcedure
+  search: protectedProcedure
     .input(searchSchema)
     .query(async ({ input }): Promise<{
       results: Array<{
@@ -224,7 +218,7 @@ export const getcomicsRouter = router({
   /**
    * Get download links from a GetComics detail page
    */
-  getDownloadLinks: publicProcedure
+  getDownloadLinks: protectedProcedure
     .input(getLinksSchema)
     .query(async ({ input }): Promise<{
       title: string;

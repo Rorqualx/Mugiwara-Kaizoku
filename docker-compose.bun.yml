@@ -78,6 +78,9 @@ services:
     image: mugiwara-kaizoku:bun
     container_name: mugiwara-kaizoku-bun
     restart: unless-stopped
+    # Must exceed the entrypoint's KAIZOKU_STOP_TIMEOUT (50s) so the app can
+    # drain jobs and the bundled Postgres can shut down cleanly on `docker stop`.
+    stop_grace_period: 60s
 
     # Wait for database to be ready before starting
     # FlareSolverr runs as subprocess inside this container

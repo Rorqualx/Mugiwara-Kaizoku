@@ -14,7 +14,7 @@ import { z } from 'zod';
 
 
 import { unifiedProviderRegistry } from '@/server/services/search/UnifiedProviderRegistry';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 
 
@@ -27,7 +27,7 @@ export const searchProvidersRouter = router({
    *
    * @returns Array of provider objects with id, name, and status
    */
-  getProviders: publicProcedure.query(
+  getProviders: cachedProtectedProcedure.query(
     (): Array<{ id: string; name: string; status: string }> => {
       try {
         const providerIds = unifiedProviderRegistry.getAvailableProviders();

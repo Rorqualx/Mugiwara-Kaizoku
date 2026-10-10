@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { comicvineService } from '@/server/services/comicvine/service';
 import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvine/service';
 import { createMangaSafe } from '@/server/services/library/manga-create-guard';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { getConfigBoolean } from '@/server/utils/configReader';
 import { logger } from '@/utils/logger';
@@ -163,7 +163,7 @@ export const comicvineRouter = router({
    * Search ComicVine for a series by name. Returns a slim shape suitable
    * for the add-comic UI grid.
    */
-  searchSeries: publicProcedure
+  searchSeries: cachedProtectedProcedure
     .input(searchSeriesInput)
     .query(async ({ input }): Promise<ComicSeriesSearchHit[]> => {
       await ensureComicbookTrackingEnabled();

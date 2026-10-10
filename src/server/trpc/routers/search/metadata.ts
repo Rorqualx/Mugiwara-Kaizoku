@@ -14,7 +14,7 @@ import { z } from 'zod';
 
 import type { SearchResult } from '@/server/services/search/types';
 import { unifiedProviderRegistry } from '@/server/services/search/UnifiedProviderRegistry';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { cachedProtectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logging';
 
@@ -22,7 +22,7 @@ import { logger } from '@/utils/logging';
 import { handleSearchError } from './utils';
 
 export const searchMetadataRouter = router({
-  getMetadata: publicProcedure
+  getMetadata: cachedProtectedProcedure
     .input(
       z.object({
         provider: z.string(),

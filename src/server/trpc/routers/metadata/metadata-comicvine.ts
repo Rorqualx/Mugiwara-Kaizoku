@@ -12,8 +12,9 @@ import { z } from 'zod';
 
 import { comicVineScraper } from '@/server/services/comicvine/scrapingService';
 import { toTRPCError, TRPCErrors } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
+import { isHostInDomains } from '@/server/utils/outbound-url-guard';
 import { logger } from '@/utils/logger';
 
 import { fetchComicvineDetails } from './metadata-comicvine/details-fetcher';
@@ -115,7 +116,7 @@ export const metadataComicvineRouter = router({
    * - Direct volume ID
    * - ComicVine volume URL (pattern: 4050-XXXXX)
    */
-  fetchComicvineMetadata: publicProcedure
+  fetchComicvineMetadata: protectedProcedure
     .input(
       z.object({
         url: z.string().optional(),
@@ -201,7 +202,7 @@ export const metadataComicvineRouter = router({
    * - Complete cover image variations (small/medium/large/original)
    * - Publisher, creator, and character credits
    */
-  fetchComicvineVolumeDetails: publicProcedure
+  fetchComicvineVolumeDetails: protectedProcedure
     .input(
       z.object({
         url: z.string().optional(),
@@ -328,7 +329,7 @@ export const metadataComicvineRouter = router({
    * @param url - ComicVine series/volume page URL (pattern: 4050-XXXXX)
    * @returns Array of cover URLs indexed by issue number
    */
-  scrapeIssueCovers: publicProcedure
+  scrapeIssueCovers: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -349,7 +350,7 @@ export const metadataComicvineRouter = router({
           logger.info(`[ComicVine scrapeIssueCovers v2] Called with URL: ${url}`);
 
           // Validate URL is a ComicVine URL
-          if (!url.includes('comicvine.gamespot.com')) {
+          if (!isHostInDomains(new URL(url).hostname, ['comicvine.gamespot.com'])) {
             throw TRPCErrors.badRequest('URL must be a ComicVine page');
           }
 

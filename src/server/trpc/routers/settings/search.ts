@@ -24,7 +24,7 @@ import type {
   SearchProviderConfig,
 } from '@/server/services/search/configService';
 import { toTRPCError } from '@/server/trpc/errors';
-import { adminProcedure, protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
@@ -40,7 +40,7 @@ export const settingsSearchRouter = router({
    *
    * @returns {Array} Array of provider objects with id and name
    */
-  listProviders: publicProcedure
+  listProviders: protectedProcedure
     .output(z.array(z.object({ id: z.string(), name: z.string() })))
     .query((): Array<{ id: string; name: string }> => {
       return [...searchProviders];

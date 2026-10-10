@@ -16,7 +16,16 @@
  * - Generic HTML/JSON content
  */
 
+import { rejectPrivateRedirect, requirePublicUrl } from '@/server/utils/outbound-url-guard';
+
 import type { ParsedMetadataResult, Context } from './types';
+
+/** Caller-supplied URLs: bounded time and size, no redirects into private hosts. */
+const SAFE_FETCH_OPTIONS = {
+  timeout: 30_000,
+  maxContentLength: 10 * 1024 * 1024,
+  beforeRedirect: rejectPrivateRedirect,
+} as const;
 
 /**
  * Parse Fandom wiki URL
@@ -116,7 +125,8 @@ export async function parseWikipediaUrl(
   url: string
 ): Promise<ParsedMetadataResult> {
   const axios = (await import('axios')).default;
-  const response = await axios.get(url);
+  await requirePublicUrl(url);
+  const response = await axios.get(url, SAFE_FETCH_OPTIONS);
   const html: unknown = response.data;
 
   const { parseVolumeTablesEnhanced, parsePageAdaptive } = await import('@/server/services/metadata/utils/fandomTableParser');
@@ -195,7 +205,8 @@ export async function parseJsonUrl(
   url: string
 ): Promise<ParsedMetadataResult> {
   const axios = (await import('axios')).default;
-  const response = await axios.get(url);
+  await requirePublicUrl(url);
+  const response = await axios.get(url, SAFE_FETCH_OPTIONS);
   const jsonData: unknown = response.data;
 
   return {
@@ -219,7 +230,8 @@ export async function parseGenericUrl(
   url: string
 ): Promise<ParsedMetadataResult> {
   const axios = (await import('axios')).default;
-  const response = await axios.get(url);
+  await requirePublicUrl(url);
+  const response = await axios.get(url, SAFE_FETCH_OPTIONS);
   const contentType = response.headers['content-type'] as unknown;
   const contentTypeStr = typeof contentType === 'string' ? contentType : '';
 

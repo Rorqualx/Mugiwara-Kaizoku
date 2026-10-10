@@ -8,15 +8,16 @@
  * 1. Stop all schedulers (prevent new work)
  * 2. Close HTTP server (stop accepting connections)
  * 3. Drain queue workers via queueManager.shutdown()
- * 4. Mark orphaned pending jobs as failed
- * 5. Stop external services (Suwayomi, FlareSolverr)
- * 6. Flush logs + disconnect database
+ * 4. Stop external services (Suwayomi, FlareSolverr)
+ * 5. Flush logs + disconnect database
+ *
+ * Queued (`pending`/`retrying`) jobs are deliberately left untouched: the queue
+ * is durable and the next boot picks them up. Jobs still `active` when the
+ * drain times out are reclaimed by stale-job recovery.
  */
 
 
-import { JobStatus } from '@prisma/client';
-
-import { db, prisma } from '@/server/db';
+import { db } from '@/server/db';
 import { autoDownloadScheduler } from '@/server/queue/autoDownloadScheduler';
 import { calendarMaintenanceScheduler } from '@/server/queue/calendar/CalendarMaintenanceScheduler';
 import { calendarSyncScheduler } from '@/server/queue/calendar/CalendarSyncScheduler';
@@ -89,8 +90,13 @@ async function closeHttpServer(): Promise<void> {
 
   logger.info('Shutdown phase 2: Closing HTTP server...');
   await new Promise<void>((resolve) => {
-    httpServer?.close(() => { resolve(); });
-    setTimeout(resolve, 5_000);
+    const fallback = setTimeout(resolve, 5_000);
+    httpServer?.close(() => {
+      clearTimeout(fallback);
+      resolve();
+    });
+    // Idle keep-alive sockets would otherwise hold close() open for the full fallback.
+    httpServer?.closeIdleConnections();
   });
   logger.info('HTTP server closed');
 }
@@ -104,34 +110,9 @@ async function drainQueueWorkers(): Promise<void> {
   logger.info('Queue workers drained');
 }
 
-/** Phase 4: Mark orphaned pending jobs as failed */
-async function markOrphanedJobs(): Promise<void> {
-  logger.info('Shutdown phase 4: Marking orphaned jobs...');
-  const pendingJobs = await prisma.jobs.findMany({
-    where: { status: JobStatus.pending }
-  });
-
-  await Promise.allSettled(
-    pendingJobs.map(job =>
-      prisma.jobs.update({
-        where: {
-          id_partition_key: {
-            id: job["id"],
-            partition_key: job.partition_key
-          }
-        },
-        data: {
-          status: JobStatus.failed,
-          last_error: { message: 'Server shutdown' }
-        }
-      })
-    )
-  );
-}
-
-/** Phase 5: Stop external services (Suwayomi, FlareSolverr) */
+/** Phase 4: Stop external services (Suwayomi, FlareSolverr) */
 async function stopExternalServices(): Promise<void> {
-  logger.info('Shutdown phase 5: Stopping external services...');
+  logger.info('Shutdown phase 4: Stopping external services...');
   try {
     const stopped = await suwayomiService.stopServer();
     logger.info(stopped
@@ -150,9 +131,9 @@ async function stopExternalServices(): Promise<void> {
   }
 }
 
-/** Phase 6: Flush logs and disconnect database */
+/** Phase 5: Flush logs and disconnect database */
 async function flushAndDisconnect(): Promise<void> {
-  logger.info('Shutdown phase 6: Flushing logs and disconnecting database...');
+  logger.info('Shutdown phase 5: Flushing logs and disconnecting database...');
   try {
     cleanupLogger();
   } catch (error: unknown) {
@@ -177,7 +158,6 @@ export async function cleanup(): Promise<void> {
     await closeWebSocketConnections();
     await closeHttpServer();
     await drainQueueWorkers();
-    await markOrphanedJobs();
     await stopExternalServices();
     await flushAndDisconnect();
   } catch (error: unknown) {
@@ -192,9 +172,25 @@ export async function cleanup(): Promise<void> {
 let cleanupInProgress = false;
 
 /**
- * Handles graceful shutdown on receiving termination signals
+ * Hard ceiling on the whole shutdown sequence. Several phases have no timeout
+ * of their own, so without this a hung phase keeps the process alive until the
+ * container runtime SIGKILLs everything (including the bundled Postgres).
+ * Must stay below the entrypoint's KAIZOKU_STOP_TIMEOUT and the container's
+ * stop grace period.
  */
-export async function gracefulShutdown(signal: string): Promise<void> {
+const DEFAULT_SHUTDOWN_DEADLINE_MS = 45_000;
+
+function getShutdownDeadlineMs(): number {
+  const parsed = Number.parseInt(process.env['SHUTDOWN_DEADLINE_MS'] ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SHUTDOWN_DEADLINE_MS;
+}
+
+/**
+ * Handles graceful shutdown on receiving termination signals.
+ *
+ * @param exitCode 0 for a requested stop, non-zero when entered from a crash handler
+ */
+export async function gracefulShutdown(signal: string, exitCode = 0): Promise<void> {
   if (cleanupInProgress) {
     logger.info(`${signal} received but cleanup already in progress`);
     return;
@@ -203,6 +199,12 @@ export async function gracefulShutdown(signal: string): Promise<void> {
   cleanupInProgress = true;
   logger.info(`${signal} received. Starting graceful shutdown...`);
 
+  const deadlineMs = getShutdownDeadlineMs();
+  setTimeout(() => {
+    process.stderr.write(`Graceful shutdown exceeded ${deadlineMs}ms, forcing exit\n`);
+    process.exit(exitCode === 0 ? 1 : exitCode);
+  }, deadlineMs).unref();
+
   try {
     await cleanup();
     logger.info('Graceful shutdown completed');
@@ -210,7 +212,7 @@ export async function gracefulShutdown(signal: string): Promise<void> {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(`Error during graceful shutdown: ${formatError(errorMessage)}`);
   } finally {
-    process.exit(0);
+    process.exit(exitCode);
   }
 }
 
@@ -266,16 +268,17 @@ export function registerShutdownHandlers(): void {
       return;
     }
     logger.error(`Uncaught exception: ${formatError(error)}`);
-    void gracefulShutdown('uncaughtException');
+    void gracefulShutdown('uncaughtException', 1);
   });
 
-  process.on('unhandledRejection', (reason, promise) => {
+  process.on('unhandledRejection', (reason) => {
     if (isOperationalError(reason)) {
       logger.warn(`Operational unhandled rejection (continuing): ${describeReason(reason)}`);
       return;
     }
-    logger.error(`Unhandled rejection at ${promise}: ${reason}`);
-    void gracefulShutdown('unhandledRejection');
+    const detail = reason instanceof Error ? (reason.stack ?? describeReason(reason)) : describeReason(reason);
+    logger.error(`Unhandled rejection: ${detail}`);
+    void gracefulShutdown('unhandledRejection', 1);
   });
 }
 

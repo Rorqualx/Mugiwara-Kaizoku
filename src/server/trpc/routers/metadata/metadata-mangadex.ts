@@ -16,7 +16,7 @@ import type {
   TransformedMangaDexVolume
 } from '@/server/services/mangadex/types';
 import { toTRPCError } from '@/server/trpc/errors';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { unwrapResultAsync } from '@/server/trpc/unwrap-result';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
@@ -224,7 +224,7 @@ export const metadataMangadexRouter = router({
    * Uses the aggregate endpoint for efficient volume/chapter listing.
    * Returns data in a format compatible with other providers.
    */
-  fetchMangaDexVolumes: publicProcedure
+  fetchMangaDexVolumes: protectedProcedure
     .input(
       z.object({
         mangadexId: z.string().optional(),

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logging';
 
-import { publicProcedure } from '../procedures';
+import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 /**
@@ -25,7 +25,7 @@ export const syncRouter = router({
    * @returns {number} .outOfSyncCount - The number of chapters with sync issues for this manga
    * @returns {Array<Object>} .chapters - Details about each out-of-sync chapter
    */
-  getOutOfSync: publicProcedure.query(async () => {
+  getOutOfSync: protectedProcedure.query(async () => {
     try {
       // Since OutOfSyncChapter model was removed, we'll look for FIX_OUT_OF_SYNC jobs
       const outOfSyncJobs = await prisma.$queryRaw<Array<{
@@ -88,7 +88,7 @@ export const syncRouter = router({
    * @param {string} taskId - The ID of the sync task
    * @returns {Object} Task status information
    */
-  getTaskStatus: publicProcedure.input(z.object({
+  getTaskStatus: protectedProcedure.input(z.object({
     taskId: z.string()
   })).query(async ({ input }) => {
     try {
