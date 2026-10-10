@@ -7,10 +7,12 @@
  */
 
 import { mangaUpdatesService } from '@/server/services/mangaupdates/service';
-import type { MUSearchHit } from '@/server/services/mangaupdates/types';
+import type { MUSearchHit, MUSeriesDetails } from '@/server/services/mangaupdates/types';
 import { logger } from '@/utils/logger';
 
 import { diceCoefficient, hasEditionMismatch, normalizeTitle } from '../utils';
+
+import { dropRejected, type MangaUpdatesPinId, type ProviderDirective } from './provider-pins';
 
 const log = logger.child('PhaseProviderFetch:MangaUpdates');
 
@@ -54,6 +56,8 @@ export interface MangaUpdatesDirectResult {
    * by series id — the freshness check skips those.
    */
   matchScore?: number;
+  /** True when this series was fetched by the user's manual pin, not picked by the matcher. */
+  manualPin?: boolean;
 }
 
 /**
@@ -119,6 +123,19 @@ function computeHintAdjustment(hit: MUSearchHit, hints: MUSearchHints): number {
   return adjustment;
 }
 
+/** Lowest final score (title + bonuses) a candidate may be bound at. */
+const MIN_FINAL_SCORE = 0.3;
+
+/**
+ * Lowest TITLE score a candidate needs before bonuses count. Type (+0.15),
+ * year (+0.10) and popularity (up to +0.15) add up to 0.40, so without this a
+ * popular same-year series with no title overlap at all cleared the 0.30
+ * floor in the AniList-hinted path. Set to the same 0.30: the title has to
+ * clear the floor by itself and the bonuses only rank title-plausible
+ * candidates against each other.
+ */
+export const MIN_TITLE_SCORE = 0.3;
+
 /**
  * Pick the MangaUpdates result with the best title match.
  *
@@ -177,6 +194,8 @@ export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSe
     // Cross-validation bonus/penalty from AniList hints
     const hintAdjustment = hints ? computeHintAdjustment(hit, hints) : 0;
 
+    if (titleScore < MIN_TITLE_SCORE) continue;
+
     const finalScore = titleScore + popularityBonus + hintAdjustment;
 
     if (finalScore > bestScore) {
@@ -186,7 +205,7 @@ export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSe
   }
 
   // Require minimum similarity (after adjustments)
-  if (bestScore < 0.3) {
+  if (bestScore < MIN_FINAL_SCORE) {
     log.warn('MangaUpdates: best match too dissimilar', { query, bestScore: bestScore.toFixed(2) });
     return null;
   }
@@ -203,69 +222,14 @@ export function pickBestMUMatch(hits: MUSearchHit[], query: string, hints?: MUSe
   return null;
 }
 
-/**
- * Fetch MangaUpdates series-level metadata directly.
- * Provides publisher, categories, genres, licensing status, and related series.
- * When hints are provided, searches multiple title variants and uses
- * cross-validation scoring for better disambiguation.
- */
-export async function fetchMangaUpdatesDirect(
-  title: string,
-  hints?: MUSearchHints,
-): Promise<MangaUpdatesDirectResult | null> {
-  // Build search queries: original title + any alternative titles from hints
-  const queries = new Set([title]);
-  for (const alt of hints?.alternativeTitles ?? []) {
-    if (alt.length >= 3) queries.add(alt);
-  }
-
-  // Search with all title variants, deduplicate by series_id
-  const seenIds = new Set<number>();
-  const allHits: MUSearchHit[] = [];
-  for (const q of queries) {
-    // eslint-disable-next-line no-await-in-loop -- MangaUpdates is rate-limited and the loop runs only over title + alternative titles (typically 1-5 queries); serial avoids 429s
-    const hits = await mangaUpdatesService.searchSeries(q, 10);
-    for (const hit of hits) {
-      if (!seenIds.has(hit.record.series_id)) {
-        seenIds.add(hit.record.series_id);
-        allHits.push(hit);
-      }
-    }
-  }
-
-  if (allHits.length === 0) {
-    log.info('MangaUpdates: no results found', { title, queries: queries.size });
-    return null;
-  }
-
-  // Pick best match with cross-validation hints
-  const bestMatch = pickBestMUMatch(allHits, title, hints);
-  if (!bestMatch) return null;
-  const bestHit = bestMatch.hit;
-  const matchScore = bestMatch.score;
-
-  const seriesId = bestHit.record.series_id;
-  const details = await mangaUpdatesService.getSeriesDetails(seriesId);
-  if (!details) return null;
-
+/** Map a MangaUpdates series payload to the pipeline's result shape. */
+function buildMangaUpdatesResult(details: MUSeriesDetails): MangaUpdatesDirectResult {
   const englishPublisher = details.publishers.find(p => p.type === 'English');
   const originalPublisher = details.publishers.find(p => p.type === 'Original');
-
   const hasAnime = details.anime.start || details.anime.end;
 
-  log.info('MangaUpdates: matched', {
-    seriesId,
-    title: details.title,
-    publisher: englishPublisher?.publisher_name ?? originalPublisher?.publisher_name,
-    status: details.status,
-    licensed: details.licensed,
-    categories: details.categories.length,
-    related: details.related_series.length,
-    recommendations: details.recommendations.length,
-  });
-
   return {
-    seriesId,
+    seriesId: details.series_id,
     urlSlug: extractMangaUpdatesSlug(details.url),
     title: details.title,
     publisher: englishPublisher?.publisher_name ?? originalPublisher?.publisher_name,
@@ -298,149 +262,114 @@ export async function fetchMangaUpdatesDirect(
     })),
     alternativeTitles: details.associated.map(a => a.title),
     animeMapping: hasAnime ? { start: details.anime.start, end: details.anime.end } : null,
-    matchScore,
   };
 }
 
-// ============================================================================
-// Metadata Merge
-// ============================================================================
+function logMatched(details: MUSeriesDetails, result: MangaUpdatesDirectResult, message: string): void {
+  log.info(message, {
+    seriesId: result.seriesId,
+    title: details.title,
+    publisher: result.publisher,
+    status: details.status,
+    licensed: details.licensed,
+    categories: details.categories.length,
+    related: details.related_series.length,
+    recommendations: details.recommendations.length,
+  });
+}
 
 /**
- * Build the publishers[] array. MU is the canonical multi-publisher source
- * (Original JP + EN licensor often co-listed); ComicVine's single-publisher
- * string sits in slot 0 when present so legacy `/publisher/<name>` URLs still
- * resolve. Returns null when metadata already has publishers or MU has none
- * to contribute.
+ * Fetch the manually pinned series by id. Returns null — so the caller falls
+ * back to the matcher — when the API has no such series, or when the id was
+ * decoded from a slug and the series it resolves to carries a different slug
+ * (the decode is then not to be trusted for this entry).
  */
-function buildMangaUpdatesPublishers(
-  metadata: Record<string, unknown>,
-  mu: MangaUpdatesDirectResult,
-  comicvinePublisher: string | undefined,
-): string[] | null {
-  const existing = metadata['publishers'];
-  if (Array.isArray(existing) && existing.length > 0) return null;
-  const names: string[] = [];
-  if (comicvinePublisher) names.push(comicvinePublisher);
-  for (const p of mu.publishers) {
-    if (p.name && p.name.length > 0 && !names.includes(p.name)) names.push(p.name);
+async function fetchPinnedMangaUpdates(pin: MangaUpdatesPinId): Promise<MangaUpdatesDirectResult | null> {
+  const details = await mangaUpdatesService.getSeriesDetails(pin.seriesId);
+  if (!details) {
+    log.warn('MangaUpdates: manual binding not found via API — falling back to the matcher', { ...pin });
+    return null;
   }
-  if (names.length === 0 && mu.publisher) names.push(mu.publisher);
-  return names.length > 0 ? names : null;
+  const result = buildMangaUpdatesResult(details);
+  if (pin.slug !== null && result.urlSlug !== null && result.urlSlug !== pin.slug) {
+    log.warn('MangaUpdates: manual binding slug does not match the fetched series — falling back to the matcher', {
+      ...pin, fetchedSlug: result.urlSlug,
+    });
+    return null;
+  }
+  logMatched(details, result, 'MangaUpdates: honoring manual binding (matcher skipped)');
+  return { ...result, manualPin: true };
 }
 
 /**
- * Build a rating JSON record from MU's Bayesian rating + vote count.
- * Returns null when MU has no rating or the metadata record already has one
- * from a higher-priority source. The Phase 1.5 consensus selector will
- * merge per-source candidates once it lands.
+ * Fetch MangaUpdates series-level metadata directly.
+ * Provides publisher, categories, genres, licensing status, and related series.
+ * When hints are provided, searches multiple title variants and uses
+ * cross-validation scoring for better disambiguation.
+ *
+ * The directive carries the user's binding decisions: an unbound provider is
+ * not fetched, a manual pin is fetched by id, and rejected series are removed
+ * before the picker runs (all rejected → null, never a rejected id).
  */
-function buildMangaUpdatesRatingJson(
-  metadata: Record<string, unknown>,
-  mu: MangaUpdatesDirectResult,
-): { value: number; scoredBy: number | undefined; source: 'mangaupdates' } | null {
-  if (metadata['rating']) return null;
-  if (typeof mu.bayesianRating !== 'number' || mu.bayesianRating <= 0) return null;
-  return {
-    value: Math.round(mu.bayesianRating * 10),
-    scoredBy: mu.ratingVotes > 0 ? mu.ratingVotes : undefined,
-    source: 'mangaupdates' as const,
-  };
-}
+export async function fetchMangaUpdatesDirect(
+  title: string,
+  hints?: MUSearchHints,
+  directive?: ProviderDirective<MangaUpdatesPinId>,
+): Promise<MangaUpdatesDirectResult | null> {
+  const pin = directive?.pin ?? { kind: 'none' };
+  if (pin.kind === 'unbound') {
+    log.info('MangaUpdates: skipping — manually marked as unbound', { title });
+    return null;
+  }
+  if (pin.kind === 'pinned') {
+    const pinned = await fetchPinnedMangaUpdates(pin.id);
+    if (pinned) return pinned;
+  } else if (pin.kind === 'unusable') {
+    log.warn('MangaUpdates: manual binding id is not usable — running the matcher', { raw: pin.raw, reason: pin.reason });
+  }
 
-/**
- * Merge MangaUpdates series-level metadata into the metadata record.
- * AniList fields take priority; MU fills gaps (publisher, genres, tags).
- * Returns an object with fields to merge (caller applies to metadata).
- */
-export function buildMangaUpdatesMetadataSupplements(
-  metadata: Record<string, unknown>,
-  mu: MangaUpdatesDirectResult | null,
-  comicvinePublisher: string | undefined,
-): Record<string, unknown> {
-  if (!mu) return {};
+  // Build search queries: original title + any alternative titles from hints
+  const queries = new Set([title]);
+  for (const alt of hints?.alternativeTitles ?? []) {
+    if (alt.length >= 3) queries.add(alt);
+  }
 
-  const supplements: Record<string, unknown> = {};
-
-  const muPublishers = buildMangaUpdatesPublishers(metadata, mu, comicvinePublisher);
-  if (muPublishers !== null) supplements['publishers'] = muPublishers;
-
-  // Genres: supplement AniList genres with MU genres
-  const existingGenres = Array.isArray(metadata['genres']) ? metadata['genres'] as string[] : [];
-  if (mu.genres.length > 0) {
-    const genreSet = new Set(existingGenres.map(g => g.toLowerCase()));
-    const newGenres = mu.genres.filter(g => !genreSet.has(g.toLowerCase()));
-    if (newGenres.length > 0) {
-      supplements['genres'] = [...existingGenres, ...newGenres];
+  // Search with all title variants, deduplicate by series_id
+  const seenIds = new Set<number>();
+  const allHits: MUSearchHit[] = [];
+  for (const q of queries) {
+    // eslint-disable-next-line no-await-in-loop -- MangaUpdates is rate-limited and the loop runs only over title + alternative titles (typically 1-5 queries); serial avoids 429s
+    const hits = await mangaUpdatesService.searchSeries(q, 10);
+    for (const hit of hits) {
+      if (!seenIds.has(hit.record.series_id)) {
+        seenIds.add(hit.record.series_id);
+        allHits.push(hit);
+      }
     }
   }
 
-  // Tags/categories: supplement AniList tags with MU categories
-  const existingTags = Array.isArray(metadata['tags']) ? metadata['tags'] as string[] : [];
-  if (mu.categories.length > 0) {
-    const tagSet = new Set(existingTags.map(t => typeof t === 'string' ? t.toLowerCase() : ''));
-    const newTags = mu.categories.filter(c => !tagSet.has(c.toLowerCase()));
-    if (newTags.length > 0) {
-      supplements['tags'] = [...existingTags, ...newTags];
-    }
+  const candidates = dropRejected(allHits, (hit) => String(hit.record.series_id), directive?.rejectedIds);
+  if (candidates.length === 0) {
+    log.info('MangaUpdates: no results found', {
+      title, queries: queries.size, rejectedSkipped: allHits.length,
+    });
+    return null;
   }
 
-  // Staff and title supplements (extracted to reduce complexity)
-  Object.assign(supplements, buildStaffAndTitleSupplements(metadata, mu));
+  // Pick best match with cross-validation hints
+  const bestMatch = pickBestMUMatch(candidates, title, hints);
+  if (!bestMatch) return null;
 
-  // AverageScore: when AniList has no averageScore, fall back to MU's
-  // bayesianRating (0-10 → 0-100). MU scores are community-weighted and
-  // a reasonable proxy when AL hasn't rated the title yet.
-  if (!metadata['averageScore'] && typeof mu.bayesianRating === 'number' && mu.bayesianRating > 0) {
-    supplements['averageScore'] = Math.round(mu.bayesianRating * 10);
-  }
+  const details = await mangaUpdatesService.getSeriesDetails(bestMatch.hit.record.series_id);
+  if (!details) return null;
 
-  const muRating = buildMangaUpdatesRatingJson(metadata, mu);
-  if (muRating !== null) supplements['rating'] = muRating;
-
-  // Chapter count fallback: MU's latest_chapter is the highest released
-  // chapter number, identical in meaning to AniList's `chapters` for ongoing
-  // series. Manual-research agents found this data in MU for several titles
-  // the pipeline left null — iter-4 closes that gap by wiring it here.
-  //
-  // Phase 0: persister now reads `metadata['chapters']` first (with legacy
-  // `chapterCount` fallback). Drop the duplicate write — single source of
-  // truth simplifies provenance stamping.
-  if (metadata['chapters'] === undefined && typeof mu.latestChapter === 'number' && mu.latestChapter > 0) {
-    supplements['chapters'] = mu.latestChapter;
-  }
-
-  return supplements;
+  const result = buildMangaUpdatesResult(details);
+  logMatched(details, result, 'MangaUpdates: matched');
+  return { ...result, matchScore: bestMatch.score };
 }
 
-/** Fill author, artist, and alternative title gaps from MU data */
-function buildStaffAndTitleSupplements(
-  metadata: Record<string, unknown>,
-  mu: MangaUpdatesDirectResult,
-): Record<string, unknown> {
-  const supplements: Record<string, unknown> = {};
-
-  const existingAuthors = Array.isArray(metadata['authors']) ? metadata['authors'] as string[] : [];
-  if (existingAuthors.length === 0 && mu.authors.length > 0) {
-    const muAuthors = mu.authors.filter(a => a.type === 'Author').map(a => a.name);
-    if (muAuthors.length > 0) supplements['authors'] = muAuthors;
-  }
-
-  const existingArtists = Array.isArray(metadata['artists']) ? metadata['artists'] as string[] : [];
-  if (existingArtists.length === 0 && mu.authors.length > 0) {
-    const muArtists = mu.authors.filter(a => a.type === 'Artist').map(a => a.name);
-    if (muArtists.length > 0) supplements['artists'] = muArtists;
-  }
-
-  const existingSynonyms = Array.isArray(metadata['alternativeTitles'])
-    ? metadata['alternativeTitles'] as string[]
-    : [];
-  if (existingSynonyms.length === 0 && mu.alternativeTitles.length > 0) {
-    supplements['alternativeTitles'] = mu.alternativeTitles;
-  }
-
-  return supplements;
-}
+// Metadata merge helpers live in ./mangaupdates-supplements (file-size split).
+export { buildMangaUpdatesMetadataSupplements } from './mangaupdates-supplements';
 
 // ============================================================================
 // AniList Cross-Validation
@@ -460,39 +389,40 @@ function hasCountryMismatch(country: string | undefined, muType: string): boolea
  * Re-verify a MangaUpdates match using AniList metadata.
  * If the initial title-only match has suspicious year/country divergence,
  * re-searches with alternative titles and cross-validation scoring.
+ *
+ * Not called for a manually pinned or unbound series; `rejectedIds` keeps the
+ * re-search from landing on an entity the user rejected.
  */
 export async function verifyMUWithAniList(
   title: string,
-  alYear: number | undefined,
-  alCountry: string | undefined,
-  alTitles: string[],
+  hints: MUSearchHints,
   existing: MangaUpdatesDirectResult | null,
+  rejectedIds?: ReadonlySet<string>,
 ): Promise<MangaUpdatesDirectResult | null> {
-  const hints: MUSearchHints = {
-    year: alYear,
-    countryOfOrigin: alCountry,
-    alternativeTitles: alTitles,
+  const directive: ProviderDirective<MangaUpdatesPinId> = {
+    pin: { kind: 'none' }, rejectedIds: rejectedIds ?? new Set<string>(),
   };
+  const alTitles = hints.alternativeTitles ?? [];
 
   // If no existing match, try with hints + alternative titles
   if (!existing) {
     if (alTitles.length > 0) {
-      return fetchMangaUpdatesDirect(title, hints);
+      return fetchMangaUpdatesDirect(title, hints, directive);
     }
     return null;
   }
 
   // Check if existing match is plausible
   const muYear = parseInt(existing.year, 10);
-  const yearGap = alYear && !isNaN(muYear) ? Math.abs(alYear - muYear) : 0;
-  const countryMismatch = hasCountryMismatch(alCountry, existing.type);
+  const yearGap = hints.year && !isNaN(muYear) ? Math.abs(hints.year - muYear) : 0;
+  const countryMismatch = hasCountryMismatch(hints.countryOfOrigin, existing.type);
 
   // If year gap >5 or country mismatch, re-search with hints
   if (yearGap > 5 || countryMismatch) {
     log.info('MU: re-verifying with AniList hints', {
       title, existingMU: existing.title, yearGap, countryMismatch,
     });
-    const better = await fetchMangaUpdatesDirect(title, hints);
+    const better = await fetchMangaUpdatesDirect(title, hints, directive);
     return better ?? existing;
   }
 

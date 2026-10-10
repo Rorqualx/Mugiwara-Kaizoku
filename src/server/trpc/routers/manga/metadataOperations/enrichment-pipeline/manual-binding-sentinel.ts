@@ -14,16 +14,43 @@
  * Used by:
  *   - `wiki-discovery.ts:discoverFandomWikiUrl` (Fandom)
  *   - `wiki-discovery.ts:fetchWikipediaChapterData` (Wikipedia)
- *   - `phase-provider-fetch.ts:runLanguageAwareComicVineMatch` (ComicVine)
+ *   - `phase-provider-fetch/provider-pins.ts` (ComicVine, MangaDex,
+ *     MangaUpdates, Kitsu, MAL) via `phase-provider-fetch.ts`
+ *
+ * AniList is the anchor and has no sentinel: unbinding it removes the section
+ * and the pin and records a rejection of that id, so the matcher runs again.
  *
  * Set via:
- *   - `bindProvider` mutation when called with `providerId: null` + the unbound
- *     intent (TODO when UI ships)
+ *   - `unbindProvider` mutation (every provider except AniList)
  *   - `scripts/surveys/mark-no-binding.ts <mangaId> <provider> --apply`
+ *
+ * Replaced by a later manual bind, which overwrites the whole section.
  */
 import { prisma as defaultPrisma } from '@/server/db';
 
-export type SentinelProvider = 'fandom' | 'wikipedia' | 'comicvine' | 'mangadex' | 'mangaupdates';
+export type SentinelProvider =
+  | 'fandom' | 'wikipedia' | 'comicvine' | 'mangadex' | 'mangaupdates' | 'kitsu' | 'mal';
+
+const SENTINEL_PROVIDERS: ReadonlySet<string> = new Set<SentinelProvider>([
+  'fandom', 'wikipedia', 'comicvine', 'mangadex', 'mangaupdates', 'kitsu', 'mal',
+]);
+
+/** True when the pipeline honours an unbound sentinel for this provider. */
+export function supportsUnboundSentinel(provider: string): provider is SentinelProvider {
+  return SENTINEL_PROVIDERS.has(provider);
+}
+
+export interface UnboundSentinel {
+  manual: true;
+  providerId: null;
+  intent: 'unbound';
+  boundAt: string;
+}
+
+/** The section written to `providerMetadata.<provider>` when a user unbinds it. */
+export function buildUnboundSentinel(now: Date = new Date()): UnboundSentinel {
+  return { manual: true, providerId: null, intent: 'unbound', boundAt: now.toISOString() };
+}
 
 interface SentinelEntry {
   manual?: unknown;

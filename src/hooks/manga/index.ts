@@ -288,6 +288,19 @@ function parseProviderMetadata(raw: unknown): unknown {
 }
 
 /**
+ * The section `unbindProvider` writes: `{ manual: true, providerId: null,
+ * intent: 'unbound' }`. Client-side copy of the server's
+ * `isManuallyUnboundFromMetadata` (server modules must stay out of the bundle).
+ */
+function isUnboundSentinel(section: unknown): boolean {
+  if (!isObject(section)) return false;
+  const entry = section as Record<string, unknown>;
+  if (entry['manual'] !== true) return false;
+  const pid = entry['providerId'];
+  return entry['intent'] === 'unbound' || pid === null || pid === undefined || pid === '';
+}
+
+/**
  * Determines if a provider is bound to a manga by checking all data sources
  */
 function checkProviderBound(manga: MangaWithRelations, providerId: string): boolean {
@@ -297,7 +310,10 @@ function checkProviderBound(manga: MangaWithRelations, providerId: string): bool
     if (Array.isArray(parsed)) {
       if (parsed.some((item: unknown) => isMatchingProviderItem(item, providerId))) return true;
     } else if (isObject(parsed) && providerId in (parsed as Record<string, unknown>)) {
-      return true;
+      // An unbind leaves a sentinel section behind so enrichment does not
+      // re-bind the provider; that is "not bound", and it settles the question
+      // (a stale provider URL in Metadata.urls must not show it as bound again).
+      return !isUnboundSentinel((parsed as Record<string, unknown>)[providerId]);
     }
   }
 

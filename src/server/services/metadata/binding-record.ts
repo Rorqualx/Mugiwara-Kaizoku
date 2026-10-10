@@ -119,6 +119,41 @@ export async function getRejectedIds(mangaId: number, provider: string): Promise
   }
 }
 
+/** Active rejected ids per provider for one manga. */
+export type RejectedIdsByProvider = ReadonlyMap<string, ReadonlySet<string>>;
+
+const NO_REJECTIONS: ReadonlySet<string> = new Set<string>();
+
+/** Rejected ids for `provider` from a loaded map; an empty set when there are none. */
+export function rejectedIdsFor(byProvider: RejectedIdsByProvider, provider: string): ReadonlySet<string> {
+  return byProvider.get(provider) ?? NO_REJECTIONS;
+}
+
+/**
+ * Active (un-superseded) rejections for every provider of a manga, in one
+ * query — the provider-fetch phase needs them for each picker. Returns an
+ * empty map on any error, same contract as {@link getRejectedIds}.
+ */
+export async function getRejectedIdsByProvider(mangaId: number): Promise<RejectedIdsByProvider> {
+  const byProvider = new Map<string, Set<string>>();
+  try {
+    const rows = await prisma.providerBinding.findMany({
+      where: { mangaId, origin: 'rejected', supersededAt: null },
+      select: { provider: true, providerId: true },
+    });
+    for (const row of rows) {
+      const ids = byProvider.get(row.provider) ?? new Set<string>();
+      ids.add(row.providerId);
+      byProvider.set(row.provider, ids);
+    }
+  } catch (err: unknown) {
+    logger.warn(
+      `ProviderBinding getRejectedIdsByProvider failed for manga ${mangaId}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return byProvider;
+}
+
 /**
  * Clear (supersede) any active rejection of `providerId` — called when a user
  * deliberately binds that id, so a manual pin always overrides a prior

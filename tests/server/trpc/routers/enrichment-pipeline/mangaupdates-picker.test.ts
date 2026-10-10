@@ -90,3 +90,33 @@ describe('pickBestMUMatch — length-ratio penalty applied per-candidate', () =>
     expect(result?.hit.record.series_id).toBe(42358856015);
   });
 });
+
+describe('pickBestMUMatch — title floor before bonuses', () => {
+  // AniList-hinted path: type match (+0.15), year match (+0.10) and maximum
+  // popularity (+0.15) add up to 0.40, above the 0.30 floor, with no title
+  // similarity at all.
+  const hints = { year: 2011, countryOfOrigin: 'JP' };
+
+  it('rejects a candidate with zero title score and maximum bonuses', () => {
+    const hits = [
+      makeHit({ series_id: 1, title: 'Zzyzx Qwuv', hit_title: 'Zzyzx Qwuv', votes: 100000, year: '2011', type: 'Manga' }),
+    ];
+    expect(pickBestMUMatch(hits, 'Blood Lad', hints)).toBeNull();
+  });
+
+  it('does not let bonuses lift an unrelated series over a title match', () => {
+    const hits = [
+      makeHit({ series_id: 1, title: 'Zzyzx Qwuv', hit_title: 'Zzyzx Qwuv', votes: 100000, year: '2011', type: 'Manga' }),
+      makeHit({ series_id: 2, title: 'Blood Lad', hit_title: 'Blood Lad', votes: 1, year: '1990', type: 'Manga' }),
+    ];
+    expect(pickBestMUMatch(hits, 'Blood Lad', hints)?.hit.record.series_id).toBe(2);
+  });
+
+  it('still uses the bonuses to rank candidates whose titles both qualify', () => {
+    const hits = [
+      makeHit({ series_id: 1, title: 'Blood Lad', hit_title: 'Blood Lad', votes: 10, year: '1990', type: 'Manhwa' }),
+      makeHit({ series_id: 2, title: 'Blood Lad', hit_title: 'Blood Lad', votes: 10, year: '2011', type: 'Manga' }),
+    ];
+    expect(pickBestMUMatch(hits, 'Blood Lad', hints)?.hit.record.series_id).toBe(2);
+  });
+});

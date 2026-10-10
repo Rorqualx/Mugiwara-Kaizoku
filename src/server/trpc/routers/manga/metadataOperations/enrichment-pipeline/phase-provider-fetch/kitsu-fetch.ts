@@ -12,6 +12,8 @@ import { logger } from '@/utils/logger';
 
 import { diceCoefficient, hasEditionMismatch, normalizeTitle } from '../utils';
 
+import { dropRejected, type ProviderDirective } from './provider-pins';
+
 const log = logger.child('PhaseProviderFetch:Kitsu');
 
 export interface KitsuDirectResult {
@@ -40,6 +42,8 @@ export interface KitsuDirectResult {
    * by ID — the freshness check skips those.
    */
   matchScore?: number;
+  /** True when this entry was fetched by the user's manual pin, not picked by the matcher. */
+  manualPin?: boolean;
 }
 
 export interface KitsuSearchHints {
@@ -180,14 +184,57 @@ export function mapKitsuToUnifiedResult(kitsu: KitsuDirectResult): KitsuDirectRe
   return { ...kitsu };
 }
 
+function logMatched(result: KitsuDirectResult, message: string): void {
+  log.info(message, {
+    kitsuId: result.kitsuId,
+    slug: result.slug,
+    canonicalTitle: result.canonicalTitle,
+    chapterCount: result.chapterCount,
+    volumeCount: result.volumeCount,
+    ageRating: result.ageRating,
+  });
+}
+
+/**
+ * Fetch the manually pinned entry by numeric id. Null (API failure or unknown
+ * id) sends the caller back to the matcher.
+ */
+async function fetchPinnedKitsu(kitsuId: string): Promise<KitsuDirectResult | null> {
+  const hit = await kitsuService.getMangaDetails(kitsuId);
+  if (!hit) {
+    log.warn('Kitsu: manual binding not found via API — falling back to the matcher', { kitsuId });
+    return null;
+  }
+  const result: KitsuDirectResult = { ...buildResult(hit), manualPin: true };
+  logMatched(result, 'Kitsu: honoring manual binding (matcher skipped)');
+  return result;
+}
+
 /**
  * Fetch Kitsu series-level metadata directly. Searches by title (with optional
  * alt-title hints), scores candidates, returns the best match or null.
+ *
+ * The directive carries the user's binding decisions: an unbound provider is
+ * not fetched, a manual numeric pin is fetched by id, and rejected entries are
+ * removed before the picker runs (all rejected → null, never a rejected id).
  */
 export async function fetchKitsuDirect(
   title: string,
   hints?: KitsuSearchHints,
+  directive?: ProviderDirective<string>,
 ): Promise<KitsuDirectResult | null> {
+  const pin = directive?.pin ?? { kind: 'none' };
+  if (pin.kind === 'unbound') {
+    log.info('Kitsu: skipping — manually marked as unbound', { title });
+    return null;
+  }
+  if (pin.kind === 'pinned') {
+    const pinned = await fetchPinnedKitsu(pin.id);
+    if (pinned) return pinned;
+  } else if (pin.kind === 'unusable') {
+    log.warn('Kitsu: manual binding id is not usable — running the matcher', { raw: pin.raw, reason: pin.reason });
+  }
+
   const queries = new Set([title]);
   for (const alt of hints?.alternativeTitles ?? []) {
     if (alt.length >= 3) queries.add(alt);
@@ -206,22 +253,16 @@ export async function fetchKitsuDirect(
     }
   }
 
-  if (allHits.length === 0) {
-    log.info('Kitsu: no results found', { title, queries: queries.size });
+  const candidates = dropRejected(allHits, (hit) => hit.id, directive?.rejectedIds);
+  if (candidates.length === 0) {
+    log.info('Kitsu: no results found', { title, queries: queries.size, rejectedSkipped: allHits.length });
     return null;
   }
 
-  const best = pickBestKitsuMatch(allHits, title, hints);
+  const best = pickBestKitsuMatch(candidates, title, hints);
   if (!best) return null;
 
   const result = { ...buildResult(best.hit), matchScore: best.score };
-  log.info('Kitsu: matched', {
-    kitsuId: result.kitsuId,
-    slug: result.slug,
-    canonicalTitle: result.canonicalTitle,
-    chapterCount: result.chapterCount,
-    volumeCount: result.volumeCount,
-    ageRating: result.ageRating,
-  });
+  logMatched(result, 'Kitsu: matched');
   return result;
 }

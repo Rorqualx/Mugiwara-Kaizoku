@@ -22,6 +22,11 @@ import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
 import { invalidateMangaCache } from '../crud-operations/get-manga-cache';
+import {
+  buildUnboundSentinel,
+  isManuallyUnboundFromMetadata,
+  supportsUnboundSentinel,
+} from '../metadataOperations/enrichment-pipeline/manual-binding-sentinel';
 import { pinFieldsForBind, pinFieldsForUnbind } from '../providerBindingHelpers';
 
 import { bindSchema, bindProviderSchema, unbindProviderSchema } from './schemas';
@@ -136,10 +141,9 @@ async function cleanupCvBindingArtifacts(
  * Fire-and-forget: re-run the full enrichment pipeline after a manual provider
  * bind so external links, Volume rows, covers, etc. are refreshed using the
  * newly-bound providerId. The pipeline reads `providerMetadata.<provider>.manual`
- * and honors the bound id (currently implemented for ComicVine in
- * `runLanguageAwareComicVineMatch`); other providers re-run their normal
- * discovery, which still benefits from the refresh because cached blobs are
- * invalidated.
+ * and fetches the bound id directly for AniList, ComicVine, MangaDex,
+ * MangaUpdates and Kitsu (`phase-provider-fetch/provider-pins.ts`); Fandom and
+ * Wikipedia re-run their own discovery, which reads its cached binding.
  *
  * Errors are logged and swallowed — they must not fail the bind mutation.
  */
@@ -252,7 +256,13 @@ export const bindingRouter = router({
   /**
    * Unbind manga from a provider
    *
-   * Removes the provider entry from providerMetadata JSON field.
+   * An unbind means "do not bind this provider for this title", so the
+   * provider's section is replaced by the unbound sentinel, which the
+   * enrichment pipeline honours — deleting the section let the next enrichment
+   * re-bind it. AniList is the anchor the other providers are verified
+   * against and has no sentinel: its section and pin are removed and the id is
+   * rejected, so the matcher picks again. A later manual bind overwrites the
+   * sentinel.
    *
    * @param mangaId - The manga ID to unbind
    * @param provider - The provider to remove
@@ -278,9 +288,15 @@ export const bindingRouter = router({
 
       try {
         const currentProviderMetadata = parseProviderMetadata(manga.providerMetadata);
-        const wasBound = provider in currentProviderMetadata;
         const unboundId = readProviderId(currentProviderMetadata, provider);
-        delete currentProviderMetadata[provider];
+        let wasBound = provider in currentProviderMetadata;
+        if (supportsUnboundSentinel(provider)) {
+          // Unbinding twice is a no-op, not a second unbind.
+          wasBound = wasBound && !isManuallyUnboundFromMetadata(currentProviderMetadata, provider);
+          currentProviderMetadata[provider] = buildUnboundSentinel();
+        } else {
+          delete currentProviderMetadata[provider];
+        }
 
         await ctx.prisma.manga.update({
           where: { id: mangaId },
@@ -292,7 +308,9 @@ export const bindingRouter = router({
 
         // Binding-as-record: an explicit unbind is a durable "don't re-pick this"
         // signal. Record it so re-enrichment won't auto-rebind the same entity
-        // (reversible — a later manual bind clears it).
+        // (reversible — a later manual bind clears it). The sentinel blocks the
+        // whole provider; the rejection still matters once a later manual bind
+        // has replaced the sentinel and been removed again, and for AniList.
         if (unboundId) {
           await recordRejection({ mangaId, provider, providerId: unboundId, reason: 'manual unbind' });
         }
@@ -303,13 +321,16 @@ export const bindingRouter = router({
           cleanupSummary = `, removed ${cleanup.removedLinks} externalLink(s), ${cleanup.removedVolumes} CV volume(s), detached ${cleanup.detachedChapters} chapter(s)`;
         }
 
+        // The row changed either way (a sentinel is written even when nothing
+        // was bound), so readers must see it.
+        await invalidateMangaCache(mangaId);
+        await eventEmitter.emit('manga:updated', { mangaId });
+
         if (!wasBound && cleanupSummary === '') {
           return { success: true, message: `Manga is not bound to ${provider}` };
         }
 
         logger.info(`Successfully unbound manga ID ${mangaId} from ${provider}${cleanupSummary}`);
-        await invalidateMangaCache(mangaId);
-        await eventEmitter.emit('manga:updated', { mangaId });
 
         return {
           success: true,

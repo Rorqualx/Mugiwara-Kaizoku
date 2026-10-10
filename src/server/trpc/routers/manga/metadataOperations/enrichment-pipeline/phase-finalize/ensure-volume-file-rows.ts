@@ -5,8 +5,9 @@
  * Two import shapes converge here:
  *  - **Compendium archive** (e.g., Chainsaw Man Color "V01.cbz" with chs 1-8):
  *    a single archive file shared across N chapter rows. The volume-file row
- *    has `filePath` set to that archive, `pageCount` and `size` copied from
- *    one of the chapter rows (which all share the archive's totals).
+ *    has `filePath` set to that archive and `size` copied from one of the
+ *    chapter rows (each carries the archive's size); `pageCount` is the sum
+ *    of the chapters' own page counts.
  *  - **Per-chapter files** (e.g., Kaiju "Chapter 0001.cbz" ... "0007.cbz"):
  *    N separate files. The volume-file row has `filePath = NULL` (no single
  *    archive to point at); `pageCount` and `size` are SUMMED across all
@@ -23,6 +24,8 @@ import { ChapterStatus } from '@prisma/client';
 
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
+
+import { clampToInt4, VOLUME_FILE_INDEX_PROBE_LIMIT, volumeFileBaseIndex } from './volume-file-row-scheme';
 
 interface ChapterAggregate {
   count: number;
@@ -43,6 +46,7 @@ interface VolumeFileRow {
   pageCount: number | null;
   size: number;
   filePath: string | null;
+  downloadStatus: ChapterStatus;
 }
 
 /**
@@ -55,7 +59,7 @@ async function findExistingVolumeFileRow(
 ): Promise<VolumeFileRow | null> {
   return prisma.chapter.findFirst({
     where: { mangaId, volume, chapterNumber: null },
-    select: { id: true, pageCount: true, size: true, filePath: true },
+    select: { id: true, pageCount: true, size: true, filePath: true, downloadStatus: true },
   });
 }
 
@@ -65,6 +69,7 @@ function aggregateChapterRows(
   let completedCount = 0;
   let totalPages = 0;
   let totalSize = 0;
+  let largestSize = 0;
   const filePaths = new Set<string>();
   let firstFileName: string | null = null;
   let firstFileFormat: string | null = null;
@@ -73,6 +78,7 @@ function aggregateChapterRows(
     if (r.downloadStatus === ChapterStatus.COMPLETED) completedCount++;
     totalPages += r.pageCount ?? 0;
     totalSize += r.size;
+    if (r.size > largestSize) largestSize = r.size;
     if (r.filePath) filePaths.add(r.filePath);
     firstFileName ??= r.fileName;
     firstFileFormat ??= r.fileFormat;
@@ -83,7 +89,11 @@ function aggregateChapterRows(
     count: rows.length,
     completedCount,
     totalPages,
-    totalSize,
+    // Every chapter row of a shared archive stores the WHOLE archive's size, so
+    // summing them counted the archive once per chapter (One Piece vol 1:
+    // 8 × 152 MB). That inflated sum, not real volume size, is what overflowed
+    // the int4 column. A shared archive's size is the size of one row.
+    totalSize: sharedFilePath !== null ? largestSize : totalSize,
     sharedFilePath,
     sharedFileName: sharedFilePath !== null ? firstFileName : null,
     sharedFileFormat: sharedFilePath !== null ? firstFileFormat : null,
@@ -101,6 +111,8 @@ async function ensureRowForVolume(
   const downloadStatus: ChapterStatus = agg.completedCount === agg.count
     ? ChapterStatus.COMPLETED
     : ChapterStatus.PENDING;
+  // See clampToInt4: the summed size can exceed the int4 column.
+  const size = clampToInt4(agg.totalSize);
 
   if (existing) {
     // A file-backed volume row whose numbered chapters do NOT share one
@@ -109,15 +121,18 @@ async function ensureRowForVolume(
     // nulling its filePath / overwriting its archive-derived stats with
     // chapter-row aggregates would orphan the archive on disk.
     if (existing.filePath !== null && agg.sharedFilePath === null) return 'skipped';
+    // Status is compared too: chapters can complete (or lose their files)
+    // without the page or size totals moving, which left the row's status stale.
     const needsUpdate = (existing.pageCount ?? 0) !== agg.totalPages
-      || existing.size !== agg.totalSize
-      || existing.filePath !== agg.sharedFilePath;
+      || existing.size !== size
+      || existing.filePath !== agg.sharedFilePath
+      || existing.downloadStatus !== downloadStatus;
     if (!needsUpdate) return 'skipped';
     await prisma.chapter.update({
       where: { id: existing.id },
       data: {
         pageCount: agg.totalPages,
-        size: agg.totalSize,
+        size,
         downloadStatus,
         ...(agg.sharedFilePath !== null
           ? { filePath: agg.sharedFilePath, fileName: agg.sharedFileName ?? '', fileFormat: agg.sharedFileFormat }
@@ -130,12 +145,12 @@ async function ensureRowForVolume(
   // No existing row — create one. Index strategy: park in the synthetic
   // 100_000+ space partitioned by volume number so it doesn't collide with
   // numbered chapter indices. On collision (already used), bump until free.
-  const baseIndex = 100_000 + volume * 100;
+  const baseIndex = volumeFileBaseIndex(volume);
   let index = baseIndex;
   // eslint-disable-next-line no-await-in-loop -- bounded probe, almost always one iteration
   while (await prisma.chapter.findFirst({ where: { mangaId, index }, select: { id: true } })) {
     index++;
-    if (index > baseIndex + 1000) {
+    if (index > baseIndex + VOLUME_FILE_INDEX_PROBE_LIMIT) {
       logger.warn(`[ensureVolumeFileRows] Could not find free index for mangaId=${mangaId} volume=${volume}`);
       return 'skipped';
     }
@@ -148,7 +163,7 @@ async function ensureRowForVolume(
       fileFormat: agg.sharedFileFormat,
       index,
       title: '',
-      size: agg.totalSize,
+      size,
       downloadStatus,
       volume,
       volumeId,

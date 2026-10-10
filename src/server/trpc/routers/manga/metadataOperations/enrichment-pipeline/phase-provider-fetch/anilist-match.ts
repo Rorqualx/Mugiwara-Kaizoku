@@ -17,12 +17,44 @@ import { diceCoefficient, hasEditionMismatch, normalizeTitle } from '../utils';
 
 const log = logger.child('PhaseProviderFetch');
 
+/**
+ * Score multiplier for a NOVEL candidate when the library title is not a
+ * novel. AniList's `type: MANGA` search returns light novels and manga side by
+ * side, usually under the same title, and the picker never looked at
+ * `format` — Blood Lad was bound to light novel 92948 instead of manga 51614.
+ *
+ * Demote, never exclude (decision D4): 0.8 puts an exact-title novel (1.00 →
+ * 0.80) behind any manga whose title scores above 0.80, yet a title whose only
+ * AniList entry is a novel still binds as long as its raw score is at least
+ * 0.375 (0.30 floor / 0.8).
+ */
+export const NOVEL_FORMAT_PENALTY = 0.8;
+
+/**
+ * `Manga.mediaType` values that mean the library title is itself prose. The
+ * enum has only MANGA and COMICBOOK today, so every title currently demotes
+ * novels; the names are listed so a future novel member turns the demotion off
+ * without touching the picker.
+ */
+const NOVEL_MEDIA_TYPES: ReadonlySet<string> = new Set(['NOVEL', 'LIGHT_NOVEL']);
+
+/** True when the library title is a novel, so NOVEL candidates are the right format. */
+export function isNovelMediaType(mediaType: string | null | undefined): boolean {
+  return typeof mediaType === 'string' && NOVEL_MEDIA_TYPES.has(mediaType.toUpperCase());
+}
+
+export interface AniListPickOptions {
+  /** Apply {@link NOVEL_FORMAT_PENALTY} to NOVEL candidates. Off by default. */
+  demoteNovels?: boolean;
+}
+
 /** Pick the AniList result with the best title match.
  *  Uses tiebreakers when scores are equal: primary title > synonym, then popularity. */
 // eslint-disable-next-line complexity -- multi-factor scoring with tiebreakers requires branching
 export function pickBestTitleMatch(
   results: AniListMangaResult[],
   query: string,
+  options?: AniListPickOptions,
 ): AniListMangaResult | null {
   const normalized = normalizeTitle(query);
   let best: AniListMangaResult | null = null;
@@ -79,7 +111,12 @@ export function pickBestTitleMatch(
     // Iter-26: downweight one-token overlaps on long candidate titles.
     // Dice alone can score 0.5+ for "Twisted Visions" vs a multi-word synonym
     // sharing one common word — legacy path already protects against this; parity port.
-    const effectiveScore = applySingleTokenGuard(afterAdult, query, resultMatchedTitle);
+    const afterGuard = applySingleTokenGuard(afterAdult, query, resultMatchedTitle);
+
+    // Format gate: ONE_SHOT and every other format are left alone.
+    const effectiveScore = options?.demoteNovels === true && r.format === 'NOVEL'
+      ? afterGuard * NOVEL_FORMAT_PENALTY
+      : afterGuard;
 
     // Tiebreaker logic: score > primary title > popularity
     // Prevents "Berserk of Gluttony" (synonym "Berserk") from beating the actual "Berserk" manga
@@ -122,8 +159,9 @@ export function pickBestTitleMatch(
 export function pickBestTitleMatchWithScore(
   results: AniListMangaResult[],
   query: string,
+  options?: AniListPickOptions,
 ): { result: AniListMangaResult; score: number } | null {
-  const pick = pickBestTitleMatch(results, query);
+  const pick = pickBestTitleMatch(results, query, options);
   if (!pick) return null;
   // Re-derive the score for the picked result against the query — small cost
   // (one dice + a few normalizations) compared to the matcher's outer loop.

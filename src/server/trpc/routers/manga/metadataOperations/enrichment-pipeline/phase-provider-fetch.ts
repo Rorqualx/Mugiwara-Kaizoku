@@ -25,15 +25,7 @@ import { enabledDefaultFor, ALL_PROVIDERS } from '@/lib/metadata/provider-regist
 import { prisma } from '@/server/db';
 import type { AniListMangaDetails } from '@/server/services/anilist/service';
 import { anilistService } from '@/server/services/anilist/service';
-import { comicvineConfigService } from '@/server/services/comicvine/configService';
-import { findComicVineMatchForAniList } from '@/server/services/comicvine/discovery/language-aware-matcher';
-import { isSupportedLanguage } from '@/server/services/comicvine/language-detection/guard-functions';
-import type { SupportedLanguage } from '@/server/services/comicvine/language-detection/types';
-import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvine/service';
-import { comicvineService } from '@/server/services/comicvine/service';
-import { getTsMangadexClient } from '@/server/services/mangadex/ts-client-factory';
-import type { MangaDexManga } from '@/server/services/mangadex/types';
-import { getRejectedIds, recordBinding } from '@/server/services/metadata/binding-record';
+import { getRejectedIdsByProvider, recordBinding, rejectedIdsFor } from '@/server/services/metadata/binding-record';
 import { validateBindingFreshness } from '@/server/services/metadata/binding-validators/freshness-check';
 import { writeFieldReview } from '@/server/services/metadata/field-review';
 import { collectCandidates } from '@/server/services/metadata/selectors/collect-candidates';
@@ -45,22 +37,21 @@ import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { logger } from '@/utils/logger';
 
 import { buildFallbackSearchQuery, stripTitlePatterns } from './matching/title-normalization';
-import { pickBestTitleMatchWithScore } from './phase-provider-fetch/anilist-match';
+import { isNovelMediaType, pickBestTitleMatchWithScore } from './phase-provider-fetch/anilist-match';
 import { resolveAniListPin } from './phase-provider-fetch/anilist-pin';
+import { buildTitleOnlyAniListDetails, runLanguageAwareComicVineMatch, type ComicVineDirectResult } from './phase-provider-fetch/comicvine-fetch';
 import { buildEnrichmentResult } from './phase-provider-fetch/enrichment-result-builder';
-import { extractMangaDexLinks } from './phase-provider-fetch/external-id-extractor';
 import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } from './phase-provider-fetch/kitsu-fetch';
 import { fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal-fetch';
-import { fetchMangaDexAggregate } from './phase-provider-fetch/mangadex-aggregate';
-import { fetchMangaDexChapters } from './phase-provider-fetch/mangadex-chapter-list';
-import { pickBestMangaDexMatch, pickBestMangaDexMatchWithScore } from './phase-provider-fetch/mangadex-matcher';
+import { fetchMangaDexDirect, verifyMangaDexWithAniList, type MangaDexDirectResult } from './phase-provider-fetch/mangadex-fetch';
 import { fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
 import { buildClaimsForShadow } from './phase-provider-fetch/provider-claims';
 import { ProviderOutcomeTracker, unansweredProviders } from './phase-provider-fetch/provider-outcome';
+import { buildProviderDirectives, skipsSecondWave } from './phase-provider-fetch/provider-pins';
 import { settledValueOr } from './phase-provider-fetch/wave-merge';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
-import type { ChapterDataItem, EnrichmentPipelineOptions, EnrichmentProgress, UnifiedProviderResults } from './types';
+import type { EnrichmentPipelineOptions, EnrichmentProgress, UnifiedProviderResults } from './types';
 
 const log = logger.child('PhaseProviderFetch');
 
@@ -123,13 +114,20 @@ export async function phaseProviderFetch(
   // wrong entity (e.g. an anthology vs the actual spin-off).
   const mangaPin = await prisma.manga.findUnique({
     where: { id: mangaId },
-    select: { selectedSourceId: true, providerMetadata: true },
+    select: { selectedSourceId: true, providerMetadata: true, mediaType: true },
   });
-  // Binding-as-record (#2): durable rejections for this manga's AniList
-  // bindings. A rejected id must NOT be re-pinned or re-picked — that is what
-  // breaks the sticky-id reidentify loop (Attack on Titan bound to the "No
-  // Regrets" spinoff).
-  const rejectedAlIds = await getRejectedIds(mangaId, 'anilist');
+  // Binding-as-record (#2): durable rejections for this manga's bindings, all
+  // providers in one query. A rejected id must NOT be re-pinned or re-picked —
+  // that is what breaks the sticky-id reidentify loop (Attack on Titan bound
+  // to the "No Regrets" spinoff).
+  const rejections = await getRejectedIdsByProvider(mangaId);
+  const rejectedAlIds = rejectedIdsFor(rejections, 'anilist');
+  // Manual pins, unbound sentinels and rejections for the other providers.
+  const directives = buildProviderDirectives(
+    mangaPin?.providerMetadata, (provider) => rejectedIdsFor(rejections, provider),
+  );
+  // Format gate: light novels are demoted unless the library title is one.
+  const demoteNovels = !isNovelMediaType(mangaPin?.mediaType);
 
   // Manual pin (selectedSourceId) always wins. Otherwise reuse the AniList id
   // already auto-bound in providerMetadata.anilist.providerId so re-enrichment
@@ -161,12 +159,12 @@ export async function phaseProviderFetch(
   // step then discarded.
   const [anilistSettled, mangadexSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId, rejectedAlIds), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
-      enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch', () => outcomes.markTimeout('mangadex')) : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, { pinnedId: pinnedAlId, fallbackId: options?.previousAniListId, rejectedIds: rejectedAlIds, demoteNovels }), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
+      enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title, directives.mangadex), T, 'mangadex-fetch', () => outcomes.markTimeout('mangadex')) : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch', () => outcomes.markTimeout('fandom')) : noop,
       enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId), T, 'wikipedia-fetch', () => outcomes.markTimeout('wikipedia')) : noop,
-      enabled.has('mangaupdates') ? withTimeoutOrNull(fetchMangaUpdatesDirect(title), T, 'mangaupdates-fetch', () => outcomes.markTimeout('mangaupdates')) : noop,
-      enabled.has('kitsu') ? withTimeoutOrNull(fetchKitsuDirect(title), T, 'kitsu-fetch', () => outcomes.markTimeout('kitsu')) : noop,
+      enabled.has('mangaupdates') ? withTimeoutOrNull(fetchMangaUpdatesDirect(title, undefined, directives.mangaupdates), T, 'mangaupdates-fetch', () => outcomes.markTimeout('mangaupdates')) : noop,
+      enabled.has('kitsu') ? withTimeoutOrNull(fetchKitsuDirect(title, undefined, directives.kitsu), T, 'kitsu-fetch', () => outcomes.markTimeout('kitsu')) : noop,
     ]);
 
   const anilistData = anilistSettled.status === 'fulfilled' ? anilistSettled.value : null;
@@ -205,10 +203,9 @@ export async function phaseProviderFetch(
       provider: 'mangadex',
       currentScore: mdData.matchScore,
       boundEntityId: mdData.mangaId,
-      // MD bindings don't use Manga.selectedSourceId (that's AL-only).
-      // Manual MD pins live in providerMetadata.mangadex.manualPin and aren't
-      // exposed at this layer — false here is acceptable for v1.
-      manualPin: false,
+      // A pinned fetch has no matchScore and never reaches here; this is the
+      // matcher result of a manual bind whose fetch-by-id failed.
+      manualPin: directives.mangadex.pin.kind === 'pinned',
     });
   }
   let mangadexData = mangadexSettled.status === 'fulfilled' ? mangadexSettled.value : null;
@@ -222,9 +219,7 @@ export async function phaseProviderFetch(
 
   // Phase 3 #2 (rollout) — sticky-binding freshness checks for the
   // remaining title-matched providers. Each warns when the current matcher
-  // would no longer accept the existing binding. `manualPin: false` for
-  // these three — only AniList uses Manga.selectedSourceId; per-provider
-  // manual-pin support can be added later if the warn rate makes it useful.
+  // would no longer accept the existing binding. Manual binds are exempt.
   //
   // MAL is intentionally absent: it's pin-fetched by AL/MD `idMal`
   // cross-reference, so the matcher never runs and there's nothing to be
@@ -239,7 +234,7 @@ export async function phaseProviderFetch(
       provider: 'mangaupdates',
       currentScore: muData.matchScore,
       boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'mangaupdates'),
-      manualPin: false,
+      manualPin: directives.mangaupdates.pin.kind === 'pinned',
     });
   }
   if (kitsuData && typeof kitsuData.matchScore === 'number') {
@@ -248,7 +243,7 @@ export async function phaseProviderFetch(
       provider: 'kitsu',
       currentScore: kitsuData.matchScore,
       boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'kitsu'),
-      manualPin: false,
+      manualPin: directives.kitsu.pin.kind === 'pinned',
     });
   }
 
@@ -318,8 +313,10 @@ export async function phaseProviderFetch(
       // re-run discovery with links.al pre-filtering for definitive verification.
       (async () => {
         if (!anilistData || !enabled.has('mangadex')) return mangadexData;
+        // A pinned entity must not be swapped via links.al; an unbound provider stays unbound.
+        if (skipsSecondWave(directives.mangadex, mangadexData)) return mangadexData;
         return withTimeoutOrNull(
-          verifyMangaDexWithAniList(title, anilistData, mangadexData), T, 'mangadex-verify', () => outcomes.markTimeout('mangadex'),
+          verifyMangaDexWithAniList(title, anilistData, mangadexData, directives.mangadex.rejectedIds), T, 'mangadex-verify', () => outcomes.markTimeout('mangadex'),
         );
       })(),
       // Discover ComicVine via the language-aware matcher — the ONLY ComicVine
@@ -330,12 +327,12 @@ export async function phaseProviderFetch(
       // matcher runs on a title-only stand-in so the hard language guard still
       // applies. When the manga has a manual ComicVine binding (set via
       // bindProvider mutation with `manual: true`), the matcher is skipped and
-      // we fetch by the bound id.
+      // we fetch by the bound id; an unbound sentinel skips ComicVine entirely.
       (async () => {
         if (!enabled.has('comicvine')) return null;
         const anilistDetails = anilistData?.details ?? buildTitleOnlyAniListDetails(title);
         return withTimeoutOrNull(
-          runLanguageAwareComicVineMatch(anilistDetails, mangaId), T, 'comicvine-verify', () => outcomes.markTimeout('comicvine'),
+          runLanguageAwareComicVineMatch(anilistDetails, mangaId, directives.comicvine), T, 'comicvine-verify', () => outcomes.markTimeout('comicvine'),
         );
       })(),
       // Re-verify MangaUpdates using AniList cross-validation (year, country, titles).
@@ -343,6 +340,8 @@ export async function phaseProviderFetch(
       // re-search with alternative titles and cross-validation scoring.
       (async () => {
         if (!anilistData || !enabled.has('mangaupdates')) return muData;
+        // The year/country re-search must not replace a pinned series or re-bind an unbound provider.
+        if (skipsSecondWave(directives.mangaupdates, muData)) return muData;
         const alDetails = anilistData.details;
         const alTitles = [
           alDetails.title.romaji, alDetails.title.english, alDetails.title.native,
@@ -350,7 +349,9 @@ export async function phaseProviderFetch(
         ].filter((t): t is string => typeof t === 'string' && t.length >= 3);
         return withTimeoutOrNull(
           verifyMUWithAniList(
-            title, alDetails.startDate?.year, alDetails.countryOfOrigin, alTitles, muData,
+            title,
+            { year: alDetails.startDate?.year, countryOfOrigin: alDetails.countryOfOrigin, alternativeTitles: alTitles },
+            muData, directives.mangaupdates.rejectedIds,
           ),
           T, 'mangaupdates-verify', () => outcomes.markTimeout('mangaupdates'),
         );
@@ -359,6 +360,10 @@ export async function phaseProviderFetch(
       // Kitsu's free-text search is finicky with romanizations; alt titles often unlock matches.
       (async () => {
         if (kitsuData || !anilistData || !enabled.has('kitsu')) return kitsuData;
+        // Unbound: the retry must not bind what the user removed. (A pinned
+        // result is non-null and returned above; a pin whose fetch failed is
+        // retried by title — the directive's pin is dropped so it is not re-fetched.)
+        if (skipsSecondWave(directives.kitsu, kitsuData)) return kitsuData;
         const alDetails = anilistData.details;
         const altTitles = [
           alDetails.title.romaji, alDetails.title.english, alDetails.title.native,
@@ -366,7 +371,10 @@ export async function phaseProviderFetch(
         ].filter((t): t is string => typeof t === 'string' && t.length >= 3 && t !== title);
         if (altTitles.length === 0) return kitsuData;
         return withTimeoutOrNull(
-          fetchKitsuDirect(title, { year: alDetails.startDate?.year, alternativeTitles: altTitles }),
+          fetchKitsuDirect(
+            title, { year: alDetails.startDate?.year, alternativeTitles: altTitles },
+            { pin: { kind: 'none' }, rejectedIds: directives.kitsu.rejectedIds },
+          ),
           T, 'kitsu-retry', () => outcomes.markTimeout('kitsu'),
         );
       })(),
@@ -394,7 +402,7 @@ export async function phaseProviderFetch(
       provider: 'comicvine',
       currentScore: comicvineData.matchScore,
       boundEntityId: extractBoundProviderId(mangaPin?.providerMetadata, 'comicvine'),
-      manualPin: false,
+      manualPin: directives.comicvine.pin.kind === 'pinned',
     });
   }
 
@@ -417,7 +425,8 @@ export async function phaseProviderFetch(
   }
 
   // Fetch MAL data when enabled and idMal is available (from AniList or MangaDex links.mal)
-  const malData = enabled.has('mal')
+  // An unbound MAL stays unfetched (it has no matcher, only this cross-reference fetch).
+  const malData = enabled.has('mal') && !directives.malUnbound
     ? await withTimeoutOrNull(
         fetchMALWithCrossValidation(anilistData, mangadexData, title), T, 'mal-fetch', () => outcomes.markTimeout('mal'),
       )
@@ -724,9 +733,16 @@ async function fetchAniListByPinnedId(pinnedId: string | null | undefined): Prom
  * than the spin-off the user actually wants).
  */
 async function fetchAniListDirect(
-  title: string, pinnedId?: string | null, fallbackId?: string | null,
-  rejectedIds?: Set<string>,
+  title: string,
+  opts: {
+    pinnedId?: string | null;
+    fallbackId?: string | null | undefined;
+    rejectedIds?: ReadonlySet<string>;
+    /** Format gate — applies to the matcher only; a pinned id is the user's choice. */
+    demoteNovels?: boolean;
+  } = {},
 ): Promise<AniListDirectResult | null> {
+  const { pinnedId, fallbackId, rejectedIds, demoteNovels } = opts;
   await anilistService.initialize();
 
   const isRejected = (id: string | null | undefined): boolean =>
@@ -778,7 +794,7 @@ async function fetchAniListDirect(
     log.info('AniList: no results found', { title, searchQuery });
     return null;
   }
-  const matched = pickBestTitleMatchWithScore(results, title);
+  const matched = pickBestTitleMatchWithScore(results, title, { demoteNovels: demoteNovels === true });
   if (!matched) return null;
 
   // Get full details
@@ -794,373 +810,6 @@ async function fetchAniListDirect(
   });
 
   return { id: matched.result.id, details, matchScore: matched.score };
-}
-
-// ============================================================================
-// MangaDex Direct Fetch
-// ============================================================================
-
-/**
- * MangaDex metadata result — status, lastVolume, lastChapter, plus aggregate.
- * Aggregate provides definitive volume→chapter mapping for cross-validation.
- */
-interface MangaDexDirectResult {
-  mangaId: string;
-  status: string;
-  lastVolume: string | undefined;
-  lastChapter: string | undefined;
-  aggregate: UnifiedProviderResults['mangadexAggregate'];
-  chapterList: ChapterDataItem[];
-  malId: number | undefined;
-  /** Phase 3 #2: matcher score for the picked entity; used by validateBindingFreshness. */
-  matchScore?: number;
-  /**
-   * Manga-level description from MangaDex, localized when possible.
-   * Used as a fallback when AniList returns an empty description
-   * (iter-27: many obscure JP titles have no AL description but do have MD).
-   */
-  description: string | undefined;
-  /** All non-empty entries from MangaDex attributes.links — al, mu, ap, kt, bw, amz, ebj, etc. */
-  externalIds: Record<string, string>;
-  /** Phase 1: MangaDex contentRating ('safe'/'suggestive'/'erotica'/'pornographic'). */
-  contentRating: string | undefined;
-  /** Phase 1: publicationDemographic ('shounen'/'shoujo'/'josei'/'seinen'). */
-  publicationDemographic: string | undefined;
-}
-
-/** Pick the best-localized MangaDex description. English first, then JP-romaji, then any other. */
-function pickMangaDexDescription(desc: Record<string, string> | null | undefined): string | undefined {
-  if (!desc || typeof desc !== 'object') return undefined;
-  const en = desc['en'];
-  if (en && en.trim().length > 0) return en.trim();
-  const ja = desc['ja-ro'] ?? desc['ja'];
-  if (ja && ja.trim().length > 0) return ja.trim();
-  for (const v of Object.values(desc)) {
-    if (typeof v === 'string' && v.trim().length > 0) return v.trim();
-  }
-  return undefined;
-}
-
-/** Parse MAL ID from MangaDex links.mal (string) to number */
-function parseMalLink(malLink: string | undefined): number | undefined {
-  if (!malLink) return undefined;
-  const parsed = parseInt(malLink, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-}
-
-/**
- * Fetch MangaDex metadata + aggregate volume→chapter mapping.
- * Aggregate provides ground-truth volume ranges for cross-validation.
- */
-async function fetchMangaDexDirect(title: string): Promise<MangaDexDirectResult | null> {
-  const client = await getTsMangadexClient();
-
-  const searchResult = await client.searchManga({ title });
-  const dataArr = Array.isArray(searchResult.data) ? searchResult.data : [searchResult.data];
-  const matched = pickBestMangaDexMatchWithScore(dataArr, title, client);
-  if (!matched) {
-    log.info('MangaDex: no results found', { title });
-    return null;
-  }
-  const bestManga = matched.result;
-
-  log.info('MangaDex: matched metadata', {
-    id: bestManga.id,
-    status: bestManga.attributes.status,
-    lastVolume: bestManga.attributes.lastVolume,
-    lastChapter: bestManga.attributes.lastChapter,
-  });
-
-  const [aggregate, chapterList] = await Promise.all([
-    fetchMangaDexAggregate(client, bestManga.id),
-    fetchMangaDexChapters(client, bestManga.id),
-  ]);
-
-  return {
-    mangaId: bestManga.id,
-    status: bestManga.attributes.status,
-    lastVolume: bestManga.attributes.lastVolume ?? undefined,
-    lastChapter: bestManga.attributes.lastChapter ?? undefined,
-    aggregate,
-    chapterList,
-    malId: parseMalLink(bestManga.attributes.links?.mal),
-    description: pickMangaDexDescription(bestManga.attributes.description as Record<string, string> | null | undefined),
-    externalIds: extractMangaDexLinks(bestManga.attributes.links),
-    matchScore: matched.score,
-    // Phase 1: surface contentRating + publicationDemographic so the persister
-    // can write the dedicated Metadata columns. Always present on attributes.
-    contentRating: bestManga.attributes.contentRating,
-    publicationDemographic: bestManga.attributes.publicationDemographic ?? undefined,
-  };
-}
-
-/**
- * Build a MangaDexDirectResult from a `MangaDexManga` payload + side-fetched
- * aggregate/chapter list. Extracted from `verifyMangaDexWithAniList` to keep
- * the verifier's branching focused on discovery vs. result assembly.
- */
-async function buildMangaDexDirectResult(
-  client: Awaited<ReturnType<typeof getTsMangadexClient>>,
-  best: MangaDexManga,
-): Promise<MangaDexDirectResult> {
-  const [aggregate, chapterList] = await Promise.all([
-    fetchMangaDexAggregate(client, best.id),
-    fetchMangaDexChapters(client, best.id),
-  ]);
-  return {
-    mangaId: best.id, status: best.attributes.status,
-    lastVolume: best.attributes.lastVolume ?? undefined,
-    lastChapter: best.attributes.lastChapter ?? undefined,
-    aggregate,
-    chapterList,
-    malId: parseMalLink(best.attributes.links?.mal),
-    description: pickMangaDexDescription(best.attributes.description as Record<string, string> | null | undefined),
-    externalIds: extractMangaDexLinks(best.attributes.links),
-    contentRating: best.attributes.contentRating,
-    publicationDemographic: best.attributes.publicationDemographic ?? undefined,
-  };
-}
-
-/**
- * Re-verify MangaDex match using AniList cross-reference.
- * Re-searches with AniList title variants and uses links.al pre-filtering.
- */
-async function verifyMangaDexWithAniList(
-  title: string, anilist: AniListDirectResult, existing: MangaDexDirectResult | null,
-): Promise<MangaDexDirectResult | null> {
-  const client = await getTsMangadexClient();
-  const queries = new Set([title]);
-  const romaji = anilist.details.title.romaji;
-  const english = anilist.details.title.english;
-  const native = anilist.details.title.native;
-  if (romaji) queries.add(romaji);
-  if (english) queries.add(english);
-  if (native) queries.add(native);
-  for (const syn of anilist.details.synonyms ?? []) {
-    if (syn.length >= 3) queries.add(syn);
-  }
-
-  const seenIds = new Set<string>();
-  const allResults: MangaDexManga[] = [];
-  for (const q of queries) {
-    // eslint-disable-next-line no-await-in-loop -- MangaDex search is rate-limited and the loop typically runs only 3-7 query variants per title; serial is safer than parallel here
-    const res = await client.searchManga({ title: q });
-    const arr = Array.isArray(res.data) ? res.data : [res.data];
-    for (const m of arr as MangaDexManga[]) {
-      if (!seenIds.has(m.id)) { seenIds.add(m.id); allResults.push(m); }
-    }
-  }
-
-  const chapters = anilist.details.chapters ?? null;
-  const year = anilist.details.startDate?.year ?? null;
-  const best = pickBestMangaDexMatch(allResults, title, client, anilist.id, chapters, year);
-  if (!best) return existing;
-
-  // If re-discovery found the same manga, keep existing (already has aggregate)
-  if (existing && best.id === existing.mangaId) return existing;
-
-  return buildMangaDexDirectResult(client, best);
-}
-
-// ============================================================================
-// ComicVine Discovery (language-aware matcher)
-// ============================================================================
-
-interface ComicVineDirectResult {
-  volumeId: number;
-  publisherName: string | undefined;
-  issues: ComicVineIssue[];
-  seriesVolume: ComicVineVolume;
-  /**
-   * Phase 3 #2 (rollout): the language-aware matcher's titleSimilarity for
-   * this volume. Undefined when the volume was pin-fetched by id
-   * (manual binding) — the freshness check skips those.
-   */
-  matchScore?: number;
-}
-
-/**
- * Read the ComicVine preferred language from settings, falling back to 'en'.
- * Validates that the configured value is a supported language code.
- */
-async function loadComicVinePreferredLanguage(): Promise<SupportedLanguage> {
-  try {
-    const cfg = await comicvineConfigService.loadConfig();
-    if (isSupportedLanguage(cfg.preferredLanguage)) {
-      return cfg.preferredLanguage;
-    }
-    log.warn('ComicVine: invalid preferredLanguage in settings, defaulting to en', {
-      configured: cfg.preferredLanguage,
-    });
-    return 'en';
-  } catch (error: unknown) {
-    log.warn('ComicVine: failed to load config, defaulting to en', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return 'en';
-  }
-}
-
-/**
- * Use the language-aware matcher to discover the best ComicVine volume for an
- * AniList entry, then fetch all its issues.
- *
- * Returns null if no candidate matches the preferred language — by design.
- * The loop in `docs/research/comicvine-accuracy/` measures this rate.
- */
-/**
- * When configured preference is 'en' but the AniList entry has no English title
- * and its country of origin is Japan, the only real ComicVine edition will be
- * Japanese — the guard would reject the correct match. Fall back to 'ja' so the
- * language check passes on the authentic edition instead of leaving the manga
- * unbound (or worse, falling back to stale cached data from a prior wrong match).
- */
-function resolveEffectiveComicVineLanguage(
-  anilist: AniListMangaDetails,
-  configured: SupportedLanguage,
-): SupportedLanguage {
-  if (configured === 'en' && !anilist.title.english && anilist.countryOfOrigin === 'JP') {
-    return 'ja';
-  }
-  return configured;
-}
-
-/**
- * Parse a ComicVine providerId into a numeric volume id.
- * The bind UI (`provider-bind-config.ts:extractProviderIdFromUrl`) extracts
- * `4050-N` from pasted URLs (4050 = CV volume type prefix), so the stored
- * providerId may be either `"50244"` or `"4050-50244"`. Both must resolve
- * to the volume id `50244`.
- */
-function parseComicVineVolumeId(raw: unknown): number | null {
-  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
-  if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
-  // Match `4050-50244` (publisher prefix + id) or a bare `50244`.
-  const match = /^(?:\d+-)?(\d+)$/.exec(trimmed);
-  if (!match?.[1]) return null;
-  const id = parseInt(match[1], 10);
-  return Number.isFinite(id) && id > 0 ? id : null;
-}
-
-/**
- * Look up the manually-bound ComicVine volume id for a manga, if any.
- * Returns the numeric volumeId only when `providerMetadata.comicvine.manual === true`
- * — pipeline-set bindings are intentionally ignored so a stale auto-match
- * doesn't permanently lock out a better candidate.
- */
-async function readManualComicVineVolumeId(mangaId: number): Promise<number | null> {
-  const manga = await prisma.manga.findUnique({
-    where: { id: mangaId },
-    select: { providerMetadata: true },
-  });
-  const pm = manga?.providerMetadata as Record<string, unknown> | null;
-  const cv = pm?.['comicvine'] as Record<string, unknown> | undefined;
-  if (cv?.['manual'] !== true) return null;
-  return parseComicVineVolumeId(cv['providerId']);
-}
-
-/**
- * Fetch a CV volume by id and shape it into the same `ComicVineDirectResult`
- * the matcher returns, so downstream phases (Volume persistence, externalLinks)
- * are unchanged.
- */
-async function fetchManualComicVineMatch(volumeId: number): Promise<ComicVineDirectResult | null> {
-  const initialized = await comicvineService.initialize();
-  if (!initialized) {
-    log.warn('ComicVine not initialized; cannot honor manual binding', { volumeId });
-    return null;
-  }
-  const volume = await comicvineService.getCompleteVolumeInfo(volumeId);
-  if (!volume) {
-    log.warn('ComicVine: manual binding volume not found via API', { volumeId });
-    return null;
-  }
-  const issues = await comicvineService.getAllVolumeIssues(volumeId);
-  log.info('ComicVine: honoring manual binding (matcher skipped)', {
-    volumeId,
-    name: volume.name ?? '',
-    publisher: volume.publisher?.name ?? '',
-    issueCount: issues.length,
-  });
-  return {
-    volumeId,
-    publisherName: volume.publisher?.name ?? undefined,
-    issues,
-    seriesVolume: volume,
-  };
-}
-
-async function runLanguageAwareComicVineMatch(
-  anilistDetails: AniListMangaDetails,
-  mangaId?: number,
-): Promise<ComicVineDirectResult | null> {
-  if (mangaId !== undefined) {
-    const { isManuallyUnbound } = await import('./manual-binding-sentinel');
-    if (await isManuallyUnbound(mangaId, 'comicvine')) {
-      log.info(`ComicVine: skipping match for manga ${mangaId} — manually marked as unbound`);
-      return null;
-    }
-    const manualVolumeId = await readManualComicVineVolumeId(mangaId);
-    if (manualVolumeId !== null) {
-      const manual = await fetchManualComicVineMatch(manualVolumeId);
-      if (manual) return manual;
-      // Manual binding existed but the API call failed — fall through to the
-      // matcher rather than returning null, so the user still gets some result.
-    }
-  }
-
-  const configuredLanguage = await loadComicVinePreferredLanguage();
-  const preferredLanguage = resolveEffectiveComicVineLanguage(anilistDetails, configuredLanguage);
-  if (preferredLanguage !== configuredLanguage) {
-    log.info('ComicVine: overriding preferredLanguage for JP-only AniList entry', {
-      configured: configuredLanguage,
-      effective: preferredLanguage,
-      anilistRomaji: anilistDetails.title.romaji,
-    });
-  }
-  const matchResult = await findComicVineMatchForAniList(anilistDetails, preferredLanguage);
-
-  if (!matchResult.matched || !matchResult.matchedVolume) {
-    log.warn('ComicVine: no language-correct match', {
-      preferredLanguage,
-      candidatesConsidered: matchResult.allCandidates.length,
-      rejectedForLanguage: matchResult.rejectedForLanguage.length,
-    });
-    return null;
-  }
-
-  const matched = matchResult.matched;
-  const issues = await comicvineService.getAllVolumeIssues(matched.volumeId);
-  log.info('ComicVine: language-aware matcher selected', {
-    volumeId: matched.volumeId,
-    name: matched.name,
-    detectedLanguage: matched.detectedLanguage,
-    preferredLanguage,
-    matchStrategy: matchResult.matchStrategy,
-    titleSimilarity: matched.titleSimilarity.toFixed(2),
-    issueCount: issues.length,
-  });
-
-  return {
-    volumeId: matched.volumeId,
-    publisherName: matched.publisherName ?? undefined,
-    issues,
-    seriesVolume: matchResult.matchedVolume,
-    matchScore: matched.titleSimilarity,
-  };
-}
-
-/**
- * Title-only stand-in for AniListMangaDetails when no AniList match exists.
- * Lets the language-aware matcher (and its hard language guard) run for
- * AniList-less manga instead of the retired English-first selector, which
- * ignored `comicvine.preferredLanguage` and fell back to ANY >=0.2 title
- * match regardless of language. The sentinel id is never read — the matcher
- * only consumes title fields, synonyms, and countryOfOrigin.
- */
-function buildTitleOnlyAniListDetails(title: string): AniListMangaDetails {
-  return { id: 0, title: { english: title } };
 }
 
 // ============================================================================

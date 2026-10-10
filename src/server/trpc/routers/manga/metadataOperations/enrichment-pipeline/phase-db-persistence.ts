@@ -22,6 +22,7 @@ import { chapterHasUserData } from '../refresh/clear-auto-bindings';
 
 import { buildFileContentMatcher } from './file-content-matcher';
 import { insertNewChapters } from './phase-db-persistence/chapter-insert';
+import { findKeptVolumeFileRowIds } from './phase-finalize/volume-file-row-scheme';
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
 
 import type { ChapterConsensus } from './phase-volume-cross-validation/chapter-consensus-resolver';
@@ -359,8 +360,9 @@ function buildChapterUpdates(
  *      issues misread as chapters) or from reidentify passes that nulled the
  *      row's chapterNumber. The previous filter required `chapterNumber !== null`
  *      so these were immortal. See audit plan 2026-05-19.
+ *      Per-volume rows from `ensureVolumeFileRows` look the same and are kept.
  */
-function findStaleChapterIds(
+export function findStaleChapterIds(
   existing: ExistingChapter[],
   providerNumbers: Set<number>,
   matchedIds: Set<number>,
@@ -384,8 +386,10 @@ function findStaleChapterIds(
   // Phantom sweep runs regardless of coverage: a row with no chapterNumber AND
   // no filePath AND no user-data signals carries no information and only
   // exists to clutter the UI.
+  const keptVolumeFileRows = findKeptVolumeFileRowIds(existing);
   const phantomStale = existing
     .filter(ch =>
+      !keptVolumeFileRows.has(ch.id) &&
       ch.chapterNumber === null &&
       ch.filePath === null &&
       ch.downloadStatus === 'PENDING' &&
