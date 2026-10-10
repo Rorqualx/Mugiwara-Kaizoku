@@ -22,6 +22,7 @@ import { chapterHasUserData } from '../refresh/clear-auto-bindings';
 
 import { buildFileContentMatcher } from './file-content-matcher';
 import { insertNewChapters } from './phase-db-persistence/chapter-insert';
+import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
 
 import type { ChapterConsensus } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import type { EnrichmentProgress, ProviderChapter } from './types';
@@ -158,7 +159,9 @@ async function persistMetadataToDb(
  * Without this cap, an inflated AniList scalar (e.g. Sweat and Soap AL=110
  * vs canon=66 — AL conflates MangaDex split-part releases) creates ghost
  * stub chapters past the real manifest end. High/medium confidence acts
- * as a ceiling; low/unknown leaves the raw `Math.max` value untouched.
+ * as a ceiling; so does a low consensus whose candidates all sit within a
+ * few percent of each other (`softCountCeiling`), using the largest of them.
+ * Anything else leaves the raw `Math.max` value untouched.
  */
 function applyChapterConsensusCeiling(
   mangaId: number,
@@ -166,10 +169,12 @@ function applyChapterConsensusCeiling(
   consensus: ChapterConsensus | undefined,
 ): number {
   if (!consensus) return rawCount;
-  if (consensus.confidence !== 'high' && consensus.confidence !== 'medium') return rawCount;
-  if (consensus.count <= 0 || consensus.count >= rawCount) return rawCount;
-  logger.info(`[enrichmentPipeline] Chapter consensus capped expectedCount for manga ${mangaId}: rawMax=${rawCount} -> consensus=${consensus.count} (confidence=${consensus.confidence}, sources=${consensus.sources.join(',')})`);
-  return consensus.count;
+  const agreed = consensus.confidence === 'high' || consensus.confidence === 'medium';
+  const ceiling = agreed ? consensus.count : softCountCeiling(consensus.raw);
+  if (ceiling === null || ceiling <= 0 || ceiling >= rawCount) return rawCount;
+  const sources = agreed ? consensus.sources : consensus.raw.map(c => c.source);
+  logger.info(`[enrichmentPipeline] Chapter consensus capped expectedCount for manga ${mangaId}: rawMax=${rawCount} -> ceiling=${ceiling} (confidence=${consensus.confidence}, sources=${sources.join(',')})`);
+  return ceiling;
 }
 
 /** Create chapters and volumes from enriched data.

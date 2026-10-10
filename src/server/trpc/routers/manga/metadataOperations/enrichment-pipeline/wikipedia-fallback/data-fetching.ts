@@ -34,9 +34,58 @@ type WikipediaFetchHints = {
   anilistId?: number;
   malId?: number;
   anilistChapters?: number;
-  malChapters?: number;
+  mangaupdatesChapters?: number;
   mangadexChapters?: number;
 };
+
+/**
+ * Wikipedia data plus the chapters the article itself yielded.
+ *
+ * `data.chapterList` is padded with `Chapter N` placeholders up to another
+ * provider's count so later phases have rows to hang volume data on. That
+ * padded length says nothing about what Wikipedia knows, so anything that
+ * treats Wikipedia as a witness to the chapter count must read
+ * `extractedChapterList` instead.
+ */
+export interface WikipediaFetchResult {
+  data: WikipediaMangaData;
+  /** `data.chapterList` without the placeholder padding. */
+  extractedChapterList: WikipediaChapter[];
+  /**
+   * The chapter total the article states for itself, or null when
+   * `data.chapters` is merely computed from the extracted list (its length,
+   * or the "highest number + 1" the best-match finder writes). A computed
+   * total is the list again, not a second fact about the series.
+   */
+  declaredChapterCount: number | null;
+}
+
+/**
+ * Totals that can be read straight off a chapter list. Mirrors
+ * `calculateAccurateChapterCount` in the Wikipedia best-match finder (highest
+ * regular number + epilogues + 1) plus the plain length and highest number.
+ */
+function listDerivedTotals(chapters: WikipediaChapter[]): Set<number> {
+  let maxRegular = 0;
+  let maxEpilogue = 0;
+  for (const ch of chapters) {
+    const label = String(ch.number);
+    const epilogue = /Epilogue\s*(\d+)?/iu.exec(label);
+    if (epilogue) {
+      maxEpilogue = Math.max(maxEpilogue, epilogue[1] ? parseInt(epilogue[1], 10) : 1);
+      continue;
+    }
+    const parsed = parseInt(label, 10);
+    if (!isNaN(parsed)) maxRegular = Math.max(maxRegular, parsed);
+  }
+  return new Set([chapters.length, maxRegular, maxRegular + 1, maxRegular + maxEpilogue + 1]);
+}
+
+function declaredChapterCountOf(data: WikipediaMangaData, extracted: WikipediaChapter[]): number | null {
+  const stated = data.chapters ?? 0;
+  if (stated <= 0) return null;
+  return listDerivedTotals(extracted).has(stated) ? null : stated;
+}
 
 type WikipediaService = { findBestMatch: (t: string) => Promise<WikipediaMangaData | null> };
 type AdaptiveExtractFn = (t: string) => Promise<WikipediaParseResult>;
@@ -44,6 +93,28 @@ type AdaptiveExtractFn = (t: string) => Promise<WikipediaParseResult>;
 export async function fetchWikipediaData(
   title: string,
   hints?: WikipediaFetchHints,
+): Promise<WikipediaMangaData | null> {
+  return (await fetchWikipediaDataWithExtraction(title, hints))?.data ?? null;
+}
+
+/** `fetchWikipediaData`, also reporting which chapters were really extracted. */
+export async function fetchWikipediaDataWithExtraction(
+  title: string,
+  hints?: WikipediaFetchHints,
+): Promise<WikipediaFetchResult | null> {
+  // Placeholder rows are tracked by identity: the continuation merge re-sorts
+  // and dedupes the list, so positions and counts do not survive it.
+  const placeholders = new Set<WikipediaChapter>();
+  const data = await fetchAndPad(title, hints, placeholders);
+  if (!data) return null;
+  const extractedChapterList = (data.chapterList ?? []).filter(ch => !placeholders.has(ch));
+  return { data, extractedChapterList, declaredChapterCount: declaredChapterCountOf(data, extractedChapterList) };
+}
+
+async function fetchAndPad(
+  title: string,
+  hints: WikipediaFetchHints | undefined,
+  placeholders: Set<WikipediaChapter>,
 ): Promise<WikipediaMangaData | null> {
   const { adaptiveExtract } = await import('@/server/services/wikipedia/wikipedia/manga-extractor');
   const { wikipediaService } = await import('@/server/services/wikipedia/wikipedia/service');
@@ -65,16 +136,17 @@ export async function fetchWikipediaData(
 
   // Stage 2.5b: Replace chapter list with placeholder fill when extraction is <30% of expected
   if (mergedData) {
-    const flooredList = computeFlooredChapterList(mergedData, hints);
+    const flooredList = computeFlooredChapterList(mergedData, hints, placeholders);
     if (flooredList) mergedData.chapterList = flooredList;
   }
 
   // Stage 3: Merge continuation titles (e.g., Dragon Ball + Dragon Ball Z)
-  mergedData = await mergeContinuationData(title, mergedData);
+  mergedData = await mergeContinuationData(title, mergedData, placeholders);
 
   // Stage 4: Post-merge gap-fill — extend extracted chapters to best known count
   if (mergedData?.chapterList?.length) {
     const gapItems = computeGapFillItems(mergedData, hints);
+    for (const item of gapItems) placeholders.add(item);
     if (gapItems.length > 0) mergedData.chapterList.push(...gapItems);
   }
 
@@ -107,17 +179,21 @@ async function tryWikidataFallback(
 }
 
 /**
- * Pick the best non-zero chapter count from infobox / AniList / MAL / MangaDex
- * (in that priority order) for use by Stage 2.5b and Stage 4.
+ * Pick the best non-zero chapter count from infobox / AniList / MangaUpdates /
+ * MangaDex (in that priority order) for use by Stage 2.5b and Stage 4.
+ *
+ * A Wikipedia total that is only computed from the list being padded is
+ * skipped: "highest number + 1" as a target asks for one chapter beyond the
+ * last real one, which is how an ongoing series grew a phantom latest chapter.
  */
 function pickBestChapterCount(
   data: WikipediaMangaData,
   hints: WikipediaFetchHints | undefined,
 ): { count: number; source: string } {
   const sources: Array<[number, string]> = [
-    [data.chapters ?? 0, 'infobox'],
+    [declaredChapterCountOf(data, data.chapterList ?? []) ?? 0, 'infobox'],
     [hints?.anilistChapters ?? 0, 'anilist'],
-    [hints?.malChapters ?? 0, 'mal'],
+    [hints?.mangaupdatesChapters ?? 0, 'mangaupdates'],
     [hints?.mangadexChapters ?? 0, 'mangadex'],
   ];
   const best = sources.find(([n]) => n > 0);
@@ -133,6 +209,7 @@ function pickBestChapterCount(
 function computeFlooredChapterList(
   data: WikipediaMangaData,
   hints: WikipediaFetchHints | undefined,
+  placeholders: Set<WikipediaChapter>,
 ): WikipediaChapter[] | null {
   const extracted = data.chapterList?.length ?? 0;
   const { count: bestCount, source } = pickBestChapterCount(data, hints);
@@ -145,7 +222,14 @@ function computeFlooredChapterList(
   }
   const filled: WikipediaChapter[] = [];
   for (let i = 1; i <= bestCount; i++) {
-    filled.push(existingMap.get(i) ?? { number: i, title: `Chapter ${i}` });
+    const real = existingMap.get(i);
+    if (real) {
+      filled.push(real);
+    } else {
+      const placeholder: WikipediaChapter = { number: i, title: `Chapter ${i}` };
+      placeholders.add(placeholder);
+      filled.push(placeholder);
+    }
   }
   logger.info(`[enrichmentPipeline] Wikipedia ${source} fill: ${extracted} → ${bestCount} chapters (${existingMap.size} preserved)`);
   return filled;
@@ -155,6 +239,11 @@ function computeFlooredChapterList(
  * Stage 4: build the trailing [Chapter N+1 .. target] entries needed to extend
  * a non-empty chapter list to the best known external count. Returns an empty
  * array when no fill is needed (Stage 2.5b handles the <30% case via replacement).
+ *
+ * Placeholders continue from the highest extracted number but never pass the
+ * target: a list with gaps (1,173 entries reaching chapter 1194, target 1195)
+ * used to get its 22 missing rows numbered 1195..1216, which later phases
+ * created as chapters that do not exist.
  */
 function computeGapFillItems(
   data: WikipediaMangaData,
@@ -169,9 +258,11 @@ function computeGapFillItems(
     ch => typeof ch.number === 'number' ? ch.number : 0,
   ));
   const items: WikipediaChapter[] = [];
-  for (let i = maxNum + 1; i <= maxNum + (targetCount - extracted); i++) {
+  const lastNumber = Math.min(maxNum + (targetCount - extracted), targetCount);
+  for (let i = maxNum + 1; i <= lastNumber; i++) {
     items.push({ number: i, title: `Chapter ${i}` });
   }
+  if (items.length === 0) return items;
   logger.info(`[enrichmentPipeline] Wikipedia gap-fill (${source}): ${extracted}→${extracted + items.length} (target: ${targetCount})`);
   return items;
 }
@@ -180,6 +271,7 @@ function computeGapFillItems(
 async function mergeContinuationData(
   title: string,
   existing: WikipediaMangaData | null,
+  placeholders: Set<WikipediaChapter>,
 ): Promise<WikipediaMangaData | null> {
   const continuations = CONTINUATION_TITLES[title];
   if (!continuations || !existing) return existing;
@@ -189,7 +281,7 @@ async function mergeContinuationData(
   for (const contTitle of continuations) {
     logger.info(`[enrichmentPipeline] Wikipedia: fetching continuation "${contTitle}"`);
     // eslint-disable-next-line no-await-in-loop -- Sequential continuation fetch
-    const contData = await fetchWikipediaData(contTitle);
+    const contData = await fetchAndPad(contTitle, undefined, placeholders);
     if (!contData?.chapterList?.length) continue;
 
     // Merge continuation chapters (dedup by chapter number)

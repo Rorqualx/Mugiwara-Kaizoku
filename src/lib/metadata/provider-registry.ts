@@ -195,6 +195,25 @@ export function isAnchor(provider: string): boolean {
   return provider in PROVIDER_REGISTRY && PROVIDER_REGISTRY[provider as SourceName].anchor;
 }
 
+/**
+ * How many INDEPENDENT witnesses a set of agreeing providers amounts to.
+ *
+ * The anchors (AniList + MAL) count as one between them: MAL is fetched through
+ * AniList's `idMal`, so the pair describes the same bound entity and a wrong
+ * binding makes both wrong together. Every other provider is its own witness.
+ * Lenient on input like `isAnchor`; repeated names count once.
+ */
+export function countIndependentWitnesses(providers: readonly string[]): number {
+  const distinct = new Set(providers);
+  let witnesses = 0;
+  let anchorSeen = false;
+  for (const provider of distinct) {
+    if (!isAnchor(provider)) witnesses += 1;
+    else if (!anchorSeen) { anchorSeen = true; witnesses += 1; }
+  }
+  return witnesses;
+}
+
 /** Confidence a provider's selector claims are pushed with. */
 export function matchConfidenceFor(provider: SourceName): number {
   return PROVIDER_REGISTRY[provider].matchConfidence;

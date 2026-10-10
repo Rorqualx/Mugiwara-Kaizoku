@@ -9,11 +9,11 @@
  * the manifest for series where AniList counts MangaDex split-part
  * releases (1.1/1.2) as full chapters (Sweat and Soap: AL=110, canon=66).
  *
- * Sources (no preference; aggregation handles ties):
- *   - AniList       `appliedMatch.metadata.chapters` (scalar)
+ * Sources (each provider's own number, see `witness-counts`):
+ *   - AniList       raw `anilistCounts.chapters` (scalar)
  *   - MangaDex      max `chapterEnd` across `mangadexAggregate.volumes`
  *   - MAL           `malResult.chapters`
- *   - Wikipedia     `wikipediaResult.chapterList.length`
+ *   - Wikipedia     extracted chapters, excluding placeholder padding
  *   - Kitsu         `kitsuResult.chapterCount`
  *   - MangaUpdates  `mangaupdatesResult.latestChapter`
  *
@@ -22,6 +22,7 @@
  *   - 1 source                  -> { count: that, confidence: 'low' }
  *   - >=2 within +/-2 of a seed -> min(median, smallest member), confidence
  *     'high' if every source participates, 'medium' otherwise
+ *   - Two disjoint clusters tie -> deterministic pick, confidence 'low'
  *   - No cluster found          -> min(sources), confidence 'low'
  *
  * Window is +/-2 (volume resolver uses +/-1) because chapter counts have
@@ -43,6 +44,7 @@ import {
   type CountConfidence,
   type CountConsensus,
 } from './count-consensus';
+import { anilistOwnCount, appliedCount, wikipediaOwnChapterCount } from './witness-counts';
 
 import type { UnifiedProviderResults } from '../types';
 
@@ -64,11 +66,12 @@ function effectiveWindow(bonusChapterCount: number): number {
   return CLUSTER_WINDOW + Math.max(0, bonusChapterCount);
 }
 
-function appliedAniListChapters(result: UnifiedProviderResults): number {
-  const appliedMetadata = result.enrichmentResult.appliedMatch?.metadata as Record<string, unknown> | undefined;
-  const value = appliedMetadata?.['chapters'];
-  return typeof value === 'number' && value > 0 ? value : 0;
-}
+/**
+ * Which cluster wins when two disjoint clusters are the same size. Chapters
+ * have no fallback preference (the no-cluster case takes the minimum), so this
+ * mirrors the volume resolver's order and appends the chapter-only sources.
+ */
+const TIE_BREAK_PRIORITY = ['mangadex', 'anilist', 'anilist-db', 'mal', 'wikipedia', 'kitsu', 'mangaupdates'];
 
 function collectCandidates(
   result: UnifiedProviderResults,
@@ -76,10 +79,13 @@ function collectCandidates(
 ): Array<{ source: string; count: number }> {
   const out: Array<{ source: string; count: number }> = [];
 
-  const applied = appliedAniListChapters(result);
-  if (applied > 0) {
-    out.push({ source: 'anilist', count: applied });
-  } else if (fallbackAniListChapters !== undefined && fallbackAniListChapters > 0) {
+  const anilist = anilistOwnCount(result, 'chapters');
+  if (anilist > 0) {
+    out.push({ source: 'anilist', count: anilist });
+  } else if (appliedCount(result, 'chapters') <= 0 && fallbackAniListChapters !== undefined && fallbackAniListChapters > 0) {
+    // Only when the run produced no chapter count at all: if another provider
+    // filled the field, the stored value is most likely that same provider's
+    // number from an earlier run and would count it twice.
     out.push({ source: 'anilist-db', count: fallbackAniListChapters });
   }
 
@@ -92,7 +98,7 @@ function collectCandidates(
   const malCh = result.malResult?.chapters;
   if (typeof malCh === 'number' && malCh > 0) out.push({ source: 'mal', count: malCh });
 
-  const wikiCh = result.wikipediaResult?.chapterList.length ?? 0;
+  const wikiCh = wikipediaOwnChapterCount(result);
   if (wikiCh > 0) out.push({ source: 'wikipedia', count: wikiCh });
 
   const kitsuCh = result.kitsuResult?.chapterCount;
@@ -120,6 +126,7 @@ export function aggregateChapterConsensus(
     window: effectiveWindow(bonusChapterCount),
     clusterWinner: (medianValue, members) => Math.min(medianValue, ...members.map(c => c.count)),
     fallback: minFallback,
+    tieBreakPriority: TIE_BREAK_PRIORITY,
   });
 }
 

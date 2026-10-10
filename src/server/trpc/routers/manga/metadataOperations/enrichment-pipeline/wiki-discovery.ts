@@ -664,7 +664,7 @@ async function tryDirectFallbackOrFail(fandomUrl: string): Promise<{
 export async function fetchWikipediaChapterData(
   title: string,
   mangaId: number,
-  hints?: { anilistId?: number; malId?: number; anilistChapters?: number; malChapters?: number; mangadexChapters?: number },
+  hints?: { anilistId?: number; malId?: number; anilistChapters?: number; mangaupdatesChapters?: number; mangadexChapters?: number },
 ): Promise<UnifiedProviderResults['wikipediaResult']> {
   try {
     const { isManuallyUnbound } = await import('./manual-binding-sentinel');
@@ -672,38 +672,45 @@ export async function fetchWikipediaChapterData(
       log.info(`Skipping Wikipedia discovery for manga ${mangaId} — manually marked as unbound`);
       return null;
     }
-    const { fetchWikipediaData, fetchAlternativeTitles } = await import('./wikipedia-fallback/data-fetching');
+    const { fetchWikipediaDataWithExtraction, fetchAlternativeTitles } = await import('./wikipedia-fallback/data-fetching');
 
     const wikiHints = hints ? {
       ...(hints.anilistId ? { anilistId: hints.anilistId } : {}),
       ...(hints.malId ? { malId: hints.malId } : {}),
       ...(hints.anilistChapters ? { anilistChapters: hints.anilistChapters } : {}),
-      ...(hints.malChapters ? { malChapters: hints.malChapters } : {}),
+      ...(hints.mangaupdatesChapters ? { mangaupdatesChapters: hints.mangaupdatesChapters } : {}),
       ...(hints.mangadexChapters ? { mangadexChapters: hints.mangadexChapters } : {}),
     } : undefined;
 
-    let data = await fetchWikipediaData(title, wikiHints);
+    let fetched = await fetchWikipediaDataWithExtraction(title, wikiHints);
 
     // Try alternative titles if primary fails
-    if (!data) {
+    if (!fetched) {
       const altTitles = await fetchAlternativeTitles(mangaId);
       for (const altTitle of altTitles.slice(0, 3)) {
         log.info(`Wikipedia: trying alt title "${altTitle}"`);
         // eslint-disable-next-line no-await-in-loop -- Sequential fallback with early return
-        data = await fetchWikipediaData(altTitle);
-        if (data) break;
+        fetched = await fetchWikipediaDataWithExtraction(altTitle);
+        if (fetched) break;
       }
     }
 
-    if (!data) {
+    if (!fetched) {
       log.info(`No Wikipedia data found for "${title}"`);
       return null;
     }
 
+    const { data, extractedChapterList, declaredChapterCount } = fetched;
     const chapterList = normalizeWikipediaChapters(data);
-    log.info(`Wikipedia fetch: ${chapterList.length} chapters for "${title}"`);
+    // Same normalisation as the padded list, so the two lengths are comparable
+    // and differ only by the placeholders.
+    const extractedChapterCount = normalizeWikipediaChapters({ ...data, chapterList: extractedChapterList }).length;
+    // Wikipedia's own best number: what it listed, or the total it states when
+    // that is a figure of its own rather than one computed from the list.
+    const ownChapterCount = Math.max(extractedChapterCount, declaredChapterCount ?? 0);
+    log.info(`Wikipedia fetch: ${chapterList.length} chapters (${extractedChapterCount} extracted, own count ${ownChapterCount}) for "${title}"`);
 
-    return { data, chapterList };
+    return { data, chapterList, ownChapterCount };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`Wikipedia fetch failed: ${msg}`);

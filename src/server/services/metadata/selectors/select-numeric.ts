@@ -8,7 +8,8 @@
  * 3. Pick the cluster with highest summed (matchConfidence × authority).
  *    Ties break on summed weight, then on number of members.
  * 4. Winner = highest-(matchConfidence × authority) member of winning cluster.
- * 5. Confidence = winning-cluster-weight / total-weight  (the agreement %).
+ * 5. Confidence = agreement × f(k): the winning cluster's share of total
+ *    weight, scaled by how many independent witnesses back it.
  * 6. **Drift-guard** (folded from `applyProvenanceGuards`): if the winner is
  *    a non-anchor provider AND would change the existing anchor value
  *    (AL/MAL) by more than `DRIFT_TOLERANCE`, REFUSE the write — winner is
@@ -76,15 +77,17 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
 
   const tolerance = CLUSTER_TOLERANCE[ctx.field] ?? DEFAULT_CLUSTER_TOLERANCE;
   const clusters = clusterByValue(parsed, tolerance);
-  const winningCluster = pickWeightedWinner(clusters, 'selectNumeric');
+  // Exact weight ties fall to the smaller value: a tight count is the safer
+  // error, and it keeps the pick independent of candidate order.
+  const winningCluster = pickWeightedWinner(clusters, 'selectNumeric', (a, b) => a.representative - b.representative);
   const totalWeight = parsed.reduce((sum, p) => sum + p.weight, 0);
   const agreement = totalWeight > 0 ? winningCluster.totalWeight / totalWeight : 0;
 
   const winnerParsed = pickClusterRepresentative(winningCluster);
-  const winnerWeight = winnerParsed.weight;
-  // Per-candidate confidence: own weight / cluster total. Falls back to
-  // agreement so a sole-candidate field still gets a meaningful number.
-  const winnerConfidence = computeAgreementConfidence(agreement, winnerWeight, winningCluster.totalWeight);
+  const winnerConfidence = computeAgreementConfidence(
+    agreement,
+    winningCluster.members.map(m => m.candidate.provider),
+  );
 
   const alternatives = buildAlternatives(parsed, winnerParsed);
   const decision = classifyConfidence(winnerConfidence, FIELD_TYPE);
@@ -100,7 +103,7 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
   }
 
   // Drift-guard: protect AL/MAL anchors from large overrides by non-anchors.
-  const guardRefused = shouldRefuseDrift(ctx, winnerParsed.value);
+  const guardRefused = shouldRefuseDrift(ctx, winnerParsed);
   return {
     winner: winnerParsed.candidate,
     confidence: winnerConfidence,
@@ -124,7 +127,16 @@ function parseAndScore(ctx: SelectorContext): ParsedCandidate[] {
     const authority = resolveWeight(c.field, c.provider);
     out.push({ candidate: c, value: v, weight: c.matchConfidence * authority });
   }
-  return out;
+  // Canonical order (strongest first, then provider, then value) so cluster
+  // seeding, weight sums and tie-breaks never depend on the order the
+  // providers happened to be pushed in.
+  return out.sort(compareParsed);
+}
+
+function compareParsed(a: ParsedCandidate, b: ParsedCandidate): number {
+  if (b.weight !== a.weight) return b.weight - a.weight;
+  if (a.candidate.provider !== b.candidate.provider) return a.candidate.provider < b.candidate.provider ? -1 : 1;
+  return a.value - b.value;
 }
 
 function coerceFinite(value: unknown): number | null {
@@ -142,10 +154,9 @@ function coerceFinite(value: unknown): number | null {
  * candidate counts we see (typically 1–8 per field).
  */
 function clusterByValue(parsed: ParsedCandidate[], tolerance: number): Cluster[] {
-  // Sort by weight desc so the strongest candidate seeds each cluster.
-  const sorted = [...parsed].sort((a, b) => b.weight - a.weight);
+  // `parsed` arrives strongest-first, so the strongest candidate seeds each cluster.
   const clusters: Cluster[] = [];
-  for (const p of sorted) {
+  for (const p of parsed) {
     const cluster = clusters.find(c => withinTolerance(c.representative, p.value, tolerance));
     if (cluster) {
       cluster.members.push(p);
@@ -175,7 +186,6 @@ function pickClusterRepresentative(cluster: Cluster): ParsedCandidate {
 function buildAlternatives(parsed: ParsedCandidate[], winner: ParsedCandidate): SelectorAlternative[] {
   return parsed
     .filter(p => p.candidate.provider !== winner.candidate.provider || p.value !== winner.value)
-    .sort((a, b) => b.weight - a.weight)
     .map(p => ({
       provider: p.candidate.provider,
       value: p.value,
@@ -185,24 +195,14 @@ function buildAlternatives(parsed: ParsedCandidate[], winner: ParsedCandidate): 
     }));
 }
 
-function shouldRefuseDrift(ctx: SelectorContext, winnerValue: number): boolean {
+function shouldRefuseDrift(ctx: SelectorContext, winner: ParsedCandidate): boolean {
   const existing = coerceFinite(ctx.existingValue);
   const existingProvider = ctx.existingProvider;
   if (existing === null || existingProvider === null) return false;
-  const winnerProvider = pickProvider(ctx);
-  if (winnerProvider === null) return false;
   // Anchor-overwrites-anchor: not the guard's concern.
-  if (isAnchor(winnerProvider)) return false;
+  if (isAnchor(winner.candidate.provider)) return false;
   // Existing wasn't from an anchor: nothing to protect.
   if (!isAnchor(existingProvider)) return false;
-  const drift = Math.abs(winnerValue - existing) / Math.max(Math.abs(existing), 1);
+  const drift = Math.abs(winner.value - existing) / Math.max(Math.abs(existing), 1);
   return drift > DRIFT_TOLERANCE;
-}
-
-function pickProvider(ctx: SelectorContext): string | null {
-  // Find the candidate the picker landed on. The first candidate matching
-  // the winning value is good enough for guard purposes (the field-name
-  // dedup happens upstream).
-  const top = ctx.candidates[0];
-  return top?.provider ?? null;
 }

@@ -8,8 +8,9 @@
  * 2. Drop candidates that normalize to null (placeholder, unknown).
  * 3. Group by normalized value; each group's score = Σ (matchConfidence ×
  *    authority) of its members.
- * 4. Winner = highest-scoring group. Confidence ≈ winner-score / total-score
- *    plus a small dampening for sole-candidate fields.
+ * 4. Winner = highest-scoring group. Confidence = agreement × f(k): the
+ *    group's share of total weight, scaled by how many independent witnesses
+ *    back it.
  * 5. Confidence below the categorical reject threshold (0.50) →
  *    winner=null (persister keeps the prior value).
  *
@@ -55,14 +56,18 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
   }
 
   const groups = groupByNormalizedValue(parsed);
-  const winnerGroup = pickWeightedWinner(groups, 'selectCategorical');
+  // An exact tie has no principled winner; break it on the value itself so the
+  // pick is at least independent of candidate order (it will sit at or below
+  // the reject threshold anyway).
+  const winnerGroup = pickWeightedWinner(groups, 'selectCategorical', (a, b) => (a.normalized < b.normalized ? -1 : 1));
   const totalWeight = parsed.reduce((sum, p) => sum + p.weight, 0);
   const agreement = totalWeight > 0 ? winnerGroup.totalWeight / totalWeight : 0;
 
   const winnerParsed = pickGroupRepresentative(winnerGroup);
-  // Per-candidate confidence in this group context. Dampening matches
-  // selectNumeric's shape so cross-field-type metrics align.
-  const winnerConfidence = computeAgreementConfidence(agreement, winnerParsed.weight, winnerGroup.totalWeight);
+  const winnerConfidence = computeAgreementConfidence(
+    agreement,
+    winnerGroup.members.map(m => m.candidate.provider),
+  );
 
   const alternatives = buildAlternatives(parsed, winnerParsed);
   const decision = classifyConfidence(winnerConfidence, FIELD_TYPE);
@@ -107,46 +112,71 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
  */
 type Normalizer = (raw: unknown) => string | null;
 
+/**
+ * Provider status spellings → MangaPublicationStatus, keyed on the token form
+ * (`statusToken`: lower-case, separators collapsed to one space). `null` means
+ * "the provider said it does not know" and is listed so the intent is explicit.
+ *
+ * Whole-value lookup on purpose: free text such as MangaUpdates'
+ * "29 Volumes (Discontinued)" must not match on a substring here — the claim
+ * builders reduce it to one of these tokens (or drop it) before it arrives.
+ */
+const STATUS_BY_TOKEN: ReadonlyMap<string, string | null> = new Map<string, string | null>([
+  // AniList FINISHED · MangaDex completed · Kitsu finished · Jikan "Finished"
+  ['finished', 'COMPLETED'], ['completed', 'COMPLETED'], ['complete', 'COMPLETED'], ['ended', 'COMPLETED'],
+  // AniList RELEASING · MangaDex ongoing · Kitsu current · Jikan "Publishing"
+  ['releasing', 'ONGOING'], ['ongoing', 'ONGOING'], ['publishing', 'ONGOING'], ['current', 'ONGOING'],
+  // AniList HIATUS · MangaDex hiatus · Jikan "On Hiatus"
+  ['hiatus', 'HIATUS'], ['on hiatus', 'HIATUS'], ['paused', 'HIATUS'],
+  // AniList CANCELLED · MangaDex cancelled · Jikan "Discontinued"
+  ['cancelled', 'CANCELLED'], ['canceled', 'CANCELLED'], ['discontinued', 'CANCELLED'], ['dropped', 'CANCELLED'],
+  // AniList NOT_YET_RELEASED · Kitsu unreleased/upcoming · Jikan "Not yet published"
+  ['not yet released', 'UPCOMING'], ['not yet published', 'UPCOMING'], ['not published', 'UPCOMING'],
+  ['unreleased', 'UPCOMING'], ['upcoming', 'UPCOMING'],
+  // Kitsu `tba` carries no publication state; MAL's map emits UNKNOWN.
+  ['tba', null], ['unknown', null], ['n/a', null],
+]);
+
+function statusToken(s: string): string {
+  return s.replace(/[\s_-]+/gu, ' ');
+}
+
 const NORMALIZERS: Partial<Record<MetadataField, Normalizer>> = {
   status: (raw): string | null => {
     const s = genericNormalize(raw);
     if (s === null) return null;
-    // Map all known provider-side spellings to MangaPublicationStatus.
-    if (/^finished|completed|complete|ended$/u.test(s)) return 'COMPLETED';
-    if (/^releasing|ongoing|publishing|current$/u.test(s)) return 'ONGOING';
-    if (/^not[\s_-]?yet[\s_-]?released|upcoming|not[\s_-]?published$/u.test(s)) return 'UPCOMING';
-    if (/^cancelled|canceled|discontinued|dropped$/u.test(s)) return 'CANCELLED';
-    if (/^hiatus|paused$/u.test(s)) return 'HIATUS';
-    if (/^unknown|tba|n\/a$/u.test(s)) return null;
-    return s.toUpperCase();
+    // The column is a Prisma enum: one value outside it makes the whole
+    // metadata update throw, so anything unrecognised abstains instead of
+    // being passed through.
+    return STATUS_BY_TOKEN.get(statusToken(s)) ?? null;
   },
   format: (raw): string | null => {
     const s = genericNormalize(raw);
     if (s === null) return null;
     // AL/MD/MAL/Kitsu all return slightly different format strings.
-    if (/^manga|graphic[\s_-]?novel$/u.test(s)) return 'MANGA';
+    if (/^(?:manga|graphic[\s_-]?novel)$/u.test(s)) return 'MANGA';
     if (/^manhwa$/u.test(s)) return 'MANHWA';
     if (/^manhua$/u.test(s)) return 'MANHUA';
-    if (/^one[\s_-]?shot|oneshot$/u.test(s)) return 'ONE_SHOT';
+    if (/^(?:one[\s_-]?shot|oneshot)$/u.test(s)) return 'ONE_SHOT';
     if (/^doujin(?:shi)?$/u.test(s)) return 'DOUJINSHI';
-    if (/^novel|light[\s_-]?novel$/u.test(s)) return 'NOVEL';
+    if (/^(?:novel|light[\s_-]?novel)$/u.test(s)) return 'NOVEL';
     return s.toUpperCase();
   },
   contentRating: (raw): string | null => {
     const s = genericNormalize(raw);
     if (s === null) return null;
     // MangaDex is the only source today; surface MD's enum directly.
-    if (/^safe|general$/u.test(s)) return 'safe';
-    if (/^suggestive|teen$/u.test(s)) return 'suggestive';
-    if (/^erotica|mature$/u.test(s)) return 'erotica';
-    if (/^pornographic|explicit|adult$/u.test(s)) return 'pornographic';
+    if (/^(?:safe|general)$/u.test(s)) return 'safe';
+    if (/^(?:suggestive|teen)$/u.test(s)) return 'suggestive';
+    if (/^(?:erotica|mature)$/u.test(s)) return 'erotica';
+    if (/^(?:pornographic|explicit|adult)$/u.test(s)) return 'pornographic';
     return s;
   },
   publicationDemographic: (raw): string | null => {
     const s = genericNormalize(raw);
     if (s === null) return null;
-    if (/^shounen|shonen$/u.test(s)) return 'shounen';
-    if (/^shoujo|shojo$/u.test(s)) return 'shoujo';
+    if (/^(?:shounen|shonen)$/u.test(s)) return 'shounen';
+    if (/^(?:shoujo|shojo)$/u.test(s)) return 'shoujo';
     if (/^seinen$/u.test(s)) return 'seinen';
     if (/^josei$/u.test(s)) return 'josei';
     if (/^none$/u.test(s)) return null;
@@ -184,7 +214,13 @@ function parseAndNormalize(ctx: SelectorContext): ParsedCandidate[] {
     const authority = resolveWeight(c.field, c.provider);
     out.push({ candidate: c, normalized, weight: c.matchConfidence * authority });
   }
-  return out;
+  // Canonical order (strongest first, then provider) so weight sums, group
+  // representatives and tie-breaks never depend on candidate order.
+  return out.sort((a, b) => {
+    if (b.weight !== a.weight) return b.weight - a.weight;
+    if (a.candidate.provider !== b.candidate.provider) return a.candidate.provider < b.candidate.provider ? -1 : 1;
+    return a.normalized < b.normalized ? -1 : a.normalized > b.normalized ? 1 : 0;
+  });
 }
 
 function groupByNormalizedValue(parsed: ParsedCandidate[]): ValueGroup[] {
@@ -202,8 +238,8 @@ function groupByNormalizedValue(parsed: ParsedCandidate[]): ValueGroup[] {
 }
 
 function pickGroupRepresentative(group: ValueGroup): ParsedCandidate {
-  const sorted = [...group.members].sort((a, b) => b.weight - a.weight);
-  const top = sorted[0];
+  // Members keep the strongest-first order `parseAndNormalize` established.
+  const top = group.members[0];
   if (!top) {
     throw new Error('selectCategorical: group has no members');
   }
@@ -213,7 +249,6 @@ function pickGroupRepresentative(group: ValueGroup): ParsedCandidate {
 function buildAlternatives(parsed: ParsedCandidate[], winner: ParsedCandidate): SelectorAlternative[] {
   return parsed
     .filter(p => p.normalized !== winner.normalized || p.candidate.provider !== winner.candidate.provider)
-    .sort((a, b) => b.weight - a.weight)
     .map(p => ({
       provider: p.candidate.provider,
       value: p.candidate.value,

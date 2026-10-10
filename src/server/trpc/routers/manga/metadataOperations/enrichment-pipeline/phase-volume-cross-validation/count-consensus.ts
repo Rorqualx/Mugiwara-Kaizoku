@@ -17,9 +17,14 @@
  *                        then min; chapters: plain min).
  *
  * The clustering, confidence classification, and result struct are shared and
- * identical, so they live here once. Behavior is unchanged — this is pure
- * consolidation (structural lesson #3).
+ * identical, so they live here once.
+ *
+ * The result never depends on candidate order: equally large clusters are
+ * ranked by {@link compareClusters}, and a tie between clusters that share no
+ * member is reported as 'low' because the sources then split evenly.
  */
+
+import { isAnchor } from '@/lib/metadata/provider-registry';
 
 export type CountConfidence = 'high' | 'medium' | 'low' | 'unknown';
 
@@ -48,6 +53,8 @@ export interface CountConsensusOptions {
   clusterWinner: ClusterWinner;
   /** Applied when no cluster of ≥2 forms. */
   fallback: CountFallback;
+  /** Source order that settles equally sized clusters; earlier wins. */
+  tieBreakPriority?: string[];
 }
 
 export function median(nums: number[]): number {
@@ -85,6 +92,76 @@ export function priorityThenMinFallback(priority: string[]): CountFallback {
   };
 }
 
+/** `anilist-db` is AniList's stored count, so it is an anchor like `anilist`. */
+function isAnchorSource(source: string): boolean {
+  return isAnchor(source.replace(/-db$/u, ''));
+}
+
+function nonAnchorSupport(cluster: CountCandidate[]): number {
+  return new Set(cluster.filter(c => !isAnchorSource(c.source)).map(c => c.source)).size;
+}
+
+/** Best (lowest) priority rank held by any member; unlisted sources rank last. */
+function bestRank(cluster: CountCandidate[], priority: string[]): number {
+  let best = priority.length;
+  for (const c of cluster) {
+    const rank = priority.indexOf(c.source);
+    if (rank !== -1 && rank < best) best = rank;
+  }
+  return best;
+}
+
+/**
+ * Order clusters best-first: more members, then more distinct non-anchor
+ * sources (AniList and MAL share one binding, so a cluster of only those two
+ * is one opinion), then source priority, then the lower count so the order is
+ * total and a tight cap wins when nothing else separates them.
+ */
+function compareClusters(a: CountCandidate[], b: CountCandidate[], priority: string[]): number {
+  if (a.length !== b.length) return b.length - a.length;
+  const support = nonAnchorSupport(b) - nonAnchorSupport(a);
+  if (support !== 0) return support;
+  const rank = bestRank(a, priority) - bestRank(b, priority);
+  if (rank !== 0) return rank;
+  return Math.min(...a.map(c => c.count)) - Math.min(...b.map(c => c.count));
+}
+
+/**
+ * Every distinct cluster of candidates within ±window of some seed. Members
+ * are compared by reference, so two seeds that gather the same candidates
+ * yield one cluster.
+ */
+function distinctClusters(candidates: CountCandidate[], window: number): CountCandidate[][] {
+  const clusters: CountCandidate[][] = [];
+  for (const seed of candidates) {
+    const cluster = candidates.filter(c => Math.abs(c.count - seed.count) <= window);
+    const duplicate = clusters.some(k => k.length === cluster.length && k.every(c => cluster.includes(c)));
+    if (!duplicate) clusters.push(cluster);
+  }
+  return clusters;
+}
+
+/** How far apart candidates may be and still bound the count together. */
+const SOFT_CEILING_SPREAD = 0.10;
+
+/**
+ * Upper bound that survives a 'low' consensus.
+ *
+ * 'low' means the candidates did not cluster tightly enough to name a count —
+ * not that nothing is known. When every candidate lies within 10% of the
+ * largest (1171 vs 1185 vs 1194), the largest is still a safe ceiling for
+ * creating stub chapters: no source claims more. Returns null with fewer than
+ * two candidates or a wider spread, where any ceiling would be a guess.
+ */
+export function softCountCeiling(candidates: CountCandidate[]): number | null {
+  if (candidates.length < 2) return null;
+  const counts = candidates.map(c => c.count);
+  const highest = Math.max(...counts);
+  const lowest = Math.min(...counts);
+  if (lowest <= 0 || lowest < highest * (1 - SOFT_CEILING_SPREAD)) return null;
+  return highest;
+}
+
 /**
  * Aggregate count candidates into a consensus value via seed-clustering.
  *
@@ -92,6 +169,8 @@ export function priorityThenMinFallback(priority: string[]): CountFallback {
  *   - 1 candidate             -> { count: that, confidence: 'low' }
  *   - ≥2 within ±window       -> `clusterWinner`, 'high' if every candidate
  *                                participates, else 'medium'
+ *   - two disjoint clusters   -> `clusterWinner` of the better-ranked one,
+ *     of the same size           'low' (e.g. [2, 2, 34, 34])
  *   - no cluster of ≥2 forms  -> `fallback`
  */
 export function resolveCountConsensus(
@@ -105,17 +184,17 @@ export function resolveCountConsensus(
     return { count: c.count, confidence: 'low', sources: [c.source], raw: candidates };
   }
 
-  // Find the largest cluster where every member is within ±window of the seed.
-  // Try every candidate as a seed; pick the largest cluster.
-  let bestCluster: CountCandidate[] = [];
-  for (const seed of candidates) {
-    const cluster = candidates.filter(c => Math.abs(c.count - seed.count) <= opts.window);
-    if (cluster.length > bestCluster.length) bestCluster = cluster;
-  }
+  const priority = opts.tieBreakPriority ?? [];
+  const ranked = distinctClusters(candidates, opts.window).sort((a, b) => compareClusters(a, b, priority));
+  const bestCluster = ranked[0] ?? [];
 
   if (bestCluster.length >= 2) {
     const consensusCount = opts.clusterWinner(median(bestCluster.map(c => c.count)), bestCluster);
-    const confidence: CountConfidence = bestCluster.length === candidates.length ? 'high' : 'medium';
+    // Overlapping runners-up (10,11,12 vs 11,12,13) are the same neighbourhood
+    // seen from two seeds, not a split; only a disjoint rival of equal size is.
+    const split = ranked.some(k => k !== bestCluster && k.length === bestCluster.length && !k.some(c => bestCluster.includes(c)));
+    let confidence: CountConfidence = bestCluster.length === candidates.length ? 'high' : 'medium';
+    if (split) confidence = 'low';
     return { count: consensusCount, confidence, sources: bestCluster.map(c => c.source), raw: candidates };
   }
 

@@ -10,7 +10,7 @@
  * inflated the cap above the true count (the SS-vs-parent bug).
  *
  * Sources (in order of preference for tie-break):
- *   - AniList   `metadata.volumes` (scalar)
+ *   - AniList   raw `anilistCounts.volumes` (scalar; see `witness-counts`)
  *   - MangaDex  `mangadexAggregate` max `volumeNumber`
  *   - MAL       `malResult.volumes`
  *   - Wikipedia `wikipediaResult.data.volumeList.length`
@@ -20,6 +20,8 @@
  *   - 1 source   -> { count: that, confidence: 'low' }
  *   - >=2 within +/-1 -> median of cluster, confidence 'high' if all
  *     sources participate, 'medium' otherwise
+ *   - Two disjoint clusters tie -> pick by non-anchor support, then source
+ *     priority, confidence 'low'
  *   - No cluster -> source-priority pick (mangadex > anilist > mal >
  *     wikipedia), confidence 'low'
  *
@@ -36,18 +38,15 @@ import {
   type CountConfidence,
   type CountConsensus,
 } from './count-consensus';
+import { anilistOwnCount, appliedCount } from './witness-counts';
 
 import type { UnifiedProviderResults } from '../types';
 
 export type VolumeConfidence = CountConfidence;
 export type VolumeConsensus = CountConsensus;
 
-/** Read AniList volume count from the applied match, when present. */
-function appliedAniListVolumes(result: UnifiedProviderResults): number {
-  const appliedMetadata = result.enrichmentResult.appliedMatch?.metadata as Record<string, unknown> | undefined;
-  const value = appliedMetadata?.['volumes'];
-  return typeof value === 'number' && value > 0 ? value : 0;
-}
+/** Shared by the no-cluster fallback and the tied-cluster tie-break. */
+const SOURCE_PRIORITY = ['mangadex', 'anilist', 'anilist-db', 'mal', 'wikipedia'];
 
 function collectCandidates(
   result: UnifiedProviderResults,
@@ -55,13 +54,14 @@ function collectCandidates(
 ): Array<{ source: string; count: number }> {
   const out: Array<{ source: string; count: number }> = [];
 
-  const applied = appliedAniListVolumes(result);
-  if (applied > 0) {
-    out.push({ source: 'anilist', count: applied });
-  } else if (fallbackAniListVolumes !== undefined && fallbackAniListVolumes > 0) {
+  const anilist = anilistOwnCount(result, 'volumes');
+  if (anilist > 0) {
+    out.push({ source: 'anilist', count: anilist });
+  } else if (appliedCount(result, 'volumes') <= 0 && fallbackAniListVolumes !== undefined && fallbackAniListVolumes > 0) {
     // Caller supplied the persisted Metadata.volumes value — used when the
     // applied match is empty mid-pipeline but the manga has a stored AL
-    // anchor from a prior run.
+    // anchor from a prior run. Not when another provider filled the field
+    // this run: MAL already votes for itself below.
     out.push({ source: 'anilist-db', count: fallbackAniListVolumes });
   }
 
@@ -115,7 +115,8 @@ export function aggregateConsensus(
   return resolveCountConsensus(candidates, {
     window: 1,
     clusterWinner: (medianValue) => medianValue,
-    fallback: priorityThenMinFallback(['mangadex', 'anilist', 'anilist-db', 'mal', 'wikipedia']),
+    fallback: priorityThenMinFallback(SOURCE_PRIORITY),
+    tieBreakPriority: SOURCE_PRIORITY,
   });
 }
 

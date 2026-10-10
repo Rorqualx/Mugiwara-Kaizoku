@@ -51,16 +51,16 @@ describe('selectNumeric', () => {
       expect(result.alternatives.find(a => a.value === 200)?.provider).toBe('mangadex');
     });
 
-    it('picks the higher-authority provider when clusters tie on weight', () => {
-      // Force a single-member-each tie: kitsu (low auth) vs anilist (high auth)
-      // at different values.
+    it('abstains when two single sources disagree at equal weight', () => {
+      // AL's authority (0.95) × 0.5 = 0.475; kitsu's 0.50 × 0.95 = 0.475 — tie.
+      // Neither is corroborated, so nothing is written; both stay on record
+      // for the review badge.
       const result = selectNumeric(ctx('chapters', [
         cand('anilist', 100, 0.5),
         cand('kitsu', 200, 0.95), // matchConfidence boosted but authority low
       ]));
-      // AL's authority (0.95) × 0.5 = 0.475; kitsu's 0.50 × 0.95 = 0.475 — tie.
-      // Whichever wins, both should be recorded.
-      expect(result.winner).not.toBeNull();
+      expect(result.winner).toBeNull();
+      expect(result.confidence).toBeCloseTo(0.3, 10);
       expect(result.alternatives).toHaveLength(1);
     });
   });

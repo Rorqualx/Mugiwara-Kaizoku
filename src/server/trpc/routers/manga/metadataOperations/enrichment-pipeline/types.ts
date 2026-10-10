@@ -106,7 +106,23 @@ export interface UnifiedProviderResults {
   wikipediaResult: {
     data: WikipediaMangaData;
     chapterList: ChapterDataItem[];
+    /**
+     * Wikipedia's own chapter count: the larger of the chapters it listed and
+     * the total the article states (when that total is not just computed from
+     * the list). `chapterList` is padded with placeholders up to another
+     * provider's count, so its length is not an independent count; consensus
+     * and plausibility read this instead. Absent on results built outside the
+     * fetch phase.
+     */
+    ownChapterCount?: number;
   } | null;
+  /**
+   * AniList's own counts as fetched, before supplements and the selector
+   * overlay rewrite `appliedMatch.metadata`. Null when AniList reported none
+   * (usual for an ongoing series); absent on results built outside the fetch
+   * phase.
+   */
+  anilistCounts?: { chapters: number | null; volumes: number | null } | null;
   /** ComicVine match metadata for remediation (publisher, volume info) */
   comicvineResult: {
     volumeId: number;
