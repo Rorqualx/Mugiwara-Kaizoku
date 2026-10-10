@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -161,7 +162,8 @@ export const chapterReassignmentRouter = router({
       volumeNumber: z.number().int().nullable(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{ updated: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ updated: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { chapterIds, volumeNumber, mangaId } = input;
 
       if (chapterIds.length === 0) {
@@ -218,7 +220,8 @@ export const chapterReassignmentRouter = router({
    */
   previewAutoAssign: protectedProcedure
     .input(z.object({ mangaId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -267,7 +270,8 @@ export const chapterReassignmentRouter = router({
    */
   autoAssignToVolumes: protectedProcedure
     .input(z.object({ mangaId: z.number().int().positive() }))
-    .mutation(async ({ input }): Promise<{ assigned: number; unassigned: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ assigned: number; unassigned: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -352,12 +356,13 @@ export const chapterReassignmentRouter = router({
       volumeNumber: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{
+    .mutation(async ({ ctx, input }): Promise<{
       volumeId: number;
       volumeNumber: number;
       chaptersUpdated: number;
       message: string;
     }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { chapterId, volumeNumber, mangaId } = input;
 
       const chapter = await prisma.chapter.findUnique({
@@ -462,7 +467,8 @@ export const chapterReassignmentRouter = router({
       targetChapterId: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{ targetChapterId: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ targetChapterId: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { sourceChapterId, targetChapterId, mangaId } = input;
 
       // Get source chapter (the unassigned file)

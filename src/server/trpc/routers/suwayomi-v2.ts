@@ -31,7 +31,7 @@ import { suwayomiService } from '@/server/services/suwayomi/service';
 import { isSuccess, isError } from '@/utils/async-result';
 import { logger } from '@/utils/logging';
 
-import { cachedProtectedProcedure, protectedProcedure } from '../procedures';
+import { adminProcedure, cachedProtectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 // SECURITY: Use execFile instead of exec to prevent command injection
@@ -136,7 +136,7 @@ export const suwayomiV2Router = router({
   /**
    * Start the Suwayomi server
    */
-  startServer: protectedProcedure.mutation(async () => {
+  startServer: adminProcedure.mutation(async () => {
     try {
       const started = await suwayomiService.startServer();
       if (started) {
@@ -154,7 +154,7 @@ export const suwayomiV2Router = router({
   /**
    * Stop the Suwayomi server
    */
-  stopServer: protectedProcedure.mutation(async () => {
+  stopServer: adminProcedure.mutation(async () => {
     try {
       return await suwayomiService.stopServer();
     } catch (error) {
@@ -166,7 +166,7 @@ export const suwayomiV2Router = router({
   /**
    * Install the Suwayomi server
    */
-  installServer: protectedProcedure.mutation(async () => {
+  installServer: adminProcedure.mutation(async () => {
     try {
       const scriptPath = path.join(process.cwd(), 'scripts', 'install-suwayomi.mjs');
       const normalizedPath = path.normalize(scriptPath);
@@ -220,7 +220,7 @@ export const suwayomiV2Router = router({
    * The JVM lifecycle is independent — turning this off doesn't stop the
    * server, just stops the dispatcher from calling it.
    */
-  setIndexerEnabled: protectedProcedure
+  setIndexerEnabled: adminProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input }) => {
       const { configService } = await import('@/server/services/config/configService');
@@ -305,7 +305,7 @@ export const suwayomiV2Router = router({
   /**
    * Install an extension
    */
-  installExtension: protectedProcedure
+  installExtension: adminProcedure
     .input(extensionIdSchema)
     .mutation(async ({ input }) => {
       if (!(await ensureServerRunning())) {
@@ -336,7 +336,7 @@ export const suwayomiV2Router = router({
   /**
    * Uninstall an extension
    */
-  uninstallExtension: protectedProcedure
+  uninstallExtension: adminProcedure
     .input(extensionIdSchema)
     .mutation(async ({ input }) => {
       if (!(await ensureServerRunning())) {

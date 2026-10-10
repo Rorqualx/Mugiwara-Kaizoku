@@ -19,7 +19,7 @@ import { getGlobalConfigService } from '@/server/services/config/globalConfigSer
 import { eventEmitter } from '@/server/services/eventEmitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { configReader } from '@/server/utils/configReader';
 import { logger } from '@/utils/logging';
@@ -71,7 +71,7 @@ export const systemSchedulerRouter = router({
    * @param input.intervalSeconds - New interval (min: 300s, max: 604800s)
    * @returns Updated interval and success message
    */
-  setAutoDownloadSchedulerInterval: protectedProcedure
+  setAutoDownloadSchedulerInterval: adminProcedure
     .input(
       z.object({
         intervalSeconds: z

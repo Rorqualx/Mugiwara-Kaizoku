@@ -15,6 +15,7 @@ import { z } from 'zod';
 
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, assertVolumeMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 
 import {
@@ -49,6 +50,7 @@ export const volumeCrudRouter = router({
   create: protectedProcedure
     .input(volumeCreateSchema)
     .mutation(async ({ ctx, input }): Promise<Volume> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       // Verify manga exists
       const manga = await ctx.prisma.manga.findUnique({
         where: { id: input.mangaId },
@@ -125,6 +127,7 @@ export const volumeCrudRouter = router({
   update: protectedProcedure
     .input(volumeUpdateSchema)
     .mutation(async ({ ctx, input }): Promise<Volume> => {
+      await assertVolumeMembership(ctx.prisma, requireUserId(ctx), input.id);
       const { id, ...data } = input;
 
       // Verify volume exists
@@ -205,6 +208,7 @@ export const volumeCrudRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ ctx, input }): Promise<Volume> => {
+      await assertVolumeMembership(ctx.prisma, requireUserId(ctx), input.id);
       const volume = await ctx.prisma.volume.findUnique({
         where: { id: input.id },
       });
@@ -240,6 +244,7 @@ export const volumeCrudRouter = router({
     .input(volumeBatchSchema)
     // eslint-disable-next-line max-lines-per-function -- Batch upsert with per-volume processing, error tracking, and WebSocket emission
     .mutation(async ({ ctx, input }): Promise<BatchUpsertResult> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const result: BatchUpsertResult = {
         created: 0,
         updated: 0,

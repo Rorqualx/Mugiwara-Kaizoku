@@ -55,6 +55,9 @@ const _prowlarrRequestSchema = z.object({
     body: z.unknown().optional(),
 });
 
+/** Request fields that redirect the proxy away from the stored Prowlarr configuration. */
+const PROWLARR_OVERRIDE_FIELDS = ['prowlarrUrl', 'prowlarrApiKey', 'prowlarrUsername', 'prowlarrPassword'] as const;
+
 // Schema for wrapped requests (from middleware)
 const wrappedProwlarrRequestSchema = z.object({
     data: z.string(), // JSON stringified request data
@@ -249,8 +252,6 @@ function buildProwlarrHeaders(config: ValidatedProwlarrConfig): HeadersInit {
     // DEBUG: Log headers being sent
     logger.info('[DEBUG] Headers being sent to Prowlarr:', {
         hasXApiKey: !!headers['X-Api-Key'],
-        xApiKeyLength: headers['X-Api-Key']?.toString().length ?? 0,
-        xApiKey: headers['X-Api-Key'] ? `${headers['X-Api-Key'].toString().substring(0, 4)}...` : '(empty)'
     });
 
     // Add Basic Authentication if username and password are provided
@@ -420,7 +421,8 @@ export default createApiRoute({
             }
 
             try {
-                logger.info('Prowlarr API request received:', JSON.stringify(req.body));
+                // Bodies carry the Prowlarr API key / basic-auth password: never log them.
+                logger.info('Prowlarr API request received');
                 const body = req.body as Record<string, unknown>;
 
                 // Parse and unwrap request data
@@ -429,7 +431,15 @@ export default createApiRoute({
                 // Merge parsed data with additional fields from body
                 const mergedData = mergeRequestData(body, parsedData);
 
-                logger.info('Final requestData after unwrapping:', JSON.stringify(mergedData));
+                // Only admins may point the proxy at a caller-supplied URL or
+                // credentials (settings "test connection"). Everyone else gets
+                // the stored configuration, so this cannot be used as a generic
+                // HTTP proxy into the internal network.
+                if (session.user.role !== 'ADMIN') {
+                    for (const override of PROWLARR_OVERRIDE_FIELDS) {
+                        Reflect.deleteProperty(mergedData, override);
+                    }
+                }
 
                 // Extract request properties
                 const props = extractRequestProperties(mergedData);

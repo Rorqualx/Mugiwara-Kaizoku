@@ -25,7 +25,7 @@ import { TRPCError } from '@trpc/server';
 
 import { getPathMapper, type PathMapping } from '@/server/services/download/pathMapper';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { createContextualError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -152,7 +152,7 @@ export const pathMappingManagementRouter = router({
    * @param mapping - The path mapping to add
    * @returns Success status
    */
-  add: protectedProcedure
+  add: adminProcedure
     .input(pathMappingSchema)
     .mutation(async ({ input }): Promise<MappingSaveResult> => {
       try {
@@ -208,7 +208,7 @@ export const pathMappingManagementRouter = router({
    * @param mapping - The updated mapping data
    * @returns Success status
    */
-  update: protectedProcedure
+  update: adminProcedure
     .input(updatePathMappingSchema)
     .mutation(async ({ input }): Promise<MappingSaveResult> => {
       try {
@@ -265,7 +265,7 @@ export const pathMappingManagementRouter = router({
    * @param index - Index of the mapping to remove
    * @returns Success status
    */
-  remove: protectedProcedure
+  remove: adminProcedure
     .input(removePathMappingSchema)
     .mutation(async ({ input }): Promise<boolean> => {
       try {

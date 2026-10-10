@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import { cache } from '@/server/cache/cache-adapter';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
+import { getRequestUserId } from '@/server/context/request-user-context';
 import { logSecurityEvent, SecurityEventType } from '@/server/utils/security-logger';
 import { logger } from '@/utils/logger';
 
@@ -198,9 +199,13 @@ export const rateLimitMiddleware = (options: {
 
   return middleware(async ({ ctx, next, path }) => {
     // Identity: authenticated user id, else client IP (set in createContext),
-    // else a shared 'anonymous' bucket as a last resort.
+    // else a shared 'anonymous' bucket as a last resort. This middleware runs
+    // before the auth step populates ctx.user, so the session user comes from
+    // the request-user store that requestUserMiddleware fills first; without
+    // it every caller was bucketed by a client-controlled IP header.
     const ctxWithUserAndIp = ctx as { user?: { id: string }; ip?: string };
-    const identifier = ctxWithUserAndIp.user?.id ?? ctxWithUserAndIp.ip ?? 'anonymous';
+    const identifier =
+      ctxWithUserAndIp.user?.id ?? getRequestUserId() ?? ctxWithUserAndIp.ip ?? 'anonymous';
 
     const { allowed, retryAfterSec } = await checkRateLimit(`${identifier}:${path}`, maxRequests, windowMs);
 

@@ -39,11 +39,18 @@ let conversionWorkerStarted = false;
  * });
  */
 /**
- * Resolve the client IP from proxy headers, falling back to the socket.
- * Used as the rate-limit identity for unauthenticated requests so anonymous
- * callers are bucketed per-IP instead of all sharing a single `anonymous` key.
+ * Resolve the client IP, used as the rate-limit identity for unauthenticated
+ * requests so anonymous callers are bucketed per-IP instead of all sharing a
+ * single `anonymous` key.
+ *
+ * `X-Forwarded-For` / `X-Real-IP` are set by the caller unless a reverse proxy
+ * overwrites them, so they are only honoured when TRUST_PROXY=true. Otherwise
+ * the socket address is used and a client cannot pick its own bucket.
  */
 function resolveClientIp(req: CreateNextContextOptions['req']): string | undefined {
+  if (process.env['TRUST_PROXY'] !== 'true') {
+    return req.socket.remoteAddress ?? undefined;
+  }
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.length > 0) {
     return forwarded.split(',')[0]?.trim();

@@ -15,6 +15,7 @@ import { getServerSession } from 'next-auth/next';
 
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/server/db';
+import { membershipWhere } from '@/server/trpc/routers/_shared/library-access';
 import { createApiRoute, successResponse } from '@/utils/api-route-factory';
 import { logger } from '@/utils/logger';
 
@@ -40,9 +41,9 @@ export default createApiRoute({
       }
 
       try {
-        // SECURITY: Authentication required at route level (OWASP A01:2021)
-        // Note: Libraries are public/shared resources (no userId field in schema)
+        // Only titles in the caller's library (LibraryMembership is the source of truth).
         const manga = await prisma.manga.findMany({
+          where: membershipWhere(String(session.user.id)),
           select: {
             id: true,
             title: true,

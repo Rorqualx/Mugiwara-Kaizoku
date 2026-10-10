@@ -12,7 +12,7 @@ import type { prisma } from '@/server/db';
 import { configService } from '@/server/services/config/configService';
 import { NotificationFactory } from '@/server/services/notifications/factory/notificationFactory';
 import { toTRPCError } from '@/server/trpc/errors';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { getConfigJSON } from '@/server/utils/configReader';
 import { createContextualError, isSuccess } from '@/utils/async-result';
@@ -106,7 +106,7 @@ export const notificationSettingsRouter = router({
    *
    * @returns The aggregated provider configuration (throws TRPCError on failure)
    */
-  getConfig: protectedProcedure.query(async ({ ctx }): Promise<NotificationProvidersConfig> => {
+  getConfig: adminProcedure.query(async ({ ctx }): Promise<NotificationProvidersConfig> => {
     try {
       return await getNotificationConfig(ctx.prisma);
     } catch (error: unknown) {
@@ -120,7 +120,7 @@ export const notificationSettingsRouter = router({
   /**
    * Update email notification settings
    */
-  updateEmailSettings: protectedProcedure
+  updateEmailSettings: adminProcedure
     .input(emailSettingsSchema)
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
@@ -136,7 +136,7 @@ export const notificationSettingsRouter = router({
   /**
    * Update Discord notification settings
    */
-  updateDiscordSettings: protectedProcedure
+  updateDiscordSettings: adminProcedure
     .input(discordSettingsSchema)
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
@@ -152,7 +152,7 @@ export const notificationSettingsRouter = router({
   /**
    * Update Slack notification settings
    */
-  updateSlackSettings: protectedProcedure
+  updateSlackSettings: adminProcedure
     .input(slackSettingsSchema)
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
@@ -168,7 +168,7 @@ export const notificationSettingsRouter = router({
   /**
    * Update Telegram notification settings
    */
-  updateTelegramSettings: protectedProcedure
+  updateTelegramSettings: adminProcedure
     .input(telegramSettingsSchema)
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
@@ -184,7 +184,7 @@ export const notificationSettingsRouter = router({
   /**
    * Update webhook notification settings
    */
-  updateWebhookSettings: protectedProcedure
+  updateWebhookSettings: adminProcedure
     .input(webhookSettingsSchema)
     .mutation(async ({ input, ctx }): Promise<boolean> => {
       try {
@@ -200,7 +200,7 @@ export const notificationSettingsRouter = router({
   /**
    * Test a notification provider
    */
-  testNotification: protectedProcedure
+  testNotification: adminProcedure
     .input(z.object({ provider: z.enum(['email', 'discord', 'slack', 'telegram', 'webhook']) }))
     .output(z.object({ success: z.boolean(), message: z.string().optional(), error: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {

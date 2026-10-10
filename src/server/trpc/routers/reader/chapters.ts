@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertChaptersMembership, assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -90,6 +91,7 @@ export const readerChaptersRouter = router({
       })
     )
     .query(async ({ ctx, input }) => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       return ctx.prisma.chapter.findMany({
         where: {
           mangaId: input.mangaId,
@@ -116,6 +118,7 @@ export const readerChaptersRouter = router({
       })
     )
     .query(async ({ ctx, input }): Promise<NavigationResult> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const cacheKey = `nav:${input.mangaId}:${input.chapterId}`;
 
       // 1. Check hot cache first (2-5ms)
@@ -210,6 +213,7 @@ export const readerChaptersRouter = router({
       })
     )
     .query(async ({ ctx, input }): Promise<VerificationMap> => {
+      await assertChaptersMembership(ctx.prisma, requireUserId(ctx), input.chapterIds);
       const baseDir = process.env['MANGA_FILES_DIR'] ?? '/data/manga';
 
       // Get all requested chapters

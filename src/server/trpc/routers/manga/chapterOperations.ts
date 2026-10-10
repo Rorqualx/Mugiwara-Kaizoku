@@ -13,6 +13,7 @@ import { schedule as scheduleChapterCheck } from '@/server/queue/checkChapters';
 import { checkOutOfSyncChapters as checkOutOfSyncChaptersJob } from '@/server/queue/checkOutOfSyncChapters';
 import { enqueueFixOutOfSyncChaptersTask } from '@/server/queue/fixOutOfSyncChapters';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { createSuccessResult } from '@/utils/async-result';
 import { toStringId } from '@/utils/id-converters';
@@ -32,6 +33,7 @@ import { idSchema, mangaIdSchema } from './helpers';
 const getAllChapters = protectedProcedure
   .input(idSchema)
   .query(async ({ input, ctx }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
     try {
       const chapters = await ctx.prisma.chapter.findMany({
         where: {
@@ -67,7 +69,8 @@ const checkForNewChapters = protectedProcedure
   .input(z.object({
     id: z.number()
   }))
-  .mutation(async ({ input }) => {
+  .mutation(async ({ ctx, input }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
     const { id } = input;
 
     try {
@@ -133,6 +136,7 @@ const checkForNewChapters = protectedProcedure
 const checkOutOfSyncChapters = protectedProcedure
   .input(mangaIdSchema)
   .mutation(async ({ input, ctx }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
     const { mangaId } = input;
     logger.info(`Checking for out of sync chapters for manga ID ${mangaId}`);
 
@@ -194,6 +198,7 @@ const checkOutOfSyncChapters = protectedProcedure
 const fixOutOfSyncChapters = protectedProcedure
   .input(idSchema)
   .mutation(async ({ input, ctx }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
     const { id } = input;
     logger.info(`Fixing out of sync chapters for manga ID ${id}`);
 

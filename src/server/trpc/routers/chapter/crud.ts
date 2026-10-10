@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -31,7 +32,8 @@ export const chapterCrudRouter = router({
    */
   markAllAsRead: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ input }): Promise<{ updatedCount: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ updatedCount: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -68,7 +70,8 @@ export const chapterCrudRouter = router({
    */
   markAllAsUnread: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ input }): Promise<{ updatedCount: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ updatedCount: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { mangaId } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -108,7 +111,8 @@ export const chapterCrudRouter = router({
       mangaId: z.number(),
       downloadStatus: z.enum(['PENDING', 'DOWNLOADING', 'COMPLETED', 'ERROR']).optional()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { mangaId, downloadStatus } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -152,11 +156,12 @@ export const chapterCrudRouter = router({
       mangaId: z.number(),
       offset: z.number().default(-1)
     }))
-    .mutation(async ({ input }): Promise<{
+    .mutation(async ({ ctx, input }): Promise<{
       updatedCount: number;
       message: string;
       details?: { oldRange: string; newRange: string };
     }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { mangaId, offset } = input;
 
       const manga = await prisma.manga.findUnique({
@@ -225,7 +230,8 @@ export const chapterCrudRouter = router({
       chapterId: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{ deletedId: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ deletedId: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { chapterId, mangaId } = input;
 
       const chapter = await prisma.chapter.findUnique({
@@ -263,7 +269,8 @@ export const chapterCrudRouter = router({
       chapterId: z.number().int().positive(),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{ chapterId: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ chapterId: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { chapterId, mangaId } = input;
 
       const chapter = await prisma.chapter.findUnique({
@@ -320,7 +327,8 @@ export const chapterCrudRouter = router({
       chapterIds: z.array(z.number().int().positive()),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{ deletedCount: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ deletedCount: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { chapterIds, mangaId } = input;
 
       if (chapterIds.length === 0) {
@@ -387,7 +395,8 @@ export const chapterCrudRouter = router({
       chapterIds: z.array(z.number().int().positive()),
       mangaId: z.number().int().positive()
     }))
-    .mutation(async ({ input }): Promise<{ deletedCount: number; message: string }> => {
+    .mutation(async ({ ctx, input }): Promise<{ deletedCount: number; message: string }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const { chapterIds, mangaId } = input;
 
       if (chapterIds.length === 0) {

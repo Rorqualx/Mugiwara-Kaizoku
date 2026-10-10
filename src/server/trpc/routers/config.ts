@@ -21,6 +21,8 @@ import { logger } from '@/utils/logger';
 import { toTRPCError } from '../errors';
 import { adminProcedure, protectedProcedure } from '../procedures';
 import { router, } from '../trpc';
+
+import { isAdmin } from './_shared/library-access';
 // Convert enum to Zod enum using actual enum values
 const ConfigScopeEnum = z.enum([
     ConfigScope.SYSTEM,
@@ -52,11 +54,24 @@ const ConfigValueTypeEnum = z.enum([
 /**
  * Configuration router for handling configuration operations
  */
+/** Config keys that hold credentials; only admins may read them back. */
+const SECRET_CONFIG_KEY = /(password|passwd|secret|token|api[-_]?key|credential)/i;
+
+/**
+ * Single-key reads stay open to every user (theme, UI preferences), but a
+ * non-admin must not be able to read stored provider or client credentials.
+ */
+function assertReadableConfigKey(ctx: unknown, key: string): void {
+    if (SECRET_CONFIG_KEY.test(key) && !isAdmin(ctx)) {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'You must be an admin to read this setting' });
+    }
+}
+
 export const configRouter = router({
     /**
      * Get all configuration values
      */
-    getAll: protectedProcedure
+    getAll: adminProcedure
         .query(async () => {
         const configs = await configService.getAll();
         return configs as Record<string, ConfigWithMetadata>;
@@ -74,7 +89,8 @@ export const configRouter = router({
         defaultValue: z.unknown().optional(),
         skipCache: z.boolean().optional()
     }))
-        .mutation(async ({ input }): Promise<unknown> => {
+        .mutation(async ({ ctx, input }): Promise<unknown> => {
+        assertReadableConfigKey(ctx, input.key);
         try {
             // If skipCache is true, force a database read
             if (input.skipCache) {
@@ -102,7 +118,8 @@ export const configRouter = router({
         .input(z.object({
         key: z.string()
     }))
-        .query(async ({ input }): Promise<ConfigWithMetadata | null> => {
+        .query(async ({ ctx, input }): Promise<ConfigWithMetadata | null> => {
+        assertReadableConfigKey(ctx, input.key);
         const config = await configService.getWithMetadata(input.key);
         // Convert undefined to null for TanStack Query compatibility
         // TanStack Query does not accept undefined as a valid query result
@@ -214,7 +231,7 @@ export const configRouter = router({
     /**
      * Get configuration values by scope
      */
-    getByScope: protectedProcedure
+    getByScope: adminProcedure
         .input(z.object({
         scope: ConfigScopeEnum
     }))
@@ -225,7 +242,7 @@ export const configRouter = router({
     /**
      * Get configuration values by category
      */
-    getByCategory: protectedProcedure
+    getByCategory: adminProcedure
         .input(z.object({
         category: z.string()
     }))
@@ -236,7 +253,7 @@ export const configRouter = router({
     /**
      * Get configuration values by namespace
      */
-    getByNamespace: protectedProcedure
+    getByNamespace: adminProcedure
         .input(z.object({
         namespace: z.string().optional()
     }))
@@ -261,7 +278,7 @@ export const configRouter = router({
     /**
      * Get the complete application configuration
      */
-    getAppConfig: protectedProcedure
+    getAppConfig: adminProcedure
         .query(async () => {
         const config = await configService.getAppConfig();
         return config;
@@ -327,7 +344,7 @@ export const configRouter = router({
     /**
      * Export configuration to a file
      */
-    exportToFile: protectedProcedure
+    exportToFile: adminProcedure
         .input(z.object({
         filePath: z.string(),
         includeScopes: z.array(ConfigScopeEnum).optional()

@@ -16,7 +16,7 @@ import { getVolumeSplitter } from '@/server/services/download/volumeSplitter';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { logger } from '@/utils/logger';
 
-import { protectedProcedure } from '../procedures';
+import { adminProcedure, protectedProcedure } from '../procedures';
 import { router } from '../trpc';
 
 import type { Prisma } from '@prisma/client';
@@ -58,7 +58,7 @@ export const volumeSplitRouter = router({
    * Analyzes the volume and returns detected chapters with confidence scores
    * without actually splitting the file.
    */
-  previewSplit: protectedProcedure
+  previewSplit: adminProcedure
     .input(previewSplitSchema)
     .query(async ({ input }) => {
       try {
@@ -131,7 +131,7 @@ export const volumeSplitRouter = router({
   /**
    * Execute a volume split and create chapter files
    */
-  executeSplit: protectedProcedure
+  executeSplit: adminProcedure
     .input(executeSplitSchema)
     .mutation(async ({ input }) => {
       try {

@@ -19,6 +19,7 @@ import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { switchActiveChapterFile } from '@/server/services/library/scanner/chapter-creator/chapter-file-service';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertChapterMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -30,6 +31,11 @@ export const readerFileAccessRouter = router({
       mangaId: z.number(),
       chapterId: z.number()
     }))
+    // Membership gate runs before the cached read paths below.
+    .use(async ({ ctx, input, next }) => {
+      await assertChapterMembership(ctx.prisma, requireUserId(ctx), input.chapterId);
+      return next();
+    })
     // eslint-disable-next-line complexity -- 3-tier caching + ChapterFile resolution requires branching
     .query(async ({ ctx, input }): Promise<ChapterFileInfo> => {
       const cacheKey = `chapter:${input.chapterId}`;
@@ -136,6 +142,7 @@ export const readerFileAccessRouter = router({
   getChapterFileSources: protectedProcedure
     .input(z.object({ chapterId: z.number() }))
     .query(async ({ ctx, input }) => {
+      await assertChapterMembership(ctx.prisma, requireUserId(ctx), input.chapterId);
       // Validate ownership: chapter → manga → user access
       const chapter = await ctx.prisma.chapter.findUnique({
         where: { id: input.chapterId },
@@ -176,6 +183,7 @@ export const readerFileAccessRouter = router({
       chapterFileId: z.number(),
     }))
     .mutation(async ({ ctx, input }) => {
+      await assertChapterMembership(ctx.prisma, requireUserId(ctx), input.chapterId);
       // Validate ownership: chapter → manga → user access
       const chapter = await ctx.prisma.chapter.findUnique({
         where: { id: input.chapterId },

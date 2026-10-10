@@ -20,6 +20,7 @@ import { hotCacheProvider } from '@/server/cache/HotDataCacheProvider';
 import { cacheProvider } from '@/server/cache/UnifiedCacheProvider';
 import { prisma } from '@/server/db';
 import { listRarImages } from '@/server/services/conversion/utils/rar-extractor';
+import { hasMembership } from '@/server/trpc/routers/_shared/library-access';
 import {
   ChapterInfoResponseSchema,
   type ErrorResponse,
@@ -300,6 +301,24 @@ function buildSimpleResponse(chapter: ChapterData, pageCount: number): SimpleCha
 // Route Handler
 // ============================================================================
 
+/**
+ * The chapter must belong to the requested manga, and that manga must be in
+ * the caller's library. Returns the error to send, or null when access is fine.
+ */
+async function checkChapterAccess(
+  chapterMangaId: number,
+  requestedMangaId: number,
+  userId: string
+): Promise<{ status: number; code: string; message: string } | null> {
+  if (chapterMangaId !== requestedMangaId) {
+    return { status: 400, code: 'INVALID_RELATIONSHIP', message: 'Chapter does not belong to this manga' };
+  }
+  if (!(await hasMembership(prisma, userId, requestedMangaId))) {
+    return { status: 403, code: 'FORBIDDEN', message: 'This title is not in your library' };
+  }
+  return null;
+}
+
 export default createFileRoute({
   requireAuth: true,
   cache: { maxAge: 60, private: true },
@@ -326,8 +345,9 @@ export default createFileRoute({
         return;
       }
 
-      if (chapter.Manga.id !== ids.mangaId) {
-        res.status(400).json(createErrorResponse('INVALID_RELATIONSHIP', 'Chapter does not belong to this manga', requestId));
+      const access = await checkChapterAccess(chapter.Manga.id, ids.mangaId, String(session.user.id));
+      if (access) {
+        res.status(access.status).json(createErrorResponse(access.code, access.message, requestId));
         return;
       }
 

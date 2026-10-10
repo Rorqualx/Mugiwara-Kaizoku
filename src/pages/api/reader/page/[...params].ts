@@ -16,6 +16,8 @@ import { getServerSession } from 'next-auth/next';
 import { z } from 'zod';
 
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
+import { prisma } from '@/server/db';
+import { hasMembership } from '@/server/trpc/routers/_shared/library-access';
 import { createBinaryRoute } from '@/utils/api-route-factory';
 
 import {
@@ -71,6 +73,20 @@ export default createBinaryRoute({
       // Step 3: Fetch and validate chapter
       const chapterData = await fetchAndValidateChapter(validatedParams, req, res);
       if (!chapterData) return;
+
+      // Step 3b: The title must be in the caller's library (the chapter was
+      // just verified to belong to mangaId).
+      if (!(await hasMembership(prisma, String(session.user.id), mangaId))) {
+        return res['status'](403).json({
+          status: 'error',
+          error: {
+            code: 'FORBIDDEN',
+            message: 'This title is not in your library',
+            timestamp: new Date().toISOString(),
+            requestId
+          }
+        });
+      }
 
       const { archivePath, totalPages, pageStart, pageEnd } = chapterData;
 

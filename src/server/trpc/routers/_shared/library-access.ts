@@ -147,6 +147,71 @@ export async function assertMembership(
 }
 
 /**
+ * Membership check for procedures that take a chapter id instead of a manga id.
+ * Resolves the chapter's manga and asserts membership on it; an unknown chapter
+ * is reported as `NOT_FOUND`. Returns the manga id so callers can reuse it.
+ */
+export async function assertChapterMembership(
+  prisma: PrismaClient,
+  userId: string,
+  chapterId: number,
+): Promise<number> {
+  const chapter = await prisma.chapter.findUnique({
+    where: { id: chapterId },
+    select: { mangaId: true },
+  });
+  if (!chapter) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Chapter not found.' });
+  }
+  await assertMembership(prisma, userId, chapter.mangaId);
+  return chapter.mangaId;
+}
+
+/**
+ * Membership check for a batch of chapter ids: every chapter must belong to a
+ * title in the user's library. Unknown ids are ignored (they resolve to
+ * nothing downstream); one foreign chapter fails the whole call.
+ */
+export async function assertChaptersMembership(
+  prisma: PrismaClient,
+  userId: string,
+  chapterIds: readonly number[],
+): Promise<void> {
+  if (chapterIds.length === 0) return;
+  const chapters = await prisma.chapter.findMany({
+    where: { id: { in: [...chapterIds] } },
+    select: { mangaId: true },
+    distinct: ['mangaId'],
+  });
+  const allowed = new Set(
+    await filterMangaIdsToLibrary(prisma, userId, chapters.map((chapter) => chapter.mangaId)),
+  );
+  if (chapters.some((chapter) => !allowed.has(chapter.mangaId))) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'This title is not in your library.' });
+  }
+}
+
+/**
+ * Membership check for procedures that take a volume id. Same contract as
+ * {@link assertChapterMembership}.
+ */
+export async function assertVolumeMembership(
+  prisma: PrismaClient,
+  userId: string,
+  volumeId: number,
+): Promise<number> {
+  const volume = await prisma.volume.findUnique({
+    where: { id: volumeId },
+    select: { mangaId: true },
+  });
+  if (!volume) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Volume not found.' });
+  }
+  await assertMembership(prisma, userId, volume.mangaId);
+  return volume.mangaId;
+}
+
+/**
  * All manga ids in a user's library. Useful for scoping endpoints/services that
  * filter by an explicit `mangaIds` allow-list (e.g. the calendar) rather than a
  * relational `where`. An empty result means "the user's library is empty".

@@ -11,6 +11,10 @@
  */
 
 
+import { getServerSession } from 'next-auth/next';
+
+import { authOptions } from '@/pages/api/auth/[...nextauth]';
+
 // Import refactored modules
 import {
   handleProxyError,
@@ -55,6 +59,17 @@ async function handleProxyRequest(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<void> {
+  // This route forwards any method/body to the configured download client
+  // using the stored credentials, so it is admin-only and checked in-handler
+  // (not only by the edge middleware).
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  if (session.user.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
   // Extract and validate parameters
   const { clientType, clientEndpoint } = req.query;
   

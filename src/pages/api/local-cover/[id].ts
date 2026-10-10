@@ -10,6 +10,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+import { getServerSession } from 'next-auth/next';
+
+import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/server/db';
 import { extractAndSetLocalCover } from '@/server/services/library/scanner/local-cover-extractor';
 
@@ -51,6 +54,13 @@ export default async function handler(
 ): Promise<void> {
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  // Checked in-handler as well as by the edge middleware.
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 

@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { EventType, EventSource } from '@/server/services/events/eventTypes';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, membershipWhere, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { type WantedItem, type WantedItemsResponse } from '@/types/search.types';
 import { toNumberId, toStringId } from '@/utils/id-converters';
 import { logInfo, logError } from '@/utils/system-event-logger';
@@ -36,9 +37,11 @@ function buildWantedWhere(input: z.infer<typeof wantedSearchSchema>): PrismaWher
   return where;
 }
 
-export const getWanted = protectedProcedure.input(wantedSearchSchema).query(async ({ input }) => {
+export const getWanted = protectedProcedure.input(wantedSearchSchema).query(async ({ ctx, input }) => {
+  const userId = requireUserId(ctx);
   try {
-    const where = buildWantedWhere(input);
+    // Only wanted items for titles in the caller's library.
+    const where = { AND: [buildWantedWhere(input), { Manga: membershipWhere(userId) }] };
     const [total, items] = await Promise.all([
       prisma.wantedItem.count({ where: where as Prisma.WantedItemWhereInput }),
       prisma.wantedItem.findMany({
@@ -73,7 +76,8 @@ export const getWanted = protectedProcedure.input(wantedSearchSchema).query(asyn
   }
 });
 
-export const addToWanted = protectedProcedure.input(createWantedItemSchema).mutation(async ({ input }) => {
+export const addToWanted = protectedProcedure.input(createWantedItemSchema).mutation(async ({ ctx, input }) => {
+  await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
   try {
     const whereCheck: { mangaId: number; chapterId?: number } = { mangaId: input.mangaId };
     if (input.chapterId !== undefined) whereCheck.chapterId = input.chapterId;
@@ -116,7 +120,12 @@ export const addToWanted = protectedProcedure.input(createWantedItemSchema).muta
   }
 });
 
-export const updateWanted = protectedProcedure.input(updateWantedItemSchema).mutation(async ({ input }) => {
+export const updateWanted = protectedProcedure.input(updateWantedItemSchema).mutation(async ({ ctx, input }) => {
+  const wanted = await prisma.wantedItem.findUnique({ where: { id: input.id }, select: { mangaId: true } });
+  if (!wanted) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Wanted item not found' });
+  }
+  await assertMembership(ctx.prisma, requireUserId(ctx), wanted.mangaId);
   try {
     const updateData: { dateModified: Date; priority?: WantedPriority; status?: WantedStatus } = {
       dateModified: new Date()
@@ -150,7 +159,12 @@ export const updateWanted = protectedProcedure.input(updateWantedItemSchema).mut
 
 export const removeFromWanted = protectedProcedure.input(z.object({
   id: z.union([z.string(), z.number()]).transform((val) => toNumberId(val))
-})).mutation(async ({ input }) => {
+})).mutation(async ({ ctx, input }) => {
+  const wanted = await prisma.wantedItem.findUnique({ where: { id: input.id }, select: { mangaId: true } });
+  if (!wanted) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Wanted item not found' });
+  }
+  await assertMembership(ctx.prisma, requireUserId(ctx), wanted.mangaId);
   try {
     await prisma.wantedItem.delete({ where: { id: input.id } });
     void logInfo('Removed item from wanted list', EventType.USER_ACTION, EventSource.SYSTEM, {

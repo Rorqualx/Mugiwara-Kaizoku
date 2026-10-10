@@ -70,5 +70,8 @@ For production deployments, you may want to customize the following:
 - `KAIZOKU_PORT` - Change to a different port if 3000 is in use
 - `DATABASE_URL` - Update to point to your production database
 - `NODE_ENV` - Set to `production` for optimized builds
+- `TRUST_PROXY` - Set to `true` only when the app sits behind a reverse proxy that overwrites `X-Forwarded-For`. It makes the tRPC rate limiter read the client IP from that header for unauthenticated requests; when unset, the socket address is used so a caller cannot choose its own rate-limit bucket
+- `SHUTDOWN_DEADLINE_MS` - Hard ceiling for the app's graceful shutdown (default `45000`). Must stay below `KAIZOKU_STOP_TIMEOUT`
+- `KAIZOKU_STOP_TIMEOUT` - Seconds the Docker entrypoint waits for the app to exit after a stop signal before killing it and shutting the bundled PostgreSQL down (default `50`). The container's `stop_grace_period` must be larger (the shipped compose files use `60s`)
 
 For Docker deployments, ensure that the port mapping in docker-compose.yml matches your KAIZOKU_PORT setting.

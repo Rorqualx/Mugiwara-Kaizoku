@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { authOptions } from '@/pages/api/auth/[...nextauth]';
 import { prisma } from '@/server/db';
+import { hasMembership } from '@/server/trpc/routers/_shared/library-access';
 import { createFileRoute, parseRangeHeader, setRangeHeaders } from '@/utils/api-route-factory';
 import { logger } from '@/utils/logger';
 
@@ -367,6 +368,14 @@ export default createFileRoute({
       // Verify chapter access
       const chapter = await verifyChapterAccess(ids.chapterId, ids.mangaId, res, requestId);
       if (!chapter) return;
+
+      // The title must be in the caller's library.
+      if (!(await hasMembership(prisma, userId, ids.mangaId))) {
+        res.status(403).json(
+          createErrorResponse('FORBIDDEN', 'This title is not in your library', requestId)
+        );
+        return;
+      }
 
       // SECURITY: Authentication required at route level (OWASP A01:2021)
       // Note: Libraries are public/shared resources (no userId field in schema)
