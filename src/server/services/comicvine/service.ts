@@ -17,6 +17,7 @@
 
 import axios from 'axios';
 
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { ValidationError } from '@/utils/errors';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -170,8 +171,9 @@ export class ComicVineService {
   private initializeAxiosInstance(): void {
     if (!this.apiKey) return;
 
-    this.axiosInstance = axios.create({
+    this.axiosInstance = installAxiosAbortTimeout(axios.create({
       baseURL: modularQueries.BASE_URL,
+      timeout: 30_000,
       params: {
         api_key: this.apiKey,
         format: 'json'
@@ -179,7 +181,7 @@ export class ComicVineService {
       headers: {
         'User-Agent': 'Kaizoku/1.0.0'
       }
-    });
+    }));
 
     // Set axios instance on HTTP client for delegated operations
     this.httpClient.setAxiosInstance(this.axiosInstance);

@@ -5,6 +5,8 @@
 
 import axios from 'axios';
 
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
+
 import { AppError } from './error-handling';
 
 import type { AxiosInstance, AxiosRequestConfig, CreateAxiosDefaults} from 'axios';
@@ -70,7 +72,7 @@ export class HttpClient {
     if (config.baseURL !== undefined) {
       axiosConfig.baseURL = config.baseURL;
     }
-    this.client = axios.create(axiosConfig);
+    this.client = installAxiosAbortTimeout(axios.create(axiosConfig));
     this.setupInterceptors();
   }
 

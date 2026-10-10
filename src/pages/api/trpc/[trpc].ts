@@ -14,6 +14,7 @@ import * as trpcNext from '@trpc/server/adapters/next';
 
 import { createContext } from '@/server/trpc/context';
 import { appRouter } from '@/server/trpc/root';
+import { installDefaultAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { logger } from '@/utils/logger';
 
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -40,6 +41,10 @@ function handleTrpcError({ error }: { error: { code: string } }): void {
 /**
  * Create the tRPC handler with proper configuration
  */
+// The Next server bundle can load its own copy of modules; make sure the axios
+// it uses has the abort deadline too (idempotent).
+installDefaultAxiosAbortTimeout();
+
 const trpcHandler = trpcNext.createNextApiHandler({
     router: appRouter,
     createContext,

@@ -20,6 +20,7 @@ import type {
   AsyncResult} from '@/utils/async-result';
 import { 
   createSuccessResult} from '@/utils/async-result';
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { toStringId } from '@/utils/id-converters';
 import { mapToMangaStatus } from '@/utils/status-mapper';
 
@@ -148,14 +149,14 @@ export class AniListAdapter extends UnifiedBaseAdapter<AniListResponse, AniListA
     super(config);
     
     // Initialize axios client
-    this.client = axios.create({
+    this.client = installAxiosAbortTimeout(axios.create({
       baseURL: this.config.apiUrl ?? this.graphqlEndpoint,
       timeout: this.config.timeout ?? 30000,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }
-    });
+    }));
     
     // Add auth header if token provided
     if (this.config.accessToken) {

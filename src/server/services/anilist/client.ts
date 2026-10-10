@@ -50,6 +50,7 @@
  */
 import axios from 'axios';
 
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { logger } from '@/utils/logger';
 
 import { anilistRequestQueue, AniListPriority, type AniListPriorityLevel } from './request-queue';
@@ -352,13 +353,14 @@ export class AniListGraphQLClient {
     private accessToken: string | null = null;
     constructor(private clientId?: string, private clientSecret?: string, private accessTokenOverride?: string) {
         // Initialize axios instance
-        this.axiosInstance = axios.create({
+        this.axiosInstance = installAxiosAbortTimeout(axios.create({
             baseURL: 'https://graphql.anilist.co',
+            timeout: 30_000,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             }
-        });
+        }));
 
         // Set access token if provided
         if (accessTokenOverride) {

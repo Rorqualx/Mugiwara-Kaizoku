@@ -30,6 +30,7 @@ import * as cheerio from 'cheerio';
 
 
 import { logger } from '@/server/utils/logger';
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 
 import { DynamicWikiParser } from './DynamicWikiParser';
 import { extractChapterFromLink } from './wiki-content-scraper/chapter-extractor';
@@ -89,12 +90,12 @@ export class WikiContentScraper {
     dataConverter?: WikiDataConverter,
     axiosInstance?: AxiosInstance
   ) {
-    const axiosClient = axiosInstance ?? axios.create({
+    const axiosClient = axiosInstance ?? installAxiosAbortTimeout(axios.create({
       timeout: 30000,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; MugiwariKaizoku/1.0)'
       }
-    });
+    }));
 
     // Initialize logger - using logger directly as it doesn't have child() method
     this.log = logger;

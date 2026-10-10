@@ -6,6 +6,7 @@
 
 import axios from 'axios';
 
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 
@@ -210,8 +211,9 @@ export class ComicVineAdapter {
       throw new Error('ComicVine API key is required');
     }
     this.apiKey = options.apiKey;
-    this.api = axiosInstance ?? axios.create({
+    this.api = axiosInstance ?? installAxiosAbortTimeout(axios.create({
       baseURL: this.baseUrl,
+      timeout: 30_000,
       headers: {
         'User-Agent': options.userAgent ?? 'Unified-Metadata-Parser/1.0'
       },
@@ -219,7 +221,7 @@ export class ComicVineAdapter {
         api_key: this.apiKey,
         format: 'json'
       }
-    });
+    }));
     this.normalizer = new DataNormalizer();
   }
   /**

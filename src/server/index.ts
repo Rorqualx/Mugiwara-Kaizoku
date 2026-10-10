@@ -20,6 +20,7 @@ import { createServer } from 'http';
 import * as express from 'express';
 
 import { env } from '@/env/server';
+import { installDefaultAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { logger } from '@/utils/logger';
 
 import { validateEnvironmentSecrets } from './env-validation';
@@ -105,6 +106,10 @@ async function startServer(): Promise<void> {
 
     logger.info(`Starting server in ${env['NODE_ENV']} mode`);
     logger.info(`Docker environment: ${process.env['DOCKER'] === 'true' ? 'Yes' : 'No'}`);
+
+    // Bun does not apply axios's timeout to a stalled response body; pair every
+    // timeout with an abort deadline before any outbound call is made.
+    installDefaultAxiosAbortTimeout();
 
     // SECURITY: Validate environment secrets before starting server (OWASP A02:2021)
     validateEnvironmentSecrets();

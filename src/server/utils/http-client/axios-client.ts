@@ -10,6 +10,7 @@
 
 import axios, { AxiosHeaders } from 'axios';
 
+
 import type { AsyncResult } from '@/utils/async-result';
 import {
   createSuccessResult,
@@ -20,6 +21,7 @@ import {
   createLoadingResult,
   createIdleResult
 } from '@/utils/async-result';
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 
 import { createRateLimiter } from '../rateLimit';
 
@@ -76,13 +78,13 @@ export class AxiosHttpClient implements HttpClient {
 
   constructor(config: HttpClientConfig) {
     this.config = config;
-    this.client = axios.create({
+    this.client = installAxiosAbortTimeout(axios.create({
       baseURL: config.baseURL,
       timeout: config.timeout ?? 30000,
       headers: config.headers ?? {},
       validateStatus: config.validateStatus ?? ((status: number) => status >= 200 && status < 300),
       responseType: config.responseType ?? 'json'
-    });
+    }));
 
     if (config.auth) {
       this.authManager = createAuthManager(config.auth);

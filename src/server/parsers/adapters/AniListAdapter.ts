@@ -6,6 +6,7 @@
 
 import axios from 'axios';
 
+import { installAxiosAbortTimeout } from '@/utils/axios-abort-timeout';
 import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 
@@ -363,8 +364,9 @@ export class AniListAdapter {
     } = {},
     axiosInstance?: AxiosInstance
   ) {
-    this.api = axiosInstance ?? axios.create({
+    this.api = axiosInstance ?? installAxiosAbortTimeout(axios.create({
       baseURL: this.baseUrl,
+      timeout: 30_000,
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -372,7 +374,7 @@ export class AniListAdapter {
           'Authorization': `Bearer ${options.accessToken}`
         })
       }
-    });
+    }));
     this.normalizer = new DataNormalizer();
   }
 
