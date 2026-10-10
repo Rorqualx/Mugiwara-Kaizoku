@@ -26,6 +26,7 @@ import { createEmptyEnrichmentMaps } from './types';
 import { updateCachedFandomUrl } from './wiki-discovery';
 
 import type { ChapterDetailFetchResult } from './fandom-chapter-detail-fetch';
+import type { FandomPhaseDeadline } from './fandom-phase-deadline';
 import type { EnrichmentProgress, EnrichmentPipelineOptions, ChapterEnrichmentMaps, ChapterUrlTemplate } from './types';
 
 /** Result from Phase 3 Fandom enrichment */
@@ -37,7 +38,7 @@ export interface FandomEnrichmentResult {
 /**
  * Run Phase 3: Fandom post-enrichment with priority-based data sources.
  */
-// eslint-disable-next-line max-params -- public phase entrypoint; mangaId/title are required identifiers, the rest are optional pipeline hooks already optional in shape
+// eslint-disable-next-line max-params, complexity -- public phase entrypoint; mangaId/title are required identifiers, the rest are optional pipeline hooks already optional in shape. Complexity: a linear priority chain of data sources, each guarded; splitting it would scatter the shared maps/template state.
 export async function phaseFandomEnrichment(
   mangaId: number,
   title: string,
@@ -45,6 +46,7 @@ export async function phaseFandomEnrichment(
   options?: EnrichmentPipelineOptions,
   expectedVolumeCount?: number | undefined,
   expectedChapterCount?: number | undefined,
+  deadline?: FandomPhaseDeadline,
 ): Promise<FandomEnrichmentResult> {
   await onProgress?.('fandom_enrichment', `Scraping Fandom wiki for "${title}" chapter titles and covers...`);
   let volumeDataUnreliable = false;
@@ -111,8 +113,10 @@ export async function phaseFandomEnrichment(
     }
 
     const hasEnrichmentData = enrichmentTitleCount > 0 || Object.keys(maps.chapterVolumeMap).length > 0;
+    if (deadline?.expired) return discardLateFandomResult(mangaId);
     if (hasEnrichmentData) {
-      await applyEnrichmentData({ mangaId, maps, fandomResult, fandomUrl, sourcesUsed, buildUpdatedProviderMetadata: buildUpdatedProviderMetadata as (...args: unknown[]) => Record<string, unknown>, expectedVolumeCount });
+      const writing = applyEnrichmentData({ mangaId, maps, fandomResult, fandomUrl, sourcesUsed, buildUpdatedProviderMetadata: buildUpdatedProviderMetadata as (...args: unknown[]) => Record<string, unknown>, expectedVolumeCount });
+      await (deadline?.track(writing) ?? writing);
       volumeDataUnreliable = isUnreliableVolumeMap(maps.chapterVolumeMap);
     } else {
       logger.warn(`[enrichmentPipeline] No data found from any Fandom source`);
@@ -121,16 +125,23 @@ export async function phaseFandomEnrichment(
     // Always-run direct gallery harvest. Bypasses the chapter scraper so wikis
     // where it fails (Bleach, JJK, Berserk, etc.) still get gallery coverage
     // via the MediaWiki API images list against fandomUrl + common subpages.
+    if (deadline?.expired) return { volumeDataUnreliable };
     await harvestFandomGalleryDirect(mangaId, fandomUrl, title);
 
     // Persist best URL template for future enrichment runs
-    if (bestTemplate) {
+    if (bestTemplate && !deadline?.expired) {
       await storeChapterUrlTemplate(mangaId, bestTemplate);
     }
   } catch (fandomError) {
     logger.warn(`[enrichmentPipeline] Fandom enrichment failed (non-critical):`, fandomError);
   }
   return { volumeDataUnreliable };
+}
+
+/** The phase outlived its deadline: later phases are already running, so write nothing. */
+function discardLateFandomResult(mangaId: number): FandomEnrichmentResult {
+  logger.warn(`[enrichmentPipeline] Fandom enrichment for manga ${mangaId} finished after its deadline — discarding results`);
+  return { volumeDataUnreliable: false };
 }
 
 /** Context for applying enrichment data to DB */

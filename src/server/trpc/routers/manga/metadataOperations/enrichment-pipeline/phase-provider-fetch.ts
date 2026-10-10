@@ -55,6 +55,7 @@ import { fetchMangaDexAggregate } from './phase-provider-fetch/mangadex-aggregat
 import { fetchMangaDexChapters } from './phase-provider-fetch/mangadex-chapter-list';
 import { pickBestMangaDexMatch, pickBestMangaDexMatchWithScore } from './phase-provider-fetch/mangadex-matcher';
 import { buildMangaUpdatesMetadataSupplements, fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
+import { ProviderOutcomeTracker, unansweredProviders } from './phase-provider-fetch/provider-outcome';
 import { settledValueOr } from './phase-provider-fetch/wave-merge';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
@@ -150,6 +151,8 @@ export async function phaseProviderFetch(
   // Each call is capped at 60s so a hung provider can't stall the whole phase.
   const noop = Promise.resolve(null);
   const T = 60_000;
+  // Timeout / error signals, so the result can report who did not answer.
+  const outcomes = new ProviderOutcomeTracker();
   // ComicVine is intentionally absent from this wave: its only discovery
   // path is the language-aware matcher in the second wave, which wants the
   // AniList anchor when one exists. Running a title-only search here too
@@ -157,12 +160,12 @@ export async function phaseProviderFetch(
   // step then discarded.
   const [anilistSettled, mangadexSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId, rejectedAlIds), T, 'anilist-fetch') : noop,
-      enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch') : noop,
-      enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch') : noop,
-      enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId), T, 'wikipedia-fetch') : noop,
-      enabled.has('mangaupdates') ? withTimeoutOrNull(fetchMangaUpdatesDirect(title), T, 'mangaupdates-fetch') : noop,
-      enabled.has('kitsu') ? withTimeoutOrNull(fetchKitsuDirect(title), T, 'kitsu-fetch') : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, pinnedAlId, options?.previousAniListId, rejectedAlIds), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
+      enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title), T, 'mangadex-fetch', () => outcomes.markTimeout('mangadex')) : noop,
+      enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch', () => outcomes.markTimeout('fandom')) : noop,
+      enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId), T, 'wikipedia-fetch', () => outcomes.markTimeout('wikipedia')) : noop,
+      enabled.has('mangaupdates') ? withTimeoutOrNull(fetchMangaUpdatesDirect(title), T, 'mangaupdates-fetch', () => outcomes.markTimeout('mangaupdates')) : noop,
+      enabled.has('kitsu') ? withTimeoutOrNull(fetchKitsuDirect(title), T, 'kitsu-fetch', () => outcomes.markTimeout('kitsu')) : noop,
     ]);
 
   const anilistData = anilistSettled.status === 'fulfilled' ? anilistSettled.value : null;
@@ -270,7 +273,7 @@ export async function phaseProviderFetch(
           ...(mdxCh && !isNaN(mdxCh) ? { mangadexChapters: mdxCh } : {}),
         };
         return withTimeoutOrNull(
-          fetchWikipediaChapterData(title, mangaId, wikiHints), T, 'wikipedia-retry',
+          fetchWikipediaChapterData(title, mangaId, wikiHints), T, 'wikipedia-retry', () => outcomes.markTimeout('wikipedia'),
         );
       })(),
       // Re-discover Fandom when initial parallel fetch failed. Two fallback strategies:
@@ -288,7 +291,7 @@ export async function phaseProviderFetch(
         if (fandomLink?.url) {
           log.info('Fandom: re-discovering via AniList externalLinks', { url: fandomLink.url });
           const retryResult = await withTimeoutOrNull(
-            fetchFandomForPhase1(mangaId, title, false, fandomLink.url), T, 'fandom-retry',
+            fetchFandomForPhase1(mangaId, title, false, fandomLink.url), T, 'fandom-retry', () => outcomes.markTimeout('fandom'),
           );
           if (retryResult?.parseSuccess) return retryResult;
         }
@@ -303,7 +306,7 @@ export async function phaseProviderFetch(
           log.info('Fandom: re-discovering with alt titles', { count: altTitles.length });
           const retryResult = await withTimeoutOrNull(
             fetchFandomForPhase1(mangaId, title, false, undefined, altTitles),
-            T, 'fandom-alt-retry',
+            T, 'fandom-alt-retry', () => outcomes.markTimeout('fandom'),
           );
           if (retryResult?.parseSuccess) return retryResult;
         }
@@ -315,7 +318,7 @@ export async function phaseProviderFetch(
       (async () => {
         if (!anilistData || !enabled.has('mangadex')) return mangadexData;
         return withTimeoutOrNull(
-          verifyMangaDexWithAniList(title, anilistData, mangadexData), T, 'mangadex-verify',
+          verifyMangaDexWithAniList(title, anilistData, mangadexData), T, 'mangadex-verify', () => outcomes.markTimeout('mangadex'),
         );
       })(),
       // Discover ComicVine via the language-aware matcher — the ONLY ComicVine
@@ -331,7 +334,7 @@ export async function phaseProviderFetch(
         if (!enabled.has('comicvine')) return null;
         const anilistDetails = anilistData?.details ?? buildTitleOnlyAniListDetails(title);
         return withTimeoutOrNull(
-          runLanguageAwareComicVineMatch(anilistDetails, mangaId), T, 'comicvine-verify',
+          runLanguageAwareComicVineMatch(anilistDetails, mangaId), T, 'comicvine-verify', () => outcomes.markTimeout('comicvine'),
         );
       })(),
       // Re-verify MangaUpdates using AniList cross-validation (year, country, titles).
@@ -348,7 +351,7 @@ export async function phaseProviderFetch(
           verifyMUWithAniList(
             title, alDetails.startDate?.year, alDetails.countryOfOrigin, alTitles, muData,
           ),
-          T, 'mangaupdates-verify',
+          T, 'mangaupdates-verify', () => outcomes.markTimeout('mangaupdates'),
         );
       })(),
       // Retry Kitsu with AniList alt titles when initial title search returned nothing.
@@ -363,13 +366,14 @@ export async function phaseProviderFetch(
         if (altTitles.length === 0) return kitsuData;
         return withTimeoutOrNull(
           fetchKitsuDirect(title, { year: alDetails.startDate?.year, alternativeTitles: altTitles }),
-          T, 'kitsu-retry',
+          T, 'kitsu-retry', () => outcomes.markTimeout('kitsu'),
         );
       })(),
     ]);
   // A rejected or timed-out step keeps the first-wave value instead of
   // erasing it (or aborting the whole phase).
   const onWaveStepRejected = (step: string, reason: unknown): void => {
+    outcomes.markError(step.split('-')[0] ?? step);
     log.warn(`Second-wave step ${step} failed — keeping first-wave result: ${reason instanceof Error ? reason.message : String(reason)}`);
   };
   wikipediaResult = settledValueOr(wikipediaRetried, wikipediaResult, 'wikipedia-retry', onWaveStepRejected);
@@ -395,22 +399,26 @@ export async function phaseProviderFetch(
 
   // Log any failures
   if (anilistSettled.status === 'rejected') {
+    outcomes.markError('anilist');
     log.warn('AniList fetch failed', { error: String(anilistSettled.reason) });
   }
   if (mangadexSettled.status === 'rejected') {
+    outcomes.markError('mangadex');
     log.warn('MangaDex fetch failed', { error: String(mangadexSettled.reason) });
   }
   if (muSettled.status === 'rejected') {
+    outcomes.markError('mangaupdates');
     log.warn('MangaUpdates fetch failed', { error: String(muSettled.reason) });
   }
   if (kitsuSettled.status === 'rejected') {
+    outcomes.markError('kitsu');
     log.warn('Kitsu fetch failed', { error: String(kitsuSettled.reason) });
   }
 
   // Fetch MAL data when enabled and idMal is available (from AniList or MangaDex links.mal)
   const malData = enabled.has('mal')
     ? await withTimeoutOrNull(
-        fetchMALWithCrossValidation(anilistData, mangadexData, title), T, 'mal-fetch',
+        fetchMALWithCrossValidation(anilistData, mangadexData, title), T, 'mal-fetch', () => outcomes.markTimeout('mal'),
       )
     : null;
 
@@ -537,9 +545,23 @@ export async function phaseProviderFetch(
     fandom: fandomResult, wikipedia: wikipediaResult, mangaupdates: muData, kitsu: kitsuData,
   });
 
-  return buildUnifiedResults(enrichmentResult, {
-    comicvineData, muData, mangadexData, fandomResult, wikipediaResult, malData, kitsuData,
+  if (fandomSettled.status === 'rejected') outcomes.markError('fandom');
+  if (wikiSettled.status === 'rejected') outcomes.markError('wikipedia');
+  const providerStatus = outcomes.build(enabled, {
+    anilist: anilistData, mangadex: mangadexData, comicvine: comicvineData, fandom: fandomResult,
+    wikipedia: wikipediaResult, mangaupdates: muData, kitsu: kitsuData, mal: malData,
   });
+  const unanswered = unansweredProviders(providerStatus);
+  if (unanswered.length > 0) {
+    log.warn(`Provider fetch degraded for manga ${mangaId} — no answer from: ${unanswered.join(', ')}`);
+  }
+
+  return {
+    ...buildUnifiedResults(enrichmentResult, {
+      comicvineData, muData, mangadexData, fandomResult, wikipediaResult, malData, kitsuData,
+    }),
+    providerStatus,
+  };
 }
 
 /** Build the unified result object from all provider data */

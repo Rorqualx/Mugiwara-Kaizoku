@@ -26,6 +26,7 @@ import { logger } from '@/utils/logger';
 
 import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
+import { FandomPhaseDeadline } from './fandom-phase-deadline';
 import { reassignBonusChaptersToParentVolumes } from './phase-bonus-reassignment';
 import { reconcileChapterCount, mergeAllSourceChapters } from './phase-chapter-reconciliation';
 import { assembleSourceData, resolveTrustedFinalChapter, plausibleTrustedCeiling, type StoredTerminalSignal } from './phase-data-assembly';
@@ -37,13 +38,14 @@ import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { assignOverflowChapters } from './phase-volume-overflow';
-import { pruneOutOfRangeChapters, pruneOutOfRangeVolumes, removeEmptyPhantomVolumes } from './phase-volume-phantom-prune';
+import { pruneFinishedSeriesPhantoms } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybePlausibilityCheck, maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
 import { isBonusTitle } from './types';
+import { restoreVolumesAfterRebuild, snapshotVolumes } from './volume-snapshot';
 
 import type { ValidatedVolumeRange } from './phase-volume-cross-validation';
 import type { BonusChapterInfo, ChapterDataItem, EnrichmentProgress, EnrichmentPipelineOptions, EnrichmentPipelineResult, UnifiedProviderResults, VolumeDataItem } from './types';
@@ -446,11 +448,17 @@ async function runFandomEnrichmentPhase(ctx: {
     logger.info(`[enrichmentPipeline] Skipping Fandom enrichment phase for manga ${mangaId} — Phase 1 gate fired (cross-series wiki)`);
   } else {
     await onProgress?.('fandom', 'Enriching with Fandom data...');
+    // The timeout only stops awaiting; the deadline stops the phase starting
+    // new writes, and an apply already in flight is allowed to finish so it
+    // cannot race the reconcile/prune phases that follow.
+    const deadline = new FandomPhaseDeadline();
     await withTimeoutOrNull(
-      phaseFandomEnrichment(mangaId, title, onProgress, options, expectedVolumeCount, expectedChapterCount ?? undefined),
+      phaseFandomEnrichment(mangaId, title, onProgress, options, expectedVolumeCount, expectedChapterCount ?? undefined, deadline),
       90_000,
       'fandom-enrichment',
+      () => deadline.expire(),
     );
+    if (deadline.expired) await deadline.settle();
   }
   // Always run the standalone gallery harvest. Reaches gated titles AND titles
   // where Phase 2 timed out before its inline harvest could fire (Bleach,
@@ -564,6 +572,8 @@ async function executeEnrichmentPhases(
   const bonusChapterCount = Number(bonusRows[0]?.n ?? 0);
   const chapterConsensus = resolveExpectedChapterCount(result, undefined, bonusChapterCount);
   logger.info(`[enrichmentPipeline] chapterConsensus for manga ${mangaId}: count=${chapterConsensus.count}, confidence=${chapterConsensus.confidence}, sources=${chapterConsensus.sources.join(',')}, bonusHint=${bonusChapterCount}`);
+  // Volumes are deleted and rebuilt below; keep a copy to restore what a failed or degraded run does not rebuild.
+  const volumeSnapshot = await snapshotVolumes(mangaId);
   await phaseDbPersistence(mangaId, result.enrichmentResult, onProgress, getMangaDexAggregateCount(result), chapterConsensus);
 
   // Phase 2.5: Chapter reconciliation (merge Fandom + Wikipedia chapters)
@@ -685,27 +695,11 @@ async function executeEnrichmentPhases(
   await pruneInterleavedSparseVolumeRanges(mangaId);
   await pruneMajoritySparseVolumeRanges(mangaId);
 
-  // Phase 6.25: Backstop for the cross-validation discontinuity guard — delete
-  // finished-series volumes whose declared range sits entirely beyond the real
-  // (file-backed) chapters along with the never-downloadable phantom rows they
-  // hold (ComicVine phantom vols 11-13 = ch 91-117 for a 48-chapter series; AoT
-  // "Volume 35" @ ch 140/141 past the real 139). Runs BEFORE overflow handling
-  // so the phantom volume can't masquerade as the legitimate last volume and
-  // disarm the overflow logic. Cleans rows persisted by an earlier run.
-  await pruneOutOfRangeVolumes(mangaId);
-
-  // Phase 6.26: Companion chapter-level sweep for LOOSE (volumeId=NULL) generic
-  // phantoms the volume pass can't see. A reidentify of a finished-but-AniList-
-  // ongoing series (Berserk: live AniList RELEASING, so the merge cap can't fire)
-  // re-creates bare "Chapter 386".."441" past the stored final chapter, none
-  // attached to a volume. Title-aware so real recent chapters (Berserk 384/385)
-  // and decimals/downloads survive. Also runs before overflow handling.
-  await pruneOutOfRangeChapters(mangaId);
-
-  // Phase 6.26b: Remove EMPTY phantom volumes the chapter-range prune misses —
-  // placeholder-titled or numbered beyond the trusted volume ceiling (e.g. an
-  // empty "Vol 39" of a finished 38-volume series).
-  await removeEmptyPhantomVolumes(mangaId);
+  // Phase 6.2: Put back volumes this run did not rebuild (failed rebuild, or
+  // their provider did not answer), then Phase 6.25-6.26b: finished-series
+  // phantom prunes — skipped on a degraded run (see pruneFinishedSeriesPhantoms).
+  await restoreVolumesAfterRebuild(mangaId, volumeSnapshot, result.providerStatus);
+  await pruneFinishedSeriesPhantoms(mangaId, result.providerStatus);
 
   // Phase 6.27: Handle chapters beyond the (now phantom-free) last volume range.
   await assignOverflowChapters(mangaId, expectedVolumeCount);

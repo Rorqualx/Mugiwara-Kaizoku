@@ -18,6 +18,7 @@ import { assignSpecialChapters } from './fandom-db-persistence';
 import { reapplyManualManifestToDb } from './manual-volume-manifest-sentinel';
 import { backfillMetadataChaptersFromChapterRows } from './phase-finalize/chapter-count-backfill';
 import { fillChapterCoverFromVolume } from './phase-finalize/chapter-cover-fill';
+import { planChapterDateFill } from './phase-finalize/chapter-date-fill';
 import { fillChapterPagesFromProviders } from './phase-finalize/chapter-pages-fill';
 import { fillGenericChapterTitlesFromProviders } from './phase-finalize/chapter-title-fill';
 import { ensureVolumeFileRows } from './phase-finalize/ensure-volume-file-rows';
@@ -397,27 +398,30 @@ async function persistExternalLinks(
  *
  * Providers like AniList sometimes don't ship publication dates; Fandom's
  * per-chapter releaseDate is a reliable fallback. Only writes to fields that
- * are still null — AniList wins when present.
+ * are still null — AniList wins when present. endDate is filled only for a
+ * finished series (see planChapterDateFill).
  */
 async function aggregateChapterReleaseDates(mangaId: number): Promise<void> {
   try {
     const manga = await prisma.manga.findUnique({
       where: { id: mangaId },
-      select: { metadataId: true, Metadata: { select: { startDate: true, endDate: true } } },
+      select: { metadataId: true, Metadata: { select: { startDate: true, endDate: true, status: true } } },
     });
     if (!manga?.metadataId) return;
-    const needsStart = !manga.Metadata?.startDate;
-    const needsEnd = !manga.Metadata?.endDate;
-    if (!needsStart && !needsEnd) return;
+    if (manga.Metadata?.startDate && manga.Metadata.endDate) return;
 
     const agg = await prisma.chapter.aggregate({
       where: { mangaId, releaseDate: { not: null } },
       _min: { releaseDate: true },
       _max: { releaseDate: true },
     });
-    const data: Record<string, Date> = {};
-    if (needsStart && agg._min.releaseDate) data['startDate'] = agg._min.releaseDate;
-    if (needsEnd && agg._max.releaseDate) data['endDate'] = agg._max.releaseDate;
+    const data = planChapterDateFill({
+      status: manga.Metadata?.status,
+      startDate: manga.Metadata?.startDate,
+      endDate: manga.Metadata?.endDate,
+      earliestRelease: agg._min.releaseDate,
+      latestRelease: agg._max.releaseDate,
+    });
     if (Object.keys(data).length === 0) return;
 
     await prisma.metadata.update({ where: { id: manga.metadataId }, data });

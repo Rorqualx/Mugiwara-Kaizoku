@@ -10,6 +10,8 @@ import type { WikipediaMangaData } from '@/server/services/wikipedia/wikipedia/t
 import type { MangaWithRelations } from '@/server/trpc/routers/manga/shared';
 import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 
+import type { ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
+
 export interface EnrichmentProgress {
   (phase: string, message: string): Promise<void>;
 }
@@ -89,6 +91,11 @@ export interface ChapterDataItem {
 /** Combined results from all provider fetches in Phase 1 */
 export interface UnifiedProviderResults {
   enrichmentResult: EnrichmentResult;
+  /**
+   * Who answered this run. Absent on results built outside the provider-fetch
+   * phase; treat absent as "unknown", not as "everyone answered".
+   */
+  providerStatus?: ProviderOutcomes;
   fandomResult: {
     url: string;
     chapterList: ChapterDataItem[];

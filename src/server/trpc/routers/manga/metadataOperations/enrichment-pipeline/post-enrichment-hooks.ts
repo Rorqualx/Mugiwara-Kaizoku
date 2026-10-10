@@ -31,6 +31,7 @@ import { logger } from '@/utils/logger';
 
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
+import { readFieldSupplier, shouldRejectAnchorBinding } from './plausibility-blame';
 
 import type { UnifiedProviderResults } from './types';
 import type { Prisma } from '@prisma/client';
@@ -156,8 +157,14 @@ export async function maybePlausibilityCheck(
       // (AniList) is bound to the wrong entity. Record a durable REJECTION of
       // that id so the next reidentify re-runs the matcher instead of re-fetching
       // the stuck id (the Attack-on-Titan loop). Reversible via a manual bind.
+      // Only when the anchor actually supplied the flagged count — a bad number
+      // from another provider must not unbind a correct AniList entity.
       const boundAlId = readProviderId(pm, 'anilist');
-      if (boundAlId) {
+      const anchorSupplied = shouldRejectAnchorBinding(pm['metadataProvenance'], finding.field);
+      if (!anchorSupplied) {
+        logger.warn(`[enrichmentPipeline] implausible ${finding.field} for manga ${mangaId} came from ${readFieldSupplier(pm['metadataProvenance'], finding.field) ?? 'unknown'} — AniList binding kept`);
+      }
+      if (boundAlId && anchorSupplied) {
         await recordRejection({
           mangaId,
           provider: 'anilist',

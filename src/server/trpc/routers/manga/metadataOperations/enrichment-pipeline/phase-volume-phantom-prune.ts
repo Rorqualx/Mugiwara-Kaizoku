@@ -47,6 +47,7 @@
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
+import { unansweredProviders, type ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
 import { classifyPhantomChapters, normalizeChapterTitle } from './types';
 
 import type { MangaPublicationStatus } from '@prisma/client';
@@ -283,4 +284,35 @@ export async function removePhantomArtifacts(mangaId: number): Promise<PhantomRe
   const chapters = await pruneOutOfRangeChapters(mangaId);
   const emptyVolumes = await removeEmptyPhantomVolumes(mangaId);
   return { outOfRangeVolumes, chapters, emptyVolumes };
+}
+
+/**
+ * Run the finished-series phantom prunes in pipeline order:
+ *
+ * 1. `pruneOutOfRangeVolumes` — backstop for the cross-validation discontinuity
+ *    guard: volumes whose declared range sits entirely beyond the real chapters,
+ *    with the never-downloadable phantom rows they hold (ComicVine phantom vols
+ *    11-13 for a 48-chapter series; AoT "Volume 35" past the real 139). Runs
+ *    before overflow handling so a phantom volume can't pose as the last one.
+ * 2. `pruneOutOfRangeChapters` — loose (volumeId=NULL) generic phantoms the
+ *    volume pass can't see (Berserk "Chapter 386".."441" after a reidentify).
+ * 3. `removeEmptyPhantomVolumes` — empty placeholder volumes beyond the trusted
+ *    volume ceiling (an empty "Vol 39" of a finished 38-volume series).
+ *
+ * All three delete rows on the strength of stored counts. When a provider did
+ * not answer this run those counts may be stale or partial, so the prunes are
+ * skipped and left for the next healthy run.
+ */
+export async function pruneFinishedSeriesPhantoms(
+  mangaId: number,
+  providerStatus: ProviderOutcomes | undefined,
+): Promise<void> {
+  const unanswered = unansweredProviders(providerStatus);
+  if (unanswered.length > 0) {
+    logger.warn(`[enrichmentPipeline] Skipping phantom prunes for manga ${mangaId} — no answer from: ${unanswered.join(', ')}`);
+    return;
+  }
+  await pruneOutOfRangeVolumes(mangaId);
+  await pruneOutOfRangeChapters(mangaId);
+  await removeEmptyPhantomVolumes(mangaId);
 }

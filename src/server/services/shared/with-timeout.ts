@@ -3,7 +3,8 @@ import { logger } from '@/utils/logger';
 /**
  * Race a promise against a timeout. On timeout, log a warning and resolve
  * to null (never throws). Callers branch on null the same way they branch
- * on any other missing-provider-data case.
+ * on any other missing-provider-data case; pass `onTimeout` when the caller
+ * needs to tell a timeout apart from a legitimate null.
  *
  * Does NOT cancel the underlying work — it only stops awaiting. The inner
  * promise continues to run and its result (success or failure) is
@@ -13,6 +14,7 @@ export async function withTimeoutOrNull<T>(
   promise: Promise<T>,
   timeoutMs: number,
   label: string,
+  onTimeout?: () => void,
 ): Promise<T | null> {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -21,6 +23,7 @@ export async function withTimeoutOrNull<T>(
       new Promise<null>((resolve) => {
         timer = setTimeout(() => {
           logger.warn(`[timeout] ${label} exceeded ${timeoutMs}ms — returning null`);
+          onTimeout?.();
           resolve(null);
         }, timeoutMs);
       }),
