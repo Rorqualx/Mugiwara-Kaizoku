@@ -46,6 +46,7 @@ import { logger } from '@/utils/logger';
 
 import { buildFallbackSearchQuery, stripTitlePatterns } from './matching/title-normalization';
 import { pickBestTitleMatchWithScore } from './phase-provider-fetch/anilist-match';
+import { resolveAniListPin } from './phase-provider-fetch/anilist-pin';
 import { buildEnrichmentResult } from './phase-provider-fetch/enrichment-result-builder';
 import { extractMangaDexLinks } from './phase-provider-fetch/external-id-extractor';
 import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } from './phase-provider-fetch/kitsu-fetch';
@@ -54,6 +55,7 @@ import { fetchMangaDexAggregate } from './phase-provider-fetch/mangadex-aggregat
 import { fetchMangaDexChapters } from './phase-provider-fetch/mangadex-chapter-list';
 import { pickBestMangaDexMatch, pickBestMangaDexMatchWithScore } from './phase-provider-fetch/mangadex-matcher';
 import { buildMangaUpdatesMetadataSupplements, fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
+import { settledValueOr } from './phase-provider-fetch/wave-merge';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
 import type { ChapterDataItem, EnrichmentPipelineOptions, EnrichmentProgress, UnifiedProviderResults } from './types';
@@ -137,9 +139,12 @@ export async function phaseProviderFetch(
   // (AniList is its preserved anchor), so an auto binding survives reidentify —
   // hence we must skip it here when it has been rejected, forcing the matcher to
   // run. A rejected AUTO id drops to null; a manual pin is never filtered.
+  // Only an all-digit selectedSourceId is an AniList id; other providers' ids
+  // that landed in that column must not mask the bound id or count as a pin.
   const boundAlId = extractBoundAniListId(mangaPin?.providerMetadata);
-  const pinnedAlId = mangaPin?.selectedSourceId
-    ?? (boundAlId && !rejectedAlIds.has(boundAlId) ? boundAlId : null);
+  const { pinnedAlId, manualPin: hasManualAlPin } = resolveAniListPin({
+    selectedSourceId: mangaPin?.selectedSourceId, boundAlId, rejectedAlIds,
+  });
 
   // Only fetch from enabled providers (all in parallel).
   // Each call is capped at 60s so a hung provider can't stall the whole phase.
@@ -186,7 +191,7 @@ export async function phaseProviderFetch(
       provider: 'anilist',
       currentScore: anilistData.matchScore,
       boundEntityId: boundAlId,
-      manualPin: Boolean(mangaPin?.selectedSourceId),
+      manualPin: hasManualAlPin,
     });
   }
   const mdData = mangadexSettled.status === 'fulfilled' ? mangadexSettled.value : null;
@@ -251,7 +256,7 @@ export async function phaseProviderFetch(
   // (each step already read the pre-verify snapshot values). MAL stays
   // after this wave because it cross-references the *verified* MangaDex.
   const [wikipediaRetried, fandomRetried, mangadexVerified, comicvineVerified, muVerified, kitsuRetried] =
-    await Promise.all([
+    await Promise.allSettled([
       // Retry Wikipedia with Wikidata + provider chapter counts for placeholder fallback
       (async () => {
         if (wikipediaResult || !anilistData || !enabled.has('wikipedia')) return wikipediaResult;
@@ -362,12 +367,17 @@ export async function phaseProviderFetch(
         );
       })(),
     ]);
-  wikipediaResult = wikipediaRetried;
-  fandomResult = fandomRetried;
-  mangadexData = mangadexVerified;
-  comicvineData = comicvineVerified;
-  muData = muVerified;
-  kitsuData = kitsuRetried;
+  // A rejected or timed-out step keeps the first-wave value instead of
+  // erasing it (or aborting the whole phase).
+  const onWaveStepRejected = (step: string, reason: unknown): void => {
+    log.warn(`Second-wave step ${step} failed — keeping first-wave result: ${reason instanceof Error ? reason.message : String(reason)}`);
+  };
+  wikipediaResult = settledValueOr(wikipediaRetried, wikipediaResult, 'wikipedia-retry', onWaveStepRejected);
+  fandomResult = settledValueOr(fandomRetried, fandomResult, 'fandom-retry', onWaveStepRejected);
+  mangadexData = settledValueOr(mangadexVerified, mangadexData, 'mangadex-verify', onWaveStepRejected);
+  comicvineData = settledValueOr(comicvineVerified, null, 'comicvine-verify', onWaveStepRejected);
+  muData = settledValueOr(muVerified, muData, 'mangaupdates-verify', onWaveStepRejected);
+  kitsuData = settledValueOr(kitsuRetried, kitsuData, 'kitsu-retry', onWaveStepRejected);
 
   // ComicVine sticky-binding freshness check (moved here from the Phase-1
   // block — discovery now happens in the wave above). `matchScore` is the

@@ -21,6 +21,7 @@ import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
 import { invalidateMangaCache } from '../crud-operations/get-manga-cache';
+import { pinFieldsForBind, pinFieldsForUnbind } from '../providerBindingHelpers';
 
 import { bindSchema, bindProviderSchema, unbindProviderSchema } from './schemas';
 import { safeGet, safeGetStringOptional } from './utils';
@@ -215,7 +216,7 @@ export const bindingRouter = router({
           where: { id: mangaId },
           data: {
             providerMetadata: currentProviderMetadata as Prisma.InputJsonValue,
-            ...((!manga.selectedSourceId || manga.source === provider) ? { selectedSourceId: providerId } : {})
+            ...pinFieldsForBind(manga, provider, providerId)
           }
         });
 
@@ -281,7 +282,8 @@ export const bindingRouter = router({
         await ctx.prisma.manga.update({
           where: { id: mangaId },
           data: {
-            providerMetadata: currentProviderMetadata as Prisma.InputJsonValue
+            providerMetadata: currentProviderMetadata as Prisma.InputJsonValue,
+            ...pinFieldsForUnbind(provider)
           }
         });
 
@@ -331,7 +333,7 @@ export const bindingRouter = router({
   bind: protectedProcedure
     .input(bindSchema)
     .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string }> => {
-      const { mangaId, anilistId, title, detail } = input;
+      const { mangaId, anilistId, title } = input;
       logger.info(`Binding manga ID ${mangaId} to AniList ID ${anilistId}`);
 
       const manga = await ctx.prisma.manga.findUnique({
@@ -347,17 +349,11 @@ export const bindingRouter = router({
       }
 
       try {
-        if (manga.Metadata) {
-          await ctx.prisma.metadata.update({
-            where: { id: manga.Metadata.id },
-            data: { summary: detail }
-          });
-        } else {
+        // `detail` is a "Bound to AniList ID: N" placeholder from the modal, not
+        // a synopsis — never write it over Metadata.summary.
+        if (!manga.Metadata) {
           await ctx.prisma.metadata.create({
-            data: {
-              Manga: { connect: { id: mangaId } },
-              summary: detail
-            }
+            data: { Manga: { connect: { id: mangaId } } }
           });
         }
 
@@ -365,6 +361,7 @@ export const bindingRouter = router({
         const currentProviderMetadata = parseProviderMetadata(manga.providerMetadata);
         currentProviderMetadata['anilist'] = {
           providerId: anilistId,
+          manual: true,
           boundAt: new Date().toISOString()
         };
 
@@ -372,9 +369,15 @@ export const bindingRouter = router({
           where: { id: mangaId },
           data: {
             title,
-            providerMetadata: currentProviderMetadata as Prisma.InputJsonValue
+            providerMetadata: currentProviderMetadata as Prisma.InputJsonValue,
+            ...pinFieldsForBind(manga, 'anilist', anilistId)
           }
         });
+
+        // Same durable record as bindProvider: a manual bind wins and lifts any
+        // earlier rejection of this id.
+        await recordBinding({ mangaId, provider: 'anilist', providerId: anilistId, origin: 'manual' });
+        await clearRejection(mangaId, 'anilist', anilistId);
 
         logger.info(`Successfully bound manga ID ${mangaId} to AniList ID ${anilistId}`);
         await invalidateMangaCache(mangaId);

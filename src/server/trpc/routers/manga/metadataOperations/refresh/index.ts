@@ -9,7 +9,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { realtimeEmitter, type MetadataRefreshPhase } from '@/server/services/realtime/RealtimeEventEmitter';
-import { publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { includeMangaRelations } from '@/server/trpc/routers/manga/shared';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
@@ -67,7 +67,7 @@ const phaseMap: Record<string, { phase: MetadataRefreshPhase; index: number }> =
 // ============================================================================
 
 export const metadataRefreshProcedures = router({
-  refreshMetaData: publicProcedure
+  refreshMetaData: protectedProcedure
     .input(
       z.object({
         id: z.number(),

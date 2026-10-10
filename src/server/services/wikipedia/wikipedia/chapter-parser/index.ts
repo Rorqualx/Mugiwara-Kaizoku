@@ -245,10 +245,17 @@ function extractChaptersFromOlList(listContent: string, startNum: number): Chapt
   return extractUnquotedLiChapters(listContent, startNum);
 }
 
-/** Extract chapters from <li> with quoted titles */
-function extractQuotedLiChapters(listContent: string, startNum: number): ChapterMatch[] {
+/**
+ * Extract chapters from <li> with quoted titles.
+ *
+ * The skip-ahead group picks each alternative by its first character (plain
+ * char, tag, or a quote that does not open a `"title"`), so it cannot
+ * backtrack between alternatives. The previous nested-lazy form
+ * `(?:[^<]*?|<[^>]*>)*?` was exponential on any <li> with no quoted title.
+ */
+export function extractQuotedLiChapters(listContent: string, startNum: number): ChapterMatch[] {
   const chapters: ChapterMatch[] = [];
-  const liPattern = /<li(?:\s[^>]*)?>(?:[^<]*?|<[^>]*>)*?[\u0022\u201C\u201D]([^\u0022\u201C\u201D<]+)[\u0022\u201C\u201D]/gi;
+  const liPattern = /<li(?:\s[^>]*)?>(?:[^<\u0022\u201C\u201D]|<[^>]*>|[\u0022\u201C\u201D](?![^\u0022\u201C\u201D<]+[\u0022\u201C\u201D]))*[\u0022\u201C\u201D]([^\u0022\u201C\u201D<]+)[\u0022\u201C\u201D]/gi;
   const liMatches = [...listContent.matchAll(liPattern)];
 
   let currentNum = startNum;

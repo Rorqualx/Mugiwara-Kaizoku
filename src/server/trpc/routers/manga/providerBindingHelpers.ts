@@ -135,17 +135,33 @@ export function createProviderEntry(
 }
 
 /**
- * Determine if selectedSourceId should be updated
+ * Pin fields to write when a provider is manually bound.
  *
- * @param manga - Manga entity
- * @param provider - Provider being bound
- * @returns True if selectedSourceId should be updated
+ * `Manga.selectedSourceId` is the manual AniList pin: the enrichment pipeline
+ * fetches that id straight from AniList, bypassing the matcher. Only an
+ * AniList bind may write it (and always does, so a stale or junk value is
+ * replaced). `Manga.sourceId` follows the rebind when AniList is the manga's
+ * primary source, since it keys the "already in library" lookup.
  */
-export function shouldUpdateSelectedSource(
-  manga: Manga,
-  provider: string
-): boolean {
-  return !manga.selectedSourceId || manga.source === provider;
+export function pinFieldsForBind(
+  manga: Pick<Manga, 'source'>,
+  provider: string,
+  providerId: string
+): { selectedSourceId?: string; sourceId?: string } {
+  if (provider !== 'anilist') return {};
+  return {
+    selectedSourceId: providerId,
+    ...(manga.source === 'anilist' ? { sourceId: providerId } : {})
+  };
+}
+
+/**
+ * Pin fields to clear when a provider is unbound. Unbinding AniList drops the
+ * manual pin — pins are exempt from rejections, so leaving it would re-fetch
+ * the entity the user just removed.
+ */
+export function pinFieldsForUnbind(provider: string): { selectedSourceId?: null } {
+  return provider === 'anilist' ? { selectedSourceId: null } : {};
 }
 
 /**

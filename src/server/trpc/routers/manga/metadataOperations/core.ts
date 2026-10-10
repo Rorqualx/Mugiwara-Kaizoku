@@ -14,7 +14,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter, type MetadataRefreshPhase } from '@/server/services/realtime/RealtimeEventEmitter';
-import { protectedProcedure, publicProcedure } from '@/server/trpc/procedures';
+import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
 import { logger } from '@/utils/logger';
 
@@ -74,7 +74,7 @@ export const metadataCoreProcedures = router({
   /**
    * Update manga metadata fields
    */
-  updateMetadata: publicProcedure
+  updateMetadata: protectedProcedure
     .input(updateMetadataSchema)
     .mutation(async ({ input, ctx }): Promise<MangaWithRelations> => {
       const { id, metadata } = input;
@@ -201,7 +201,7 @@ export const metadataCoreProcedures = router({
    * next re-enrichment refuses to overwrite it. Used by the cover/banner
    * picker's "Alternatives" tab to lock an operator's selection.
    */
-  pinFieldOverride: publicProcedure
+  pinFieldOverride: protectedProcedure
     .input(z.object({
       mangaId: z.number(),
       field: z.enum(['cover', 'bannerImage']),

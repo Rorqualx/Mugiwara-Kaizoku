@@ -2,8 +2,7 @@
  * Scanner Enrichment Handler
  *
  * Auto-matches a freshly-scanned manga via the modern enrichment pipeline
- * (`runEnrichmentPipeline`). Reads the underlying `EnrichmentResult` envelope
- * from the pipeline's UnifiedProviderResults and returns it so scanner
+ * (`runEnrichmentPipeline`) and returns its `EnrichmentResult` so scanner
  * downstream (queue handler, ScanPreview UI) can read `appliedMatch.provider`
  * and friends.
  *
@@ -15,8 +14,15 @@ import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { toNumberId } from '@/utils/id-converters';
 import { serverLogger } from '@/utils/serverLogger';
 
-interface UnifiedResultsShape {
-  enrichmentResult?: EnrichmentResult;
+/**
+ * `runEnrichmentPipeline` returns the `EnrichmentResult` itself as `result`
+ * (typed `unknown`), not a wrapper around it.
+ */
+export function asEnrichmentResult(value: unknown): EnrichmentResult | null {
+  if (value === null || typeof value !== 'object') return null;
+  const candidate = value as { status?: unknown; manga?: unknown };
+  if (typeof candidate.status !== 'string' || candidate.manga === null || typeof candidate.manga !== 'object') return null;
+  return value as EnrichmentResult;
 }
 
 export async function enrichMangaMetadata(
@@ -32,8 +38,7 @@ export async function enrichMangaMetadata(
 
   try {
     const { result } = await runEnrichmentPipeline(mangaId, mangaTitle);
-    const unified = result as UnifiedResultsShape | undefined;
-    return unified?.enrichmentResult ?? null;
+    return asEnrichmentResult(result);
   } catch (error: unknown) {
     serverLogger.warn('Failed to auto-enrich manga', {
       mangaId: toNumberId(mangaId),

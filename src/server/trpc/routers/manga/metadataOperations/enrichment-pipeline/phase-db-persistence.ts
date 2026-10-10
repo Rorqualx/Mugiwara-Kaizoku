@@ -21,6 +21,7 @@ import { logger } from '@/utils/logger';
 import { chapterHasUserData } from '../refresh/clear-auto-bindings';
 
 import { buildFileContentMatcher } from './file-content-matcher';
+import { insertNewChapters } from './phase-db-persistence/chapter-insert';
 
 import type { ChapterConsensus } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import type { EnrichmentProgress, ProviderChapter } from './types';
@@ -554,21 +555,17 @@ async function mergeEnrichmentChapters(
     logger.info(`Cleaned up ${staleIds.length} stale PENDING chapters for manga ${mangaId}`);
   }
 
-  if (toCreate.length > 0) {
-    const maxIndex = existing.reduce((max, ch) => Math.max(max, ch.index), 0);
-    const records = buildNewChapterRecords(mangaId, toCreate, maxIndex);
-    const batchSize = 50;
-    for (let i = 0; i < records.length; i += batchSize) {
-      // eslint-disable-next-line no-await-in-loop -- sequential batch inserts within transaction
-      await tx.chapter.createMany({ data: records.slice(i, i + batchSize), skipDuplicates: true });
-    }
-  }
+  const created = toCreate.length > 0
+    ? await insertNewChapters(tx, mangaId, buildNewChapterRecords(
+      mangaId, toCreate, existing.reduce((max, ch) => Math.max(max, ch.index), 0),
+    ))
+    : 0;
 
   const preserved = existing.length - updated - staleIds.length;
   if (shadowSkipped > 0) {
     logger.info(`[enrichmentPipeline] Skipped ${shadowSkipped} provider chapter(s) for manga ${mangaId} that would shadow existing file-attached row(s)`);
   }
-  return { updated, created: toCreate.length, preserved };
+  return { updated, created, preserved };
 }
 
 // ---------------------------------------------------------------------------
