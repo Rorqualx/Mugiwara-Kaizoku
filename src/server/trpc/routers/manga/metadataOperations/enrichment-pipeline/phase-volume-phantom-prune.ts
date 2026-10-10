@@ -299,17 +299,23 @@ export async function removePhantomArtifacts(mangaId: number): Promise<PhantomRe
  * 3. `removeEmptyPhantomVolumes` — empty placeholder volumes beyond the trusted
  *    volume ceiling (an empty "Vol 39" of a finished 38-volume series).
  *
- * All three delete rows on the strength of stored counts. When a provider did
- * not answer this run those counts may be stale or partial, so the prunes are
- * skipped and left for the next healthy run.
+ * All three delete rows on the strength of the stored chapter/volume counts,
+ * status and end date, which come from the AniList anchor. When AniList did
+ * not answer this run those may be stale, so the prunes are left for the next
+ * run. An outage of any other provider does not affect that evidence — and
+ * skipping then would let a phantom the rebuild re-created survive (Attack on
+ * Titan "Volume 35" came back on a run where only ComicVine was down).
  */
+export function shouldRunPhantomPrunes(providerStatus: ProviderOutcomes | undefined): boolean {
+  return !unansweredProviders(providerStatus).includes('anilist');
+}
+
 export async function pruneFinishedSeriesPhantoms(
   mangaId: number,
   providerStatus: ProviderOutcomes | undefined,
 ): Promise<void> {
-  const unanswered = unansweredProviders(providerStatus);
-  if (unanswered.length > 0) {
-    logger.warn(`[enrichmentPipeline] Skipping phantom prunes for manga ${mangaId} — no answer from: ${unanswered.join(', ')}`);
+  if (!shouldRunPhantomPrunes(providerStatus)) {
+    logger.warn(`[enrichmentPipeline] Skipping phantom prunes for manga ${mangaId} — AniList did not answer this run`);
     return;
   }
   await pruneOutOfRangeVolumes(mangaId);

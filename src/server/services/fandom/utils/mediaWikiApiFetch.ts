@@ -169,10 +169,13 @@ export async function fetchPageWithRedirectInfo(
 
   try {
     // Use axios params (not URLSearchParams) to avoid double-encoding special chars like apostrophes
+    // `signal` as well as `timeout`: under Bun, axios's timeout does not fire once
+    // headers have arrived and the body stalls, leaving the request pending forever.
     const response = await axios.get<MediaWikiParseResponse>(apiUrl, {
       params: { action: 'parse', page: pageTitle, prop: props, format: 'json', redirects: '1' },
       headers: { 'User-Agent': 'MugiwaraKaizoku/1.0 (manga-metadata-fetcher)' },
       timeout,
+      signal: AbortSignal.timeout(timeout),
     });
     return parseApiResponse(response.data, pageTitle, wikiUrl);
   } catch (error: unknown) {
@@ -206,7 +209,8 @@ export async function getPageImages(wikiUrl: string): Promise<string[]> {
       headers: {
         'User-Agent': 'MugiwaraKaizoku/1.0 (manga-metadata-fetcher)'
       },
-      timeout: 15000
+      timeout: 15000,
+      signal: AbortSignal.timeout(15000)
     });
 
     return response.data.parse?.images ?? [];
@@ -249,7 +253,8 @@ export async function getImageUrl(
       headers: {
         'User-Agent': 'MugiwaraKaizoku/1.0 (manga-metadata-fetcher)'
       },
-      timeout: 10000
+      timeout: 10000,
+      signal: AbortSignal.timeout(10000)
     });
 
     const pages = response.data.query?.pages;
@@ -324,6 +329,7 @@ export async function listPageImageUrlsViaApi(wikiUrl: string): Promise<string[]
         params,
         headers: { 'User-Agent': 'MugiwaraKaizoku/1.0 (manga-metadata-fetcher)' },
         timeout: 30_000,
+        signal: AbortSignal.timeout(30_000),
       });
     } catch (err: unknown) {
       logger.warn(`[MediaWiki API] listPageImageUrlsViaApi failed for ${wikiUrl}: ${err instanceof Error ? err.message : String(err)}`);
