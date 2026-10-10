@@ -99,8 +99,13 @@ RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gp
 # Base stage uses the standard (AVX2) Bun for fast build-time work; the
 # runner stage replaces this with bun-baseline so the runtime image runs
 # on any x86_64 CPU (older Xeons, virtualized hosts without AVX2).
+# The version is pinned: an unpinned install picked up Bun 1.4, which reads
+# package.json `overrides` differently and fails `bun install
+# --frozen-lockfile` against the bun.lock saved under 1.3. Bump this together
+# with a regenerated bun.lock.
+ARG BUN_BUILD_VERSION=bun-v1.3.8
 RUN curl -fsSL https://bun.sh/install -o /tmp/bun-install.sh && \
-    BUN_INSTALL=/usr/local bash /tmp/bun-install.sh && \
+    BUN_INSTALL=/usr/local bash /tmp/bun-install.sh "${BUN_BUILD_VERSION}" && \
     rm /tmp/bun-install.sh && \
     chmod 755 /usr/local/bin/bun /usr/local/bin/bunx
 
