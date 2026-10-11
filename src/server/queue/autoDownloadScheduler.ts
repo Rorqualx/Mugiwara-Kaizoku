@@ -27,23 +27,30 @@ export class AutoDownloadScheduler {
     /**
      * Start the auto-download scheduler
      */
-    async start(): Promise<void> {
+    start(): Promise<void> {
         if (this.intervalId) {
             logger.info('[AutoDownloadScheduler] Already running');
-            return;
+            return Promise.resolve();
         }
 
         logger.info(`[AutoDownloadScheduler] Starting scheduler (interval: ${this.checkInterval / 1000}s)`);
 
-        // Run immediately on start
-        await this.checkRules();
-
-        // Then run at regular intervals
+        // Register the interval first so the scheduler counts as started (and
+        // can be stopped) while the first pass is still running.
         this.intervalId = setInterval(() => {
             this.checkRules().catch((error) => {
                 logger.error('[AutoDownloadScheduler] Error in interval:', error);
             });
         }, this.checkInterval);
+
+        // Run the first pass now, in the background: it walks every due rule
+        // with a search and a delay each, which takes minutes on a real
+        // library — far longer than server startup waits for an initializer.
+        this.checkRules().catch((error) => {
+            logger.error('[AutoDownloadScheduler] Error in initial check:', error);
+        });
+
+        return Promise.resolve();
     }
 
     /**
