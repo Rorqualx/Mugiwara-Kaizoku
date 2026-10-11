@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
+import { VelocityDetector } from '@/server/services/comicvine/modules/velocityDetector';
 import { throttleRequest, getRateLimitStats, getVelocityStats, resetRateLimiter } from '@/utils/api-utils';
 import { isSuccess, isError } from '@/utils/async-result';
 
@@ -21,53 +22,48 @@ describe('ComicVine Rate Limiting Integration', () => {
   
   describe('Rate Limiting + Velocity Detection', () => {
     it('should apply both rate limiting and velocity detection', async () => {
-      const startTime = Date.now();
+      // Watch the velocity detector being consulted instead of reading its
+      // 10-second window afterwards: the third request in a burst is itself
+      // held back for the length of that window, so by the time it returns
+      // its own sample may already have aged out.
+      const velocitySpy = jest.spyOn(VelocityDetector.prototype, 'calculateAdditionalDelay');
 
-      // Make a few requests and snapshot the velocity stats RIGHT AFTER
-      // each one. The velocity detector's `recentRequests` is windowed
-      // over only 10s (SHORT_WINDOW_MS); under CI load the three
-      // throttled requests + post-loop work can take >10s, ageing the
-      // earliest samples out of the window before we assert at the end.
-      // Snapshotting in-the-moment makes the assertion immune to that.
-      const results = [];
-      const velocitySnapshots: number[] = [];
-      for (let i = 0; i < 3; i++) {
-        // eslint-disable-next-line no-await-in-loop -- Sequential requests required to test rate limiting behavior
-        const result = await throttleRequest(
-          () => Promise.resolve({ data: `Request ${i + 1}` }),
-          1000,
-          'volumes'
-        );
-        results.push(result);
-        velocitySnapshots.push(getVelocityStats().recentRequests);
+      try {
+        const results = [];
+        for (let i = 0; i < 3; i++) {
+          // eslint-disable-next-line no-await-in-loop -- Sequential requests required to test rate limiting behavior
+          const result = await throttleRequest(
+            () => Promise.resolve({ data: `Request ${i + 1}` }),
+            1000,
+            'volumes'
+          );
+          results.push(result);
+        }
+
+        // All requests should succeed
+        results.forEach(result => {
+          expect(isSuccess(result)).toBe(true);
+        });
+
+        // The rate limiter's window is an hour, so it is safe to read at the end.
+        const rateLimitStats = getRateLimitStats('volumes');
+        expect(rateLimitStats.requestsThisHour).toBe(3);
+
+        // Every request went through velocity detection and was given a delay
+        // (there is always at least the minimum jitter).
+        expect(velocitySpy).toHaveBeenCalledTimes(3);
+        velocitySpy.mock.calls.forEach(([, resource]) => {
+          expect(resource).toBe('volumes');
+        });
+        velocitySpy.mock.results.forEach((outcome) => {
+          expect(outcome.type).toBe('return');
+          expect(outcome.value).toBeGreaterThan(0);
+        });
+      } finally {
+        velocitySpy.mockRestore();
       }
+    }, 90000); // A burst of three can be held back for the detector's full cooldown
 
-      const endTime = Date.now();
-      const totalTime = endTime - startTime;
-
-      // All requests should succeed
-      results.forEach(result => {
-        expect(isSuccess(result)).toBe(true);
-      });
-
-      // Should have taken some time due to delays
-      expect(totalTime).toBeGreaterThan(0);
-
-      // Rate limiter's hourly window is, well, an hour — safe to query at
-      // end. It catches whether requests were tracked at all.
-      const rateLimitStats = getRateLimitStats('volumes');
-      expect(rateLimitStats.requestsThisHour).toBeGreaterThanOrEqual(2);
-
-      // Velocity detector saw the requests as we made them. After the
-      // 3rd call the snapshot must reflect at least 2 in-window samples
-      // (oldest sample could still age out between push and assert on
-      // a very slow runner, but that's a 10s gap inside the loop — not
-      // realistic, and the third snapshot itself records >=1 by being
-      // taken immediately after the request).
-      expect(velocitySnapshots[velocitySnapshots.length - 1]).toBeGreaterThanOrEqual(1);
-      expect(Math.max(...velocitySnapshots)).toBeGreaterThanOrEqual(2);
-    }, 20000); // 20 second timeout
-    
     it('should handle different resource types separately', async () => {
       // Make requests to different resources
       const volumeRequest = await throttleRequest(
@@ -162,6 +158,7 @@ describe('ComicVine Rate Limiting Integration', () => {
   describe('Burst Prevention', () => {
     it('should detect and prevent burst patterns', async () => {
       const startTime = Date.now();
+      const velocitySpy = jest.spyOn(VelocityDetector.prototype, 'calculateAdditionalDelay');
 
       // Make a smaller burst of requests to avoid excessive rate limiting
       const promises = [];
@@ -182,13 +179,16 @@ describe('ComicVine Rate Limiting Integration', () => {
       const totalTime = endTime - startTime;
       expect(totalTime).toBeGreaterThan(0);
 
-      // Verify requests were tracked
-      const velocityStats = getVelocityStats();
-      expect(velocityStats.recentRequests).toBeGreaterThan(0);
+      // Verify requests were tracked. Counted at the detector, not read
+      // from its 10-second window afterwards: a held-back burst can outlast
+      // that window.
+      expect(velocitySpy).toHaveBeenCalledTimes(4);
+      velocitySpy.mockRestore();
 
       // Verify stats are valid numbers
+      const velocityStats = getVelocityStats();
       expect(typeof velocityStats.velocityScore).toBe('number');
-    }, 30000); // 30 second timeout
+    }, 90000); // A burst of four can be held back for several cooldowns
   });
   
   describe('Statistics Accuracy', () => {

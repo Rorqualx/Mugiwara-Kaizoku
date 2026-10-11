@@ -23,12 +23,7 @@ import { env } from '../env/server';
 import { logger } from '../utils/logger';
 
 import { realtimeEmitter } from './services/realtime/RealtimeEventEmitter';
-
-// Global type declaration for development
-declare global {
-  // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined;
-}
+import { processSingleton } from './utils/process-singleton';
 
 /**
  * Database configuration
@@ -50,46 +45,42 @@ const DB_CONFIG = {
 };
 
 /**
- * Force every pooled connection to UTC. Without this, PostgreSQL inherits the
+ * Every pooled connection runs in UTC. Without this, PostgreSQL inherits the
  * server's local timezone (`America/Denver` on dev), and bare `Timestamptz`
  * literals from Prisma's client-side `@default(now())` get interpreted in local
  * time — pushing `jobs.scheduled_for` six hours into the future and stalling
  * every queue producer until the offset rolls forward.
+ *
+ * It is sent as a startup parameter, so it is in force before the first query
+ * (a `SET` issued from the pool's `connect` event races the query the client
+ * was checked out for, which pg deprecates).
  */
-function enforceUtc(pool: Pool): void {
-  pool.on('connect', (client) => {
-    client.query("SET TIME ZONE 'UTC'").catch(() => {
-      // Non-fatal: a single connection without UTC is better than refusing service.
-    });
+const UTC_STARTUP_OPTIONS = '-c TimeZone=UTC';
+
+function createPool(max: number): Pool {
+  return new Pool({
+    connectionString: env.DATABASE_URL,
+    max,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: DB_CONFIG.queryTimeout,
+    options: UTC_STARTUP_OPTIONS,
   });
 }
+
+// This module is loaded twice in one process (custom server + Next.js
+// bundle). The pools and clients are pinned per process so the connection
+// limits below are the real ceiling rather than half of it.
 
 /**
  * Primary PostgreSQL connection pool (UI / tRPC requests)
  */
-const pgPool = new Pool({
-  connectionString: env.DATABASE_URL,
-  max: DB_CONFIG.uiConnectionLimit,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: DB_CONFIG.queryTimeout,
-});
-enforceUtc(pgPool);
-
-const adapter = new PrismaPg(pgPool);
+const pgPool = processSingleton('db:uiPool', () => createPool(DB_CONFIG.uiConnectionLimit));
 
 /**
  * Background PostgreSQL connection pool (enrichment, batch jobs).
  * Isolated from pgPool so background work never starves UI requests.
  */
-const backgroundPool = new Pool({
-  connectionString: env.DATABASE_URL,
-  max: DB_CONFIG.backgroundConnectionLimit,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: DB_CONFIG.queryTimeout,
-});
-enforceUtc(backgroundPool);
-
-const backgroundAdapter = new PrismaPg(backgroundPool);
+const backgroundPool = processSingleton('db:backgroundPool', () => createPool(DB_CONFIG.backgroundConnectionLimit));
 
 /**
  * Custom Prisma Client with enhanced logging and error handling
@@ -100,7 +91,7 @@ class EnhancedPrismaClient extends PrismaClient {
 
   constructor() {
     super({
-      adapter,
+      adapter: new PrismaPg(pgPool),
       log: DB_CONFIG.logQueries
         ? [
             { level: 'query', emit: 'event' },
@@ -241,14 +232,7 @@ logger.error('Database health check failed:', errorMessage);
  * Create or get the singleton Prisma Client instance
  */
 function createPrismaClient(): EnhancedPrismaClient {
-  if (env.NODE_ENV === 'production') {
-    // In production, always create a new instance
-    return new EnhancedPrismaClient();
-  } else {
-    // In development, use global to prevent multiple instances
-    global.prisma ??= new EnhancedPrismaClient();
-    return global.prisma as EnhancedPrismaClient;
-  }
+  return processSingleton('db:prisma', () => new EnhancedPrismaClient());
 }
 
 /**
@@ -260,10 +244,10 @@ export const prisma = createPrismaClient();
  * Background Prisma Client (5 connections, isolated from UI pool).
  * Used by enrichment pipeline and batch jobs so they never starve UI requests.
  */
-export const backgroundPrisma = new PrismaClient({
-  adapter: backgroundAdapter,
+export const backgroundPrisma = processSingleton('db:backgroundPrisma', () => new PrismaClient({
+  adapter: new PrismaPg(backgroundPool),
   log: ['error'],
-}) as PrismaClient;
+}) as PrismaClient);
 
 /**
  * Database utility functions

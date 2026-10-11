@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 
+import { ComicVineRetryHandler, DEFAULT_RETRY_STRATEGY } from '@/server/services/comicvine/modules/retryHandler';
 import {
   throttleRequestEnhanced,
   getRetryStats,
@@ -109,51 +110,47 @@ describe('Phase 3: Retry Logic Integration', () => {
   
   describe('Exponential Backoff', () => {
     it('should apply exponential backoff on repeated failures', async () => {
-      let attempts = 0;
-      const attemptTimes: number[] = [];
-
-      const result = await throttleRequestEnhanced(
-        () => {
-          attemptTimes.push(Date.now());
-          attempts++;
-
-          if (attempts < 4) {
-            return Promise.reject(new ApiError('Server Error', 500));
-          }
-          return Promise.resolve({ success: true });
-        },
-        'test-backoff'
+      // Record the backoff the retry handler chooses rather than measuring
+      // the gaps between attempts: those gaps also contain the rate limiter's
+      // and velocity detector's randomised waits (several seconds each), so
+      // their order says nothing about the backoff.
+      const sleepSpy = jest.spyOn(
+        ComicVineRetryHandler.prototype as unknown as { sleep: (ms: number) => Promise<void> },
+        'sleep'
       );
+      let attempts = 0;
 
-      expect(isSuccess(result)).toBe(true);
-      expect(attempts).toBe(4);
+      try {
+        const result = await throttleRequestEnhanced(
+          () => {
+            attempts++;
 
-      // Check that delays are present and increasing
-      // Note: Actual delays include rate limiting and velocity detection,
-      // so they won't follow a perfect exponential pattern
-      if (attemptTimes.length >= 4) {
-        const time0 = attemptTimes[0];
-        const time1 = attemptTimes[1];
-        const time2 = attemptTimes[2];
-        const time3 = attemptTimes[3];
+            if (attempts < 4) {
+              return Promise.reject(new ApiError('Server Error', 500));
+            }
+            return Promise.resolve({ success: true });
+          },
+          'test-backoff'
+        );
 
-        if (time0 !== undefined && time1 !== undefined && time2 !== undefined && time3 !== undefined) {
-          const delay1 = time1 - time0;
-          const delay2 = time2 - time1;
-          const delay3 = time3 - time2;
+        expect(isSuccess(result)).toBe(true);
+        expect(attempts).toBe(4);
 
-          // Verify that delays are present (greater than base delay)
-          expect(delay1).toBeGreaterThan(1000); // At least 1 second
-          expect(delay2).toBeGreaterThan(1000);
-          expect(delay3).toBeGreaterThan(1000);
+        const backoffDelays = sleepSpy.mock.calls.map(([ms]) => ms);
+        expect(backoffDelays).toHaveLength(3);
 
-          // Verify delays generally increase (with some tolerance for jitter/rate limiting)
-          expect(delay2).toBeGreaterThan(delay1 * 0.8);
-          expect(delay3).toBeGreaterThan(delay2 * 0.8);
-        }
+        // 2^attempt * base, plus up to `jitterMs` of jitter.
+        const { baseDelayMs, jitterMs } = DEFAULT_RETRY_STRATEGY;
+        backoffDelays.forEach((delay, attempt) => {
+          const exponential = Math.pow(2, attempt) * baseDelayMs;
+          expect(delay).toBeGreaterThanOrEqual(exponential);
+          expect(delay).toBeLessThanOrEqual(exponential + jitterMs);
+        });
+      } finally {
+        sleepSpy.mockRestore();
       }
-    });
-    
+    }, 90000); // Three real backoffs (2s + 4s + 8s) plus rate-limit and velocity waits
+
     it('should respect max retry limit', async () => {
       let attempts = 0;
 
