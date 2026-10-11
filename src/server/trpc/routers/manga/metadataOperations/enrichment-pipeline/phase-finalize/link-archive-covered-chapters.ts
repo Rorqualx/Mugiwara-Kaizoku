@@ -42,6 +42,18 @@ async function applyArchiveLink(filePath: string, group: ChapterLink[]): Promise
   return result.count;
 }
 
+/**
+ * Leave out file-less chapters numbered past every volume's range. Such a row
+ * is a provider phantom (Stone Ocean "164: Author's Comments" in a 158-chapter
+ * series); linked to the archive it counts as downloaded and the phantom prune
+ * can no longer remove it. A decimal extra right after the last chapter (139.5)
+ * still links.
+ */
+export function withoutChaptersPastLastVolume(rows: CoverageRow[], lastChapterEnd: number | null): CoverageRow[] {
+  if (lastChapterEnd === null) return rows;
+  return rows.filter(r => r.chapterNumber === null || Boolean(r.filePath) || Math.floor(r.chapterNumber) <= lastChapterEnd);
+}
+
 export async function linkArchiveCoveredChapters(mangaId: number): Promise<number> {
   try {
     const rows = await prisma.chapter.findMany({
@@ -52,8 +64,9 @@ export async function linkArchiveCoveredChapters(mangaId: number): Promise<numbe
       },
     });
 
+    const lastVolume = await prisma.volume.aggregate({ where: { mangaId }, _max: { chapterEnd: true } });
     const verified = await nullifyMissingArchives(rows as CoverageRow[]);
-    const links = selectChaptersToLink(verified);
+    const links = selectChaptersToLink(withoutChaptersPastLastVolume(verified, lastVolume._max.chapterEnd));
     if (links.length === 0) return 0;
 
     // Chapters in the same volume share one archive payload — batch by filePath.

@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { describe, it, expect, beforeEach, afterAll, jest } from '@jest/globals';
 
 jest.mock('@/server/db', () => ({
-  prisma: { chapter: { findMany: jest.fn(), updateMany: jest.fn() } },
+  prisma: { chapter: { findMany: jest.fn(), updateMany: jest.fn() }, volume: { aggregate: jest.fn() } },
 }));
 
 import { prisma } from '@/server/db';
@@ -22,6 +22,7 @@ import { linkArchiveCoveredChapters } from '@/server/trpc/routers/manga/metadata
 
 const findMany = prisma.chapter.findMany as unknown as jest.Mock<(args: unknown) => Promise<unknown>>;
 const updateMany = prisma.chapter.updateMany as unknown as jest.Mock<(args: unknown) => Promise<unknown>>;
+const volumeAggregate = prisma.volume.aggregate as unknown as jest.Mock<(args: unknown) => Promise<unknown>>;
 
 interface UpdateArg { where: { id: { in: number[] } }; data: Record<string, unknown> }
 const updateArg = (call: number): UpdateArg => updateMany.mock.calls[call]?.[0] as UpdateArg;
@@ -38,6 +39,8 @@ afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
 beforeEach(() => {
   findMany.mockReset();
   updateMany.mockReset();
+  volumeAggregate.mockReset();
+  volumeAggregate.mockResolvedValue({ _max: { chapterEnd: null } });
   updateMany.mockImplementation((args: unknown) =>
     Promise.resolve({ count: (args as UpdateArg).where.id.in.length }));
 });
@@ -117,5 +120,19 @@ describe('linkArchiveCoveredChapters', () => {
   it('returns 0 and does not throw if the query fails', async () => {
     findMany.mockRejectedValue(new Error('db down'));
     await expect(linkArchiveCoveredChapters(80)).resolves.toBe(0);
+  });
+
+  it('does not link a file-less chapter numbered past every volume range', async () => {
+    // Stone Ocean: "164: Author's Comments" in a 158-chapter series was linked
+    // to the volume 9 archive, counted as downloaded and survived the prune.
+    volumeAggregate.mockResolvedValue({ _max: { chapterEnd: 20 } });
+    findMany.mockResolvedValue([
+      { id: 100, chapterNumber: null, volume: 2, filePath: v2, downloadStatus: 'COMPLETED', fileName: 'V02.cbr', fileFormat: 'cbr', size: 9, pageCount: 315 },
+      { id: 1, chapterNumber: 20, volume: 2, filePath: null, downloadStatus: 'PENDING' },
+      { id: 2, chapterNumber: 20.5, volume: 2, filePath: null, downloadStatus: 'PENDING' },
+      { id: 3, chapterNumber: 26, volume: 2, filePath: null, downloadStatus: 'PENDING' },
+    ]);
+    expect(await linkArchiveCoveredChapters(80)).toBe(2);
+    expect([...updateArg(0).where.id.in].sort()).toEqual([1, 2]);
   });
 });

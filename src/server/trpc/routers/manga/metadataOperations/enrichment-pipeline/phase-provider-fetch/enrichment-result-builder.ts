@@ -542,7 +542,7 @@ function mergeChapterSources(
   );
 }
 
-function extractComicVineChapters(
+export function extractComicVineChapters(
   comicvine: ComicVineDirectResult | null,
 ): Array<Record<string, unknown>> {
   if (!comicvine) return [];
@@ -572,8 +572,11 @@ function extractComicVineChapters(
  *
  * When the parser extracted a real "Chapter N:" number from the description
  * (`hasRealNumber=true`), use it as the canonical chapterNumber so rows merge
- * correctly with MangaDex/AniList chapters of the same number. Fall back to
- * the running global index only for title-only entries (no explicit number).
+ * correctly with MangaDex/AniList chapters of the same number. A title-only
+ * entry after the last numbered one continues that run (Attack on Titan volume 34:
+ * "Episode 138: …", "Final Episode: …" = 139; the running index made it 144,
+ * a chapter past the end of the series). Any other title-only entry keeps
+ * the running global index.
  *
  * Pre-fix behaviour bloated long-running series like One Piece (~2030 ComicVine
  * issues × 1 parsed chapter each → chapter rows numbered 1-2030 instead of
@@ -585,12 +588,15 @@ function buildChaptersFromIssue(
   startNum: number,
 ): Array<Record<string, unknown>> {
   const parsed = parseChaptersFromDescription(description);
-  return parsed.map((ch, idx) => ({
-    chapterNumber: String(ch.hasRealNumber ? ch.chapterNumber : startNum + idx),
-    title: ch.title,
-    volume: String(volNum),
-    source: 'comicvine',
-  }));
+  const lastRealIdx = parsed.map(ch => ch.hasRealNumber).lastIndexOf(true);
+  const lastReal = parsed[lastRealIdx];
+  return parsed.map((ch, idx) => {
+    const trailing = lastReal !== undefined && idx > lastRealIdx;
+    const number = ch.hasRealNumber ? ch.chapterNumber
+      : trailing ? Math.floor(lastReal.chapterNumber) + (idx - lastRealIdx)
+      : startNum + idx;
+    return { chapterNumber: String(number), title: ch.title, volume: String(volNum), source: 'comicvine' };
+  });
 }
 
 // ============================================================================
