@@ -100,21 +100,6 @@ export class DownloadManager {
                 return validationResult;
             }
 
-            // Check for duplicate jobs
-            const duplicateCheck = await checkForDuplicateJob(
-                this.prismaClient,
-                request.mangaId,
-                request.chapterIds
-            );
-
-            if (duplicateCheck.isDuplicate && duplicateCheck.existingJobId !== undefined) {
-                return createSuccessResult({ taskId: duplicateCheck.existingJobId });
-            }
-
-            logger.debug(
-                `No duplicate jobs found for ${request.chapterIds.length} chapters on manga ${request.mangaId}, creating new job`
-            );
-
             // Create job record — sanitize payload to convert any BigInt values to Numbers
             // (Prowlarr API responses may contain BigInt values that break JSON serialization)
             const sanitizedPayload = JSON.stringify(payload, (_key, value: unknown) =>
@@ -126,24 +111,47 @@ export class DownloadManager {
                 : null;
             const initiatedByUserId = request.initiatedByUserId ?? null;
 
-            // Use raw SQL with NOW() to avoid JS Date/PostgreSQL timezone mismatch
-            const jobs = await this.prismaClient.$queryRaw<Array<{ id: bigint }>>`
-                INSERT INTO jobs (
-                    queue_name, job_type, priority, payload, status,
-                    scheduled_for, manga_id, chapter_id, partition_key, initiated_by_user_id
-                ) VALUES (
-                    'default',
-                    ${`chapter_download`}::"JobType",
-                    ${priority}::"JobPriority",
-                    ${sanitizedPayload}::jsonb,
-                    'pending'::"JobStatus",
-                    NOW(),
-                    ${request.mangaId}::integer,
-                    ${chapterId}::integer,
-                    'active',
-                    ${initiatedByUserId}::text
-                ) RETURNING id
-            `;
+            // The duplicate check and the insert run under one per-manga lock.
+            // Several entry points (dispatcher, auto-download, manual
+            // mutations) can ask for the same chapters at the same moment;
+            // without the lock each sees "no duplicate" and inserts its own job.
+            const created = await this.prismaClient.$transaction(async (tx) => {
+                await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`chapter_download:${request.mangaId}`}))`;
+
+                const duplicateCheck = await checkForDuplicateJob(tx, request.mangaId, request.chapterIds);
+                if (duplicateCheck.isDuplicate && duplicateCheck.existingJobId !== undefined) {
+                    return { existingJobId: duplicateCheck.existingJobId, jobs: [] as Array<{ id: bigint }> };
+                }
+
+                logger.debug(
+                    `No duplicate jobs found for ${request.chapterIds.length} chapters on manga ${request.mangaId}, creating new job`
+                );
+
+                // Use raw SQL with NOW() to avoid JS Date/PostgreSQL timezone mismatch
+                const inserted = await tx.$queryRaw<Array<{ id: bigint }>>`
+                    INSERT INTO jobs (
+                        queue_name, job_type, priority, payload, status,
+                        scheduled_for, manga_id, chapter_id, partition_key, initiated_by_user_id
+                    ) VALUES (
+                        'default',
+                        ${`chapter_download`}::"JobType",
+                        ${priority}::"JobPriority",
+                        ${sanitizedPayload}::jsonb,
+                        'pending'::"JobStatus",
+                        NOW(),
+                        ${request.mangaId}::integer,
+                        ${chapterId}::integer,
+                        'active',
+                        ${initiatedByUserId}::text
+                    ) RETURNING id
+                `;
+                return { existingJobId: undefined, jobs: inserted };
+            });
+
+            if (created.existingJobId !== undefined) {
+                return createSuccessResult({ taskId: created.existingJobId });
+            }
+            const jobs = created.jobs;
 
             const job = jobs[0];
             if (!job) {
@@ -175,13 +183,40 @@ export class DownloadManager {
     }
 
     /**
+     * Whether this call may run the task: the worker's claim already made it
+     * the owner; anyone else owns it only by moving it out of 'pending'.
+     */
+    private async ownsTask(taskId: number, claimedByWorker: boolean): Promise<boolean> {
+        if (claimedByWorker) return true;
+        const claim = await this.prismaClient.jobs.updateMany({
+            where: { id: BigInt(taskId), status: 'pending' as JobStatus },
+            data: { status: 'active' as JobStatus, started_at: new Date() }
+        });
+        return claim.count === 1;
+    }
+
+    /**
      * Process a download task
      *
      * @param taskId - Task ID to process
+     * @param options.claimedByWorker - the queue worker already claimed the
+     *   job for this call. Any other caller has to win the job first.
      * @returns AsyncResult indicating success or failure
      */
-    async processTask(taskId: number): Promise<AsyncResult<void, Error>> {
+    async processTask(
+        taskId: number,
+        options: { claimedByWorker?: boolean } = {}
+    ): Promise<AsyncResult<void, Error>> {
         try {
+            // A new job is offered to two starters: the microtask queued right
+            // after the insert and the queue worker's poll. Whoever moves the
+            // row out of 'pending' runs it; the other must not send the
+            // download a second time.
+            if (!(await this.ownsTask(taskId, options.claimedByWorker === true))) {
+                logger.debug(`Download task ${taskId} was already picked up; not starting it again`);
+                return createSuccessResult(undefined);
+            }
+
             // Get task with manga info
             const task = await this.prismaClient.jobs.findFirst({
                 where: { id: BigInt(taskId) },
@@ -213,29 +248,11 @@ export class DownloadManager {
                 : undefined;
             if (existingDownloadId && payload.method === DownloadMethod.PROWLARR) {
                 logger.info(`Job ${taskId} already dispatched (downloadId=${existingDownloadId}); skipping re-dispatch, resuming progress loop`);
-                if (task.status !== 'active') {
-                    await this.prismaClient.jobs.update({
-                        where: { id_partition_key: { id: task.id, partition_key: task.partition_key } },
-                        data: { status: 'active' as JobStatus },
-                    });
-                }
                 void this.startProgressLoop(task.id, task.partition_key, task.manga.id);
                 return createSuccessResult(undefined);
             }
 
-            // Update task status to ACTIVE
-            await this.prismaClient.jobs.update({
-                where: {
-                    id_partition_key: {
-                        id: task.id,
-                        partition_key: task.partition_key
-                    }
-                },
-                data: {
-                    status: 'active' as JobStatus,
-                    started_at: new Date()
-                }
-            });
+            // The job is already 'active': claimed above, or by the worker.
 
             // Emit realtime event for download started processing
             void realtimeEmitter.emitDownloadProgress({

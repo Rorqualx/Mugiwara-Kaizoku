@@ -11,10 +11,16 @@ import { logger } from '@/utils/logger';
 
 import { isDownloadPayload } from './utils';
 
-import type { JobStatus, JobType, PrismaClient } from '@prisma/client';
+import type { JobStatus, JobType, Prisma, PrismaClient } from '@prisma/client';
+
+/** A client or an open transaction: both expose the models read here. */
+type DuplicateCheckClient = PrismaClient | Prisma.TransactionClient;
 
 // Retry cooldown configuration
 const RETRY_COOLDOWN_MINUTES = 5;
+
+// A job waiting for its next attempt is as much "already queued" as a pending one.
+const IN_PROGRESS_STATUSES: JobStatus[] = ['pending', 'active', 'retrying'];
 
 /**
  * Result of duplicate job check
@@ -30,10 +36,10 @@ export interface DuplicateCheckResult {
 function buildDuplicateJobFilter(mangaId: number, cooldownThreshold: Date): Record<string, unknown> {
     return {
         job_type: 'chapter_download' as JobType,
-        status: { in: ['pending' as JobStatus, 'active' as JobStatus, 'failed' as JobStatus] },
+        status: { in: IN_PROGRESS_STATUSES.concat('failed' as JobStatus) },
         manga_id: mangaId,
         OR: [
-            { status: { in: ['pending' as JobStatus, 'active' as JobStatus] } },
+            { status: { in: IN_PROGRESS_STATUSES } },
             { status: 'failed' as JobStatus, completed_at: { gte: cooldownThreshold } }
         ]
     };
@@ -49,7 +55,7 @@ function buildDuplicateJobFilter(mangaId: number, cooldownThreshold: Date): Reco
  * against it).
  */
 async function loadOrphanJobIds(
-    prismaClient: PrismaClient,
+    prismaClient: DuplicateCheckClient,
     candidateJobIds: bigint[],
 ): Promise<Set<string>> {
     if (candidateJobIds.length === 0) return new Set();
@@ -67,7 +73,7 @@ async function loadOrphanJobIds(
  * Check for duplicate jobs to prevent spam
  */
 export async function checkForDuplicateJob(
-    prismaClient: PrismaClient,
+    prismaClient: DuplicateCheckClient,
     mangaId: number,
     chapterIds: number[]
 ): Promise<DuplicateCheckResult> {

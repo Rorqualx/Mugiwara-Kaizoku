@@ -27,7 +27,7 @@ async function handleDownloadManagerJob(job: jobs): Promise<void> {
     '@/server/services/download/downloadManager/download-manager'
   );
   const downloadManager = new DownloadManager();
-  const result = await downloadManager.processTask(Number(job.id));
+  const result = await downloadManager.processTask(Number(job.id), { claimedByWorker: true });
 
   if (isError(result)) {
     throw new Error(result.error.message);

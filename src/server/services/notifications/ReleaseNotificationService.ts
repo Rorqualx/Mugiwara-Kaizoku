@@ -43,6 +43,24 @@ function readBatchResult(
     };
 }
 
+/**
+ * Identity of one "releases tomorrow" notice: the title, the chapter and the
+ * day it is expected. Stored on the notification so a later run can tell the
+ * notice was already sent — the calendar events themselves are deleted and
+ * recreated by every sync, so they cannot carry the marker.
+ */
+function upcomingNoticeKey(event: CalendarEvent): string {
+    const metadata = event.metadata as { chapterNumber?: string } | null;
+    const day = event.scheduledDate.toISOString().slice(0, 10);
+    return `${event.mangaId}:${metadata?.chapterNumber ?? ''}:${day}`;
+}
+
+function readNoticeKey(metadata: unknown): string | undefined {
+    if (typeof metadata !== 'object' || metadata === null) return undefined;
+    const key = (metadata as Record<string, unknown>)['upcomingNoticeKey'];
+    return typeof key === 'string' ? key : undefined;
+}
+
 export class ReleaseNotificationService {
     private eventService: CalendarEventService;
     // Configuration
@@ -68,8 +86,11 @@ export class ReleaseNotificationService {
             if (isError(eventsResult)) {
                 return createErrorResult(eventsResult.error);
             }
-            const events = unwrapOr(eventsResult, []);
-            logger.info(`[ReleaseNotification] Found ${events.length} upcoming releases`);
+            const upcoming = unwrapOr(eventsResult, []);
+            // This runs after every calendar sync (hourly, at boot, on
+            // demand), so only releases not yet announced are sent.
+            const events = await this.withoutAlreadyAnnounced(upcoming);
+            logger.info(`[ReleaseNotification] Found ${upcoming.length} upcoming releases, ${events.length} not yet announced`);
             const result: NotificationResult = { sent: 0, failed: 0, errors: [] };
 
             for (let i = 0; i < events.length; i += this.BATCH_SIZE) {
@@ -104,6 +125,32 @@ export class ReleaseNotificationService {
         }
     }
     /**
+     * Drop releases that already have a "releases tomorrow" notice, and
+     * repeats of the same release within the list.
+     */
+    private async withoutAlreadyAnnounced(events: CalendarEvent[]): Promise<CalendarEvent[]> {
+        if (events.length === 0) return events;
+        const announced = await prisma.notification.findMany({
+            where: {
+                type: 'CHAPTER_ADDED',
+                relatedMangaId: { in: events.map((event) => toNumberId(event.mangaId)) },
+                createdAt: { gte: addDays(new Date(), -(this.UPCOMING_DAYS + 2)) },
+            },
+            select: { metadata: true },
+        });
+        const seen = new Set<string>();
+        for (const notification of announced) {
+            const key = readNoticeKey(notification.metadata);
+            if (key !== undefined) seen.add(key);
+        }
+        return events.filter((event) => {
+            const key = upcomingNoticeKey(event);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }
+    /**
      * Send notification for a specific upcoming release
      */
     private async sendUpcomingReleaseNotification(event: CalendarEvent): Promise<AsyncResult<void, Error>> {
@@ -130,6 +177,7 @@ export class ReleaseNotificationService {
                     chapterNumber: metadata?.chapterNumber,
                     confidence: event.confidence,
                     scheduledDate: event.scheduledDate,
+                    upcomingNoticeKey: upcomingNoticeKey(event),
                 },
                 relatedMangaId: toNumberId(event.mangaId),
                 actionUrl: `/manga/${event.mangaId}`,

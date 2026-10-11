@@ -53,6 +53,9 @@ jest.mock('@/server/db', () => ({
   prisma: {
     manga: {
       findUnique: jest.fn()
+    },
+    notification: {
+      findMany: jest.fn()
     }
   }
 }));
@@ -66,6 +69,7 @@ describe('ReleaseNotificationService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockNotifySystem.mockResolvedValue(undefined);
+    (prisma.notification.findMany as jest.Mock).mockResolvedValue([]);
 
     service = new ReleaseNotificationService();
     const serviceAsRecord = service as unknown as Record<string, unknown>;
@@ -144,6 +148,52 @@ describe('ReleaseNotificationService', () => {
           title: 'New chapter tomorrow: One Piece',
           message: 'Chapter 1100 is expected to release tomorrow'
         })
+      );
+    });
+
+    it('should not announce the same release again on a later run', async () => {
+      const tomorrow = addDays(new Date(), 1);
+      const event = (id: number, mangaId: number, chapterNumber: string): CalendarEvent => ({
+        id,
+        mangaId,
+        chapterId: null,
+        eventType: CalendarEventType.CHAPTER_RELEASE,
+        scheduledDate: tomorrow,
+        actualDate: null,
+        status: EventStatus.SCHEDULED,
+        confidence: 0.9,
+        title: `Chapter ${chapterNumber}`,
+        description: null,
+        color: null,
+        source: null,
+        metadata: { chapterNumber },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      (prisma.manga.findUnique as jest.Mock).mockResolvedValue({ id: 123, title: 'One Piece' });
+
+      // First run: nothing announced yet. The sync recreates events, so the
+      // same release can also appear twice under different ids.
+      mockEventService.getEventsForDateRange.mockResolvedValue(
+        createSuccessResult([event(1, 123, '1100'), event(2, 123, '1100'), event(3, 456, '140')])
+      );
+      const first = await service.sendDailyUpcomingNotifications();
+      expect(isSuccess(first) && first.data.sent).toBe(2);
+
+      // Later run: the notices from the first run are on record, and the
+      // events come back with new ids.
+      const recorded = mockNotifySystem.mock.calls.map(([notice]) => ({ metadata: notice.metadata }));
+      (prisma.notification.findMany as jest.Mock).mockResolvedValue(recorded);
+      mockNotifySystem.mockClear();
+      mockEventService.getEventsForDateRange.mockResolvedValue(
+        createSuccessResult([event(11, 123, '1100'), event(13, 456, '140'), event(14, 456, '141')])
+      );
+      const second = await service.sendDailyUpcomingNotifications();
+
+      expect(isSuccess(second) && second.data.sent).toBe(1);
+      expect(mockNotifySystem).toHaveBeenCalledTimes(1);
+      expect(mockNotifySystem).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Chapter 141 is expected to release tomorrow' })
       );
     });
 

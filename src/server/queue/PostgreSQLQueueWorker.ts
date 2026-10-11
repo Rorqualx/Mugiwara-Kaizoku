@@ -90,6 +90,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
   private notificationClient: Client | null = null;
   private isRunning = false;
   private isShuttingDown = false;
+  private isClaiming = false;
   private activeJobs = new Set<bigint>();
   private processingPromises: Promise<void>[] = [];
   private pollTimer: NodeJS.Timeout | null = null;
@@ -239,10 +240,15 @@ export class PostgreSQLQueueWorker extends EventEmitter {
    * Process jobs - main work loop
    */
   private async processJobs(): Promise<void> {
-    if (this.isShuttingDown || this.processingPromises.length >= this.config.maxConcurrency) {
+    // One claim pass at a time. The poll timer, the NOTIFY listener and the
+    // "full batch" follow-up all call this; two overlapping passes would each
+    // size their claim from the same free-slot count and together claim more
+    // jobs than can be started.
+    if (this.isClaiming || this.isShuttingDown || this.processingPromises.length >= this.config.maxConcurrency) {
       return;
     }
 
+    this.isClaiming = true;
     try {
       // Claim a batch of jobs using SKIP LOCKED
       const jobs = await this.claimJobs();
@@ -251,12 +257,18 @@ export class PostgreSQLQueueWorker extends EventEmitter {
         return;
       }
 
-      // Process jobs concurrently up to max concurrency
-      for (const job of jobs) {
-        if (this.processingPromises.length >= this.config.maxConcurrency) {
-          break;
-        }
+      // stop() was called while the claim was in flight: it is no longer
+      // waiting for work started from here, so hand the jobs back untouched.
+      if (this.shutdownRequested()) {
+        await this.returnClaimedJobs(jobs);
+        return;
+      }
 
+      // Every claimed job is started: the claim is capped at the free slots
+      // and nothing else can take a slot while this pass holds `isClaiming`.
+      // A claimed row that is not started would sit `active` until its lease
+      // expires and cost the job an attempt.
+      for (const job of jobs) {
         const promise = this.processJob(job)
           .finally(() => {
             // Remove from active processing
@@ -276,6 +288,41 @@ export class PostgreSQLQueueWorker extends EventEmitter {
     } catch (error) {
       logger.error(`Error in job processing loop:`, error);
       this.emit('error', error);
+    } finally {
+      this.isClaiming = false;
+    }
+  }
+
+  /** Read through a method so a change made during an `await` is seen. */
+  private shutdownRequested(): boolean {
+    return this.isShuttingDown;
+  }
+
+  /**
+   * Put claimed-but-never-started jobs back in the queue as if the claim had
+   * not happened: pending, no owner, and the attempt it was charged refunded.
+   */
+  private async returnClaimedJobs(claimed: jobs[]): Promise<void> {
+    const ids = claimed.map(job => job["id"]);
+    try {
+      await prisma.$executeRaw`
+        UPDATE jobs
+        SET
+          status = 'pending'::"JobStatus",
+          worker_id = NULL,
+          started_at = NULL,
+          lease_expires_at = NULL,
+          hard_timeout_at = NULL,
+          attempt_count = GREATEST(attempt_count - 1, 0)
+        WHERE id = ANY(${ids}::bigint[])
+          AND status = 'active'::"JobStatus"
+          AND worker_id = ${this.workerId}
+      `;
+      logger.info(`Worker ${this.workerId} returned ${ids.length} unstarted jobs to the queue`);
+    } catch (error) {
+      logger.error(`Failed to return ${ids.length} claimed jobs to the queue:`, error);
+    } finally {
+      ids.forEach(id => this.activeJobs.delete(id));
     }
   }
 

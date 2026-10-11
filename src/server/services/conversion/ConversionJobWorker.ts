@@ -48,6 +48,7 @@ export class ConversionJobWorker extends EventEmitter {
   private readonly workerId: string;
   private isRunning = false;
   private isShuttingDown = false;
+  private isClaiming = false;
   private activeJobs = new Set<string>();
   private processingPromises: Promise<void>[] = [];
   private pollTimer: NodeJS.Timeout | null = null;
@@ -118,30 +119,33 @@ export class ConversionJobWorker extends EventEmitter {
   }
 
   private async processJobs(): Promise<void> {
-    if (this.isShuttingDown || this.processingPromises.length >= this.config.maxConcurrency) {
+    // One claim pass at a time, sized to the free slots, and every claimed
+    // job is started. A job claimed beyond the free slots would sit claimed
+    // without running until its claim is recovered as stale.
+    const freeSlots = this.config.maxConcurrency - this.processingPromises.length;
+    if (this.isClaiming || this.isShuttingDown || freeSlots <= 0) {
       return;
     }
 
+    this.isClaiming = true;
     try {
-      const jobs = await this.claimJobs();
+      const claimLimit = Math.min(this.config.batchSize, freeSlots);
+      const jobs = await this.claimJobs(claimLimit);
       if (jobs.length === 0) return;
 
       for (const job of jobs) {
-        if (this.processingPromises.length >= this.config.maxConcurrency) break;
         this.spawnJobPromise(job);
-      }
-
-      if (jobs.length === this.config.batchSize) {
-        globalThis.queueMicrotask(() => { void this.processJobs(); });
       }
     } catch (error: unknown) {
       logger.error('[ConversionWorker] Error in job processing loop:', error);
       this.emit('error', error);
+    } finally {
+      this.isClaiming = false;
     }
   }
 
-  private async claimJobs(): Promise<ClaimedJob[]> {
-    const jobs = await claimJobsImpl(this.config.batchSize, this.workerId);
+  private async claimJobs(limit?: number): Promise<ClaimedJob[]> {
+    const jobs = await claimJobsImpl(limit ?? this.config.batchSize, this.workerId);
     jobs.forEach(job => this.activeJobs.add(job.id));
     return jobs;
   }
