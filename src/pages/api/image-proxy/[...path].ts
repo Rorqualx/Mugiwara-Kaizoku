@@ -15,8 +15,30 @@ import axios from 'axios';
 import { z } from 'zod';
 
 import { prisma } from '@/server/db';
+import { isProxyPathForUrl } from '@/server/utils/image-proxy-path';
+import { isHostInDomains } from '@/server/utils/outbound-url-guard';
 import { createBinaryRoute } from '@/utils/api-route-factory';
 import { logger } from '@/utils/logger';
+
+/** Hosts images may be fetched from. A redirect must stay on this list too. */
+const ALLOWED_IMAGE_DOMAINS = [
+  'static.wikia.nocookie.net',
+  'fandom.com',
+  'anilist.co',
+  's4.anilist.co',
+  'comicvine.gamespot.com',
+  'upload.wikimedia.org',
+  'uploads.mangadex.org',
+  'mangadex.org',
+] as const;
+
+/** axios `beforeRedirect` hook: a redirect may only lead to another allowed host. */
+function rejectRedirectOffAllowList(options: Record<string, unknown>): void {
+  const hostname = typeof options['hostname'] === 'string' ? options['hostname'] : '';
+  if (!isHostInDomains(hostname, ALLOWED_IMAGE_DOMAINS)) {
+    throw new Error(`Redirect to ${hostname} is not an allowed image host`);
+  }
+}
 
 
 // Validation schema for query parameters
@@ -71,21 +93,8 @@ function isUrlSafe(url: string): { safe: boolean; reason?: string } {
       }
     }
 
-    // Whitelist allowed domains
-    const allowedDomains = [
-      'static.wikia.nocookie.net',
-      'fandom.com',
-      'anilist.co',
-      's4.anilist.co',
-      'comicvine.gamespot.com',
-      'upload.wikimedia.org',
-      'uploads.mangadex.org',
-      'mangadex.org',
-    ];
-
-    const isAllowed = allowedDomains.some(domain =>
-      hostname === domain || hostname.endsWith(`.${domain}`)
-    );
+    // Only allowed image hosts
+    const isAllowed = isHostInDomains(hostname, ALLOWED_IMAGE_DOMAINS);
 
     if (!isAllowed) {
       return { safe: false, reason: `Domain ${hostname} not whitelisted` };
@@ -123,6 +132,7 @@ async function fetchImageWithRetry(
         headers,
         timeout: 30000,
         maxContentLength: 10 * 1024 * 1024,
+        beforeRedirect: rejectRedirectOffAllowList,
       });
     } catch (err) {
       const isRetryable = err instanceof Error && (
@@ -167,6 +177,7 @@ export default createBinaryRoute({
           }).catch((err: unknown) => logger.error('Failed to update last accessed:', err));
           // Return cached image
           res.setHeader('Content-Type', cached.contentType);
+          res.setHeader('X-Content-Type-Options', 'nosniff');
           res.setHeader('X-Image-Source', 'cache');
           // Convert Prisma Bytes type to Buffer
           const imageBuffer = Buffer.from(cached.imageData);
@@ -189,6 +200,11 @@ export default createBinaryRoute({
           });
           res.setHeader('Content-Type', 'image/svg+xml');
           return res["status"](403).send(placeholderSvg);
+        }
+        if (!isProxyPathForUrl(proxyPath, originalUrl)) {
+          logger.warn('Blocked image proxy request - path does not belong to URL', { proxyPath, url: originalUrl });
+          res.setHeader('Content-Type', 'image/svg+xml');
+          return res["status"](400).send(placeholderSvg);
         }
         logger.info(`Fetching image: ${originalUrl}`);
         // Fetch the image from the source with retry on timeout/network errors
@@ -228,16 +244,19 @@ export default createBinaryRoute({
         });
         // Return the image
         res.setHeader('Content-Type', contentType);
+        res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('X-Image-Source', 'fetched');
         return res["status"](200).send(imageBuffer);
       }
       catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error('Image proxy error:', errorMessage);
-        // Return placeholder on any error
+        // Return the placeholder with an error status: a 2xx here would be
+        // cached for a year by browsers and proxies, pinning a transient
+        // upstream failure.
         res.setHeader('Content-Type', 'image/svg+xml');
         res.setHeader('X-Image-Source', 'error-placeholder');
-        return res["status"](200).send(placeholderSvg);
+        return res["status"](502).send(placeholderSvg);
       }
     }
   },

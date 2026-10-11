@@ -17,7 +17,26 @@ import { logger } from '@/utils/logger';
 
 import { protectedProcedure } from '../procedures';
 import { router } from '../trpc';
-import type {} from '@prisma/client';
+
+import { assertChapterMembership, assertMembership, requireUserId } from './_shared/library-access';
+import { assertServerPathAllowed } from './_shared/server-path-access';
+
+import type { PrismaClient } from '@prisma/client';
+
+/**
+ * A conversion job belongs to a title; only someone with that title in their
+ * library may run, inspect or cancel it. An unknown job is `NOT_FOUND`.
+ */
+async function assertConversionJobAccess(ctx: { prisma: PrismaClient }, jobId: string): Promise<void> {
+  const job = await ctx.prisma.conversionJob.findUnique({
+    where: { id: jobId },
+    select: { mangaId: true },
+  });
+  if (!job) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'Conversion job not found.' });
+  }
+  await assertMembership(ctx.prisma, requireUserId(ctx), job.mangaId);
+}
 
 /**
  * Validation schemas
@@ -62,8 +81,17 @@ export const conversionRouter = router({
    */
   createJob: protectedProcedure
     .input(createConversionJobSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
+        const userId = requireUserId(ctx);
+        await assertMembership(ctx.prisma, userId, input.mangaId);
+        const chapterMangaId = await assertChapterMembership(ctx.prisma, userId, input.chapterId);
+        if (chapterMangaId !== input.mangaId) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'That chapter does not belong to this title.' });
+        }
+        await assertServerPathAllowed(ctx, ctx.prisma, input.sourceFile);
+        await assertServerPathAllowed(ctx, ctx.prisma, input.targetFile);
+
         logger.info('[ConversionRouter] Creating conversion job', {
           mangaId: input.mangaId,
           chapterId: input.chapterId,
@@ -127,8 +155,9 @@ export const conversionRouter = router({
    */
   executeJob: protectedProcedure
     .input(jobIdSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
+        await assertConversionJobAccess(ctx, input.jobId);
         logger.info('[ConversionRouter] Executing conversion job', {
           jobId: input.jobId
         });
@@ -180,8 +209,9 @@ export const conversionRouter = router({
    */
   getJobStatus: protectedProcedure
     .input(jobIdSchema)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       try {
+        await assertConversionJobAccess(ctx, input.jobId);
         const conversionService = getConversionService();
 
         const result = await conversionService.getJobStatus(input.jobId);
@@ -220,8 +250,9 @@ export const conversionRouter = router({
    */
   cancelJob: protectedProcedure
     .input(jobIdSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
+        await assertConversionJobAccess(ctx, input.jobId);
         logger.info('[ConversionRouter] Cancelling conversion job', {
           jobId: input.jobId
         });

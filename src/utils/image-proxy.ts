@@ -29,6 +29,14 @@ const PROXY_DOMAINS = [
  * NOTE: This must produce the same output as MD5 for the same input
  * to ensure cache hits with server-side generated proxy paths.
  */
+/**
+ * Proxy path the browser derives for an image URL. Exported so the proxy
+ * route can check that a requested path really belongs to the URL.
+ */
+export function clientProxyPathFor(url: string): string {
+  return simpleHash(url);
+}
+
 function simpleHash(str: string): string {
   // Use a simple but consistent hash algorithm
   // This is NOT cryptographically secure - just for cache key generation

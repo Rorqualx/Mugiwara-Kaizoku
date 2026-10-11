@@ -18,7 +18,8 @@ import {
   readSuwayomiPluginConfig,
   type SuwayomiPluginConfig,
 } from '@/server/services/suwayomi/manga-matcher';
-import { protectedProcedure } from '@/server/trpc/procedures';
+import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 
 import type { Prisma } from '@prisma/client';
@@ -39,7 +40,8 @@ export const suwayomiMangaRouter = router({
   /** Read the per-manga plugin config. Returns a default `{enabled:false}` if unset. */
   suwayomiGetPluginConfig: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .query(async ({ input }): Promise<SuwayomiPluginConfig> => {
+    .query(async ({ input, ctx }): Promise<SuwayomiPluginConfig> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const manga = await prisma.manga.findUnique({
         where: { id: input.mangaId },
         select: { suwayomiPluginConfig: true },
@@ -56,7 +58,8 @@ export const suwayomiMangaRouter = router({
       mangaId: z.number(),
       patch: SuwayomiPluginConfigPatchSchema,
     }))
-    .mutation(async ({ input }): Promise<SuwayomiPluginConfig> => {
+    .mutation(async ({ input, ctx }): Promise<SuwayomiPluginConfig> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const manga = await prisma.manga.findUnique({
         where: { id: input.mangaId },
         select: { suwayomiPluginConfig: true },
@@ -84,7 +87,8 @@ export const suwayomiMangaRouter = router({
       mangaId: z.number(),
       sourceId: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const sourceId = await resolveSourceId(input.mangaId, input.sourceId);
       return matchMangaOnSuwayomi({ mangaId: input.mangaId, sourceId, persist: true });
     }),
@@ -92,10 +96,13 @@ export const suwayomiMangaRouter = router({
   /** Pull the Suwayomi chapter list and populate `Chapter.suwayomiChapterId`. */
   suwayomiSyncChapters: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ input }) => syncSuwayomiChapters(input.mangaId)),
+    .mutation(async ({ input, ctx }) => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
+      return syncSuwayomiChapters(input.mangaId);
+    }),
 
-  /** Diagnostic: download one chapter via the Suwayomi path. */
-  suwayomiTestDownload: protectedProcedure
+  /** Diagnostic: download one chapter via the Suwayomi path. Writes to a caller-chosen server path, so admin only. */
+  suwayomiTestDownload: adminProcedure
     .input(z.object({
       chapterId: z.number(),
       destinationPath: z.string(),

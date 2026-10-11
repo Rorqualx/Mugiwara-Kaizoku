@@ -13,6 +13,8 @@ import { FileImporter } from '@/server/services/download/fileImporter';
 import { scanMangaLibraryFolder, type LibraryScanResult } from '@/server/services/packImport/library-scanner';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertChaptersMembership, assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { assertServerPathAllowed } from '@/server/trpc/routers/_shared/server-path-access';
 import { router } from '@/server/trpc/trpc';
 import { isSuccess, isError } from '@/utils/async-result';
 
@@ -44,6 +46,14 @@ export const importRouter = router({
       }))
     }))
     .mutation(async ({ input, ctx }) => {
+      const userId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, userId, input.mangaId);
+      await assertChaptersMembership(ctx.prisma, userId, input.files.map((file) => file.chapterId));
+      for (const file of input.files) {
+        // eslint-disable-next-line no-await-in-loop -- a handful of paths, checked in order so the first bad one is reported
+        await assertServerPathAllowed(ctx, ctx.prisma, file.sourcePath);
+      }
+
       const fileImporter = new FileImporter(ctx.prisma);
 
       const result = await fileImporter.manualImport(input.mangaId, input.files);
@@ -85,6 +95,7 @@ export const importRouter = router({
   scanLibraryFolder: protectedProcedure
     .input(z.object({ mangaId: z.number() }))
     .mutation(async ({ input, ctx }): Promise<LibraryScanResult> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
       const result = await scanMangaLibraryFolder(ctx.prisma, input.mangaId);
 
       if (isError(result)) {

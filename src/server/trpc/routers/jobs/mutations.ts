@@ -11,6 +11,7 @@ import { createPackImportService } from '@/server/services/packImport/packImport
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { adminProcedure, protectedProcedure } from '@/server/trpc/procedures';
 import { assertMembership, isAdmin, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { assertServerPathAllowed } from '@/server/trpc/routers/_shared/server-path-access';
 import { router } from '@/server/trpc/trpc';
 import { isError, isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
@@ -290,6 +291,7 @@ export const jobsMutationsRouter = router({
     .mutation(async ({ input, ctx }) => {
       const initiatedByUserId = requireUserId(ctx);
       await assertMembership(ctx.prisma, initiatedByUserId, input.mangaId);
+      await assertServerPathAllowed(ctx, ctx.prisma, input.sourcePath);
       const fsp = await import('fs/promises');
       try {
         await fsp.access(input.sourcePath);

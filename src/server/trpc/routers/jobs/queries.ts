@@ -10,6 +10,7 @@ import { router } from '@/server/trpc/trpc';
 import { isSuccess } from '@/utils/async-result';
 
 import { isAdmin, requireUserId } from '../_shared/library-access';
+import { isServerPathAllowed } from '../_shared/server-path-access';
 
 /**
  * Owner-scope fragment for the partitioned `jobs` table. Admins see every job;
@@ -342,7 +343,11 @@ export const jobsQueriesRouter = router({
    */
   probePath: protectedProcedure
     .input(z.object({ path: z.string().min(1).max(4000) }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      const missing = { exists: false, isFile: false, isDirectory: false, sizeBytes: 0 };
+      // A path the caller may not name is reported exactly like a missing
+      // one, so the probe cannot be used to map the server's filesystem.
+      if (!(await isServerPathAllowed(ctx, ctx.prisma, input.path))) return missing;
       const fsp = await import('fs/promises');
       try {
         const stat = await fsp.stat(input.path);
@@ -353,7 +358,7 @@ export const jobsQueriesRouter = router({
           sizeBytes: Number(stat.size),
         };
       } catch {
-        return { exists: false, isFile: false, isDirectory: false, sizeBytes: 0 };
+        return missing;
       }
     }),
 

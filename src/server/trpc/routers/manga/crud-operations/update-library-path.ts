@@ -23,6 +23,8 @@ import {
 import type { SupportedProvider, VolumeForMatching } from '@/server/services/matching/types';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { assertServerPathAllowed } from '@/server/trpc/routers/_shared/server-path-access';
 import { findMangaFiles } from '@/utils/file-utils';
 import { toStringId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
@@ -244,4 +246,8 @@ async function handleUpdateLibraryPath(
  */
 export const updateLibraryPathProcedure = protectedProcedure
   .input(updateLibraryPathSchema)
-  .mutation(({ input, ctx }) => handleUpdateLibraryPath(ctx.prisma, input.mangaId, input.libraryPath));
+  .mutation(async ({ input, ctx }) => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
+    await assertServerPathAllowed(ctx, ctx.prisma, input.libraryPath);
+    return handleUpdateLibraryPath(ctx.prisma, input.mangaId, input.libraryPath);
+  });

@@ -9,6 +9,7 @@
 import { z } from 'zod';
 
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { assertMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 
 import type { MangaRelation, MangaRelationTargetMedium, MangaRelationType } from '@prisma/client';
@@ -82,6 +83,7 @@ function compareEntries(a: RelatedWorkEntry, b: RelatedWorkEntry): number {
 const getRelations = protectedProcedure
   .input(z.object({ mangaId: z.number() }))
   .query(async ({ input, ctx }): Promise<RelatedWorkEntry[]> => {
+    await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
     const rows = await ctx.prisma.mangaRelation.findMany({
       where: { fromMangaId: input.mangaId },
       include: RELATIONS_INCLUDE,
