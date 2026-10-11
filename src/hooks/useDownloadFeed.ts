@@ -211,9 +211,16 @@ export function useDownloadFeed(): UseDownloadFeedResult {
 
     return (): void => {
       unsubs.forEach(fn => fn());
-      if (throttleRef.current) clearTimeout(throttleRef.current);
+      if (throttleRef.current) {
+        clearTimeout(throttleRef.current);
+        throttleRef.current = null;
+        // The cancelled timer would have cleared this flag. Leaving it set
+        // made addMessage skip scheduling forever after a reconnect, so new
+        // messages only showed up when the TTL sweep happened to flush.
+        if (pendingFlushRef.current) flushBuffer();
+      }
     };
-  }, [isConnected, subscribe, addMessage]);
+  }, [isConnected, subscribe, addMessage, flushBuffer]);
 
   // Auto-dismiss messages after TTL
   useEffect(() => {

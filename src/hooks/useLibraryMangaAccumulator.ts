@@ -7,10 +7,11 @@
  *
  * @module hooks/useLibraryMangaAccumulator
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useRealTime } from '@/providers/RealTimeProvider';
 import { CHANNEL_PATTERNS } from '@/types/api/v1/websocket';
+import { flattenPages, mergePage, pagesFromRows, type MangaPages } from '@/utils/library/manga-page-merge';
 import {
     getLibraryPageSnapshot,
     setLibraryPageSnapshot,
@@ -44,9 +45,12 @@ export function useLibraryMangaAccumulator(
 ): UseLibraryMangaAccumulatorResult {
     const snapshot: LibraryPageSnapshot | undefined = libraryId !== undefined ? getLibraryPageSnapshot(libraryId) : undefined;
 
-    const [allManga, setAllManga] = useState<unknown[]>(() => snapshot?.allManga ?? []);
+    // Pages are stored by offset and replaced when re-fetched; the grid shows
+    // them flattened. See utils/library/manga-page-merge.
+    const [pages, setPages] = useState<MangaPages>(() => pagesFromRows(snapshot?.allManga ?? [], PAGE_SIZE));
     const [offset, setOffset] = useState<number>(() => snapshot?.offset ?? 0);
     const [hasMore, setHasMore] = useState<boolean>(() => snapshot?.hasMore ?? true);
+    const allManga = useMemo(() => flattenPages(pages), [pages]);
 
     const utils = trpc.useUtils();
     const { isConnected, subscribe } = useRealTime();
@@ -56,10 +60,21 @@ export function useLibraryMangaAccumulator(
         { enabled, staleTime: 30 * 1000 }
     );
 
+    // Marks every cached page stale and walks the library again from the first
+    // page. Only the page being observed refetches on invalidation, so without
+    // returning to offset 0 the earlier pages (the rows the user is most likely
+    // looking at) would keep their old data. Rows stay on screen while the
+    // pass runs; each page is swapped in as it lands.
+    const refreshFromStart = useCallback(async (): Promise<void> => {
+        await utils.manga.query.invalidate();
+        setOffset(0);
+        setHasMore(true);
+    }, [utils]);
+
     // iter-LIVEBAR: subscribe to the library-wide chapter-update broadcast
-    // and invalidate the manga.query cache so progress bars (computed
-    // client-side from each manga's Chapter[]) update without waiting for
-    // the 30s staleTime. Coalesces bursts via a single debounced timer.
+    // and refresh the grid so progress bars (computed client-side from each
+    // manga's Chapter[]) update without waiting for the 30s staleTime.
+    // Coalesces bursts via a single debounced timer.
     useEffect(() => {
         if (!enabled || !isConnected) return;
         let pending: ReturnType<typeof setTimeout> | null = null;
@@ -67,14 +82,14 @@ export function useLibraryMangaAccumulator(
             if (pending !== null) return;
             pending = setTimeout(() => {
                 pending = null;
-                void utils.manga.query.invalidate();
+                void refreshFromStart();
             }, REALTIME_INVALIDATE_DEBOUNCE_MS);
         });
         return () => {
             if (pending !== null) clearTimeout(pending);
             unsubscribe();
         };
-    }, [enabled, isConnected, subscribe, utils]);
+    }, [enabled, isConnected, subscribe, refreshFromStart]);
     const { data: pendingTitleRows } = trpc.manga.listTitlesByLibrary.useQuery(
         { libraryId: libraryId ?? 0 },
         { enabled: Boolean(libraryId !== undefined && libraryId > 0), staleTime: 5 * 60 * 1000 }
@@ -82,12 +97,7 @@ export function useLibraryMangaAccumulator(
 
     useEffect(() => {
         if (!mangaPage) return;
-        setAllManga(prev => {
-            if (offset === 0) return mangaPage;
-            const seen = new Set(prev.map(m => (m as { id: number }).id));
-            const fresh = mangaPage.filter(m => !seen.has((m as { id: number }).id));
-            return fresh.length ? [...prev, ...fresh] : prev;
-        });
+        setPages(prev => mergePage(prev, offset, mangaPage, PAGE_SIZE));
         setHasMore(mangaPage.length >= PAGE_SIZE);
     }, [mangaPage, offset]);
 
@@ -153,16 +163,18 @@ export function useLibraryMangaAccumulator(
     }, [libraryId]);
 
     const refetchAll = useCallback(async () => {
-        setOffset(0);
-        setHasMore(true);
+        // Invalidate every page before going back to the first one. Calling
+        // refetch() here instead re-fetched the page for the OLD offset and
+        // left page 0 to be served from cache, so a just-removed title could
+        // reappear.
         // Also refresh the title list — otherwise a just-removed manga lingers as a
         // grey skeleton placeholder: its title is still in the 5-min-cached
         // listTitlesByLibrary even though it's gone from the paginated query.
         await Promise.all([
-            refetchManga(),
+            refreshFromStart(),
             utils.manga.listTitlesByLibrary.invalidate(),
         ]);
-    }, [refetchManga, utils]);
+    }, [refreshFromStart, utils]);
 
     return {
         allManga,

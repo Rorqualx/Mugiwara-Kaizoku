@@ -6,7 +6,7 @@
  * client-side archive downloads and extraction.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 import { useReaderStore } from '@/store/readerSlice';
 import type { MangaFile, SupportedFormat } from '@/types/reader/reader-types';
@@ -18,7 +18,11 @@ import { isValidChapterInfo, isValidProgress } from './types';
 import type { UseReaderArchiveReturn, ChapterInfoResponse } from './types';
 
 export function useReaderArchive(): UseReaderArchiveReturn {
-  const { setFile, setPage, addToHistory } = useReaderStore();
+  // Select the three actions individually: subscribing to the whole store
+  // re-rendered the reader on every store write (each page turn included).
+  const setFile = useReaderStore((state) => state.setFile);
+  const setPage = useReaderStore((state) => state.setPage);
+  const addToHistory = useReaderStore((state) => state.addToHistory);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -26,7 +30,12 @@ export function useReaderArchive(): UseReaderArchiveReturn {
   const [currentMangaId, setCurrentMangaId] = useState<number | null>(null);
   const [currentChapterId, setCurrentChapterId] = useState<number | null>(null);
 
-  const historyMutation = trpc.reader.addHistory.useMutation();
+  // `mutate` is stable across renders; the mutation result object is not, and
+  // depending on it gave loadChapter a new identity on every render.
+  const { mutate: recordHistory } = trpc.reader.addHistory.useMutation();
+
+  /** Sequence number of the most recent loadChapter call. */
+  const loadSeqRef = useRef(0);
 
   // Get page URL - now simply returns the URL string from the array
   const getPageUrl = useCallback((pageNumber: number): string | null => {
@@ -36,6 +45,11 @@ export function useReaderArchive(): UseReaderArchiveReturn {
 
   // Load chapter with URL-based page loading (no archive download!)
   const loadChapter = useCallback(async (mangaId: number, chapterId: number) => {
+    // Pressing "next chapter" twice starts two loads; whichever response
+    // arrives last must not win unless it is also the one asked for last.
+    const seq = ++loadSeqRef.current;
+    const isStale = (): boolean => loadSeqRef.current !== seq;
+
     setCurrentMangaId(mangaId);
     setCurrentChapterId(chapterId);
     setIsLoading(true);
@@ -48,6 +62,7 @@ export function useReaderArchive(): UseReaderArchiveReturn {
         fetchChapterInfo(mangaId, chapterId),
         fetchSavedProgress(mangaId, chapterId)
       ]);
+      if (isStale()) return;
 
       if (chapterInfoResult instanceof Error) {
         setError(chapterInfoResult);
@@ -70,7 +85,7 @@ export function useReaderArchive(): UseReaderArchiveReturn {
       setPage(savedPage);
 
       addToHistory({ mangaId, chapterId, timestamp: Date.now() });
-      void historyMutation.mutateAsync({ mangaId, chapterId, pagesRead: 0, totalTime: 0 });
+      recordHistory({ mangaId, chapterId, pagesRead: 0, totalTime: 0 });
 
       logger.debug('Chapter loaded with URL-based pages', {
         mangaId,
@@ -78,11 +93,13 @@ export function useReaderArchive(): UseReaderArchiveReturn {
         pageCount: chapterInfo.pageCount
       });
     } catch (err: unknown) {
+      if (isStale()) return;
       setError(err instanceof Error ? err : new Error('Failed to load chapter'));
     } finally {
-      setIsLoading(false);
+      // A superseded load leaves the spinner to the load that replaced it.
+      if (!isStale()) setIsLoading(false);
     }
-  }, [setFile, setPage, addToHistory, historyMutation]);
+  }, [setFile, setPage, addToHistory, recordHistory]);
 
   // Reload the current chapter (e.g., after file source switch)
   const reloadCurrentChapter = useCallback(async () => {

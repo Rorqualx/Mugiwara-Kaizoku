@@ -155,9 +155,13 @@ export function MangaCover({
   const enabled = motionAllowed && animated;
 
   const imgRef = React.useRef<HTMLImageElement>(null);
-  const [errored, setErrored] = React.useState(false);
-
   const baseSrc = resolveBaseSrc(src, fallbackSrc);
+
+  // The error is remembered per source: a cover that failed once (for example
+  // while the image cache was still being filled during import) must not keep
+  // showing the fallback after its URL is corrected.
+  const [erroredSrc, setErroredSrc] = React.useState<string | null>(null);
+  const errored = erroredSrc === baseSrc;
   const resolvedSrc = errored ? fallbackSrc : baseSrc;
 
   // Drive the "living" motion imperatively. Re-runs (and re-animates) whenever
@@ -183,7 +187,7 @@ export function MangaCover({
   }, [enabled, baseSrc, seed]);
 
   const handleError = (): void => {
-    setErrored(true);
+    setErroredSrc(baseSrc);
     onError?.();
   };
 

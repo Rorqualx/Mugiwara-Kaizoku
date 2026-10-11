@@ -4,6 +4,8 @@
  * Composes sub-hooks to provide unified reader functionality.
  */
 
+import { useShallow } from 'zustand/react/shallow';
+
 import { useReaderStore } from '@/store/readerSlice';
 
 import { useReaderArchive } from './useReaderArchive';
@@ -15,7 +17,15 @@ import { useReaderProgress } from './useReaderProgress';
 import type { UseReaderReturn } from './types';
 
 export function useReader(): UseReaderReturn {
-  const { currentFile, currentPage, settings, setPage, updateSettings } = useReaderStore();
+  // Select only what the reader renders from (shallow-compared), instead of
+  // re-rendering on every write to any field of the reader store.
+  const { currentFile, currentPage, settings, setPage, updateSettings } = useReaderStore(useShallow((state) => ({
+    currentFile: state.currentFile,
+    currentPage: state.currentPage,
+    settings: state.settings,
+    setPage: state.setPage,
+    updateSettings: state.updateSettings,
+  })));
 
   // Archive management (loading, extraction, page URLs)
   const archive = useReaderArchive();
@@ -23,7 +33,6 @@ export function useReader(): UseReaderReturn {
   // Progress tracking
   const progress = useReaderProgress({
     currentFile,
-    currentPage,
     currentChapterId: archive.currentChapterId
   });
 

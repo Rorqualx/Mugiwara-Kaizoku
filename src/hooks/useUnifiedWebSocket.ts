@@ -26,6 +26,8 @@ import type {
 } from '@/types/api/v1/websocket';
 import { logger } from '@/utils/logger';
 
+import { dispatchWebSocketMessage, type SubscriptionMap } from './unified-websocket/message-dispatch';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -67,16 +69,17 @@ export interface UseUnifiedWebSocketReturn {
   disconnect: () => void;
   /** Manually reconnect */
   reconnect: () => void;
-  /** Get list of currently subscribed channels */
-  subscribedChannels: string[];
 }
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-// Reconnection configuration
-const MAX_RECONNECT_ATTEMPTS = 5;
+// Reconnection configuration. Backoff doubles from the initial delay up to the
+// cap and then keeps retrying at the cap for as long as the hook is enabled:
+// a server restart or a laptop sleep longer than the backoff ramp must not
+// leave the tab on polling until a full reload.
+const BACKOFF_RAMP_ATTEMPTS = 5; // After this many failures the status reads 'error'
 const INITIAL_RECONNECT_DELAY = 2000; // Start with 2 seconds
 const MAX_RECONNECT_DELAY = 30000; // Cap at 30 seconds
 
@@ -89,7 +92,6 @@ const MIN_STABLE_CONNECTION_MS = 5000;
 // Hook Implementation
 // ============================================================================
 
-// eslint-disable-next-line max-lines-per-function -- WebSocket hook manages many connection states and event handlers
 export function useUnifiedWebSocket({
   enabled = true,
   apiKey,
@@ -101,7 +103,6 @@ export function useUnifiedWebSocket({
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const [subscribedChannels, setSubscribedChannels] = useState<string[]>([]);
 
   // Core refs - stable across renders
   const wsRef = useRef<WebSocket | null>(null);
@@ -130,13 +131,12 @@ export function useUnifiedWebSocket({
   onErrorRef.current = onError;
   onMessageRef.current = onMessage;
 
-  // Subscription management
-  const subscriptionsRef = useRef<Map<string, Set<(event: WebSocketEvent) => void>>>(new Map());
+  // Subscription management. The channel set lives in a ref only: publishing it
+  // as React state re-rendered the provider (and, through its context value,
+  // every realtime consumer) on each first-subscribe / last-unsubscribe, which
+  // turned any effect that resubscribed per render into a render loop.
+  const subscriptionsRef = useRef<SubscriptionMap>(new Map());
   const pendingSubscriptionsRef = useRef<Set<string>>(new Set());
-  // Track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-  // Track deferred timeout to cancel on unmount
-  const deferredUpdateRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ============================================================================
   // WebSocket URL Construction
@@ -206,21 +206,28 @@ export function useUnifiedWebSocket({
 
   const scheduleReconnect = useCallback((): void => {
     if (!enabledRef.current) return;
-    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-      logger.warn(`WebSocket: Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached`);
-      setConnectionStatus('error');
-      onErrorRef.current?.(new Error(`WebSocket connection failed after ${MAX_RECONNECT_ATTEMPTS} attempts`));
-      return;
-    }
 
     reconnectAttemptsRef.current++;
+    const attempt = reconnectAttemptsRef.current;
+    // Past the ramp the delay stays at the cap; clamp the exponent so a tab
+    // left open for days cannot overflow it.
     const delay = Math.min(
-      INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1),
+      INITIAL_RECONNECT_DELAY * Math.pow(2, Math.min(attempt - 1, BACKOFF_RAMP_ATTEMPTS)),
       MAX_RECONNECT_DELAY
     );
 
-    logger.info(`WebSocket: Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
-    setConnectionStatus('connecting');
+    if (attempt > BACKOFF_RAMP_ATTEMPTS) {
+      // Still retrying, but report 'error' so screens use their polling
+      // fallback in the meantime. Notify once, when the ramp is first exceeded.
+      setConnectionStatus('error');
+      if (attempt === BACKOFF_RAMP_ATTEMPTS + 1) {
+        logger.warn(`WebSocket: still disconnected after ${BACKOFF_RAMP_ATTEMPTS} attempts, retrying every ${MAX_RECONNECT_DELAY}ms`);
+        onErrorRef.current?.(new Error(`WebSocket connection failed after ${BACKOFF_RAMP_ATTEMPTS} attempts`));
+      }
+    } else {
+      logger.info(`WebSocket: Reconnecting in ${delay}ms (attempt ${attempt})`);
+      setConnectionStatus('connecting');
+    }
 
     clearReconnectTimeout();
     reconnectTimeoutRef.current = setTimeout(() => {
@@ -234,14 +241,10 @@ export function useUnifiedWebSocket({
     setConnectionStatus('connected');
     logger.info('WebSocket: Connected');
 
-    // Send pending subscriptions
-    if (pendingSubscriptionsRef.current.size > 0) {
-      const channels = Array.from(pendingSubscriptionsRef.current);
-      sendSubscribeMessage(channels);
-      pendingSubscriptionsRef.current.clear();
-    }
-
-    // Re-subscribe to active channels
+    // Channels queued while disconnected are all still in the active set (an
+    // unsubscribe removes them from both), so one frame for the active set
+    // covers them; sending the queue separately subscribed each one twice.
+    pendingSubscriptionsRef.current.clear();
     const activeChannels = Array.from(subscriptionsRef.current.keys());
     if (activeChannels.length > 0) {
       sendSubscribeMessage(activeChannels);
@@ -251,53 +254,7 @@ export function useUnifiedWebSocket({
   }, [sendSubscribeMessage]);
 
   const handleMessage = useCallback((event: MessageEvent): void => {
-    try {
-      const rawData: unknown = JSON.parse(event.data as string);
-
-      if (!rawData || typeof rawData !== 'object') {
-        logger.warn('WebSocket: Invalid message format', { data: rawData });
-        return;
-      }
-
-      const message = rawData as WebSocketMessage;
-      onMessageRef.current?.(message);
-
-      // Route to channel-specific subscribers
-      if ('channel' in message && typeof (message as WebSocketEvent).channel === 'string') {
-        const wsEvent = message as WebSocketEvent;
-        const channel = wsEvent.channel ?? '';
-
-        // Direct channel match
-        const channelSubscribers = subscriptionsRef.current.get(channel);
-        if (channelSubscribers) {
-          channelSubscribers.forEach((callback) => {
-            try {
-              callback(wsEvent);
-            } catch (error) {
-              logger.error('WebSocket: Subscription callback error', { error, channel });
-            }
-          });
-        }
-
-        // Wildcard channel matches (e.g., "jobs:*" matches "jobs:123")
-        subscriptionsRef.current.forEach((callbacks, pattern) => {
-          if (pattern.endsWith(':*')) {
-            const prefix = pattern.slice(0, -1);
-            if (channel.startsWith(prefix)) {
-              callbacks.forEach((callback) => {
-                try {
-                  callback(wsEvent);
-                } catch (error) {
-                  logger.error('WebSocket: Wildcard subscription callback error', { error, pattern });
-                }
-              });
-            }
-          }
-        });
-      }
-    } catch (error) {
-      logger.error('WebSocket: Failed to parse message', { error });
-    }
+    dispatchWebSocketMessage(event.data, subscriptionsRef.current, onMessageRef.current);
   }, []);
 
   const handleError = useCallback((): void => {
@@ -410,33 +367,12 @@ export function useUnifiedWebSocket({
   // Subscription Management
   // ============================================================================
 
-  // Helper to safely update subscribed channels state with deferred execution
-  // Uses setTimeout(0) to defer state update out of the cleanup phase, preventing infinite loops
-  const updateSubscribedChannelsDeferred = useCallback((): void => {
-    if (deferredUpdateRef.current !== null) {
-      clearTimeout(deferredUpdateRef.current);
-    }
-    deferredUpdateRef.current = setTimeout(() => {
-      deferredUpdateRef.current = null;
-      if (isMountedRef.current) {
-        setSubscribedChannels(Array.from(subscriptionsRef.current.keys()));
-      }
-    }, 0);
-  }, []);
-
   const subscribe = useCallback((channel: string, callback: (event: WebSocketEvent) => void): () => void => {
     // Add to local subscriptions
-    const isNewChannel = !subscriptionsRef.current.has(channel);
-    if (isNewChannel) {
+    if (!subscriptionsRef.current.has(channel)) {
       subscriptionsRef.current.set(channel, new Set());
     }
     subscriptionsRef.current.get(channel)?.add(callback);
-
-    // Only update state if we added a new channel (prevents re-render loops)
-    // Use deferred update to avoid calling setState during render
-    if (isNewChannel) {
-      updateSubscribedChannelsDeferred();
-    }
 
     // Send subscribe message if connected, otherwise queue
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -455,22 +391,20 @@ export function useUnifiedWebSocket({
 
         if (channelCallbacks.size === 0) {
           subscriptionsRef.current.delete(channel);
+          pendingSubscriptionsRef.current.delete(channel);
           sendUnsubscribeMessage([channel]);
-          // Defer state update to avoid calling setState during cleanup
-          updateSubscribedChannelsDeferred();
         }
       }
       logger.debug('WebSocket: Unsubscribed from channel', { channel });
     };
-  }, [sendSubscribeMessage, sendUnsubscribeMessage, updateSubscribedChannelsDeferred]);
+  }, [sendSubscribeMessage, sendUnsubscribeMessage]);
 
   const unsubscribe = useCallback((channel: string): void => {
     subscriptionsRef.current.delete(channel);
     pendingSubscriptionsRef.current.delete(channel);
     sendUnsubscribeMessage([channel]);
-    updateSubscribedChannelsDeferred();
     logger.debug('WebSocket: Unsubscribed from channel', { channel });
-  }, [sendUnsubscribeMessage, updateSubscribedChannelsDeferred]);
+  }, [sendUnsubscribeMessage]);
 
   // ============================================================================
   // Message Sending
@@ -495,21 +429,6 @@ export function useUnifiedWebSocket({
   }, []);
 
   // ============================================================================
-  // Mount/Unmount Tracking
-  // ============================================================================
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      if (deferredUpdateRef.current !== null) {
-        clearTimeout(deferredUpdateRef.current);
-        deferredUpdateRef.current = null;
-      }
-    };
-  }, []);
-
-  // ============================================================================
   // Connection Lifecycle Effect
   // ============================================================================
 
@@ -525,6 +444,29 @@ export function useUnifiedWebSocket({
     };
   }, [enabled, connectWebSocket, disconnectWebSocket]);
 
+  // Reconnect at once when the network returns or the tab is shown again,
+  // instead of waiting out the current backoff delay (browsers also throttle
+  // timers in hidden tabs, so the scheduled retry can be far in the future).
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+
+    const reconnectNow = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      const state = wsRef.current?.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) return;
+      clearReconnectTimeout();
+      reconnectAttemptsRef.current = 0;
+      connectWebSocket();
+    };
+
+    window.addEventListener('online', reconnectNow);
+    document.addEventListener('visibilitychange', reconnectNow);
+    return () => {
+      window.removeEventListener('online', reconnectNow);
+      document.removeEventListener('visibilitychange', reconnectNow);
+    };
+  }, [enabled, connectWebSocket, clearReconnectTimeout]);
+
   // ============================================================================
   // Return Value
   // ============================================================================
@@ -537,7 +479,6 @@ export function useUnifiedWebSocket({
     sendMessage,
     disconnect: disconnectWebSocket,
     reconnect: connectWebSocket,
-    subscribedChannels,
   }), [
     isConnected,
     connectionStatus,
@@ -546,19 +487,5 @@ export function useUnifiedWebSocket({
     sendMessage,
     disconnectWebSocket,
     connectWebSocket,
-    subscribedChannels,
   ]);
 }
-
-// ============================================================================
-// DEPRECATED: Convenience Hooks
-// ============================================================================
-// These hooks are DEPRECATED and should not be used directly.
-// Use `useRealTime()` from RealTimeProvider instead, which provides
-// a single shared WebSocket connection for the entire application.
-//
-// Example migration:
-//   BEFORE: const { isConnected } = useDownloadProgressSubscription(callback);
-//   AFTER:  const { isConnected, subscribe } = useRealTime();
-//           useEffect(() => subscribe('downloads:progress', callback), [subscribe, callback]);
-// ============================================================================

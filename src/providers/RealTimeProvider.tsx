@@ -76,11 +76,6 @@ export interface RealTimeContextValue {
   reconnect: () => void;
 
   /**
-   * Get list of currently subscribed channels
-   */
-  subscribedChannels: string[];
-
-  /**
    * Invalidate a React Query cache entry when WebSocket event received
    * Useful for triggering refetch when server pushes update notification
    */
@@ -127,7 +122,6 @@ export function RealTimeProvider({
     subscribe: wsSubscribe,
     unsubscribe: wsUnsubscribe,
     reconnect,
-    subscribedChannels,
   } = useUnifiedWebSocket({
     enabled: !disabled && isAuthenticated,
     apiKey,
@@ -241,7 +235,9 @@ export function RealTimeProvider({
     [wsSubscribe]
   );
 
-  // Memoize context value
+  // Memoize context value. It holds connection state and stable callbacks
+  // only, so it changes when the connection does — never because some
+  // component subscribed to or left a channel.
   const contextValue = useMemo<RealTimeContextValue>(
     () => ({
       isConnected,
@@ -250,7 +246,6 @@ export function RealTimeProvider({
       subscribe,
       unsubscribe,
       reconnect,
-      subscribedChannels,
       invalidateOnEvent,
     }),
     [
@@ -260,7 +255,6 @@ export function RealTimeProvider({
       subscribe,
       unsubscribe,
       reconnect,
-      subscribedChannels,
       invalidateOnEvent,
     ]
   );

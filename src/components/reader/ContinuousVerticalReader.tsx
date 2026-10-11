@@ -21,28 +21,29 @@ import {
 
 import { PageErrorOverlay } from './PageErrorOverlay';
 
-interface IntersectionResult {
-  visible: number[];
-  pagesToLoad: number[];
-}
+/** How long a code-initiated smooth scroll is given to reach its page. */
+const PROGRAMMATIC_SCROLL_SETTLE_MS = 1500;
 
 /**
- * Process intersection observer entries and compute visible pages and pages to preload.
+ * Applies a batch of intersection changes: updates the set of on-screen pages
+ * in place and returns the pages to preload around the ones that came into view.
  * Extracted to reduce nesting depth in the observer callback.
  */
 function processIntersectionEntries(
   entries: IntersectionObserverEntry[],
   preloadRange: number,
-  totalPages: number
-): IntersectionResult {
-  const visible: number[] = [];
+  totalPages: number,
+  intersecting: Set<number>
+): number[] {
   const pagesToLoad: number[] = [];
 
   for (const entry of entries) {
-    if (!entry.isIntersecting) continue;
-
-    const pageNum = parseInt(entry.target.getAttribute('data-page') ?? '0');
-    visible.push(pageNum);
+    const pageNum = parseInt(entry.target.getAttribute('data-page') ?? '0', 10);
+    if (!entry.isIntersecting) {
+      intersecting.delete(pageNum);
+      continue;
+    }
+    intersecting.add(pageNum);
 
     // Collect pages to preload around the visible page
     const startPage = Math.max(1, pageNum - preloadRange);
@@ -52,7 +53,7 @@ function processIntersectionEntries(
     }
   }
 
-  return { visible, pagesToLoad };
+  return pagesToLoad;
 }
 
 /**
@@ -127,8 +128,22 @@ export const ContinuousVerticalReader = React.memo(function ContinuousVerticalRe
 }: ContinuousVerticalReaderProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set([1]));
-  const [_visiblePages, setVisiblePages] = useState<number[]>([]);
-  const observerRef = useRef<IntersectionObserver | null>(null);
+
+  // Latest props for the observer callback. The observer is created once per
+  // chapter; reading these through refs keeps it from being torn down and
+  // re-attached to every page element on each page change or parent render.
+  const currentPageRef = useRef(currentPage);
+  const onPageChangeRef = useRef(onPageChange);
+  currentPageRef.current = currentPage;
+  onPageChangeRef.current = onPageChange;
+
+  /** Pages currently on screen. The observer only reports changes, so the full set is kept here. */
+  const intersectingRef = useRef<Set<number>>(new Set());
+  /** Page the user reached by scrolling; the scroll effect must not scroll to it again. */
+  const scrollDerivedPageRef = useRef<number | null>(null);
+  /** Page being scrolled to by code; scroll-derived page changes are ignored until it is on screen. */
+  const scrollTargetRef = useRef<number | null>(null);
+  const scrollTargetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load initial pages
   useEffect(() => {
@@ -141,59 +156,94 @@ export const ContinuousVerticalReader = React.memo(function ContinuousVerticalRe
 
   // Setup intersection observer for lazy loading and page tracking
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const preloadRange = settings.preloadPages || 2;
+    // 0 is a valid setting (load only what is on screen); `|| 2` used to turn it into 2.
+    const preloadRange = settings.preloadPages;
+    const intersecting = intersectingRef.current;
+    intersecting.clear();
 
-    observerRef.current = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
-        const { visible, pagesToLoad } = processIntersectionEntries(entries, preloadRange, totalPages);
+        const pagesToLoad = processIntersectionEntries(entries, preloadRange, totalPages, intersecting);
 
         // Single batched state update for all pages to load
-        if (pagesToLoad.length > 0) {
-          setLoadedPages(prev => {
-            const next = new Set(prev);
-            for (const page of pagesToLoad) {
-              next.add(page);
-            }
-            return next;
-          });
+        setLoadedPages(prev => {
+          if (pagesToLoad.every(page => prev.has(page))) return prev;
+          const next = new Set(prev);
+          for (const page of pagesToLoad) {
+            next.add(page);
+          }
+          return next;
+        });
+
+        if (intersecting.size === 0) return;
+
+        // A jump started by the toolbar/keyboard/saved progress is still in
+        // flight: pages passing through the viewport are not "where the user
+        // is", so do not report them.
+        const target = scrollTargetRef.current;
+        if (target !== null) {
+          if (intersecting.has(target)) scrollTargetRef.current = null;
+          return;
         }
 
-        if (visible.length > 0) {
-          setVisiblePages(visible.sort((a, b) => a - b));
-          // Update current page to the first visible page
-          const newPage = Math.min(...visible);
-          if (newPage !== currentPage) {
-            onPageChange(newPage);
-          }
+        // Update current page to the first visible page
+        const firstVisible = Math.min(...intersecting);
+        if (firstVisible !== currentPageRef.current) {
+          scrollDerivedPageRef.current = firstVisible;
+          onPageChangeRef.current(firstVisible);
         }
       },
       {
-        root: containerRef.current,
+        root: container,
         rootMargin: INTERSECTION_OBSERVER_MARGIN,
         threshold: INTERSECTION_OBSERVER_THRESHOLD
       }
     );
 
     // Observe all page elements
-    const pageElements = containerRef.current.querySelectorAll('[data-page]');
-    pageElements.forEach((el) => observerRef.current?.observe(el));
+    container.querySelectorAll('[data-page]').forEach((el) => observer.observe(el));
 
     return () => {
-      observerRef.current?.disconnect();
+      observer.disconnect();
     };
-  }, [totalPages, settings.preloadPages, currentPage, onPageChange]);
+  }, [totalPages, settings.preloadPages]);
 
-  // Scroll to specific page when currentPage changes externally
+  // Scroll to a page when currentPage changes from OUTSIDE (toolbar, keyboard,
+  // restored progress). A change that came from the user's own scrolling is
+  // skipped: scrolling to the top of the page they just scrolled onto yanked
+  // the view away from where they were reading.
   useEffect(() => {
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const pageElement = containerRef.current.querySelector(`[data-page="${currentPage}"]`);
-    if (pageElement) {
-      pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (scrollDerivedPageRef.current === currentPage) {
+      scrollDerivedPageRef.current = null;
+      return;
     }
+    scrollDerivedPageRef.current = null;
+
+    const pageElement = container.querySelector(`[data-page="${currentPage}"]`);
+    if (!pageElement) return;
+
+    scrollTargetRef.current = currentPage;
+    if (scrollTargetTimerRef.current !== null) clearTimeout(scrollTargetTimerRef.current);
+    // Safety net: a page too tall to ever reach the visibility threshold would
+    // otherwise leave scroll tracking switched off.
+    scrollTargetTimerRef.current = setTimeout(() => {
+      scrollTargetTimerRef.current = null;
+      scrollTargetRef.current = null;
+    }, PROGRAMMATIC_SCROLL_SETTLE_MS);
+    pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [currentPage]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTargetTimerRef.current !== null) clearTimeout(scrollTargetTimerRef.current);
+    };
+  }, []);
 
   return (
     <Box

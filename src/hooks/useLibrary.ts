@@ -8,7 +8,7 @@ import { trpc } from '@/utils/trpc-client/index';
 
 import { useNotification } from './useNotification';
 
-import type { Library, Manga } from '@prisma/client';
+import type { Library } from '@prisma/client';
 
 /**
  * Transformed library type from the query endpoint
@@ -49,12 +49,16 @@ interface UseLibraryResult {
   createLibrary: (path: string) => Promise<Library>;
   /** Refresh the list of libraries */
   refetchLibraries: () => Promise<LibraryDataResponse>;
-  /** Currently selected library */
+  /**
+   * Header of the library given by `libraryId` (name, path, title count).
+   * Its `mangas` array is always empty: titles are listed through the
+   * paginated `manga.query` (see useLibraryMangaAccumulator).
+   */
   library?: TransformedLibrary;
-  /** Manga in the selected library */
-  manga: Manga[];
-  /** Refresh the selected library */
-  refreshLibrary: (libraryId?: string | number) => Promise<LibraryDataResponse>;
+  /** True while that library's header is loading (independent of the list of libraries) */
+  isLibraryLoading: boolean;
+  /** Refresh the header of the library given by `libraryId` */
+  refreshLibrary: () => Promise<LibraryDataResponse>;
   /** Whether the hook is receiving real-time updates */
   isRealtime: boolean;
 }
@@ -91,10 +95,13 @@ export function useLibrary(libraryId?: string | number): UseLibraryResult {
 
   // Query a specific library if ID is provided - using the correct 'get' procedure
   // Always call the hook, but disable it when no ID is provided
+  // Header only (includeManga: false): the titles themselves come from the
+  // paginated manga.query, so asking for them here loaded every title with one
+  // row per chapter just to read the library's name.
   const libraryDetailQuery = trpc.library.get.useQuery({
-    id: toNumberId(libraryId ?? 0)
+    id: toNumberId(libraryId ?? 0),
+    includeManga: false,
   },
-  // Provide a default value to satisfy type requirements
   {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -102,48 +109,40 @@ export function useLibrary(libraryId?: string | number): UseLibraryResult {
     refetchInterval: isConnected ? false : 30000, // 30s fallback when disconnected
   });
 
+  // Effects below depend on these individual members. A query result object is
+  // a new object on every render, so listing it as a dependency re-ran the
+  // effect (and re-subscribed the channel) on every render.
+  const { refetch: refetchLibraryList, data: libraryListData, isError: isLibraryListError } = libraryQuery;
+  const { refetch: refetchLibraryDetail } = libraryDetailQuery;
+
   // Subscribe to library:updates channel for real-time updates
   useEffect(() => {
     if (!isConnected) return;
 
     const unsubscribe = subscribe('library:updates', () => {
       logger.debug('useLibrary: Received library:updates event, refetching...');
-      void libraryQuery.refetch();
+      void refetchLibraryList();
       if (libraryId) {
-        void libraryDetailQuery.refetch();
+        void refetchLibraryDetail();
       }
     });
 
     return unsubscribe;
-  }, [isConnected, subscribe, libraryId, libraryQuery, libraryDetailQuery]);
-
-  useEffect(() => {
-    if (libraryId) {
-      logger.debug('useLibrary query state', {
-        libraryId,
-        status: libraryDetailQuery.status,
-        hasData: !!libraryDetailQuery.data,
-        isLoading: libraryDetailQuery.isLoading
-      });
-    }
-  }, [libraryId, libraryDetailQuery]);
+  }, [isConnected, subscribe, libraryId, refetchLibraryList, refetchLibraryDetail]);
 
   // Setup mutation for creating libraries
   const createMutation = trpc.library.create.useMutation();
 
   // Update library store when data changes
   useEffect(() => {
-    const {
-      data
-    } = libraryQuery;
-    if (Array.isArray(data) && !libraryQuery.isError) {
+    if (Array.isArray(libraryListData) && !isLibraryListError) {
       // Update the store with the libraries
       // Type assertion: The data from the query is already in the correct format
       const setLibraries = useLibraryStore.getState().setLibraries;
-      setLibraries(data as unknown as TransformedLibrary[]);
-      logger.debug(`useLibrary: Updated library store with ${data.length} libraries`);
+      setLibraries(libraryListData as unknown as TransformedLibrary[]);
+      logger.debug(`useLibrary: Updated library store with ${libraryListData.length} libraries`);
     }
-  }, [libraryQuery]);
+  }, [libraryListData, isLibraryListError]);
 
   // Create a new library
   const createLibrary = async (path: string): Promise<Library> => {
@@ -209,38 +208,23 @@ export function useLibrary(libraryId?: string | number): UseLibraryResult {
     }
   };
 
-  // Get manga for a specific library
-  // The library.get endpoint returns a library object with a mangas array
-  const libraryManga: Manga[] = (() => {
-    if (!libraryDetailQuery.data || libraryDetailQuery.isError) {
-      return [];
-    }
-    const mangas = libraryDetailQuery.data.mangas;
-    if (!Array.isArray(mangas)) {
-      return [];
-    }
-
-    // Return the manga data directly from the API with type assertion
-    return mangas as Manga[];
-  })();
-
   // Get the library data
   // Cast to TransformedLibrary type to satisfy exactOptionalPropertyTypes
   const library = (libraryDetailQuery.data) as TransformedLibrary | undefined;
 
-  // Define a refresh function for a specific library
-  const refreshLibrary = async (targetLibraryId?: string | number): Promise<LibraryDataResponse> => {
-    const idToRefresh = targetLibraryId || libraryId;
-    if (idToRefresh) {
+  // Refresh the header of this hook's library. (This used to take a library id
+  // it then ignored; it can only ever refetch the query this hook owns.)
+  const refreshLibrary = async (): Promise<LibraryDataResponse> => {
+    if (libraryId) {
       try {
-        const result = await libraryDetailQuery.refetch();
+        const result = await refetchLibraryDetail();
         // Type assertion: The get endpoint returns a transformed library
         const typedData = result.data ? (result.data as unknown as TransformedLibrary) : null;
         return {
           data: typedData
         };
       } catch (error: unknown) {
-        logger.error(`Failed to refresh library ${idToRefresh}:`, error);
+        logger.error(`Failed to refresh library ${libraryId}:`, error);
       }
     }
     return {
@@ -263,7 +247,7 @@ export function useLibrary(libraryId?: string | number): UseLibraryResult {
     refetchLibraries,
     // Specific library data if requested (use spread for exactOptionalPropertyTypes compliance)
     ...(library && { library }),
-    manga: libraryManga,
+    isLibraryLoading: libraryDetailQuery.isLoading,
     refreshLibrary,
     // Real-time status
     isRealtime: isConnected,

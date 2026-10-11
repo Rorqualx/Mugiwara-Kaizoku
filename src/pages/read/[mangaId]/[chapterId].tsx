@@ -51,7 +51,9 @@ export const getServerSideProps = async (ctx: GetServerSidePropsContext<{ mangaI
   if (!session) {
     return {
       redirect: {
-        destination: '/auth/signin',
+        // NextAuth's sign-in page is /login (auth-options `pages.signIn`);
+        // there is no /auth/signin route.
+        destination: `/login?callbackUrl=${encodeURIComponent(ctx.resolvedUrl)}`,
         permanent: false
       }
     };

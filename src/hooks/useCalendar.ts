@@ -114,16 +114,19 @@ export function useCalendar(options: UseCalendarOptions = {}): UseCalendarReturn
     refetchInterval: autoSync && !isConnected ? 60000 : false
   });
 
-  // Subscribe to WebSocket calendar events for real-time updates (when autoSync enabled)
+  // Subscribe to WebSocket calendar events for real-time updates (when autoSync enabled).
+  // Depends on the stable `refetch`, not on the query result object, which is
+  // a new object every render and re-subscribed the channel each time.
+  const { refetch: refetchEvents } = eventsQuery;
   useEffect(() => {
     if (!isConnected || !autoSync) return;
 
     const unsubscribe = subscribe('calendar:updated', () => {
-      void eventsQuery.refetch();
+      void refetchEvents();
     });
 
     return unsubscribe;
-  }, [isConnected, subscribe, autoSync, eventsQuery]);
+  }, [isConnected, subscribe, autoSync, refetchEvents]);
 
   // Fetch upcoming releases
   const upcomingQuery = trpc.calendar.getUpcomingReleases.useQuery({

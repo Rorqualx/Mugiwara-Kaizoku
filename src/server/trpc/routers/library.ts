@@ -259,7 +259,13 @@ export const libraryRouter = router({
     }),
 
   get: protectedProcedure
-    .input(z.object({ id: z.number() }))
+    .input(z.object({
+      id: z.number(),
+      // false = header data only (name, path, count). The library page lists
+      // its titles through the paginated manga.query, so loading every title
+      // with one row per chapter here only delayed the first paint.
+      includeManga: z.boolean().optional(),
+    }))
     .query(async ({ input, ctx }) => {
       const userId = requireUserId(ctx);
       const library = await prisma.library.findFirst({ where: { id: input.id, ownerId: userId } });
@@ -267,14 +273,25 @@ export const libraryRouter = router({
 
       // The user's first library is the default that absorbs unassigned memberships.
       const first = await prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
+      const where = membershipInLibraryWhere(userId, library.id, first?.id === library.id);
+      const header = {
+        id: library.id, name: library.name, path: library.path,
+        createdAt: library.createdAt, lastScanAt: library.lastScanAt,
+      };
+
+      if (input.includeManga === false) {
+        const mangaCount = await prisma.manga.count({ where });
+        const mangas: unknown[] = [];
+        return { ...header, mangas, mangaCount };
+      }
+
       const mangas = await prisma.manga.findMany({
-        where: membershipInLibraryWhere(userId, library.id, first?.id === library.id),
+        where,
         include: { Chapter: { select: { size: true } } }
       });
 
       return {
-        id: library.id, name: library.name, path: library.path,
-        createdAt: library.createdAt, lastScanAt: library.lastScanAt,
+        ...header,
         mangas: mangas.map(stripMangaPayload),
         mangaCount: mangas.length
       };

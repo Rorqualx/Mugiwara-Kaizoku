@@ -16,6 +16,7 @@ import type { ReactElement } from "react";
 import { Box, Center, Loader, ScrollArea, SegmentedControl, Stack, Text, Group, ActionIcon, Menu, Button, Modal, Container, Title, Badge, Tooltip } from "@mantine/core";
 import { IconEdit, IconTrash, IconPlus, IconFilter, IconRefresh, IconDotsVertical, IconArrowLeft, IconCircleCheck, IconEye, IconBook } from '@tabler/icons-react';
 import { useRouter } from "next/router";
+import { useShallow } from 'zustand/react/shallow';
 
 import { AddMangaModal } from '@/components/addManga/AddMangaModal';
 import { ResponsiveMainLayout } from '@/components/layouts/ResponsiveMainLayout';
@@ -26,6 +27,7 @@ import { AdvancedFilters } from '@/components/library/filters/AdvancedFilters';
 import { LibraryContent } from '@/components/library/LibraryContent';
 import { MangaCardSkeletonGrid } from '@/components/library/MangaCardSkeleton';
 import { filterAndSortManga, getAvailableGenres, getAvailableTags } from '@/components/library/utils/libraryUtils';
+import { useLibraryBulkActions } from '@/hooks/library/useLibraryBulkActions';
 import { useComicvineConfig } from '@/hooks/useComicvineConfig';
 import { useLibrary } from '@/hooks/useLibrary';
 import { useLibraryMangaAccumulator } from '@/hooks/useLibraryMangaAccumulator';
@@ -34,13 +36,12 @@ import { useNotification } from '@/hooks/useNotification';
 import { useLibraryStore, useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations } from '@/types/search.types';
 import { toNumberId } from '@/utils/id-converters';
-import { withRemovalToast } from '@/utils/removalToast';
 import { trpc } from '@/utils/trpc-client/index';
 
 /**
  * Enhanced Library Page Component
  */
-// eslint-disable-next-line complexity, max-statements -- Library page with multiple modal states, filtering, sorting, bulk operations, responsive UI
+// eslint-disable-next-line complexity -- Library page with multiple modal states, filtering, sorting, bulk operations, responsive UI
 function LibraryPage(): React.ReactElement {
     const [editModalOpened, setEditModalOpened] = useState(false);
     const [deleteModalOpened, setDeleteModalOpened] = useState(false);
@@ -55,7 +56,18 @@ function LibraryPage(): React.ReactElement {
     const { navigateTo } = useNavigation();
     const { id } = router.query;
     // Get library view state
-    const { sortBy, filterBy, searchQuery, searchField, enableRegexSearch, advancedFilters, selectionMode, selectedItems } = useLibraryViewStore();
+    // Select only the fields this page renders from: subscribing to the whole
+    // store re-rendered the page on every unrelated store write.
+    const { sortBy, filterBy, searchQuery, searchField, enableRegexSearch, advancedFilters, selectionMode, selectedItems } = useLibraryViewStore(useShallow(state => ({
+        sortBy: state.sortBy,
+        filterBy: state.filterBy,
+        searchQuery: state.searchQuery,
+        searchField: state.searchField,
+        enableRegexSearch: state.enableRegexSearch,
+        advancedFilters: state.advancedFilters,
+        selectionMode: state.selectionMode,
+        selectedItems: state.selectedItems,
+    })));
     const coverSize = useLibraryViewStore(state => state.coverSize);
     const setSelectionMode = useLibraryViewStore(state => state.setSelectionMode);
     const selectAll = useLibraryViewStore(state => state.selectAll);
@@ -74,10 +86,6 @@ function LibraryPage(): React.ReactElement {
     const { showSuccess, showError } = useNotification();
     // Mutation for deleting library
     const deleteLibraryMutation = trpc.library.delete.useMutation();
-    // Bulk action mutations
-    const bulkRefreshMutation = trpc.bulk.bulkRefreshMetadata.useMutation();
-    const bulkDeleteMutation = trpc.bulk.removeManga.useMutation();
-    const bulkMonitorMutation = trpc.manga.bulkToggleMonitoring.useMutation();
     // State for refresh loading
     const [refreshing, setRefreshing] = useState(false);
     // Set the selected library ID
@@ -87,16 +95,18 @@ function LibraryPage(): React.ReactElement {
         }
     }, [hasValidId, libraryId, setTargetLibraryId]);
     // Fetch library data
-    const { library, manga: _basicManga, error, refreshLibrary, isLoading } = useLibrary(hasValidId ? libraryId : undefined);
+    const { library, error, refreshLibrary, isLibraryLoading } = useLibrary(hasValidId ? libraryId : undefined);
 
     const scrollViewportRef = useRef<HTMLDivElement>(null);
     const sentinelRef = useRef<HTMLDivElement>(null);
+    // The grid is enabled from the route id, not from the loaded library, so
+    // its first page is requested alongside the header instead of after it.
     const {
         allManga, hasMore, isFetching, pendingTitleRows,
-        refetchAll, refetchManga, registerScrollParent, registerSentinel,
+        refetchAll, registerScrollParent, registerSentinel,
     } = useLibraryMangaAccumulator(
         hasValidId && libraryId !== undefined ? libraryId : undefined,
-        Boolean(library),
+        Boolean(hasValidId),
     );
     useEffect(() => { registerScrollParent(scrollViewportRef.current); }, [registerScrollParent]);
     useEffect(() => { registerSentinel(sentinelRef.current); }, [registerSentinel, hasMore]);
@@ -105,13 +115,9 @@ function LibraryPage(): React.ReactElement {
     // LibraryMembership.libraryId), so the accumulated page already contains
     // exactly this library's titles. We must NOT re-filter by Manga.libraryId —
     // a linked/deduplicated title keeps the original owner's libraryId.
-    const manga = useMemo((): MangaWithRelations[] => {
-        return allManga as MangaWithRelations[];
-    }, [allManga]);
+    const manga = allManga as MangaWithRelations[];
     // Calculate filtered and sorted manga
     const displayedManga = useMemo(() => {
-        if (!manga)
-            return [];
         const effectiveFilter = comicbookTrackingEnabled ? mediaTypeFilter : 'all';
         const mediaFiltered = effectiveFilter === 'all'
             ? manga
@@ -179,73 +185,13 @@ function LibraryPage(): React.ReactElement {
             });
         }
     };
-    // Bulk action handlers
-    const handleBulkRefresh = async (): Promise<void> => {
-        try {
-            const result = await bulkRefreshMutation.mutateAsync({
-                mangaIds: selectedItems.map(id => Number(id))
-            });
-            showSuccess({
-                title: 'Metadata Refresh Queued',
-                message: result.message
-            });
-            clearSelection();
-            setSelectionMode(false);
-        } catch (error: unknown) {
-            showError({
-                title: 'Bulk Refresh Failed',
-                message: error instanceof Error ? error.message : 'Failed to queue metadata refresh'
-            });
-        }
-    };
+    // Bulk action handlers (selection mode)
+    const { handleBulkRefresh, handleBulkDelete, handleBulkMonitor, isBulkRefreshPending } =
+        useLibraryBulkActions(selectedItems, refetchAll);
 
-    const handleBulkDelete = async (deleteFiles: boolean): Promise<void> => {
-        const count = selectedItems.length;
-        const mangaIds = selectedItems.map(id => Number(id));
-        await withRemovalToast(
-            {
-                id: 'bulk-remove-manga',
-                processingTitle: 'Removing manga',
-                processingMessage: `Removing ${count} manga…`,
-                successTitle: 'Bulk Delete Complete',
-                successMessage: `${count} manga removed${deleteFiles ? ' along with their files' : ''}`,
-                errorTitle: 'Bulk Delete Failed',
-                fallbackErrorMessage: 'Failed to delete manga',
-            },
-            async () => {
-                await bulkDeleteMutation.mutateAsync({ mangaIds, deleteFiles });
-                // refetchAll refreshes BOTH the paginated query and listTitlesByLibrary,
-                // so removed manga leave no ghost skeleton placeholders.
-                await refetchAll();
-                clearSelection();
-                setSelectionMode(false);
-            },
-        );
-    };
-
-    const handleBulkMonitor = async (monitored: boolean): Promise<void> => {
-        try {
-            const result = await bulkMonitorMutation.mutateAsync({
-                mangaIds: selectedItems.map(id => Number(id)),
-                monitored
-            });
-            showSuccess({
-                title: 'Monitoring Updated',
-                message: `Updated ${result.totalUpdated} chapters across ${result.mangaCount} manga`
-            });
-            clearSelection();
-            setSelectionMode(false);
-        } catch (error: unknown) {
-            showError({
-                title: 'Monitoring Update Failed',
-                message: error instanceof Error ? error.message : 'Failed to update monitoring'
-            });
-            throw error;
-        }
-    };
-
-    // Loading state
-    if (!router.isReady || hasValidId && isLoading) {
+    // Loading state. Only the library header (name/path) is awaited; the grid
+    // loads its own pages in parallel and shows skeletons meanwhile.
+    if (!router.isReady || hasValidId && isLibraryLoading) {
         return <Center style={{
                 height: "calc(100vh - 88px)",
                 paddingTop: 20
@@ -311,7 +257,7 @@ function LibraryPage(): React.ReactElement {
                       variant="light"
                       leftSection={<IconRefresh size={16}/>}
                       onClick={() => { void handleBulkRefresh(); }}
-                      loading={bulkRefreshMutation.isPending}
+                      loading={isBulkRefreshPending}
                     >
                       Refresh
                     </Button>
@@ -526,8 +472,9 @@ function LibraryPage(): React.ReactElement {
                     // Defer library refresh to next tick to avoid render race conditions
                     setTimeout(() => {
                       void refreshLibrary();
-                      // Also refetch manga query to show newly imported manga
-                      void refetchManga();
+                      // Reload the grid from the first page: the new title can
+                      // sort onto any page, not just the one loaded last.
+                      void refetchAll();
                     }, 0);
                 }}/>}
 
