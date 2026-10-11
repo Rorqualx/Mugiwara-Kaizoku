@@ -35,7 +35,7 @@ async function createChapterFileTable(): Promise<void> {
       "chapterId"  INT NOT NULL,
       "filePath"   VARCHAR(500) NOT NULL,
       "fileName"   VARCHAR(255) NOT NULL,
-      "fileSize"   INT NOT NULL DEFAULT 0,
+      "fileSize"   BIGINT NOT NULL DEFAULT 0,
       "isActive"   BOOLEAN NOT NULL DEFAULT false,
       "sourceType" VARCHAR(20) NOT NULL,
       "pageStart"  INT,

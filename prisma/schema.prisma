@@ -133,7 +133,7 @@ model ChapterFile {
   chapterId  Int
   filePath   String   @db.VarChar(500)
   fileName   String   @db.VarChar(255)
-  fileSize   Int      @default(0)
+  fileSize   BigInt   @default(0)
   isActive   Boolean  @default(false)
   sourceType String   @db.VarChar(20)
   pageStart  Int?

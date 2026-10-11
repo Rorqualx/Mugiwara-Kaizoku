@@ -27,7 +27,7 @@
     "smart-run": "./scripts/smart-run.sh",
     "lint": "eslint src --max-warnings=10",
     "lint:fix": "eslint src --fix",
-    "type-check": "node --stack-size=8192 ./node_modules/.bin/tsc --noEmit --skipLibCheck",
+    "type-check": "node --stack-size=8192 --max-old-space-size=8192 ./node_modules/.bin/tsc --noEmit --skipLibCheck",
     "type-check:watch": "tsc --noEmit --watch --skipLibCheck",
     "type:fix:stage1": "ts-node scripts/type-fixes/stage1-fix-exports.ts",
     "type:fix:stage2": "ts-node scripts/type-fixes/stage2-consolidate-types.ts",
