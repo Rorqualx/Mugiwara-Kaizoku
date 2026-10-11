@@ -14,6 +14,11 @@ interface BulkActionsProps {
   onDeleteCompleted: () => void;
   onDeleteFailed: () => void;
   isDeleting: boolean;
+  /**
+   * Whether to offer "delete every completed / failed job". Those clear the
+   * whole queue for all users and are admin-only on the server.
+   */
+  canDeleteByStatus: boolean;
 }
 
 export function BulkActions({
@@ -23,7 +28,8 @@ export function BulkActions({
   onDeleteSelected,
   onDeleteCompleted,
   onDeleteFailed,
-  isDeleting
+  isDeleting,
+  canDeleteByStatus
 }: BulkActionsProps): React.ReactElement {
   return (
     <Group gap="sm">
@@ -40,6 +46,7 @@ export function BulkActions({
         </Button>
       )}
 
+      {canDeleteByStatus && (
       <Menu shadow="md" width={200}>
         <Menu.Target>
           <Button
@@ -82,6 +89,7 @@ export function BulkActions({
           </Menu.Item>
         </Menu.Dropdown>
       </Menu>
+      )}
     </Group>
   );
 }

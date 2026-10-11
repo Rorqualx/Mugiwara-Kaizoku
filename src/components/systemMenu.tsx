@@ -29,6 +29,7 @@ import {
   IconInfoCircle,
 } from '@tabler/icons-react';
 
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { notify } from '@/utils/notify';
 
 import { useAuthActions } from "../lib/auth/client-actions";
@@ -41,8 +42,8 @@ import { trpc } from "../utils/trpc-client/index";
  * Displays a dropdown menu with system control options.
  * Features include:
  * - Power button icon that opens the dropdown
- * - Restart application option with confirmation
- * - Shutdown system option with confirmation
+ * - Restart application option with confirmation (administrators only)
+ * - Shutdown system option with confirmation (administrators only)
  * - Logout current user option
  * - Active task checking before restart/shutdown
  * - Force restart/shutdown option
@@ -59,6 +60,9 @@ import { trpc } from "../utils/trpc-client/index";
  * ```
  */
 export function SystemMenu(): React.ReactElement {
+  // Restart and shutdown are admin-only on the server (system.restart /
+  // system.shutdown); regular users only get Logout.
+  const isAdmin = useIsAdmin();
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
   const [shutdownConfirmOpen, setShutdownConfirmOpen] = useState(false);
 
@@ -204,20 +208,24 @@ export function SystemMenu(): React.ReactElement {
 
         <Menu.Dropdown>
           {/* Download Manager removed — superseded by the Activity sidebar item. */}
-          <Menu.Item
-            leftSection={<IconReload size={14} />}
-            onClick={() => setRestartConfirmOpen(true)}
-            disabled={restartMutation.isPending}>
-            {restartMutation.isPending ? 'Restarting...' : 'Restart'}
-          </Menu.Item>
-          <Menu.Item
-            leftSection={<IconPower size={14} />}
-            onClick={() => setShutdownConfirmOpen(true)}
-            disabled={shutdownMutation.isPending}
-            color="red">
-            {shutdownMutation.isPending ? 'Shutting down...' : 'Shutdown'}
-          </Menu.Item>
-          <Menu.Divider />
+          {isAdmin && (
+            <>
+              <Menu.Item
+                leftSection={<IconReload size={14} />}
+                onClick={() => setRestartConfirmOpen(true)}
+                disabled={restartMutation.isPending}>
+                {restartMutation.isPending ? 'Restarting...' : 'Restart'}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={<IconPower size={14} />}
+                onClick={() => setShutdownConfirmOpen(true)}
+                disabled={shutdownMutation.isPending}
+                color="red">
+                {shutdownMutation.isPending ? 'Shutting down...' : 'Shutdown'}
+              </Menu.Item>
+              <Menu.Divider />
+            </>
+          )}
           <Menu.Item
             leftSection={<IconLogout size={14} />}
             onClick={handleLogout}>

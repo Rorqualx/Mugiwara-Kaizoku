@@ -24,6 +24,7 @@ import {
 import { showNotification } from '@mantine/notifications';
 import { IconFolder, IconUpload, IconCheck, IconX, IconAlertCircle } from '@tabler/icons-react';
 
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { trpc } from '@/utils/trpc-client';
 
 // Components
@@ -77,12 +78,15 @@ export function ManualImportModal({
   const [currentBrowsePath, setCurrentBrowsePath] = useState('');
 
   const utils = trpc.useUtils();
+  // The server-side directory browser (pathMapping.browse) is admin-only;
+  // regular users type the path and scan it.
+  const isAdmin = useIsAdmin();
 
   // Browse query for directory navigation
   const { data: browseResult, isLoading: isBrowseLoading, error: browseError } = trpc.pathMapping.browse.useQuery(
     { path: currentBrowsePath },
     {
-      enabled: browseModalOpen,
+      enabled: browseModalOpen && isAdmin,
       refetchOnMount: true,
       refetchOnWindowFocus: false,
       staleTime: 5000, // Consider data fresh for 5 seconds to prevent rapid refetches
@@ -314,7 +318,7 @@ export function ManualImportModal({
         <DirectoryScanSection
           scanPath={scanPath}
           onScanPathChange={setScanPath}
-          onBrowse={() => { void handleBrowseDirectory(); }}
+          onBrowse={isAdmin ? handleBrowseDirectory : undefined}
           onScan={() => { void handleScanDirectory(); }}
           scanning={scanning}
           filesFound={scannedFiles.length}

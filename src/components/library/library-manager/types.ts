@@ -73,6 +73,12 @@ export interface DirectorySelectorProps {
     onScanPathInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     /** Callback when browse button clicked */
     onBrowse: () => void;
+    /**
+     * Whether the server-side directory browser is available to this user
+     * (it is admin-only). When false the path is typed in and the Browse
+     * button and the manual-entry toggle are not shown. Defaults to true.
+     */
+    canBrowse?: boolean;
 }
 
 /**

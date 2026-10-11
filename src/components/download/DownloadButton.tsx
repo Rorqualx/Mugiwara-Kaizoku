@@ -29,6 +29,7 @@ import {
 } from '@tabler/icons-react';
 
 import { MangaDexDownloadOptions } from '@/components/manga/MangaDexDownloadOptions';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { toNumberId } from '@/utils/id-converters';
 import { notify } from '@/utils/notify';
 import { mapSummaryToNotification } from '@/utils/quickDownload/notification-mapping';
@@ -107,6 +108,8 @@ export function DownloadButton({
   const [menuOpened, setMenuOpened] = useState(false);
   const [directUrlModalOpen, setDirectUrlModalOpen] = useState(false);
   const [mangadexModalOpen, setMangadexModalOpen] = useState(false);
+  // Download-client settings are an admin-only page.
+  const isAdmin = useIsAdmin();
 
   // Check if manga/chapter has MangaDex source
   const hasMangaDexSource = useMemo(() => {
@@ -194,7 +197,13 @@ export function DownloadButton({
   // Handle quick download based on context
   const handleQuickDownload = (): void => {
     if (!canDownload) {
-      notify({ severity: 'WARNING', title: 'Configuration Required', message: 'Please configure Prowlarr and a download client in Settings' });
+      notify({
+        severity: 'WARNING',
+        title: 'Configuration Required',
+        message: isAdmin
+          ? 'Please configure Prowlarr and a download client in Settings'
+          : 'Downloads are not set up yet. Ask an administrator to configure Prowlarr and a download client.',
+      });
       return;
     }
 
@@ -422,8 +431,8 @@ export function DownloadButton({
           </div>
         </Menu.Item>
 
-        {/* Settings hint if not configured */}
-        {!canDownload && (
+        {/* Settings hint if not configured (admins only: the page is admin-only) */}
+        {!canDownload && isAdmin && (
           <>
             <Menu.Divider />
             <Menu.Item

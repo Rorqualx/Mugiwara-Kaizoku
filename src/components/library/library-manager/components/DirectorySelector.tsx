@@ -42,7 +42,21 @@ export const DirectorySelector = memo<DirectorySelectorProps>(({
   onManualPathChange,
   onScanPathInputChange,
   onBrowse,
+  canBrowse = true,
 }): JSX.Element => {
+  if (!canBrowse) {
+    return (
+      <TextInput
+        label="Scan Directory"
+        description="Enter an absolute path on the server (e.g., /home/user/manga)"
+        placeholder="Enter a directory path"
+        value={scanPathInput}
+        onChange={onScanPathInputChange}
+        withAsterisk
+      />
+    );
+  }
+
   return (
     <Stack gap="xs">
       <Group grow preventGrowOverflow={false}>

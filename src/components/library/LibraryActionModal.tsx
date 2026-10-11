@@ -22,6 +22,8 @@ import {
 import { IconFolderPlus, IconDownload, IconChevronRight } from '@tabler/icons-react';
 import { useRouter } from 'next/router';
 
+import { useIsAdmin } from '@/hooks/useIsAdmin';
+
 import { CreateLibraryForm } from './CreateLibraryForm';
 import { ImportLibraryWizard } from './import/ImportLibraryWizard';
 
@@ -107,6 +109,9 @@ export function LibraryActionModal({
 }: LibraryActionModalProps): React.ReactElement {
   const [view, setView] = useState<ModalView>('choice');
   const router = useRouter();
+  // Folder import lives on /settings/library, an admin-only page; a regular
+  // user following the card was bounced back to the home page.
+  const isAdmin = useIsAdmin();
 
   const handleClose = (): void => {
     setView('choice');
@@ -174,13 +179,15 @@ export function LibraryActionModal({
               gradient={{ from: 'blue', to: 'cyan' }}
             />
 
-            <ActionCard
-              icon={<IconDownload size={28} />}
-              title="Import Folder"
-              description="Scan an existing folder and auto-match with metadata"
-              onClick={() => { handleClose(); void router.push('/settings/library'); }}
-              gradient={{ from: 'grape', to: 'pink' }}
-            />
+            {isAdmin && (
+              <ActionCard
+                icon={<IconDownload size={28} />}
+                title="Import Folder"
+                description="Scan an existing folder and auto-match with metadata"
+                onClick={() => { handleClose(); void router.push('/settings/library'); }}
+                gradient={{ from: 'grape', to: 'pink' }}
+              />
+            )}
           </Group>
         </Stack>
       )}

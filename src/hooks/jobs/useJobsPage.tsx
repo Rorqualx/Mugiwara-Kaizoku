@@ -7,7 +7,7 @@
  * @module hooks/jobs/useJobsPage
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 
 import { showNotification } from '@mantine/notifications';
 import { IconCheck, IconX } from '@tabler/icons-react';
@@ -61,7 +61,10 @@ export function useJobQueries(): JobQueriesReturn {
     refetchActiveStatuses(); void refetchCompleted(); void refetchFailed();
   }, [refetchActiveStatuses, refetchCompleted, refetchFailed]);
 
-  return {
+  // Memoized so the object only changes when a result set does. Callers that
+  // subscribe to realtime events must still depend on the individual refetch
+  // callbacks (stable for the life of the page), not on this object.
+  return useMemo((): JobQueriesReturn => ({
     pendingJobs: pendingJobs as unknown[] | undefined,
     activeJobs: activeJobs as unknown[] | undefined,
     retryingJobs: retryingJobs as unknown[] | undefined,
@@ -70,7 +73,7 @@ export function useJobQueries(): JobQueriesReturn {
     refetchActiveStatuses, refetchAll,
     refetchCompleted: refetchCompleted as unknown as () => Promise<unknown>,
     refetchFailed: refetchFailed as unknown as () => Promise<unknown>,
-  };
+  }), [pendingJobs, activeJobs, retryingJobs, completedJobs, failedJobs, refetchActiveStatuses, refetchAll, refetchCompleted, refetchFailed]);
 }
 
 // ============================================================================

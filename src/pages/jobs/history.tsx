@@ -15,8 +15,15 @@ import { IconCheck, IconX, IconClock, IconAlertCircle } from '@tabler/icons-reac
 
 import { isRecord, useJobSelection, useBulkDelete, BulkActions, JobsTable, StatusSummary } from '@/components/jobs/history';
 import { MainLayout } from '@/components/layouts/MainLayout';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useRealTime } from '@/providers/RealTimeProvider';
 import { trpc } from '@/utils/trpc-client';
+
+/** Trailing window that collapses a burst of job events into one refetch. */
+const REALTIME_REFETCH_DEBOUNCE_MS = 750;
+
+/** Channels that announce a job entering, leaving or finishing the queue. */
+const JOB_STATE_CHANNELS = ['jobs:active', 'jobs:completed', 'jobs:failed'] as const;
 
 const paginationStyles = {
   control: {
@@ -81,21 +88,34 @@ function useJobMutations(refetch: () => Promise<unknown>): {
 function JobHistoryContent(): React.ReactElement {
   const [currentPage, setCurrentPage] = useState(1);
   const { isConnected, subscribe } = useRealTime();
+  // "Delete all completed / failed" clears the queue for every user and is
+  // admin-only on the server; regular users keep per-row and selected deletes.
+  const isAdmin = useIsAdmin();
 
-  const { data: jobsData, isPending, refetch } = trpc.jobs.getAll.useQuery({ page: currentPage, limit: 100 });
+  const { data: jobsData, isPending, error, refetch } = trpc.jobs.getAll.useQuery({ page: currentPage, limit: 100 });
 
   const { selectedIds, allSelected, someSelected, handleSelectAll, handleSelectItem, clearSelection } = useJobSelection(jobsData);
   const { handleDeleteSelected, handleDeleteCompleted, handleDeleteFailed, isDeleting } = useBulkDelete(selectedIds, clearSelection, refetch);
   const { cancelJob, retryJob, deleteJob } = useJobMutations(refetch);
 
+  // A job changing state is the only event that changes this table. Bursts
+  // (a pack finishing fires one event per chapter) collapse into one refetch;
+  // `downloads:progress` ticks are not listened to at all — progress is not
+  // shown here, and each tick used to restart a 100-row query.
   useEffect(() => {
     if (!isConnected) return;
-    // Subscribe to both job updates and download progress events
-    const unsubJobs = subscribe('jobs:active', () => { void refetch(); });
-    const unsubDownloads = subscribe('downloads:progress', () => { void refetch(); });
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = (): void => {
+      if (pending !== null) return;
+      pending = setTimeout(() => {
+        pending = null;
+        void refetch();
+      }, REALTIME_REFETCH_DEBOUNCE_MS);
+    };
+    const unsubs = JOB_STATE_CHANNELS.map((channel) => subscribe(channel, scheduleRefetch));
     return () => {
-      unsubJobs();
-      unsubDownloads();
+      if (pending !== null) clearTimeout(pending);
+      unsubs.forEach((unsubscribe) => unsubscribe());
     };
   }, [isConnected, subscribe, refetch]);
 
@@ -110,9 +130,19 @@ function JobHistoryContent(): React.ReactElement {
       <Center h="calc(100vh - 200px)" style={{ backgroundColor: '#333333' }}>
         <Stack align="center">
           <Loader size="xl" color="blue" />
-          <Text c="dimmed">Loading active tasks...</Text>
+          <Text c="dimmed">Loading job history...</Text>
         </Stack>
       </Center>
+    );
+  }
+
+  if (error && !jobsData) {
+    return (
+      <Container size="xl" style={{ paddingTop: '80px', paddingBottom: '20px' }}>
+        <Alert icon={<IconAlertCircle />} color="red" title="Could not load job history">
+          {error.message}
+        </Alert>
+      </Container>
     );
   }
 
@@ -147,6 +177,7 @@ function JobHistoryContent(): React.ReactElement {
               onDeleteCompleted={handleDeleteCompleted}
               onDeleteFailed={handleDeleteFailed}
               isDeleting={isDeleting}
+              canDeleteByStatus={isAdmin}
             />
             <Badge size="lg" color="blue" variant="filled">{pagination?.totalCount ?? 0} Total Jobs</Badge>
           </Group>

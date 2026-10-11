@@ -19,6 +19,7 @@ import {
   BrowseDirectoryModal,
 } from '@/components/library/library-manager/components';
 import { useBrowseDirectory } from '@/components/library/library-manager/hooks';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { trpc } from '@/utils/trpc-client';
 
 // ============================================================================
@@ -50,6 +51,9 @@ function SelectSourceStageComponent({
   canProceed,
 }: SelectSourceStageProps): JSX.Element {
   const [manualPath, setManualPath] = useState(false);
+  // The server-side directory browser (pathMapping.browse) is admin-only;
+  // regular users type the path instead.
+  const isAdmin = useIsAdmin();
 
   // Fetch libraries
   const { data: libraries = [], refetch: refetchLibraries } = trpc.library.list.useQuery();
@@ -115,6 +119,7 @@ function SelectSourceStageComponent({
         onScanPathInputChange={handlePathInputChange}
         onManualPathChange={handleManualPathChange}
         onBrowse={handleBrowseClick}
+        canBrowse={isAdmin}
       />
 
       {/* Help Text */}

@@ -23,6 +23,7 @@ import {
 
 import { BrowseDirectoryModal } from '@/components/library/library-manager/components/BrowseDirectoryModal';
 import { useBrowseDirectory } from '@/components/library/library-manager/hooks/useBrowseDirectory';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
 
@@ -96,7 +97,8 @@ function SeriesPathEditForm({ editPath, isPending, onChange, onSave, onCancel, o
   onChange: (value: string) => void;
   onSave: () => void;
   onCancel: () => void;
-  onBrowse: () => void;
+  /** Omitted when the user may not use the (admin-only) directory browser. */
+  onBrowse: (() => void) | undefined;
 }): React.ReactElement {
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter') onSave();
@@ -117,11 +119,13 @@ function SeriesPathEditForm({ editPath, isPending, onChange, onSave, onCancel, o
           disabled={isPending}
           styles={inputStyles}
         />
-        <Tooltip label="Browse">
-          <ActionIcon variant="light" color="blue" size="sm" onClick={onBrowse} disabled={isPending}>
-            <IconFolder size={14} />
-          </ActionIcon>
-        </Tooltip>
+        {onBrowse && (
+          <Tooltip label="Browse">
+            <ActionIcon variant="light" color="blue" size="sm" onClick={onBrowse} disabled={isPending}>
+              <IconFolder size={14} />
+            </ActionIcon>
+          </Tooltip>
+        )}
         <SeriesPathEditActions isPending={isPending} onSave={onSave} onCancel={onCancel} />
       </Group>
     </Box>
@@ -157,6 +161,8 @@ export function SeriesPathEditor({ mangaId, libraryPath }: SeriesPathEditorProps
   const [isEditing, setIsEditing] = useState(false);
   const [editPath, setEditPath] = useState(libraryPath);
   const utils = trpc.useUtils();
+  // The server-side directory browser (pathMapping.browse) is admin-only.
+  const isAdmin = useIsAdmin();
 
   const updatePathMutation = trpc.manga.updateLibraryPath.useMutation({
     onSuccess: (result) => {
@@ -205,7 +211,7 @@ export function SeriesPathEditor({ mangaId, libraryPath }: SeriesPathEditorProps
           onChange={setEditPath}
           onSave={handleSave}
           onCancel={handleCancel}
-          onBrowse={browse.handleBrowseClick}
+          onBrowse={isAdmin ? browse.handleBrowseClick : undefined}
         />
         <BrowseDirectoryModal
           opened={browse.browseModalOpen}

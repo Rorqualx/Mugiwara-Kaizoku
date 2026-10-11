@@ -23,7 +23,11 @@ import { IconFolder, IconRefresh, IconSearch } from '@tabler/icons-react';
 interface DirectoryScanSectionProps {
   scanPath: string;
   onScanPathChange: (path: string) => void;
-  onBrowse: () => void;
+  /**
+   * Opens the server-side directory browser. Omitted for users who may not
+   * use it (it is admin-only); the Browse button is then not shown.
+   */
+  onBrowse?: (() => void) | undefined;
   onScan: () => void;
   scanning: boolean;
   filesFound: number;
@@ -50,13 +54,15 @@ export function DirectoryScanSection({
             style={{ flex: 1 }}
             size="sm"
           />
-          <Button
-            variant="default"
-            leftSection={<IconFolder size={16} />}
-            onClick={onBrowse}
-          >
-            Browse
-          </Button>
+          {onBrowse && (
+            <Button
+              variant="default"
+              leftSection={<IconFolder size={16} />}
+              onClick={onBrowse}
+            >
+              Browse
+            </Button>
+          )}
           <Button
             leftSection={scanning ? <Loader size={16} /> : <IconRefresh size={16} />}
             onClick={onScan}

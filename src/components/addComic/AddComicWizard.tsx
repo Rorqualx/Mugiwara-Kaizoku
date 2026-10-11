@@ -26,6 +26,7 @@ import { useRouter } from 'next/router';
 
 import { ComicbookSearchPanel } from '@/components/comicbook/ComicbookSearchPanel';
 import { useComicvineConfig } from '@/hooks/useComicvineConfig';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { trpc } from '@/utils/trpc-client/index';
 
 interface LibraryOption {
@@ -40,17 +41,28 @@ function useLibraryOptions(): LibraryOption[] {
 }
 
 function FeatureDisabledNotice(): React.ReactElement {
+  // The ComicVine settings page is admin-only; a regular user is told who can
+  // turn the feature on instead of being sent to a page that redirects away.
+  const isAdmin = useIsAdmin();
   return (
     <Container size="xl" py="lg">
       <Stack gap="md">
         <Title order={2}>Add a Comicbook Series</Title>
         <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
-          Comicbook tracking is disabled. Enable it under
-          <Text span fw={500}> Settings → Metadata → ComicVine</Text>.
+          {isAdmin ? (
+            <>
+              Comicbook tracking is disabled. Enable it under
+              <Text span fw={500}> Settings → Metadata → ComicVine</Text>.
+            </>
+          ) : (
+            <>Comicbook tracking is disabled. An administrator can enable it in the ComicVine settings.</>
+          )}
         </Alert>
-        <Button component="a" href="/settings/metadata" variant="light" w="fit-content">
-          Open ComicVine settings
-        </Button>
+        {isAdmin && (
+          <Button component="a" href="/settings/metadata" variant="light" w="fit-content">
+            Open ComicVine settings
+          </Button>
+        )}
       </Stack>
     </Container>
   );
