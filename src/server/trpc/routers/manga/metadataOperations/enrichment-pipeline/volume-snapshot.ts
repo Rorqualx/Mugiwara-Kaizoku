@@ -13,13 +13,15 @@
  * after the rebuild put back
  *   - every volume, when the rebuild produced none;
  *   - volumes that are missing and were sourced from a provider that did not
- *     answer this run;
- *   - descriptive fields (title, cover, ISBN…) the rebuild left empty on a
- *     volume whose previous data came from a provider that did not answer;
+ *     answer this run, or that the title is bound to but this run's search
+ *     did not find again;
+ *   - descriptive fields (title, cover, ISBN…) and an empty chapter range the
+ *     rebuild left on a volume whose previous data came from such a provider;
  *   - user volume progress, re-pointed at the rebuilt row for the same number.
  */
 
 import { prisma } from '@/server/db';
+import { parseProviderMetadata, readProviderId } from '@/server/services/metadata/provider-metadata-utils';
 import { logger } from '@/utils/logger';
 
 import { unansweredProviders, type ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
@@ -31,6 +33,8 @@ export interface VolumeSnapshot {
   /** chapterId → volumeId as linked before the rebuild. */
   chapterLinks: Array<{ id: number; volumeId: number }>;
   progress: VolumeProgress[];
+  /** Providers the title held a bound entity for when the run started. */
+  boundProviders: string[];
 }
 
 export interface VolumeRestoreResult {
@@ -41,13 +45,41 @@ export interface VolumeRestoreResult {
 }
 
 export async function snapshotVolumes(mangaId: number): Promise<VolumeSnapshot> {
-  const [volumes, chapterRows, progress] = await Promise.all([
+  const [volumes, chapterRows, progress, manga] = await Promise.all([
     prisma.volume.findMany({ where: { mangaId } }),
     prisma.chapter.findMany({ where: { mangaId, volumeId: { not: null } }, select: { id: true, volumeId: true } }),
     prisma.volumeProgress.findMany({ where: { mangaId } }),
+    prisma.manga.findUnique({ where: { id: mangaId }, select: { providerMetadata: true } }),
   ]);
   const chapterLinks = chapterRows.flatMap(c => (c.volumeId === null ? [] : [{ id: c.id, volumeId: c.volumeId }]));
-  return { volumes, chapterLinks, progress };
+  return { volumes, chapterLinks, progress, boundProviders: boundProvidersOf(manga?.providerMetadata) };
+}
+
+/** Lower-cased provider names that carry a bound entity id in `Manga.providerMetadata`. */
+export function boundProvidersOf(providerMetadata: unknown): string[] {
+  const parsed = parseProviderMetadata(providerMetadata);
+  const bound = Object.keys(parsed).filter(provider => readProviderId(parsed, provider) !== null);
+  return [...new Set(bound.map(provider => provider.toLowerCase()))];
+}
+
+/**
+ * Providers whose earlier volume data this run must not discard: the ones
+ * that did not answer, plus the ones the title is bound to that came back
+ * with no match. A search that no longer finds a bound entity (ComicVine's
+ * language gate turning away "<Title> (Official Colored)", say) has not
+ * refreshed that entity's data, so the rebuild has nothing to replace it
+ * with. Re-identify clears automatic bindings before the run and so still
+ * starts clean.
+ */
+export function providersToKeep(
+  providerStatus: ProviderOutcomes | undefined,
+  boundProviders: readonly string[],
+): string[] {
+  const keep = new Set(unansweredProviders(providerStatus));
+  for (const [provider, outcome] of Object.entries(providerStatus ?? {})) {
+    if (outcome === 'no_match' && boundProviders.includes(provider.toLowerCase())) keep.add(provider);
+  }
+  return [...keep];
 }
 
 /** True when a `Volume.source` like "comicvine+wikipedia" names one of `providers`. */
@@ -82,25 +114,40 @@ const REFILLABLE_FIELDS = [
   'publisher', 'pageCount', 'releaseDate', 'coverImage',
 ] as const satisfies ReadonlyArray<keyof Volume>;
 
+/** Providers that write per-volume titles, covers, ISBNs and dates. */
+const VOLUME_DATA_PROVIDERS: readonly string[] = ['comicvine', 'wikipedia', 'fandom', 'mangadex'];
+
 type RefillableField = typeof REFILLABLE_FIELDS[number];
-export type VolumeFieldRefill = Partial<Pick<Volume, RefillableField>>;
+type RangeField = 'chapterStart' | 'chapterEnd';
+export type VolumeFieldRefill = Partial<Pick<Volume, RefillableField | RangeField>>;
 
 /**
  * Fields to copy back onto a rebuilt volume from its previous version: only
- * ones the rebuild left empty, and only when the previous data came from a
- * provider that did not answer this run. A healthy run refills nothing, so a
- * value written under a since-corrected binding cannot come back.
+ * ones the rebuild left empty, and only when a provider that supplies volume
+ * data (or the one named in the previous source) was not refreshed this run.
+ * A healthy run refills nothing, so a value written under a since-corrected
+ * binding cannot come back.
  */
 export function planVolumeFieldRefill(
-  previous: Pick<Volume, RefillableField | 'source'>,
-  rebuilt: Pick<Volume, RefillableField>,
+  previous: Pick<Volume, RefillableField | RangeField | 'source'>,
+  rebuilt: Pick<Volume, RefillableField | RangeField>,
   unanswered: readonly string[],
 ): VolumeFieldRefill {
-  if (!sourcedFrom(previous.source, unanswered)) return {};
+  // `Volume.source` names who set the range, not who wrote each field (ComicVine
+  // titles and covers sit on volumes labelled "mangadex"), so any volume-data
+  // provider that was not refreshed is reason enough to keep what was there.
+  const volumeDataNotRefreshed = unanswered.some(p => VOLUME_DATA_PROVIDERS.includes(p.toLowerCase()));
+  if (!volumeDataNotRefreshed && !sourcedFrom(previous.source, unanswered)) return {};
   const refill: Record<string, unknown> = {};
   for (const field of REFILLABLE_FIELDS) {
     const before = previous[field];
     if (before !== null && rebuilt[field] === null) refill[field] = before;
+  }
+  // The rebuild owns ranges, but when it produced none at all the previous
+  // range is better than a volume that covers nothing.
+  if (rebuilt.chapterStart === null && rebuilt.chapterEnd === null && previous.chapterStart !== null) {
+    refill['chapterStart'] = previous.chapterStart;
+    refill['chapterEnd'] = previous.chapterEnd;
   }
   return refill as VolumeFieldRefill;
 }
@@ -134,7 +181,7 @@ export async function restoreVolumesAfterRebuild(
   if (snapshot.volumes.length === 0) return none;
   try {
     const current = await prisma.volume.findMany({ where: { mangaId }, select: { id: true, number: true } });
-    const unanswered = unansweredProviders(providerStatus);
+    const unanswered = providersToKeep(providerStatus, snapshot.boundProviders);
     const toRestore = new Set(planVolumeRestore(snapshot.volumes, new Set(current.map(v => v.number)), unanswered));
     const rows = snapshot.volumes.filter(v => toRestore.has(v.number));
 
