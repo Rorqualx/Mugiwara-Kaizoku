@@ -172,7 +172,7 @@ export class MangaUpdatesCalendarProvider implements CalendarAdapter {
       downloadStatus: 'PENDING',
       isRead: false,
       monitored: false,
-      size: 0,
+      size: BigInt(0),
       createdAt: new Date(release.release_date),
       updatedAt: new Date(release.release_date),
       mangadexId: null,

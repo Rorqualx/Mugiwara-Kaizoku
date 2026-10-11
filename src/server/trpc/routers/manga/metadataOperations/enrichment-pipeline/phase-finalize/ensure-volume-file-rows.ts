@@ -25,13 +25,15 @@ import { ChapterStatus } from '@prisma/client';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-import { clampToInt4, VOLUME_FILE_INDEX_PROBE_LIMIT, volumeFileBaseIndex } from './volume-file-row-scheme';
+import { VOLUME_FILE_INDEX_PROBE_LIMIT, volumeFileBaseIndex } from './volume-file-row-scheme';
 
 interface ChapterAggregate {
   count: number;
   completedCount: number;
   totalPages: number;
-  totalSize: number;
+  /** Bytes. Kept as bigint end to end: read from and written back to the
+   *  BigInt `Chapter.size` column, and a long series' volume exceeds int4. */
+  totalSize: bigint;
   /** Single archive file shared by every chapter row in the volume (compendium).
    *  null when chapters are in distinct files (per-chapter import). */
   sharedFilePath: string | null;
@@ -44,7 +46,7 @@ interface ChapterAggregate {
 interface VolumeFileRow {
   id: number;
   pageCount: number | null;
-  size: number;
+  size: bigint;
   filePath: string | null;
   downloadStatus: ChapterStatus;
 }
@@ -64,12 +66,12 @@ async function findExistingVolumeFileRow(
 }
 
 function aggregateChapterRows(
-  rows: Array<{ index: number; pageCount: number | null; size: number; filePath: string | null; fileName: string; fileFormat: string | null; downloadStatus: string }>,
+  rows: Array<{ index: number; pageCount: number | null; size: bigint; filePath: string | null; fileName: string; fileFormat: string | null; downloadStatus: string }>,
 ): ChapterAggregate {
   let completedCount = 0;
   let totalPages = 0;
-  let totalSize = 0;
-  let largestSize = 0;
+  let totalSize = BigInt(0);
+  let largestSize = BigInt(0);
   const filePaths = new Set<string>();
   let firstFileName: string | null = null;
   let firstFileFormat: string | null = null;
@@ -91,8 +93,7 @@ function aggregateChapterRows(
     totalPages,
     // Every chapter row of a shared archive stores the WHOLE archive's size, so
     // summing them counted the archive once per chapter (One Piece vol 1:
-    // 8 × 152 MB). That inflated sum, not real volume size, is what overflowed
-    // the int4 column. A shared archive's size is the size of one row.
+    // 8 × 152 MB). A shared archive's size is the size of one row.
     totalSize: sharedFilePath !== null ? largestSize : totalSize,
     sharedFilePath,
     sharedFileName: sharedFilePath !== null ? firstFileName : null,
@@ -111,8 +112,7 @@ async function ensureRowForVolume(
   const downloadStatus: ChapterStatus = agg.completedCount === agg.count
     ? ChapterStatus.COMPLETED
     : ChapterStatus.PENDING;
-  // See clampToInt4: the summed size can exceed the int4 column.
-  const size = clampToInt4(agg.totalSize);
+  const size = agg.totalSize;
 
   if (existing) {
     // A file-backed volume row whose numbered chapters do NOT share one

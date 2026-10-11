@@ -287,7 +287,7 @@ export default function MangaDetailPage(): React.ReactElement {
         for (const ch of chapters) {
             if (ch.downloadStatus === 'COMPLETED') downloaded++;
             if (ch.isRead) read++;
-            if (typeof ch.size === 'number') size += ch.size;
+            size += Number(ch.size);
         }
         return { downloadedChapters: downloaded, readChapters: read, _totalSize: size };
     }, [manga?.Chapter]);

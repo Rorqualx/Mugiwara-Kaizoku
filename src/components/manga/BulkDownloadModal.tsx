@@ -207,7 +207,7 @@ export function BulkDownloadModal({
               </Badge>)}
           </Group>
           {selectedChapters.length > 0 && <Text size="xs" c="dimmed" mt="xs">
-              Total size: {selectedChapters.filter(ch => ch.size).reduce((sum, ch) => sum + ch.size, 0).toLocaleString()} bytes
+              Total size: {selectedChapters.reduce((sum, ch) => sum + Number(ch.size), 0).toLocaleString()} bytes
             </Text>}
         </Paper>
         

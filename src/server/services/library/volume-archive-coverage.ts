@@ -29,7 +29,8 @@ export interface CoverageRow {
   downloadStatus: string;
   fileName?: string | null;
   fileFormat?: string | null;
-  size?: number | null;
+  /** Bytes; a bigint when the row comes straight from the BigInt `Chapter.size` column. */
+  size?: number | bigint | null;
   pageCount?: number | null;
 }
 
@@ -39,7 +40,7 @@ export interface ChapterLink {
   filePath: string;
   fileName: string;
   fileFormat: string | null;
-  size: number;
+  size: number | bigint;
   pageCount: number | null;
 }
 

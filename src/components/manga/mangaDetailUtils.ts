@@ -120,8 +120,7 @@ export function calculateTotalSize(manga: MangaWithRelations): number {
         if (typeof chapter !== 'object') {
             return sum;
         }
-        const fileSize = typeof chapter.size === 'number' ? chapter.size : 0;
-        return sum + fileSize;
+        return sum + Number(chapter.size);
     }, 0);
 }
 /**

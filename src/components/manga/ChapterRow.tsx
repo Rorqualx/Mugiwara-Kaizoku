@@ -161,7 +161,7 @@ export function ChapterRow({
       <Table.Td>
         <Stack gap={0}>
           {chapter.size ? <Text size="sm" c="dimmed">
-              {formatFileSize(chapter.size)}
+              {formatFileSize(Number(chapter.size))}
             </Text> : <Text size="sm" c="dimmed">-</Text>}
           {chapter.pageCount !== null && chapter.pageCount > 0 && (
             <Group gap={4}>

@@ -50,18 +50,3 @@ export function findKeptVolumeFileRowIds(rows: ReadonlyArray<VolumeFileRowCandid
   }
   return kept;
 }
-
-/** Largest value a Postgres `integer` (int4) column holds. */
-export const INT4_MAX = 2_147_483_647;
-
-/**
- * `Chapter.size` is int4, and a per-volume row stores the SUM of its chapters'
- * sizes: One Piece reached 2,558,355,943 bytes, the write failed with "out of
- * range for type integer" and aborted the step for the whole title on every
- * run. Clamping keeps the step alive; the stored size of such a volume is then
- * a floor, not the real total. Widening the column to bigint is the real fix
- * and needs a schema migration.
- */
-export function clampToInt4(value: number): number {
-  return Math.min(value, INT4_MAX);
-}

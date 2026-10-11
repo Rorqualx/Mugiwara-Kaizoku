@@ -34,7 +34,7 @@ type MangaDexChapterTransform = {
   downloadStatus: 'PENDING';
   isRead: boolean;
   monitored: boolean;
-  size: number;
+  size: bigint;
   createdAt: Date;
   updatedAt: Date;
   mangadexId: string;
@@ -268,7 +268,7 @@ export class MangaDexCalendarProvider implements CalendarAdapter {
       downloadStatus: 'PENDING',
       isRead: false,
       monitored: false,
-      size: 0,
+      size: BigInt(0),
       createdAt: new Date(chapter.attributes.createdAt),
       updatedAt: new Date(chapter.attributes.updatedAt),
       mangadexId: chapter.id,

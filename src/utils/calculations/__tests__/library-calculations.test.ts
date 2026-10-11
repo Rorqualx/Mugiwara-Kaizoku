@@ -17,7 +17,7 @@ function createTestChapter(id: number, mangaId: number, size: number): MangaWith
     mangaId,
     fileName: `chapter-${id}`,
     index: id,
-    size,
+    size: BigInt(size),
     title: `Chapter ${id}`,
     createdAt: new Date(),
     updatedAt: new Date(),

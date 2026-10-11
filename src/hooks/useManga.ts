@@ -152,7 +152,7 @@ function mapToChapterEntity(chapter: ChapterUpdateResponse): ChapterEntity {
     index: chapter.index ?? 0,
     mangaId: chapter.mangaId,
     fileName: chapter.fileName ?? '',
-    size: chapter.size ?? 0,
+    size: BigInt(Math.trunc(chapter.size ?? 0)),
     chapterNumber: null,
     number: null,
     pageCount: null,

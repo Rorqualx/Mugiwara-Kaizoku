@@ -340,7 +340,7 @@ export abstract class MetadataProvider<TError extends Error = Error> extends Api
       // Using COMPLETED as chapters are available
       fileName: '',
       // We don't have this information from providers
-      size: chapter.size ?? 0
+      size: BigInt(Math.trunc(chapter.size ?? 0))
     };
     // Add optional fields only if defined
     if (chapter.language !== undefined) {

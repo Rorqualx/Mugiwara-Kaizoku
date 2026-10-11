@@ -165,8 +165,8 @@ function MobileChapterCard({
             {chapter["title"] && <Text size="sm" c="dimmed" lineClamp={1}>
                 {chapter["title"]}
               </Text>}
-            {chapter.size && <Text size="xs" c="dimmed">
-                {formatFileSize(chapter.size)}
+            {chapter.size > 0 && <Text size="xs" c="dimmed">
+                {formatFileSize(Number(chapter.size))}
               </Text>}
           </Box>
         </Group>

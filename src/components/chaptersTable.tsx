@@ -92,7 +92,7 @@ export function ChaptersTable({ manga }: ChaptersTableProps): React.ReactElement
         title: "Size",
         render: (record: ChapterEntity) =>
         <span className={classes['size']}>
-              {typeof record.size === 'number' ? prettyBytes(record.size) : 'Unknown size'}
+              {prettyBytes(Number(record.size))}
             </span>
 
       },

@@ -20,6 +20,35 @@ import {
 import type { PrismaClient } from '@prisma/client';
 
 /**
+ * Manga detail as the JSON cache layers hold it. `Chapter.size` is a BigInt
+ * column and `JSON.stringify` throws on a BigInt, so the cached copy carries
+ * the byte count as a number (exact: file sizes are far below 2^53).
+ */
+export type CachedManga = Omit<MangaWithRelations, 'Chapter'> & {
+  Chapter: Array<Omit<MangaWithRelations['Chapter'][number], 'size'> & { size: number }>;
+};
+
+/** Convert a manga row to its JSON-cacheable form. */
+export function toCachedManga(manga: MangaWithRelations): CachedManga {
+  return { ...manga, Chapter: manga.Chapter.map(chapter => ({ ...chapter, size: Number(chapter.size) })) };
+}
+
+/**
+ * Restore the bigint `Chapter.size` on a cached manga, so a cache hit returns
+ * the same shape as a database read. Cached JSON is not type-checked, so
+ * anything that is not a whole number falls back to 0 rather than throwing.
+ */
+export function fromCachedManga(cached: CachedManga): MangaWithRelations {
+  return {
+    ...cached,
+    Chapter: cached.Chapter.map(chapter => ({
+      ...chapter,
+      size: Number.isInteger(chapter.size) ? BigInt(chapter.size) : BigInt(0),
+    })),
+  };
+}
+
+/**
  * Check cache layers for manga data
  *
  * @returns Cached manga or null if not found
@@ -29,14 +58,14 @@ export async function checkMangaCache(
   cacheKey: string
 ): Promise<MangaWithRelations | null> {
   // 1. Check hot cache first (2-5ms) - fastest path for popular manga
-  const hotCached = await hotCacheProvider.getHot<MangaWithRelations>('manga', cacheKey);
+  const hotCached = await hotCacheProvider.getHot<CachedManga>('manga', cacheKey);
   if (hotCached) {
     logger.debug(`Hot cache hit for manga ${mangaId}`);
-    return hotCached;
+    return fromCachedManga(hotCached);
   }
 
   // 2. Check regular cache (15-30ms) - second fastest path
-  const cached = await cacheProvider.get<MangaWithRelations>(cacheKey, 'manga-detail');
+  const cached = await cacheProvider.get<CachedManga>(cacheKey, 'manga-detail');
   if (cached) {
     logger.debug(`Regular cache hit for manga ${mangaId}`);
     // Auto-promote to hot cache for frequently accessed manga
@@ -47,7 +76,7 @@ export async function checkMangaCache(
     }).catch((err: unknown) =>
       logger.debug('Failed to promote manga to hot cache:', err)
     );
-    return cached;
+    return fromCachedManga(cached);
   }
 
   return null;
@@ -61,13 +90,14 @@ export async function storeMangaInCache(
   cacheKey: string,
   manga: MangaWithRelations
 ): Promise<void> {
+  const cacheable = toCachedManga(manga);
   await Promise.all([
-    cacheProvider.set(cacheKey, manga, {
+    cacheProvider.set(cacheKey, cacheable, {
       ttl: 600,
       namespace: 'manga-detail',
       tags: ['manga', `manga-id:${mangaId}`]
     }),
-    hotCacheProvider.setHot('manga', cacheKey, manga, {
+    hotCacheProvider.setHot('manga', cacheKey, cacheable, {
       forceHot: false,
       ttl: 600,
       tags: ['manga-detail', `manga-id:${mangaId}`]

@@ -64,7 +64,7 @@ export const createChapter = (options: ChapterFactoryOptions = {}): Partial<Chap
     id: options["id"] || faker.number.int({ min: 1, max: 100000 }),
     fileName,
     index,
-    size: fileSize,
+    size: BigInt(fileSize),
     pageCount,
     resolutionWidth,
     resolutionHeight,

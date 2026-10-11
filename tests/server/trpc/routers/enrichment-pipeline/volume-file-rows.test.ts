@@ -1,7 +1,8 @@
 /** @jest-environment node */
 /**
  * Per-volume "volume-file" rows (chapterNumber NULL, one per volume): the
- * stale sweep must not delete them, and their summed size must fit int4.
+ * stale sweep must not delete them, and their summed size is stored in full
+ * (`Chapter.size` is a BigInt column, so sizes are bigint as Prisma returns them).
  */
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
@@ -21,9 +22,7 @@ jest.mock('@/server/services/volume-persister', () => ({ persistNormalizedVolume
 import { findStaleChapterIds } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-db-persistence';
 import { ensureVolumeFileRows } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/ensure-volume-file-rows';
 import {
-  clampToInt4,
   findKeptVolumeFileRowIds,
-  INT4_MAX,
   isVolumeFileRow,
   volumeFileBaseIndex,
 } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/volume-file-row-scheme';
@@ -76,22 +75,14 @@ describe('findStaleChapterIds — per-volume rows survive the phantom sweep', ()
   });
 });
 
-describe('clampToInt4', () => {
-  it('caps One Piece\'s summed volume size at the int4 maximum', () => {
-    expect(clampToInt4(2_558_355_943)).toBe(INT4_MAX);
-    expect(INT4_MAX).toBe(2_147_483_647);
-  });
-
-  it('leaves values that fit alone', () => {
-    expect(clampToInt4(783_029_893)).toBe(783_029_893);
-    expect(clampToInt4(0)).toBe(0);
-  });
-});
+/** Largest value the old int4 column held; One Piece's summed volume exceeds it. */
+const INT4_MAX = BigInt(2_147_483_647);
+const ONE_PIECE_VOLUME_BYTES = BigInt(2_558_355_943);
 
 describe('ensureVolumeFileRows', () => {
   const chapters = [
-    { index: 1, pageCount: 20, size: 1_300_000_000, filePath: '/lib/c001.cbz', fileName: 'c001.cbz', fileFormat: 'cbz', volume: 1, volumeId: 7, downloadStatus: 'COMPLETED' },
-    { index: 2, pageCount: 22, size: 1_258_355_943, filePath: '/lib/c002.cbz', fileName: 'c002.cbz', fileFormat: 'cbz', volume: 1, volumeId: 7, downloadStatus: 'COMPLETED' },
+    { index: 1, pageCount: 20, size: BigInt(1_300_000_000), filePath: '/lib/c001.cbz', fileName: 'c001.cbz', fileFormat: 'cbz', volume: 1, volumeId: 7, downloadStatus: 'COMPLETED' },
+    { index: 2, pageCount: 22, size: BigInt(1_258_355_943), filePath: '/lib/c002.cbz', fileName: 'c002.cbz', fileFormat: 'cbz', volume: 1, volumeId: 7, downloadStatus: 'COMPLETED' },
   ];
 
   beforeEach(() => {
@@ -103,31 +94,43 @@ describe('ensureVolumeFileRows', () => {
     mockChapter.findMany.mockImplementation(async (args) => ('chapterNumber' in args.where && args.where['chapterNumber'] === null ? [] : chapters));
   });
 
-  it('creates the row with the size clamped instead of overflowing the column', async () => {
+  it('creates the row with the full summed size, above the int4 maximum, unclamped', async () => {
     mockChapter.findFirst.mockResolvedValue(null);
     await ensureVolumeFileRows(81);
     expect(mockChapter.create).toHaveBeenCalledTimes(1);
-    expect(mockChapter.create.mock.calls[0]?.[0].data).toMatchObject({
-      mangaId: 81, volume: 1, index: 100_100, size: INT4_MAX, pageCount: 42, downloadStatus: 'COMPLETED',
+    const data = mockChapter.create.mock.calls[0]?.[0].data;
+    expect(data).toMatchObject({
+      mangaId: 81, volume: 1, index: 100_100, size: ONE_PIECE_VOLUME_BYTES, pageCount: 42, downloadStatus: 'COMPLETED',
     });
+    expect(typeof data?.['size']).toBe('bigint');
+    expect(ONE_PIECE_VOLUME_BYTES > INT4_MAX).toBe(true);
+  });
+
+  it('widens a row left clamped at the int4 maximum by the old column', async () => {
+    mockChapter.findFirst.mockImplementation(async (args) => ('volume' in args.where
+      ? { id: 500, pageCount: 42, size: INT4_MAX, filePath: null, downloadStatus: 'COMPLETED' }
+      : null));
+    await ensureVolumeFileRows(81);
+    expect(mockChapter.update).toHaveBeenCalledTimes(1);
+    expect(mockChapter.update.mock.calls[0]?.[0]).toMatchObject({ where: { id: 500 }, data: { size: ONE_PIECE_VOLUME_BYTES } });
   });
 
   it('stores a shared archive\'s size once, not once per chapter', async () => {
     // One Piece vol 1: eight chapter rows all point at V01.cbz and each carries its 152 MB.
     const archive = '/lib/Volumes/One Piece V01.cbz';
     const shared = [53, 24, 22].map((pageCount, i) => ({
-      index: i + 1, pageCount, size: 152_387_051, filePath: archive, fileName: 'One Piece Vol 01', fileFormat: 'CBZ',
+      index: i + 1, pageCount, size: BigInt(152_387_051), filePath: archive, fileName: 'One Piece Vol 01', fileFormat: 'CBZ',
       volume: 1, volumeId: 7, downloadStatus: 'COMPLETED',
     }));
     mockChapter.findMany.mockImplementation(async (args) => ('chapterNumber' in args.where && args.where['chapterNumber'] === null ? [] : shared));
     mockChapter.findFirst.mockResolvedValue(null);
     await ensureVolumeFileRows(81);
-    expect(mockChapter.create.mock.calls[0]?.[0].data).toMatchObject({ size: 152_387_051, pageCount: 99, filePath: archive });
+    expect(mockChapter.create.mock.calls[0]?.[0].data).toMatchObject({ size: BigInt(152_387_051), pageCount: 99, filePath: archive });
   });
 
-  it('is a no-op on the next run: a clamped row compares equal to the clamped total', async () => {
+  it('is a no-op on the next run: the stored row compares equal to the summed total', async () => {
     mockChapter.findFirst.mockImplementation(async (args) => ('volume' in args.where
-      ? { id: 500, pageCount: 42, size: INT4_MAX, filePath: null, downloadStatus: 'COMPLETED' }
+      ? { id: 500, pageCount: 42, size: ONE_PIECE_VOLUME_BYTES, filePath: null, downloadStatus: 'COMPLETED' }
       : null));
     await ensureVolumeFileRows(81);
     expect(mockChapter.create).not.toHaveBeenCalled();
@@ -136,7 +139,7 @@ describe('ensureVolumeFileRows', () => {
 
   it('refreshes a stale status even when pages and size are unchanged', async () => {
     mockChapter.findFirst.mockImplementation(async (args) => ('volume' in args.where
-      ? { id: 500, pageCount: 42, size: INT4_MAX, filePath: null, downloadStatus: 'PENDING' }
+      ? { id: 500, pageCount: 42, size: ONE_PIECE_VOLUME_BYTES, filePath: null, downloadStatus: 'PENDING' }
       : null));
     await ensureVolumeFileRows(81);
     expect(mockChapter.update).toHaveBeenCalledTimes(1);

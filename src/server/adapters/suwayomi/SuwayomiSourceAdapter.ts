@@ -898,7 +898,7 @@ export class SuwayomiSourceAdapter implements IntegrationAdapter<SuwayomiSourceA
       title: chapter.name,
       fileName: `chapter-${chapter.id}`,
       index: chapter.sourceOrder,
-      size: 0,
+      size: BigInt(0),
       volume: null,
       volumeId: null,
       releaseDate: new Date(chapter.uploadDate),

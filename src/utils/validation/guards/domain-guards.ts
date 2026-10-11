@@ -441,7 +441,8 @@ function validateChapterRequiredFields(value: Record<string, unknown>): boolean 
     hasPropertyOfType(value, 'id', isNumber) &&
     hasPropertyOfType(value, 'fileName', isString) &&
     hasPropertyOfType(value, 'index', isNumber) &&
-    hasPropertyOfType(value, 'size', isNumber) &&
+    // BigInt column: a bigint from Prisma/superjson, a number once it has been through JSON.
+    hasPropertyOfType(value, 'size', (v: unknown): v is bigint | number => typeof v === 'bigint' || isNumber(v)) &&
     hasPropertyOfType(value, 'mangaId', isNumber) &&
     hasPropertyOfType(value, 'title', isString) &&
     hasPropertyOfType(value, 'createdAt', (v: unknown): v is Date | string =>
@@ -737,7 +738,7 @@ export function createEmptyChapter(): ChapterEntity {
     id: 0,
     fileName: '',
     index: 0,
-    size: 0,
+    size: BigInt(0),
     mangaId: 0,
     title: '',
     createdAt: new Date(),

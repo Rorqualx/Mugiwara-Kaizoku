@@ -96,8 +96,9 @@ function collectCoverUrls(mangaList: MangaList): string[] {
 /** Sum chapter sizes defensively — Chapter may be absent on a lightly-loaded relation. */
 function computeLibrarySize(mangaList: MangaList): number {
   return mangaList.reduce((sum, manga) => {
-    const chapters = (manga as { Chapter?: Array<{ size?: number | null }> }).Chapter ?? [];
-    const mangaSize = chapters.reduce((chSum, ch) => chSum + (typeof ch.size === 'number' ? ch.size : 0), 0);
+    // Chapter.size is a BigInt column; byte counts are far below 2^53, so Number() is exact.
+    const chapters = (manga as { Chapter?: Array<{ size?: bigint | number | null }> }).Chapter ?? [];
+    const mangaSize = chapters.reduce((chSum, ch) => chSum + Number(ch.size ?? 0), 0);
     return sum + mangaSize;
   }, 0);
 }

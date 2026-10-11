@@ -43,7 +43,7 @@ export function calculateMangaSize(manga: MangaWithRelations): number {
 
   return manga["Chapter"].reduce((sum: number, chapter: ChapterType) => {
     // chapter.size is always defined (defaults to 0 in Prisma schema)
-    return sum + chapter.size;
+    return sum + Number(chapter.size);
   }, 0);
 }
 
@@ -70,5 +70,5 @@ export function calculateLibrarySizes(libraries: LibraryWithRelations[]): Map<st
  * @returns The size in bytes (always defined, defaults to 0)
  */
 export function getChapterSize(chapter: MangaWithRelations['Chapter'][number]): number {
-  return chapter.size;
+  return Number(chapter.size);
 }

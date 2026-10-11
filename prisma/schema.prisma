@@ -64,7 +64,7 @@ model Chapter {
   id                Int                      @id @default(autoincrement())
   fileName          String                   @db.VarChar(255)
   index             Int
-  size              Int                      @default(0)
+  size              BigInt                   @default(0)
   mangaId           Int
   title             String                   @db.VarChar(255)
   createdAt         DateTime                 @default(now())

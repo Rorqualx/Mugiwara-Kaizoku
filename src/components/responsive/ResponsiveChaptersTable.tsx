@@ -90,7 +90,7 @@ export function ResponsiveChaptersTable({
     title: "Size",
     render: (record: ChapterEntity) =>
     <Text size={isMobile ? "sm" : "md"}>
-          {typeof record.size === 'number' ? prettyBytes(record.size) : 'Unknown'}
+          {prettyBytes(Number(record.size))}
         </Text>,
 
     mobilePriority: 3,
@@ -148,7 +148,7 @@ export function ResponsiveChaptersTable({
           
           <Group justify="space-between">
             <Text size="xs" c="dimmed">
-              {typeof record.size === 'number' ? prettyBytes(record.size) : 'Unknown'}
+              {prettyBytes(Number(record.size))}
             </Text>
             <Text size="xs" c="dimmed">
               {dayjs(record.createdAt).format("MM/DD/YY")}

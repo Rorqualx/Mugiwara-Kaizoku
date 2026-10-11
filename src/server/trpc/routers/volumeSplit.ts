@@ -265,7 +265,7 @@ export const volumeSplitRouter = router({
           volumeNumber,
           chapterCount: volChapters.length,
           totalPages: volChapters.reduce((sum, ch) => sum + (ch.pages ?? 0), 0),
-          totalSize: volChapters.reduce((sum, ch) => sum + ch.size, 0),
+          totalSize: volChapters.reduce((sum, ch) => sum + Number(ch.size), 0),
           chapters: volChapters
         }));
 

@@ -307,7 +307,7 @@ export async function createChaptersFromFileList(
         chapterId: created.id,
         filePath: created.filePath,
         fileName: created.fileName,
-        fileSize: created.size,
+        fileSize: Number(created.size),
         sourceType: isVolumeSource ? 'volume' : 'chapter',
       });
     }
@@ -474,7 +474,7 @@ export async function linkFilesToExistingChapters(
         chapterId: ch.id,
         filePath: ch.filePath,
         fileName: ch.fileName,
-        fileSize: ch.size,
+        fileSize: Number(ch.size),
         sourceType: 'chapter',
       });
     }

@@ -118,7 +118,7 @@ function formatChapter(chapter: ChapterWithMangaMetadata): {
     id: chapter.id,
     title: chapter.title,
     fileName: chapter.fileName,
-    size: chapter.size,
+    size: Number(chapter.size),
     mangaId: chapter.mangaId,
     createdAt: chapter.createdAt,
     updatedAt: chapter.updatedAt,

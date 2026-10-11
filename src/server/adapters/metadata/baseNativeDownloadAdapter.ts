@@ -388,7 +388,7 @@ export abstract class BaseNativeDownloadAdapter implements IntegrationAdapter<Na
       title: chapter["title"] ?? '',
       fileName: '',
       index: chapter.number,
-      size: 0,
+      size: BigInt(0),
       // Optional number fields
       chapterNumber: chapter.number,
       number: chapter.number,

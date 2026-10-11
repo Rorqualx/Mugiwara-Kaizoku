@@ -17,8 +17,8 @@ import type { LibraryWithRelations } from '@/types/search.types';
 export function calculateLibrarySize(library: LibraryWithRelations): number {
   return library.Manga.reduce((sum: number, manga) => {
     const mangaSize = manga.Chapter.reduce((chSum: number, chapter) => {
-      const size = chapter.size;
-      return chSum + (typeof size === 'number' ? size : 0);
+      // BigInt column; byte counts are far below 2^53, so Number() is exact.
+      return chSum + Number(chapter.size);
     }, 0);
     return sum + mangaSize;
   }, 0);

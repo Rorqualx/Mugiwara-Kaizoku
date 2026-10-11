@@ -60,8 +60,8 @@ export function useVolumeStatistics({
         );
 
         const size = volumeFileRows.length > 0
-            ? Math.max(...volumeFileRows.map((c: Chapter) => c.size))
-            : validChapters.reduce((sum: number, c: Chapter) => sum + c.size, 0);
+            ? Math.max(...volumeFileRows.map((c: Chapter) => Number(c.size)))
+            : validChapters.reduce((sum: number, c: Chapter) => sum + Number(c.size), 0);
 
         const pageCount = volumeFileRows.length > 0
             ? Math.max(...volumeFileRows.map((c: Chapter) => c.pageCount ?? c.pages ?? 0))
