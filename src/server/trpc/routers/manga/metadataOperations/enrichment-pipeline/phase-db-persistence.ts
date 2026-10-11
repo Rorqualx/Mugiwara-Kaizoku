@@ -479,9 +479,12 @@ function pickProviderChsForVolume(providerChapters: ProviderChapter[], vol: numb
 async function bindPhantomVolumeRows(tx: TxClient, existing: ExistingChapter[], providerChapters: ProviderChapter[]): Promise<Map<number, ExistingChapter>> {
   const bound = new Map<number, ExistingChapter>();
   const phantomsByVolume = indexPhantomsByVolume(existing);
+  // A number that already has a row cannot take a phantom: the update would hit the (mangaId, chapterNumber) unique key and abort the whole chapter step.
+  const taken = new Set(existing.flatMap(ch => (ch.chapterNumber === null ? [] : [ch.chapterNumber])));
   for (const [vol, phantoms] of phantomsByVolume) {
     phantoms.sort((a, b) => a.index - b.index);
-    const volProviderChs = pickProviderChsForVolume(providerChapters, vol);
+    const volProviderChs = pickProviderChsForVolume(providerChapters, vol).filter(pch => !taken.has(pch.chapterNumber));
+    for (const pch of volProviderChs.slice(0, phantoms.length)) taken.add(pch.chapterNumber);
     // eslint-disable-next-line no-await-in-loop -- sequential per-volume
     await pairPhantomsForVolume(tx, phantoms, volProviderChs, bound);
   }
