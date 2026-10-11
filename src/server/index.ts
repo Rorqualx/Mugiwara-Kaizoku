@@ -161,9 +161,10 @@ async function startServer(): Promise<void> {
     // session support via getServerSession(). Express middleware would break
     // session auth since Express req/res aren't NextApiRequest/NextApiResponse.
     app.all('*', (req: express.Request, res: express.Response) => {
-      // CVE-2025-29927: Next.js < 14.2.25 skips middleware (our page/API auth
-      // gate) when a client sends this internal header. No legitimate external
-      // request carries it, so drop it before Next sees the request.
+      // CVE-2025-29927: Next.js < 14.2.25 / < 15.2.3 skips middleware (our
+      // page/API auth gate) when a client sends this internal header. The
+      // installed Next is patched; this stays as a second line of defence. No
+      // legitimate external request carries it, so drop it before Next sees it.
       Reflect.deleteProperty(req.headers, 'x-middleware-subrequest');
       return nextHandler(req, res);
     });

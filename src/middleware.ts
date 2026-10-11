@@ -24,15 +24,18 @@ import type { NextRequest } from 'next/server';
 
 // NextAuth JWT decode reads cookies and verifies signatures.
 //
-// IMPORTANT: This module is bundled into Next.js middleware, which runs in the
-// **edge runtime** (the `runtime` export below is NOT honored for middleware in
-// Next 14). The edge runtime forbids Node built-ins, so this file must NEVER
-// import anything that pulls in `fs`/`crypto`/`path` — e.g. `resolveAuthSecret`
-// from `@/lib/auth/secret`. Doing so crashes the edge sandbox (`enhanceGlobals`)
-// on EVERY request and 500s the entire app. The JWT secret is therefore read
-// straight from `process.env` here; the Node side (auth-options, websocket auth)
-// may use the richer `resolveAuthSecret`. Keep both in sync by setting a real
-// `AUTH_SECRET` (or `NEXTAUTH_SECRET`) env var so every layer reads one value.
+// IMPORTANT: Next 14 ignored the `runtime` export below and ran this module in
+// the **edge runtime**; Next 15.5 honors it, so the middleware now runs in the
+// Node.js runtime (the build lists `/_middleware` as `nodejs` in
+// `.next/server/functions-config-manifest.json`). Keep this file free of
+// anything that pulls in `fs`/`crypto`/`path` — e.g. `resolveAuthSecret` from
+// `@/lib/auth/secret` — anyway: under the edge runtime such an import crashes
+// the sandbox (`enhanceGlobals`) on EVERY request and 500s the entire app, and
+// the file must stay safe if the export is ever dropped. The JWT secret is
+// therefore read straight from `process.env` here; the Node side (auth-options,
+// websocket auth) may use the richer `resolveAuthSecret`. Keep both in sync by
+// setting a real `AUTH_SECRET` (or `NEXTAUTH_SECRET`) env var so every layer
+// reads one value.
 export const runtime = 'nodejs';
 
 const ADMIN_PATH_PREFIXES = ['/admin', '/settings', '/system', '/api/protected'];

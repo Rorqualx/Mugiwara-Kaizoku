@@ -3,6 +3,9 @@ import path from 'path';
 
 const generatedPrismaDir = path.resolve(process.cwd(), 'src/generated/prisma');
 
+/** True when Next itself is running on Bun rather than Node. */
+const isBunRuntime = typeof process.versions.bun === 'string';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Note: 'standalone' output is incompatible with custom server (server-production.ts)
@@ -12,10 +15,12 @@ const nextConfig = {
   poweredByHeader: false,
 
   // Essential configuration only
+  // Canvas is optional dependency of jsdom - add to externals to prevent build errors
+  // happy-dom uses child_process which is Node.js only
+  // (Next 15 renamed experimental.serverComponentsExternalPackages to this.)
+  serverExternalPackages: ['@prisma/client', 'pino', 'pino-pretty', 'canvas', 'happy-dom', 'mangadex-ts-client', 'cheerio', 'undici'],
+
   experimental: {
-    // Canvas is optional dependency of jsdom - add to externals to prevent build errors
-    // happy-dom uses child_process which is Node.js only
-    serverComponentsExternalPackages: ['@prisma/client', 'pino', 'pino-pretty', 'canvas', 'happy-dom', 'mangadex-ts-client', 'cheerio', 'undici'],
     // Disable barrel import optimization for tabler icons to prevent webpack errors
     optimizePackageImports: [],
   },
@@ -30,9 +35,18 @@ const nextConfig = {
   },
 
   // ESLint configuration
-  // Production builds must fail on lint errors; dev builds tolerate them.
+  // Production builds on Node fail on lint errors; dev builds tolerate them.
+  //
+  // Builds on the Bun runtime (the Docker image has no Node, so `bun run build`
+  // runs Next under Bun) skip the build-time lint: inside Next's lint worker on
+  // Bun, eslint-plugin-import cannot load the TypeScript import resolver and
+  // reports "typescript with invalid interface loaded as resolver" for every
+  // file. This is not a loss of coverage: Next 14.1 never detected the flat
+  // eslint.config.mjs, so the image build did not lint before either. Lint is
+  // enforced by `bun run lint` (pre-commit and CI), and Next 16 removes linting
+  // from `next build` altogether.
   eslint: {
-    ignoreDuringBuilds: process.env.NODE_ENV !== 'production',
+    ignoreDuringBuilds: process.env.NODE_ENV !== 'production' || isBunRuntime,
     dirs: ['src']
   },
   
@@ -127,9 +141,6 @@ const nextConfig = {
   // Skip middleware compilation issues
   skipMiddlewareUrlNormalize: true,
   
-  // Enable SWC minification for ES2022 support
-  swcMinify: true,
-
   async redirects() {
     return [
       { source: '/wanted', destination: '/wanted/missing', permanent: false }
