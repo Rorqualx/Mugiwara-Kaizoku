@@ -23,6 +23,7 @@ import { eventEmitter } from '@/server/services/eventEmitter';
 import { ensureDefaultLibrary } from '@/server/services/library/default-library';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { adminProcedure } from '@/server/trpc/procedures';
+import { rehomeSharedTitles } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { isSuccess, isError } from '@/utils/async-result';
 import { toStringId } from '@/utils/id-converters';
@@ -391,6 +392,15 @@ export const usersAdminRouter = router({
           });
         }
       }
+
+      // Library.owner and Manga.Library are both onDelete:Cascade, so deleting
+      // the user would hard-delete every title their libraries own — including
+      // ones other users still have in their own libraries. Re-home those first.
+      const ownedLibraries = await prisma.library.findMany({
+        where: { ownerId: input.id },
+        select: { id: true },
+      });
+      await rehomeSharedTitles(prisma, input.id, ownedLibraries.map((library) => library.id));
 
       // Delete user
       await prisma.user.delete({

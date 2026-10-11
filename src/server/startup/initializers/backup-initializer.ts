@@ -6,6 +6,9 @@
  * Extracted from: src/server/index.ts (lines 218-282)
  */
 
+import { BackupType, JobStatus, JobType } from '@prisma/client';
+
+import { prisma } from '@/server/db';
 import { scheduleBackupTask } from '@/server/queue/backup';
 import { getAllConfigServices } from '@/server/services/config/globalConfigService';
 import { logger } from '@/utils/logger';
@@ -14,96 +17,113 @@ import { formatError } from '../error-utils';
 
 // Module-level interval tracking for cleanup
 let backupSchedulerInterval: NodeJS.Timeout | null = null;
+let backupInitialCheck: NodeJS.Timeout | null = null;
+let backupCheckInFlight = false;
+
+const HOUR_MS = 60 * 60 * 1000;
+/** How often to ask "is a backup due?". Far below the 2^31-1 ms timer limit. */
+const CHECK_INTERVAL_MS = HOUR_MS;
+/** First check shortly after boot, once startup work has settled. */
+const INITIAL_CHECK_DELAY_MS = 5 * 60 * 1000;
+
+const BACKUP_INTERVAL_MS: Record<string, number> = {
+  daily: 24 * HOUR_MS,
+  weekly: 7 * 24 * HOUR_MS,
+  monthly: 30 * 24 * HOUR_MS,
+};
+
+/**
+ * Whether a scheduled backup is due.
+ *
+ * @param lastScheduledAt creation time of the newest SCHEDULED backup (any
+ *   status, so a pending or running one counts), or null when there is none
+ */
+export function isBackupDue(lastScheduledAt: Date | null, frequency: string, now: Date = new Date()): boolean {
+  if (!lastScheduledAt) return true;
+  const interval = BACKUP_INTERVAL_MS[frequency] ?? BACKUP_INTERVAL_MS['daily'] ?? 24 * HOUR_MS;
+  return now.getTime() - lastScheduledAt.getTime() >= interval;
+}
+
+/** One scheduler tick: enqueue a backup if auto-backup is on and one is due. */
+async function checkAndScheduleBackup(): Promise<void> {
+  if (backupCheckInFlight) return;
+  backupCheckInFlight = true;
+  try {
+    // Re-read settings so changes apply without a restart
+    const { general } = getAllConfigServices();
+    const settings = await general.getBackupSettings();
+    if (!settings.autoBackup) return;
+
+    const latest = await prisma.backup.findFirst({
+      where: { type: BackupType.SCHEDULED },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    if (!isBackupDue(latest?.createdAt ?? null, settings.backupFrequency)) return;
+
+    // The Backup row is only written when the job runs; don't queue a second
+    // backup behind one that is still waiting or running.
+    const queued = await prisma.jobs.count({
+      where: {
+        job_type: JobType.backup_create,
+        status: { in: [JobStatus.pending, JobStatus.retrying, JobStatus.active] },
+      },
+    });
+    if (queued > 0) return;
+
+    const newTaskId = await scheduleBackupTask();
+    if (newTaskId) {
+      logger.info(`Scheduled backup task with ID: ${newTaskId}`);
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to schedule backup: ${formatError(errorMessage)}`);
+  } finally {
+    backupCheckInFlight = false;
+  }
+}
 
 /**
  * Initializes the backup scheduling system
  *
  * This function:
  * - Retrieves backup settings from the database
- * - Schedules initial backup if enabled
- * - Sets up recurring backup schedule based on configuration
+ * - Starts an hourly check that enqueues a backup when one is due
  * - Returns cleanup function for graceful shutdown
  *
  * @returns Cleanup function to stop the scheduler
  */
 export async function initializeBackupScheduler(): Promise<() => void> {
-  // Clear any existing interval first
-  if (backupSchedulerInterval) {
-    clearInterval(backupSchedulerInterval);
-    backupSchedulerInterval = null;
-  }
+  // Clear any existing timers first
+  stopBackupScheduler();
 
   try {
     // Get backup settings from the configuration service
     const { general } = getAllConfigServices();
     const backupSettings = await general.getBackupSettings();
 
-    // Check if automatic backups are enabled
+    // The loop runs even when automatic backups are off: each tick re-reads
+    // the setting, so enabling them later takes effect without a restart.
     if (!backupSettings.autoBackup) {
       logger.info('Automatic backups are disabled');
-      return () => {}; // Return no-op cleanup
     }
 
-    // Intentionally NOT scheduling a backup here. Previously this fired
-    // scheduleBackupTask() on every cold start, so each server restart
-    // enqueued a full backup. With Backup.name UNIQUE + the date-stamped
-    // name pattern in queue/backup.ts, a same-day restart would also
-    // collide with whatever the recurring tick had already produced.
-    // The recurring schedule below fires its first iteration at +interval,
-    // which is the expected setInterval semantic.
-
-    // Set up recurring backup schedule
-    let interval: number;
-
-    switch (backupSettings.backupFrequency) {
-      case 'daily':
-        interval = 24 * 60 * 60 * 1000; // 24 hours
-        break;
-      case 'weekly':
-        interval = 7 * 24 * 60 * 60 * 1000; // 7 days
-        break;
-      case 'monthly':
-        interval = 30 * 24 * 60 * 60 * 1000; // 30 days
-        break;
-      default:
-        interval = 24 * 60 * 60 * 1000; // Default to daily
-        logger.warn(`Unknown backup frequency: ${backupSettings.backupFrequency}, defaulting to daily`);
-    }
-
-    // Set up recurring schedule WITH reference stored
-    backupSchedulerInterval = setInterval(() => {
-      void (async () => {
-        try {
-          // Re-read settings to get latest configuration
-          const freshSettings = await general.getBackupSettings();
-
-          // Skip if auto-backup is now disabled
-          if (!freshSettings.autoBackup) {
-            logger.info('Skipping scheduled backup: automatic backups now disabled');
-            return;
-          }
-
-          const newTaskId = await scheduleBackupTask();
-          if (newTaskId) {
-            logger.info(`Scheduled backup task with ID: ${newTaskId}`);
-          }
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          logger.error(`Failed to schedule backup: ${formatError(errorMessage)}`);
-        }
-      })();
-    }, interval);
+    // Due-ness comes from the database (age of the newest SCHEDULED backup),
+    // checked hourly. The old design slept for the whole backup interval in one
+    // setInterval, which had two faults: 30 days exceeds the 2^31-1 ms timer
+    // limit, so the runtime clamped it to 1 ms and flooded the queue with
+    // backup jobs; and the countdown restarted on every boot, so a server
+    // restarted more often than the interval never produced a backup.
+    const runCheck = (): void => {
+      void checkAndScheduleBackup();
+    };
+    backupInitialCheck = setTimeout(runCheck, INITIAL_CHECK_DELAY_MS);
+    backupSchedulerInterval = setInterval(runCheck, CHECK_INTERVAL_MS);
 
     logger.info(`Backup scheduler initialized with ${backupSettings.backupFrequency} frequency`);
 
     // Return cleanup function
-    return () => {
-      if (backupSchedulerInterval) {
-        clearInterval(backupSchedulerInterval);
-        backupSchedulerInterval = null;
-        logger.info('Backup scheduler stopped');
-      }
-    };
+    return stopBackupScheduler;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(`Failed to initialize backup scheduler: ${formatError(errorMessage)}`);
@@ -118,6 +138,10 @@ export async function initializeBackupScheduler(): Promise<() => void> {
  * Call this on application shutdown.
  */
 export function stopBackupScheduler(): void {
+  if (backupInitialCheck) {
+    clearTimeout(backupInitialCheck);
+    backupInitialCheck = null;
+  }
   if (backupSchedulerInterval) {
     clearInterval(backupSchedulerInterval);
     backupSchedulerInterval = null;

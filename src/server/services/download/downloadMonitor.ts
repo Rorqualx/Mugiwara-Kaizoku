@@ -60,6 +60,9 @@ const TORRENT_CLIENT_TYPES = new Set(['transmission', 'deluge', 'qbittorrent', '
 /**
  * DownloadMonitor - State machine driven orchestrator
  */
+/** Client error messages that mean the download itself is gone (as opposed to the client being unreachable). */
+const DOWNLOAD_NOT_FOUND_PATTERN = /not.?found|no.?such|does not exist|invalid.?id|unknown.?torrent|\b404\b/i;
+
 export class DownloadMonitor {
   private downloadService: ClientDownloadService;
   private retryConfig: DownloadRetryConfig | null = null;
@@ -144,6 +147,14 @@ export class DownloadMonitor {
       const errorMsg = isError(statusResult)
         ? statusResult.error.message
         : 'Download not found in client';
+
+      // Only a definite "the client does not have this download" ends the job.
+      // A transport error (client restarting, timeout, auth blip) says nothing
+      // about the download itself — check again on the next tick.
+      if (!DOWNLOAD_NOT_FOUND_PATTERN.test(errorMsg)) {
+        logger.warn(`[DownloadMonitor] Could not query ${clientType} for download ${downloadId} (job ${job.id}); will retry: ${errorMsg}`);
+        return null;
+      }
       logger.warn(`[DownloadMonitor] Download ${downloadId} not found for job ${job.id}: ${errorMsg}`);
 
       const where = { id_partition_key: { id: job.id, partition_key: job.partition_key } };

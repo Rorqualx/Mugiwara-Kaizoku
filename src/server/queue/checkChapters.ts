@@ -58,7 +58,8 @@ type MangaWithIncludes = Prisma.MangaGetPayload<{
 }>;
 /**
  * Synchronizes database chapter records with local files
- * Creates, updates, and deletes chapter records to match filesystem
+ * Creates chapter records for files found directly in the title folder.
+ * Rows without a matching file are reported, never deleted.
  *
  * @param {MangaWithIncludes} manga - Manga to synchronize
  * @returns {Promise<void>}
@@ -93,17 +94,19 @@ export async function syncDbWithFiles(manga: MangaWithIncludes): Promise<void> {
     })]);
     const chaptersToDelete = dbChapters.filter((dbChapter: Chapter) => !localChapters.some((localChapter: ChapterFromLocal) => localChapter.fileName === dbChapter.fileName && localChapter.index === dbChapter.index));
     const chaptersToCreate = localChapters.filter((localChapter: ChapterFromLocal) => !dbChapters.some((dbChapter: Chapter) => dbChapter.fileName === localChapter.fileName && dbChapter.index === localChapter.index));
-    if (chaptersToDelete.length > 0 || chaptersToCreate.length > 0) {
+    // Never delete rows from this comparison. The lister only sees .cbz/.zip
+    // files directly inside the title folder and returns [] when the folder is
+    // missing or the share is unmounted, while current libraries keep files
+    // under Chapters/ and Volumes/Vol N/. Deleting "unmatched" rows therefore
+    // wiped every chapter of a title (and, by cascade, reading progress,
+    // history and bookmarks). Unmatched rows are reported only.
+    if (chaptersToDelete.length > 0) {
+      logger.warn(
+        `[syncDbWithFiles] ${chaptersToDelete.length} chapter row(s) of "${title}" have no matching file in ${mangaDir}; leaving them untouched`
+      );
+    }
+    if (chaptersToCreate.length > 0) {
       await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        if (chaptersToDelete.length > 0) {
-          await tx.chapter.deleteMany({
-            where: {
-              id: {
-                in: chaptersToDelete.map((chapter: Chapter) => chapter.id)
-              }
-            }
-          });
-        }
         if (chaptersToCreate.length > 0) {
           // When creating new chapters, preserve volume information if it exists
           // First check if we already have chapters with volume assignments

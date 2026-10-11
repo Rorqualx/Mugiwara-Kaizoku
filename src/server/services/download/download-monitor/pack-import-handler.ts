@@ -8,6 +8,11 @@
  * Created: 2025-11-21
  */
 
+import {
+  markPackReadyForImport,
+  PackImportClaimedError,
+  waitForPackImportOwner,
+} from '@/server/services/packImport/pack-import-claim';
 import { createPackImportService } from '@/server/services/packImport/packImportService';
 import { pipelineEventBus } from '@/server/services/pipeline/pipeline-event-bus';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
@@ -448,6 +453,35 @@ async function handleImportSuccess(
 }
 
 /**
+ * Make the pack claimable, or defer to whoever already owns it.
+ *
+ * @returns null when this caller may go on to import; otherwise the final
+ * outcome to report (the other importer's result, or false when the pack is
+ * not importable at all).
+ */
+async function settleIfOwnedElsewhere(
+  prisma: PrismaClient,
+  packDownloadId: bigint,
+  resolvedPath: string
+): Promise<boolean | null> {
+  const ready = await markPackReadyForImport(prisma, packDownloadId, resolvedPath);
+  switch (ready) {
+    case 'ready':
+      return null;
+    case 'imported':
+      logger.info(`[DownloadMonitor] PackDownload #${packDownloadId} was already imported; nothing to do`);
+      return true;
+    case 'in-progress':
+      logger.info(`[DownloadMonitor] PackDownload #${packDownloadId} is being imported elsewhere; waiting for it`);
+      return waitForPackImportOwner(prisma, packDownloadId);
+    case 'unavailable':
+    default:
+      logger.warn(`[DownloadMonitor] PackDownload #${packDownloadId} is not importable (cancelled or missing)`);
+      return false;
+  }
+}
+
+/**
  * Handle pack import after download completes
  *
  * Workflow:
@@ -520,19 +554,10 @@ export async function handlePackImport(
     const packDownload = packDownloadResult.data;
     logger.info(`[DownloadMonitor] Found PackDownload #${packDownload.id} for "${packDownload.releaseTitle}"`);
 
-    // Update PackDownload with resolved file path and status
-    const updateResult = await updatePackDownloadStatus(
-      prisma,
-      packDownload.id,
-      'COMPLETED',
-      resolvedPath
-    );
-
-    if (isError(updateResult)) {
-      logger.error(`[DownloadMonitor] Failed to update PackDownload #${packDownload.id}:`, updateResult.error);
-      await resetChaptersOnFailure(prisma, mangaId);
-      return false;
-    }
+    // Record the resolved path and make the pack claimable — unless another
+    // importer (progress loop vs. monitor) already owns or finished it.
+    const settled = await settleIfOwnedElsewhere(prisma, packDownload.id, resolvedPath);
+    if (settled !== null) return settled;
 
     logger.info(`[DownloadMonitor] Updated PackDownload #${packDownload.id} to COMPLETED with path: ${resolvedPath}`);
 
@@ -541,6 +566,11 @@ export async function handlePackImport(
 
     if (isSuccess(importResult)) {
       return await handleImportSuccess(prisma, packDownload, importResult.data);
+    } else if (isError(importResult) && importResult.error instanceof PackImportClaimedError) {
+      // Lost the claim to a concurrent importer: its outcome is ours. Do not
+      // mark the pack FAILED or reset chapters underneath it.
+      logger.info(`[DownloadMonitor] PackDownload #${packDownload.id} claimed by another importer; waiting for it`);
+      return await waitForPackImportOwner(prisma, packDownload.id);
     } else if (isError(importResult)) {
       logger.error(`[DownloadMonitor] Pack import failed for PackDownload #${packDownload.id}:`, importResult.error);
 

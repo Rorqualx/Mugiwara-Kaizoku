@@ -227,13 +227,25 @@ async function detectWebtoonOuterOfInner(
     `[FileScanner] iter-IJ2: webtoon pack ${single.fileName} has chapter-archives shape ` +
     `(${peek.archiveCount} inner archives) — extracting`,
   );
+  const innerFiles = await expandOuterArchive(single, construct);
+  return innerFiles ?? files;
+}
+
+/**
+ * Extract an archive-of-archives next to itself and return one ScannedFile per
+ * inner archive, or null when extraction fails or yields nothing usable (the
+ * caller then keeps the outer archive as a single entry).
+ */
+async function expandOuterArchive(
+  single: ScannedFile, construct: Construct | undefined,
+): Promise<ScannedFile[] | null> {
   const result = await extractWebtoonOuterArchive(single.filePath);
   if (!result.ok || result.innerFiles.length === 0) {
     logger.warn(
       `[FileScanner] iter-IJ2: extraction failed (${result.error ?? 'no inner files'}); ` +
       `falling back to single-chapter interpretation`,
     );
-    return files;
+    return null;
   }
 
   // Replace the outer entry with one ScannedFile per inner archive,
@@ -257,13 +269,47 @@ async function detectWebtoonOuterOfInner(
   }
   if (innerFiles.length === 0) {
     logger.warn(`[FileScanner] iter-IJ2: extracted but no valid inner files parsed; keeping outer`);
-    return files;
+    return null;
   }
   logger.info(
     `[FileScanner] iter-IJ2: expanded outer ${single.fileName} into ` +
     `${innerFiles.length} inner files (${result.reused ? 'reused-dir' : 'fresh-extract'})`,
   );
   return innerFiles;
+}
+
+/**
+ * Scan a pack that was delivered as ONE archive file rather than a directory.
+ *
+ * The archive is the unit of import: `Title v01.cbz` is one volume file, not
+ * 200 page images to be numbered as chapters. Only when the archive's contents
+ * are themselves chapter archives (`Pack.zip` holding `v01.cbz`…`v10.cbz`) is
+ * it unpacked, and then each inner archive becomes an entry.
+ *
+ * @returns [] when the file is not a supported archive type
+ */
+export async function scanSingleArchiveFile(
+  archivePath: string, construct?: Construct,
+): Promise<ScannedFile[]> {
+  const fileName = path.basename(archivePath);
+  const ext = path.extname(fileName).toLowerCase();
+  if (!VALID_EXTS.has(ext)) return [];
+
+  const stats = await fs.stat(archivePath);
+  const parsed = parseChapterFileName(fileName, ext, construct);
+  const single: ScannedFile = {
+    fileName, filePath: archivePath, size: stats.size,
+    ...parsed, isValidChapter: parsed.volumeNumber !== null || parsed.chapterNumber !== null,
+  };
+
+  if (RECURSIVE_PEEK_EXTS.has(ext)) {
+    const shape = classifyArchiveContents(await peekArchiveContents(archivePath));
+    if (shape === 'chapter-archives') {
+      const innerFiles = await expandOuterArchive(single, construct);
+      if (innerFiles) return innerFiles;
+    }
+  }
+  return [single];
 }
 
 /** Group scanned files by volume number */

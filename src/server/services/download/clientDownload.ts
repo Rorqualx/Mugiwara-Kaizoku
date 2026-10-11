@@ -16,7 +16,7 @@ import {
   type TypedClientConfig
 } from './config-builders';
 
-import type { BaseDownloadClient} from './base';
+import type { BaseDownloadClient, DownloadStatusInfo } from './base';
 import type { PrismaClient } from '@prisma/client';
 // Use ApiClientConfig with type field directly
 // No need for separate type alias
@@ -169,7 +169,7 @@ export class ClientDownloadService {
      * @param downloadId - Download ID to check
      * @returns AsyncResult with download status
      */
-    async getDownloadStatus(clientType: string, downloadId: string, options?: GetStatusOptions): Promise<AsyncResult<unknown, Error>> {
+    async getDownloadStatus(clientType: string, downloadId: string, options?: GetStatusOptions): Promise<AsyncResult<DownloadStatusInfo, Error>> {
         try {
             // Get client configuration
             const configResult = await this.getClientConfig(clientType);
@@ -188,9 +188,10 @@ export class ClientDownloadService {
                 return createErrorResult(new Error('Failed to create client instance'));
             }
             const client = clientResult.data;
-            // Get status
-            const status = await client.getStatus(downloadId, options);
-            return createSuccessResult(status);
+            // client.getStatus already returns an AsyncResult; pass it through.
+            // Wrapping it again made callers read the wrapper's `status: 'success'`
+            // as the download state, so completion was never observed.
+            return await client.getStatus(downloadId, options);
         }
         catch (error: unknown) {
             const errorMessage = error instanceof Error

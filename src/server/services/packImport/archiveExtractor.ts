@@ -19,6 +19,22 @@ import { logger } from '@/utils/logger';
 
 type ExecFileAsync = (file: string, args: string[]) => Promise<{ stdout: string; stderr: string }>;
 
+/** First available RAR extractor, or null when neither is installed. */
+async function pickRarTool(execFileAsync: ExecFileAsync): Promise<'unrar' | 'unar' | null> {
+  try {
+    await execFileAsync('unrar', ['--version']);
+    return 'unrar';
+  } catch {
+    // fall through to unar
+  }
+  try {
+    await execFileAsync('unar', ['-v']);
+    return 'unar';
+  } catch {
+    return null;
+  }
+}
+
 /** Probe for an available 7z-capable extraction tool. Returns the first found. */
 async function pickArchiveTool(execFileAsync: ExecFileAsync): Promise<'7z' | 'unar' | null> {
   try {
@@ -220,19 +236,25 @@ export class ArchiveExtractorService {
       const { promisify } = await import('util');
       const execFileAsync = promisify(execFile);
 
-      // Check if unrar is available
-      try {
-        await execFileAsync('unrar', ['--version']);
-      } catch {
+      // Prefer unrar; fall back to unar (The Unarchiver), which is what the
+      // Docker image ships because unrar is not in Ubuntu's free repositories.
+      const tool = await pickRarTool(execFileAsync);
+      if (!tool) {
         return createErrorResult(new Error(
-          'unrar command not found. Please install unrar: brew install unrar (macOS) or apt-get install unrar (Linux)'
+          'No RAR extractor found. Install unar (apt-get install unar / brew install unar) or unrar'
         ));
       }
 
-      logger.info(`[ArchiveExtractor] Extracting RAR with unrar command`);
+      logger.info(`[ArchiveExtractor] Extracting RAR with ${tool}`);
 
       // Extract archive
-      await execFileAsync('unrar', ['x', '-y', archivePath, extractToPath]);
+      if (tool === 'unrar') {
+        await execFileAsync('unrar', ['x', '-y', archivePath, extractToPath]);
+      } else {
+        // -force-overwrite: same as unrar -y; -no-directory: extract straight
+        // into the target instead of a wrapper folder named after the archive.
+        await execFileAsync('unar', ['-force-overwrite', '-no-directory', '-output-directory', extractToPath, archivePath]);
+      }
 
       // Scan extracted files
       const extractedFiles = await this.scanExtractedFiles(extractToPath);

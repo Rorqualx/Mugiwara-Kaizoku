@@ -12,13 +12,13 @@ import { createSuccessResult, createErrorResult, isSuccess, isError } from '@/ut
 import { logger } from '@/utils/logger';
 
 import { loadConversionConfig, maybeConvertFile } from './archive-converter';
-import { createArchiveExtractor } from './archiveExtractor';
 import { linkIndividualChapterFiles, linkVolumeChapters } from './chapter-linker';
-import { scanDirectoryForChapterFiles, groupFilesByVolume } from './file-scanner';
+import { scanDirectoryForChapterFiles, scanSingleArchiveFile, groupFilesByVolume } from './file-scanner';
 import {
   loadPackImportConfig, formatVolumeFolderName, buildMangaPaths
 } from './library-path-resolver';
 import { detectMultiPartRar, extractMultiPartRar } from './multi-part-rar';
+import { claimPackImport, PackImportClaimedError } from './pack-import-claim';
 
 import type { ConversionConfig } from './archive-converter';
 import type { PrismaClient } from '@prisma/client';
@@ -106,12 +106,35 @@ export async function moveFile(src: string, dest: string): Promise<void> {
   }
 }
 
+/** Make a title safe to use inside a file name (a `/` would create a path). */
+export function sanitizeFileNamePart(value: string): string {
+  const cleaned = value.replace(/[/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+  return cleaned === '' ? 'Untitled' : cleaned;
+}
+
+/**
+ * Choose a destination file name that no earlier file in the same batch has
+ * taken: the preferred name, else the file's own name, else that name with a
+ * numeric suffix. Records the choice in `usedNames` (compared case-insensitively,
+ * since the library may sit on a case-insensitive filesystem).
+ */
+export function pickUniqueFileName(preferred: string, original: string, usedNames: Set<string>): string {
+  const ext = path.extname(original);
+  const stem = path.basename(original, ext);
+  const candidates = [preferred, original];
+  for (let n = 2; candidates.every((name) => usedNames.has(name.toLowerCase())); n++) {
+    candidates.push(`${stem} (${n})${ext}`);
+  }
+  const chosen = candidates.find((name) => !usedNames.has(name.toLowerCase())) ?? original;
+  usedNames.add(chosen.toLowerCase());
+  return chosen;
+}
+
 /**
  * Pack Import Service
  * Handles extraction and import of downloaded manga packs
  */
 export class PackImportService {
-  private archiveExtractor = createArchiveExtractor();
 
   constructor(private prismaClient: PrismaClient = prisma) {}
 
@@ -136,21 +159,23 @@ export class PackImportService {
         return createErrorResult(new Error(`PackDownload not found: ${packDownloadId}`));
       }
 
-      if (packDownload.status !== 'COMPLETED') {
-        return createErrorResult(new Error(`PackDownload ${packDownloadId} is not in COMPLETED status (current: ${packDownload.status})`));
-      }
-
       if (!packDownload.filePath) {
         return createErrorResult(new Error(`PackDownload ${packDownloadId} has no file path`));
       }
 
-      logger.info(`[PackImport] Starting import for pack #${packDownloadId}: ${packDownload.releaseTitle}`);
+      // Take ownership atomically (COMPLETED -> IMPORTING). The progress loop
+      // and the download monitor can both arrive here for the same pack; only
+      // one may scan and move its files.
+      try {
+        await claimPackImport(this.prismaClient, packDownloadId);
+      } catch (error: unknown) {
+        if (error instanceof PackImportClaimedError) {
+          return createErrorResult(error);
+        }
+        throw error;
+      }
 
-      // Update status to IMPORTING
-      await this.prismaClient.packDownload.update({
-        where: { id: packDownloadId },
-        data: { status: 'IMPORTING' }
-      });
+      logger.info(`[PackImport] Starting import for pack #${packDownloadId}: ${packDownload.releaseTitle}`);
 
       // iter-19: wait for the client/mover to finish writing files before we
       // scan. Previously we hit fs.stat immediately and ~170 imports/iter-18
@@ -174,29 +199,17 @@ export class PackImportService {
         files = await scanDirectoryForChapterFiles(packDownload.filePath);
         logger.info(`[PackImport] Found ${files.length} chapter files in directory`);
       } else {
-        // Single archive — extract it
-        const extractPath = path.join(
-          path.dirname(packDownload.filePath),
-          `extracted_${packDownload.id}_${Date.now()}`
-        );
-
-        logger.info(`[PackImport] Extracting archive: ${packDownload.filePath}`);
-        const extractionResult = await this.archiveExtractor.extractArchive(
-          packDownload.filePath,
-          extractPath
-        );
-
-        if (isError(extractionResult)) {
-          await this.updatePackStatus(packDownloadId, 'FAILED', extractionResult.error.message);
-          return extractionResult;
+        // Single archive — it is one volume/chapter file, unless its contents
+        // are themselves chapter archives. (It used to be extracted and every
+        // page image treated as a chapter file: `001.jpg` became chapter 1.)
+        logger.info(`[PackImport] Scanning single archive: ${packDownload.filePath}`);
+        files = await scanSingleArchiveFile(packDownload.filePath);
+        if (files.length === 0) {
+          const message = `Unsupported pack file type: ${path.basename(packDownload.filePath)}`;
+          await this.updatePackStatus(packDownloadId, 'FAILED', message);
+          return createErrorResult(new Error(message));
         }
-
-        if (!isSuccess(extractionResult)) {
-          return createErrorResult(new Error('Archive extraction returned unexpected status'));
-        }
-
-        files = extractionResult.data.files;
-        logger.info(`[PackImport] Extracted ${extractionResult.data.extractedFiles} files`);
+        logger.info(`[PackImport] Single archive resolved to ${files.length} file(s)`);
       }
 
       // iter-16: detect multi-part RAR splits; extract in one pass so chapter
@@ -630,17 +643,23 @@ export class PackImportService {
   ): Promise<void> {
     await fs.mkdir(targetDir, { recursive: true });
 
+    // Names already written in THIS call. Several files can parse to the same
+    // volume (`Title v02 c05.cbz`, `Title v02 c06.cbz`, a duplicate release);
+    // giving them all the bare volume name made each move overwrite the last.
+    // A pre-existing file from an earlier import is still replaced in place.
+    const usedNames = new Set<string>();
+
     for (const file of files) {
       // Convert RAR→CBZ if enabled
       // eslint-disable-next-line no-await-in-loop
       const converted = await maybeConvertFile(file.filePath, file.fileName, conversionConfig);
 
       // Rename: use volume naming if available, otherwise keep original name
-      let destName = converted.fileName;
-      if (file.volumeNumber !== null) {
-        const ext = path.extname(converted.fileName);
-        destName = `${mangaTitle} V${String(file.volumeNumber).padStart(2, '0')}${ext}`;
-      }
+      const ext = path.extname(converted.fileName);
+      const preferred = file.volumeNumber !== null
+        ? `${sanitizeFileNamePart(mangaTitle)} V${String(file.volumeNumber).padStart(2, '0')}${ext}`
+        : converted.fileName;
+      const destName = pickUniqueFileName(preferred, converted.fileName, usedNames);
 
       // eslint-disable-next-line no-await-in-loop
       await moveFile(converted.filePath, path.join(targetDir, destName));

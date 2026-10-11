@@ -5,6 +5,7 @@ import {
   assertChapterMembership,
   assertChaptersMembership,
   assertVolumeMembership,
+  rehomeSharedTitles,
 } from '@/server/trpc/routers/_shared/library-access';
 
 /**
@@ -89,6 +90,70 @@ describe('library-access membership helpers', () => {
       const prisma = createPrisma({});
       await expect(assertChaptersMembership(prisma, 'u1', [])).resolves.toBeUndefined();
       expect(prisma.chapter.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rehomeSharedTitles', () => {
+    /** manga: id -> libraryId; members: mangaId -> userIds; libraries: id -> ownerId */
+    function createRehomePrisma(manga, members, libraries) {
+      return {
+        manga: {
+          findMany: jest.fn(({ where }) =>
+            Promise.resolve(Object.entries(manga)
+              .filter(([, libraryId]) => where.libraryId.in.includes(libraryId))
+              .map(([id]) => ({ id: Number(id) })))
+          ),
+          update: jest.fn(({ where, data }) => {
+            manga[where.id] = data.libraryId;
+            return Promise.resolve({});
+          }),
+        },
+        libraryMembership: {
+          findFirst: jest.fn(({ where }) => {
+            const other = (members[where.mangaId] ?? []).find((userId) => userId !== where.userId.not);
+            return Promise.resolve(other ? { userId: other } : null);
+          }),
+        },
+        library: {
+          findFirst: jest.fn(({ where }) => {
+            const found = Object.entries(libraries)
+              .map(([id, ownerId]) => ({ id: Number(id), ownerId }))
+              .filter((lib) => lib.ownerId === where.ownerId && !where.id.notIn.includes(lib.id))
+              .sort((a, b) => a.id - b.id)[0];
+            return Promise.resolve(found ? { id: found.id } : null);
+          }),
+        },
+      };
+    }
+
+    it('moves titles other users still hold and leaves the rest to the cascade', async () => {
+      const manga = { 1: 10, 2: 10, 3: 20 };
+      const prisma = createRehomePrisma(manga, { 1: ['gone', 'stays'], 2: ['gone'] }, { 10: 'gone', 20: 'stays' });
+
+      await expect(rehomeSharedTitles(prisma, 'gone', [10])).resolves.toBe(1);
+      expect(manga).toEqual({ 1: 20, 2: 10, 3: 20 });
+    });
+
+    it('never re-homes into a library that is itself being deleted', async () => {
+      const manga = { 1: 10 };
+      const prisma = createRehomePrisma(manga, { 1: ['gone', 'stays'] }, { 10: 'gone', 11: 'gone', 30: 'stays' });
+
+      await rehomeSharedTitles(prisma, 'gone', [10, 11]);
+      expect(manga[1]).toBe(30);
+    });
+
+    it('aborts when a remaining holder has no library to receive the title', async () => {
+      const manga = { 1: 10 };
+      const prisma = createRehomePrisma(manga, { 1: ['gone', 'stays'] }, { 10: 'gone' });
+
+      await expect(rehomeSharedTitles(prisma, 'gone', [10])).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
+      expect(manga[1]).toBe(10);
+    });
+
+    it('does nothing when the user owns no libraries', async () => {
+      const prisma = createRehomePrisma({}, {}, {});
+      await expect(rehomeSharedTitles(prisma, 'gone', [])).resolves.toBe(0);
+      expect(prisma.manga.findMany).not.toHaveBeenCalled();
     });
   });
 });

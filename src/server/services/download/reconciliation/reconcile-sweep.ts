@@ -433,22 +433,6 @@ function isNotFoundMessage(message: string): boolean {
   return m.includes('not found') || m.includes('no such') || m.includes('does not exist');
 }
 
-function unwrapInnerStatus(
-  outerData: unknown
-): { payload: Record<string, unknown>; error: string | null } {
-  if (outerData === null || typeof outerData !== 'object') {
-    return { payload: {}, error: 'probe inner not object' };
-  }
-  const rec = outerData as { status?: string; data?: Record<string, unknown>; error?: { message?: string } };
-  if (rec.status === 'error') {
-    return { payload: {}, error: rec.error?.message ?? 'inner error' };
-  }
-  if (rec.status !== 'success' || rec.data === undefined) {
-    return { payload: {}, error: 'probe inner shape unexpected' };
-  }
-  return { payload: rec.data, error: null };
-}
-
 function extractProbePayload(payload: Record<string, unknown>): { status: string; savePath: string; name: string; size: number } {
   const status = typeof payload['status'] === 'string' ? payload['status'] : '';
   const savePath = typeof payload['savePath'] === 'string' ? payload['savePath'] : '';
@@ -470,12 +454,7 @@ async function probeClient(
   }
   if (!isSuccess(outer)) return { ...emptyProbe('error'), message: 'probe non-success' };
 
-  const { payload, error } = unwrapInnerStatus(outer.data);
-  if (error !== null) {
-    if (isNotFoundMessage(error)) return emptyProbe('notFound');
-    return { ...emptyProbe('error'), message: error };
-  }
-
+  const payload = outer.data as unknown as Record<string, unknown>;
   const { status, savePath, name, size } = extractProbePayload(payload);
   const isComplete = (status === 'COMPLETED' || status === 'SEEDING') && savePath !== '';
   return { kind: isComplete ? 'complete' : 'stillRunning', status, savePath, name, size, message: '' };

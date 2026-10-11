@@ -108,9 +108,8 @@ export function checkTorrentHealth(
 /**
  * Unwrap download status from ClientDownloadService.getDownloadStatus().
  *
- * getDownloadStatus wraps client.getStatus() (which returns AsyncResult<DownloadStatusInfo>)
- * inside another createSuccessResult(), double-wrapping it. This helper unwraps to get
- * the actual DownloadStatusInfo fields (progress, seeds, etc.).
+ * getDownloadStatus now returns the client's status directly. This helper still
+ * accepts the older double-wrapped shape so a stale caller cannot misread it.
  */
 export function unwrapDownloadStatus(statusData: unknown): Record<string, unknown> {
     if (!statusData || typeof statusData !== 'object') {

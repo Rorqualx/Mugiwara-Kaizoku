@@ -274,3 +274,58 @@ export async function removeMembership(
   const remainingMembers = await prisma.libraryMembership.count({ where: { mangaId } });
   return { remainingMembers };
 }
+
+/**
+ * Protect shared titles before one or more libraries are deleted.
+ *
+ * `Manga.libraryId` is `onDelete: Cascade`, so deleting a library hard-deletes
+ * every title it physically owns — for everyone, including other users who
+ * hold the title through `LibraryMembership`. This reassigns each such title
+ * to a library of another member so the cascade cannot take their copy.
+ * Files do not move (`Manga.libraryPath` is unchanged).
+ *
+ * @param departingUserId the user whose libraries are going away
+ * @throws PRECONDITION_FAILED when another member holds a title but has no
+ *   library to receive it — the caller must abort the delete
+ * @returns number of titles reassigned
+ */
+export async function rehomeSharedTitles(
+  prisma: PrismaClient,
+  departingUserId: string,
+  libraryIds: readonly number[],
+): Promise<number> {
+  if (libraryIds.length === 0) return 0;
+
+  const ownedTitles = await prisma.manga.findMany({
+    where: { libraryId: { in: [...libraryIds] } },
+    select: { id: true },
+  });
+
+  let rehomed = 0;
+  // Sequential on purpose: each title needs its own lookup and update.
+  /* eslint-disable no-await-in-loop */
+  for (const { id: mangaId } of ownedTitles) {
+    const otherMember = await prisma.libraryMembership.findFirst({
+      where: { mangaId, userId: { not: departingUserId } },
+      select: { userId: true },
+    });
+    if (!otherMember) continue;
+
+    const targetLibrary = await prisma.library.findFirst({
+      where: { ownerId: otherMember.userId, id: { notIn: [...libraryIds] } },
+      orderBy: { id: 'asc' },
+      select: { id: true },
+    });
+    if (!targetLibrary) {
+      throw new TRPCError({
+        code: 'PRECONDITION_FAILED',
+        message: 'Another user still has a title from this library but has no library to keep it in.',
+      });
+    }
+    await prisma.manga.update({ where: { id: mangaId }, data: { libraryId: targetLibrary.id } });
+    rehomed++;
+  }
+  /* eslint-enable no-await-in-loop */
+  return rehomed;
+}
+

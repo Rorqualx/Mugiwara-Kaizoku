@@ -22,6 +22,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8
 
 # Core system dependencies (small layer, rarely changes)
+# unar (ships `unar` + `lsar`) and p7zip-full (`7z`) are what pack import uses to
+# open RAR/CBR, multi-part RAR and 7z downloads; without them those imports fail.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
@@ -32,6 +34,8 @@ RUN apt-get update && \
         ffmpeg \
         dos2unix \
         unzip \
+        unar \
+        p7zip-full \
         gosu \
         openssl && \
     apt-get clean && \

@@ -54,6 +54,31 @@ type MangaWithIncludes = Prisma.MangaGetPayload<{
     Chapter: true;
   };
 }>;
+/** True when the library root can be read and contains at least one entry. */
+async function isLibraryRootPopulated(libraryPath: string): Promise<boolean> {
+  try {
+    const entries = await fs.readdir(libraryPath);
+    return entries.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * True only when the chapter has a recorded file path and nothing exists there.
+ * Any other outcome (no path, file present, path unreadable for another
+ * reason such as an unmounted share) is treated as "not missing".
+ */
+async function isChapterFileMissing(filePath: string | null): Promise<boolean> {
+  if (!filePath) return false;
+  try {
+    await fs.access(filePath);
+    return false;
+  } catch (err: unknown) {
+    return (err as NodeJS.ErrnoException).code === 'ENOENT';
+  }
+}
+
 /**
  * Removes a chapter file from the filesystem
  * Handles missing files and logging gracefully
@@ -125,6 +150,12 @@ export async function processFixOutOfSyncChaptersTask(task: IFixOutOfSyncChapter
       // Library is guaranteed by Prisma include: { Library: true }
       const mangaPath = path.resolve(mangaInDb.Library.path, sanitizer(mangaInDb.title));
 
+      // An unmounted or empty library root makes every file look missing.
+      if (!(await isLibraryRootPopulated(mangaInDb.Library.path))) {
+        logger.warn(`Library root ${mangaInDb.Library.path} is unreadable or empty; refusing to remove chapters for manga ID ${mangaId}`);
+        return;
+      }
+
       // If outOfSyncChapters is provided in the payload, use that list
       const chaptersToRemove = outOfSyncChapters ?? [];
 
@@ -132,6 +163,14 @@ export async function processFixOutOfSyncChaptersTask(task: IFixOutOfSyncChapter
         const chapter = mangaInDb.Chapter.find((curr) => curr.fileName === fileName);
         if (!chapter) {
           logger.warn(`No matching chapter found for filename ${fileName}`);
+          return;
+        }
+        // "Out of sync" is computed against a flat title folder. A row that
+        // has no file yet (metadata-only) or whose recorded file still exists
+        // elsewhere in the library is not out of sync — deleting it would also
+        // cascade away reading progress and history.
+        if (!(await isChapterFileMissing(chapter.filePath))) {
+          logger.warn(`Skipping chapter ${chapter.id} (${fileName}): no recorded file, or the file still exists`);
           return;
         }
         await removeChapter(mangaPath, chapter.fileName);
