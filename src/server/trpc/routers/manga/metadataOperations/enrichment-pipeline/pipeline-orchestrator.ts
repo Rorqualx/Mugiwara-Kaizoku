@@ -384,21 +384,18 @@ async function applyVolumeCoverImages(
     ? await prisma.volume.findMany({ where: { mangaId, coverImage: null }, select: { number: true } })
     : allVolumes.filter(v => v.coverImage === null);
 
-  const updates: Array<ReturnType<typeof prisma.volume.updateMany>> = [];
-  for (const v of needsCover) {
+  const updates = needsCover.flatMap(v => {
     const coverImage = coverMap.get(v.number);
-    if (coverImage) {
-      updates.push(
-        prisma.volume.updateMany({
-          where: { mangaId, number: v.number },
-          data: { coverImage },
-        }),
-      );
-    }
-  }
+    return coverImage ? [{ number: v.number, coverImage }] : [];
+  });
 
   if (updates.length > 0) {
-    await Promise.all(updates);
+    // One transaction, one connection: a 100-volume series used to fire 100
+    // concurrent updates at the request pool.
+    await prisma.$transaction(updates.map(u => prisma.volume.updateMany({
+      where: { mangaId, number: u.number },
+      data: { coverImage: u.coverImage },
+    })));
     logger.info(`[enrichmentPipeline] Applied cover images to ${updates.length} volumes for manga ${mangaId}`);
   }
 }

@@ -13,6 +13,8 @@
  *
  * Pure: no I/O, so every id format can be unit-tested.
  */
+import { bindMinFor } from '@/lib/metadata/provider-registry';
+
 import { isManuallyUnboundFromMetadata, type SentinelProvider } from '../manual-binding-sentinel';
 
 export type ProviderPin<T> =
@@ -142,6 +144,24 @@ export function dropRejected<T>(
 ): T[] {
   if (!rejectedIds || rejectedIds.size === 0) return [...candidates];
   return candidates.filter((candidate) => !rejectedIds.has(idOf(candidate)));
+}
+
+/**
+ * Whether the matcher's pick may be bound once rejected candidates were taken
+ * out of the running.
+ *
+ * With its best candidate rejected the matcher falls to the runner-up, which
+ * can be a different series that merely shares a word with the title
+ * (MangaUpdates rebound a rejected title at 0.55). When a rejection actually
+ * removed a search hit, the replacement has to reach the provider's bind
+ * threshold; otherwise the provider is left unbound.
+ */
+export function mayBindAfterRejection(
+  provider: 'mangadex' | 'mangaupdates' | 'kitsu',
+  score: number,
+  rejectedSkipped: number,
+): boolean {
+  return rejectedSkipped === 0 || score >= bindMinFor(provider);
 }
 
 export interface ProviderDirectives {

@@ -142,6 +142,35 @@ function BoundIndicator({
   );
 }
 
+/**
+ * Shown when an earlier unbind switched automatic matching off for the provider
+ */
+function AutoMatchPausedNotice({
+  paused,
+  providerName,
+  onResume,
+  isResuming
+}: {
+  paused: boolean;
+  providerName: string;
+  onResume: () => void;
+  isResuming: boolean;
+}): React.ReactElement | null {
+  if (!paused) return null;
+  return (
+    <Paper p="sm" withBorder>
+      <Group justify="space-between" wrap="nowrap">
+        <Text size="sm">
+          Automatic matching is off for {providerName} because its binding was removed.
+        </Text>
+        <Button variant="light" size="xs" onClick={onResume} loading={isResuming}>
+          Resume automatic matching
+        </Button>
+      </Group>
+    </Paper>
+  );
+}
+
 interface ProviderBindModalProps {
   opened: boolean;
   onClose: () => void;
@@ -210,6 +239,24 @@ export function ProviderBindModal({
     },
     onError: (error) => {
       notify({ severity: 'ERROR', title: 'Unbind Failed', message: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // An unbind switches automatic matching off for this provider; offer the way back.
+  const matchingStateQuery = trpc.manga.providerMatchingState.useQuery(
+    { mangaId, provider },
+    { enabled: opened && !isBound }
+  );
+  const resumeMutation = trpc.manga.resumeAutoMatching.useMutation({
+    onSuccess: (result) => {
+      notify({ severity: 'INFO', title: 'Automatic matching', message: result.message });
+      void matchingStateQuery.refetch();
+      void tRPCUtils.manga.get.invalidate({ id: mangaId });
+      void tRPCUtils.manga.detail.invalidate({ id: mangaId });
+      onSuccess?.();
+    },
+    onError: (error) => {
+      notify({ severity: 'ERROR', title: 'Could not resume matching', message: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -355,6 +402,15 @@ export function ProviderBindModal({
               description="Pull latest metadata when binding to update manga information"
             />
           </Paper>
+        )}
+
+        {!isBound && (
+          <AutoMatchPausedNotice
+            paused={matchingStateQuery.data?.autoMatchPaused === true}
+            providerName={config["name"]}
+            onResume={() => { resumeMutation.mutate({ mangaId, provider }); }}
+            isResuming={resumeMutation.isPending}
+          />
         )}
 
         {/* Currently Bound Indicator */}

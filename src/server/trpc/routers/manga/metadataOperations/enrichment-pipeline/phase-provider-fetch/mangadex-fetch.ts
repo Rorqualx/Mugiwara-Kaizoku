@@ -18,7 +18,7 @@ import { extractMangaDexLinks } from './external-id-extractor';
 import { fetchMangaDexAggregate } from './mangadex-aggregate';
 import { fetchMangaDexChapters } from './mangadex-chapter-list';
 import { pickBestMangaDexMatch, pickBestMangaDexMatchWithScore } from './mangadex-matcher';
-import { dropRejected, type ProviderDirective } from './provider-pins';
+import { dropRejected, mayBindAfterRejection, type ProviderDirective } from './provider-pins';
 
 import type { ChapterDataItem, UnifiedProviderResults } from '../types';
 
@@ -167,6 +167,13 @@ export async function fetchMangaDexDirect(
   const matched = pickBestMangaDexMatchWithScore(candidates, title, client);
   if (!matched) {
     log.info('MangaDex: no results found', { title, rejectedSkipped: dataArr.length - candidates.length });
+    return null;
+  }
+  const rejectedSkipped = dataArr.length - candidates.length;
+  if (!mayBindAfterRejection('mangadex', matched.score, rejectedSkipped)) {
+    log.info('MangaDex: best remaining candidate after a rejection is too weak to bind', {
+      title, id: matched.result.id, score: matched.score, rejectedSkipped,
+    });
     return null;
   }
   const bestManga = matched.result;

@@ -1,5 +1,5 @@
 // @file-size-justified: Core tRPC router — splitting procedures across files breaks router type inference
-import { ChapterStatus, MangaLibraryStatus, Chapter, JobType } from '@prisma/client';
+import { ChapterStatus, MangaLibraryStatus, Chapter } from '@prisma/client';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
@@ -8,6 +8,7 @@ import { prisma } from '@/server/db';
 import { enqueueDownloadTask } from '@/server/queue/download';
 import { queueManager } from '@/server/queue/queueManager';
 import { deleteMangaFiles } from '@/server/services/library/manga-file-deletion';
+import { enqueueRefreshChain } from '@/server/services/metadata/refresh-queue';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { ValidationError } from '@/utils/errors';
 import { toNumberId } from '@/utils/id-converters';
@@ -594,68 +595,47 @@ export const bulkRouter = router({
     }),
 
   /**
-   * Queue metadata refresh jobs for multiple manga
-   * Uses import profiles to determine which providers to refresh from
+   * Queue a metadata refresh for multiple manga. The titles run one after
+   * another through the enrichment pipeline (see services/metadata/refresh-queue).
+   *
+   * Bindings are kept by default; `reidentify` clears the automatic ones first
+   * so every provider is matched again.
    */
   bulkRefreshMetadata: protectedProcedure
     .input(z.object({
-      mangaIds: z.array(z.number()).min(1, 'At least one manga ID is required')
+      mangaIds: z.array(z.number()).min(1, 'At least one manga ID is required'),
+      reidentify: z.boolean().optional()
     }))
     .mutation(async ({ input, ctx }) => {
-      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, requireUserId(ctx), input.mangaIds);
-      const errors: string[] = [];
-      let successCount = 0;
+      const userId = requireUserId(ctx);
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, userId, input.mangaIds);
+      const reidentify = input.reidentify ?? false;
 
-      serverLogger.info('Starting bulk metadata refresh', { mangaCount: mangaIds.length });
+      serverLogger.info('Starting bulk metadata refresh', { mangaCount: mangaIds.length, reidentify });
 
-      const refreshPromises = mangaIds.map(async (mangaId) => {
-        try {
-          const manga = await prisma.manga.findUnique({
-            where: { id: mangaId },
-            select: {
-              id: true,
-              title: true,
-              providerMetadata: true,
-              selectedSourceId: true,
-              searchProvider: true
-            }
-          });
+      const existing = await prisma.manga.findMany({ where: { id: { in: mangaIds } }, select: { id: true } });
+      const existingIds = new Set(existing.map(m => m.id));
+      const errors = mangaIds.filter(id => !existingIds.has(id)).map(id => `Manga ${id} not found`);
 
-          if (!manga) {
-            errors.push(`Manga ${mangaId} not found`);
-            return;
-          }
+      let queued: number[] = [];
+      let alreadyQueued: number[] = [];
+      try {
+        ({ queued, alreadyQueued } = await enqueueRefreshChain(
+          prisma,
+          (jobType, payload, options) => queueManager.enqueue(jobType, payload, options),
+          mangaIds.filter(id => existingIds.has(id)),
+          { forceRefresh: reidentify, initiatedByUserId: userId }
+        ));
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errors.push(`Failed to queue metadata refresh: ${errorMessage}`);
+        serverLogger.error('Failed to queue metadata refresh', { mangaIds, error: errorMessage });
+      }
 
-          // Extract import profile from providerMetadata
-          const providerMetadata = typeof manga.providerMetadata === 'string'
-            ? JSON.parse(manga.providerMetadata) as Record<string, unknown>
-            : manga.providerMetadata as Record<string, unknown> | null;
-
-          const importProfile = providerMetadata?.['importProfile'] ?? null;
-
-          // Queue the refresh job
-          await queueManager.enqueue(JobType.metadata_refresh, {
-            mangaId,
-            title: manga.title,
-            forceRefresh: true,
-            ...(importProfile !== null ? { importProfile } : {})
-          }, {
-            mangaId
-          });
-
-          successCount++;
-          serverLogger.info('Queued metadata refresh', { mangaId, title: manga.title });
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          errors.push(`Failed to queue refresh for manga ${mangaId}: ${errorMessage}`);
-          serverLogger.error('Failed to queue metadata refresh', { mangaId, error: errorMessage });
-        }
-      });
-
-      await Promise.all(refreshPromises);
-
+      const successCount = queued.length;
       serverLogger.info('Bulk metadata refresh complete', {
         successCount,
+        alreadyQueued: alreadyQueued.length,
         errorCount: errors.length,
         totalCount: mangaIds.length
       });
@@ -670,13 +650,15 @@ export const bulkRouter = router({
         });
       }
 
+      const skippedNote = alreadyQueued.length > 0 ? ` (${alreadyQueued.length} already queued)` : '';
       return {
         success: true,
         successCount,
+        alreadyQueuedCount: alreadyQueued.length,
         errorCount: errors.length,
         totalCount: mangaIds.length,
         errors: errors.length > 0 ? errors : null,
-        message: `Queued ${successCount} of ${mangaIds.length} manga for metadata refresh`
+        message: `Queued ${successCount} of ${mangaIds.length} manga for metadata refresh${skippedNote}`
       };
     })
 });

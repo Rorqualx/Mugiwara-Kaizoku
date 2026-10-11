@@ -346,6 +346,67 @@ export const bindingRouter = router({
     }),
 
   /**
+   * Whether automatic matching is switched off for a provider on this manga
+   * (the user removed its binding). Drives the "Resume automatic matching"
+   * action in the bind dialog.
+   */
+  providerMatchingState: protectedProcedure
+    .input(unbindProviderSchema)
+    .query(async ({ input, ctx }): Promise<{ autoMatchPaused: boolean }> => {
+      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
+      const manga = await ctx.prisma.manga.findUnique({
+        where: { id: input.mangaId },
+        select: { providerMetadata: true }
+      });
+      const providerMetadata = parseProviderMetadata(manga?.providerMetadata);
+      return {
+        autoMatchPaused: supportsUnboundSentinel(input.provider)
+          && isManuallyUnboundFromMetadata(providerMetadata, input.provider)
+      };
+    }),
+
+  /**
+   * Undo a provider unbind: drop the "do not bind" marker so the next
+   * enrichment may match the provider again. The entity that was unbound stays
+   * rejected, so the matcher cannot simply re-pick it.
+   *
+   * @returns whether a marker was removed
+   */
+  resumeAutoMatching: protectedProcedure
+    .input(unbindProviderSchema)
+    .mutation(async ({ input, ctx }): Promise<{ success: boolean; message: string }> => {
+      const { mangaId, provider } = input;
+      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
+
+      const manga = await ctx.prisma.manga.findUnique({
+        where: { id: mangaId },
+        select: { providerMetadata: true }
+      });
+      if (!manga) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Manga not found' });
+      }
+
+      const providerMetadata = parseProviderMetadata(manga.providerMetadata);
+      if (!supportsUnboundSentinel(provider) || !isManuallyUnboundFromMetadata(providerMetadata, provider)) {
+        return { success: true, message: `Automatic matching is already on for ${provider}` };
+      }
+
+      delete providerMetadata[provider];
+      await ctx.prisma.manga.update({
+        where: { id: mangaId },
+        data: { providerMetadata: providerMetadata as Prisma.InputJsonValue }
+      });
+      await invalidateMangaCache(mangaId);
+      await eventEmitter.emit('manga:updated', { mangaId });
+      logger.info(`Resumed automatic ${provider} matching for manga ID ${mangaId}`);
+
+      return {
+        success: true,
+        message: `Automatic ${provider} matching resumed; it runs on the next metadata refresh`
+      };
+    }),
+
+  /**
    * Bind manga to AniList (legacy procedure)
    *
    * @param mangaId - The manga ID to bind

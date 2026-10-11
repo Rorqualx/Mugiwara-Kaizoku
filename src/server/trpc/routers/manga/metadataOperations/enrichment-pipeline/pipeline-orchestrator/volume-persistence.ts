@@ -129,7 +129,8 @@ export async function persistValidatedVolumeRanges(
     await prisma.volume.createMany({ data: toCreate, skipDuplicates: true });
   }
   if (toUpdate.length > 0) {
-    await Promise.all(
+    // One transaction, one connection, instead of one concurrent update per volume.
+    await prisma.$transaction(
       toUpdate.map(r => prisma.volume.updateMany({
         where: { mangaId, number: r.volumeNumber },
         data: buildVolumeUpdateData(r, existingByNumber.get(r.volumeNumber)),

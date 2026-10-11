@@ -5,10 +5,17 @@
  * Uses an in-memory lock map with promise-based waiting.
  */
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
-/** Map<mangaId, Promise<void>> — active enrichment locks */
-const activeLocks = new Map<number, Promise<void>>();
+/**
+ * Map<mangaId, Promise<void>> — active enrichment locks.
+ *
+ * Process-wide: this module is loaded once by the custom server (queued
+ * refreshes) and once by the Next bundle (refreshes started from the UI), and
+ * a per-copy map would let the two enrich the same title at the same time.
+ */
+const activeLocks = processSingleton('enrichment-lock', () => new Map<number, Promise<void>>());
 
 /**
  * Execute a function with an exclusive lock on a manga ID.

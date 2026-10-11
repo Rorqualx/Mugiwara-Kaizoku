@@ -4,6 +4,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   buildProviderDirectives,
   dropRejected,
+  mayBindAfterRejection,
   readComicVinePin,
   readKitsuPin,
   readMangaDexPin,
@@ -153,5 +154,26 @@ describe('buildProviderDirectives / skipsSecondWave', () => {
     expect(skipsSecondWave(d.mangadex, {})).toBe(false);
     expect(skipsSecondWave(d.mangadex, null)).toBe(false);
     expect(skipsSecondWave(d.mangaupdates, { manualPin: false })).toBe(false);
+  });
+});
+
+describe('mayBindAfterRejection — a rejected match is not replaced by a weak one', () => {
+  // Why this exists: with its MangaUpdates series rejected, a title was
+  // rebound to the runner-up at 0.55, a different series. Nothing bound is
+  // better than the wrong thing bound.
+  it('lets any pick through when no rejected candidate was in the results', () => {
+    expect(mayBindAfterRejection('mangaupdates', 0.31, 0)).toBe(true);
+  });
+
+  it('refuses a runner-up below the provider bind threshold', () => {
+    expect(mayBindAfterRejection('mangaupdates', 0.55, 1)).toBe(false);
+    expect(mayBindAfterRejection('mangadex', 0.69, 2)).toBe(false);
+    expect(mayBindAfterRejection('kitsu', 0.54, 1)).toBe(false);
+  });
+
+  it('accepts a runner-up at or above the threshold', () => {
+    expect(mayBindAfterRejection('mangaupdates', 0.6, 1)).toBe(true);
+    expect(mayBindAfterRejection('mangadex', 0.95, 1)).toBe(true);
+    expect(mayBindAfterRejection('kitsu', 0.55, 3)).toBe(true);
   });
 });

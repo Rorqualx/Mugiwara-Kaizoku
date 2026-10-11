@@ -321,12 +321,16 @@ export const db = {
           ...(options?.isolationLevel !== undefined ? { isolationLevel: options.isolationLevel } : {}),
         }) as Promise<T>);
       } catch (error: unknown) {
-        // Check if it's a deadlock or timeout error
+        // Check if it's a deadlock or timeout error. Prisma puts the code on
+        // `error.code`; the message is prose and never equals the code.
         const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorCode = typeof error === 'object' && error !== null && 'code' in error
+          ? String((error as { code: unknown }).code)
+          : '';
         if (
           attempts < maxAttempts &&
-          (errorMessage === 'P2034' || // Transaction conflict
-           errorMessage === 'P2024' || // Timeout
+          (errorCode === 'P2034' || // Transaction conflict
+           errorCode === 'P2024' || // Timed out waiting for a pool connection
            errorMessage.includes('deadlock'))
         ) {
           logger.warn(`Transaction failed (attempt ${attempts}), retrying...`, error);

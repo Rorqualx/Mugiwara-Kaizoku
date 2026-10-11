@@ -12,7 +12,7 @@ import { logger } from '@/utils/logger';
 
 import { diceCoefficient, hasEditionMismatch, normalizeTitle } from '../utils';
 
-import { dropRejected, type MangaUpdatesPinId, type ProviderDirective } from './provider-pins';
+import { dropRejected, mayBindAfterRejection, type MangaUpdatesPinId, type ProviderDirective } from './provider-pins';
 
 const log = logger.child('PhaseProviderFetch:MangaUpdates');
 
@@ -359,6 +359,13 @@ export async function fetchMangaUpdatesDirect(
   // Pick best match with cross-validation hints
   const bestMatch = pickBestMUMatch(candidates, title, hints);
   if (!bestMatch) return null;
+  const rejectedSkipped = allHits.length - candidates.length;
+  if (!mayBindAfterRejection('mangaupdates', bestMatch.score, rejectedSkipped)) {
+    log.info('MangaUpdates: best remaining candidate after a rejection is too weak to bind', {
+      title, seriesId: bestMatch.hit.record.series_id, score: bestMatch.score, rejectedSkipped,
+    });
+    return null;
+  }
 
   const details = await mangaUpdatesService.getSeriesDetails(bestMatch.hit.record.series_id);
   if (!details) return null;

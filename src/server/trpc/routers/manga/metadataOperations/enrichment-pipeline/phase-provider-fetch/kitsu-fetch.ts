@@ -12,7 +12,7 @@ import { logger } from '@/utils/logger';
 
 import { diceCoefficient, hasEditionMismatch, normalizeTitle } from '../utils';
 
-import { dropRejected, type ProviderDirective } from './provider-pins';
+import { dropRejected, mayBindAfterRejection, type ProviderDirective } from './provider-pins';
 
 const log = logger.child('PhaseProviderFetch:Kitsu');
 
@@ -261,6 +261,13 @@ export async function fetchKitsuDirect(
 
   const best = pickBestKitsuMatch(candidates, title, hints);
   if (!best) return null;
+  const rejectedSkipped = allHits.length - candidates.length;
+  if (!mayBindAfterRejection('kitsu', best.score, rejectedSkipped)) {
+    log.info('Kitsu: best remaining candidate after a rejection is too weak to bind', {
+      title, id: best.hit.id, score: best.score, rejectedSkipped,
+    });
+    return null;
+  }
 
   const result = { ...buildResult(best.hit), matchScore: best.score };
   logMatched(result, 'Kitsu: matched');
