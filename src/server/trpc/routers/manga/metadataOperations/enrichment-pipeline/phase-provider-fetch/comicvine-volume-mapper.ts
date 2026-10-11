@@ -181,24 +181,16 @@ function computeCumulativeChapterRanges(volumes: Array<Record<string, unknown>>)
   const volumesWithCounts = volumes.filter(
     v => typeof v['chapterCount'] === 'number' && (v['chapterCount'] as number) > 0,
   );
-  // Less than 30% have counts — fall back to default estimate instead of bailing
+  // Less than 30% have counts: there is nothing to compute a range from. The
+  // old fallback wrote nine chapters per volume as if ComicVine had said so
+  // (Neon Genesis Evangelion volume 2 = 10–18, Akira's 40-issue edition), and
+  // those invented ranges were stored and linked chapters to the wrong volume.
+  // Volumes without an explicit range now carry none.
   if (volumesWithCounts.length < volumes.length * 0.3) {
-    const DEFAULT_CHAPTER_ESTIMATE = 9;
-    let chStart = 1;
-    for (const vol of volumes) {
-      if (vol['hasExplicitRange'] === true) {
-        const end = parseInt(String(vol['endChapter']), 10);
-        if (!isNaN(end)) chStart = end + 1;
-        continue;
-      }
-      vol['startChapter'] = String(chStart);
-      vol['endChapter'] = String(chStart + DEFAULT_CHAPTER_ESTIMATE - 1);
-      chStart += DEFAULT_CHAPTER_ESTIMATE;
-    }
-    log.info('Used default chapter estimate for volumes (insufficient count data)', {
+    log.info('No chapter ranges computed for ComicVine volumes (insufficient count data)', {
       totalVolumes: volumes.length,
       volumesWithCounts: volumesWithCounts.length,
-      defaultEstimate: DEFAULT_CHAPTER_ESTIMATE,
+      explicitRanges: volumes.filter(v => v['hasExplicitRange'] === true).length,
     });
     return;
   }

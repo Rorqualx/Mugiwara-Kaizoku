@@ -32,6 +32,12 @@ export interface ProviderDirective<T> {
   pin: ProviderPin<T>;
   /** Ids the matcher must never pick (`ProviderBinding` rejections). */
   rejectedIds: ReadonlySet<string>;
+  /**
+   * The id an earlier run bound by itself (not manual, not rejected). The
+   * matcher still runs first; this is only what to fall back to when the
+   * search now finds nothing, so a bound title keeps its provider data.
+   */
+  boundId?: T;
 }
 
 export interface MangaUpdatesPinId {
@@ -136,6 +142,26 @@ export function readComicVinePin(providerMetadata: unknown): ProviderPin<number>
   });
 }
 
+/**
+ * ComicVine volume id from an automatic binding, unless it was rejected.
+ * "One Piece (Official Colored)" is bound to a volume the title search no
+ * longer returns; without this the refresh treated it as unmatched and
+ * rebuilt its volume ranges from nothing.
+ */
+export function readComicVineBoundId(providerMetadata: unknown, rejectedIds: ReadonlySet<string>): number | undefined {
+  if (providerMetadata === null || typeof providerMetadata !== 'object' || Array.isArray(providerMetadata)) return undefined;
+  const entry = (providerMetadata as Record<string, unknown>)['comicvine'];
+  if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return undefined;
+  const section = entry as Record<string, unknown>;
+  if (section['manual'] === true) return undefined;
+  const pid = section['providerId'];
+  const raw = typeof pid === 'number' ? String(pid) : typeof pid === 'string' ? pid.trim() : '';
+  const match = /^(?:\d+-)?(\d+)$/u.exec(raw);
+  const id = match?.[1] ? parseInt(match[1], 10) : NaN;
+  if (!Number.isSafeInteger(id) || id <= 0 || rejectedIds.has(String(id))) return undefined;
+  return id;
+}
+
 /** Candidates left after removing every rejected id. */
 export function dropRejected<T>(
   candidates: readonly T[],
@@ -176,6 +202,11 @@ export interface ProviderDirectives {
   malUnbound: boolean;
 }
 
+function comicVineDirective(providerMetadata: unknown, rejectedIds: ReadonlySet<string>): ProviderDirective<number> {
+  const boundId = readComicVineBoundId(providerMetadata, rejectedIds);
+  return { pin: readComicVinePin(providerMetadata), rejectedIds, ...(boundId !== undefined ? { boundId } : {}) };
+}
+
 /** Binding directives for every provider, from one loaded `providerMetadata` and the rejection lookup. */
 export function buildProviderDirectives(
   providerMetadata: unknown,
@@ -185,7 +216,7 @@ export function buildProviderDirectives(
     mangadex: { pin: readMangaDexPin(providerMetadata), rejectedIds: rejectedIdsFor('mangadex') },
     mangaupdates: { pin: readMangaUpdatesPin(providerMetadata), rejectedIds: rejectedIdsFor('mangaupdates') },
     kitsu: { pin: readKitsuPin(providerMetadata), rejectedIds: rejectedIdsFor('kitsu') },
-    comicvine: { pin: readComicVinePin(providerMetadata), rejectedIds: rejectedIdsFor('comicvine') },
+    comicvine: comicVineDirective(providerMetadata, rejectedIdsFor('comicvine')),
     malUnbound: isManuallyUnboundFromMetadata(providerMetadata, 'mal'),
   };
 }

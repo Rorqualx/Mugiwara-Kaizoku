@@ -148,7 +148,7 @@ export async function runLanguageAwareComicVineMatch(
   mangaId: number,
   directive: ProviderDirective<number>,
 ): Promise<ComicVineDirectResult | null> {
-  const { pin, rejectedIds } = directive;
+  const { pin, rejectedIds, boundId } = directive;
   if (pin.kind === 'unbound') {
     log.info(`ComicVine: skipping match for manga ${mangaId} — manually marked as unbound`);
     return null;
@@ -179,7 +179,8 @@ export async function runLanguageAwareComicVineMatch(
       candidatesConsidered: matchResult.allCandidates.length,
       rejectedForLanguage: matchResult.rejectedForLanguage.length,
     });
-    return null;
+    // A title the search no longer finds is still the volume it was bound to.
+    return boundId === undefined ? null : fetchComicVineVolumeById(boundId, 'search found no match — keeping the bound volume');
   }
 
   const matched = matchResult.matched;

@@ -8,7 +8,7 @@
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
-import { applyManualVolumeManifest, readManualVolumeManifest } from '../manual-volume-manifest-sentinel';
+import { applyManualVolumeManifest, readManualVolumeManifest, removeVolumesPastCompleteManifest } from '../manual-volume-manifest-sentinel';
 
 import type { ValidatedVolumeRange } from '../phase-volume-cross-validation';
 import type { Prisma } from '@prisma/client';
@@ -99,13 +99,16 @@ function buildVolumeCreateInput(
 export async function persistValidatedVolumeRanges(
   mangaId: number,
   ranges: ValidatedVolumeRange[],
+  expectedChapterCount: number | null = null,
 ): Promise<void> {
   const manga = await prisma.manga.findUnique({
     where: { id: mangaId },
     select: { providerMetadata: true },
   });
   const manifest = readManualVolumeManifest(manga?.providerMetadata);
-  const effectiveRanges = manifest ? applyManualVolumeManifest(ranges, manifest) : ranges;
+  const lastManualVolume = manifest ? await removeVolumesPastCompleteManifest(mangaId, manifest, expectedChapterCount) : null;
+  const effectiveRanges = (manifest ? applyManualVolumeManifest(ranges, manifest) : ranges)
+    .filter(r => lastManualVolume === null || r.volumeNumber <= lastManualVolume);
   if (manifest) {
     logger.info(`[enrichmentPipeline] Manual volume manifest active for manga ${mangaId}: ${Object.keys(manifest.volumes).length} volume(s) overridden`);
   }

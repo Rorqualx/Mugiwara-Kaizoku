@@ -640,7 +640,7 @@ async function executeEnrichmentPhases(
     proposals, expectedChapterCount, expectedVolumeCount, volumeTrusted,
   );
   if (validatedRanges.length > 0) {
-    await persistValidatedVolumeRanges(mangaId, validatedRanges);
+    await persistValidatedVolumeRanges(mangaId, validatedRanges, expectedChapterCount);
   }
 
   // Phase 4.5: Apply volume cover images from all sources

@@ -122,6 +122,46 @@ export function applyManualVolumeManifest(
 }
 
 /**
+ * Highest volume number of a manifest that reaches the end of the series, or
+ * null when the manifest stops earlier (the user curated only some volumes)
+ * or the series length is unknown. A complete manifest is the whole volume
+ * list: Akira's six manual volumes cover chapters 1–120 of 120, so ComicVine's
+ * volumes 7–14 from a different edition do not belong.
+ */
+export function lastVolumeOfCompleteManifest(manifest: ManualVolumeManifest, expectedChapterCount: number | null): number | null {
+  if (expectedChapterCount === null || expectedChapterCount <= 0) return null;
+  let lastVolume = 0;
+  let lastChapter = 0;
+  for (const [key, entry] of Object.entries(manifest.volumes)) {
+    const volume = Number(key);
+    if (!Number.isFinite(volume)) continue;
+    lastVolume = Math.max(lastVolume, volume);
+    lastChapter = Math.max(lastChapter, entry.range[1]);
+  }
+  return lastVolume > 0 && lastChapter >= expectedChapterCount ? lastVolume : null;
+}
+
+/**
+ * Delete volumes numbered past a complete manifest's last volume. Earlier
+ * phases (the volume safety net, reconciliation) can put such volumes back
+ * after cross-validation dropped them, so the final reconciler calls this too.
+ */
+export async function removeVolumesPastCompleteManifest(
+  mangaId: number,
+  manifest: ManualVolumeManifest,
+  expectedChapterCount: number | null | undefined,
+  prisma: typeof defaultPrisma = defaultPrisma,
+): Promise<number | null> {
+  const lastManualVolume = lastVolumeOfCompleteManifest(manifest, expectedChapterCount ?? null);
+  if (lastManualVolume === null) return null;
+  const removed = await prisma.volume.deleteMany({ where: { mangaId, number: { gt: lastManualVolume } } });
+  if (removed.count > 0) {
+    logger.info(`[enrichmentPipeline] Removed ${removed.count} volume(s) past the manual manifest's last volume ${lastManualVolume} for manga ${mangaId}`);
+  }
+  return lastManualVolume;
+}
+
+/**
  * Final-pass reconciler — called from phase-finalize AFTER every other volume
  * write phase has run (cross-validation, Fandom helpers, sparse-prune,
  * reassignBonus). Restores manual manifest ranges to the live Volume rows so
@@ -137,10 +177,12 @@ export async function reapplyManualManifestToDb(
 ): Promise<{ applied: number; clearedFKs: number } | null> {
   const manga = await prisma.manga.findUnique({
     where: { id: mangaId },
-    select: { providerMetadata: true },
+    select: { providerMetadata: true, Metadata: { select: { chapters: true } } },
   });
   const manifest = readManualVolumeManifest(manga?.providerMetadata);
   if (!manifest) return null;
+
+  await removeVolumesPastCompleteManifest(mangaId, manifest, manga?.Metadata?.chapters, prisma);
 
   const volRows = await prisma.volume.findMany({
     where: { mangaId },
