@@ -12,6 +12,7 @@ import { logger } from '@/utils/logger';
 
 import { sanitizeGlobalCoherence } from './phase-volume-coherence-check';
 import { capVolumeCount, validateConstraints } from './phase-volume-cross-validation/constraint-validation';
+import { dropDifferentEditionComicVine } from './phase-volume-cross-validation/edition-mismatch';
 import { resolveVolumeManifest } from './phase-volume-cross-validation/membership-consensus';
 import { collectVolumeRangeProposals } from './phase-volume-cross-validation/proposal-collectors';
 
@@ -165,7 +166,7 @@ export function crossValidateVolumeRanges(
   // that tail at the proposal level lets a volume that ALSO has a valid in-range
   // proposal from another source (MangaDex vol 11 = ch 46-48) resolve to it
   // instead of being dropped wholesale by the resolved-range guard downstream.
-  const proposals = truncateSourceDiscontinuities(rawProposals);
+  const proposals = truncateSourceDiscontinuities(dropDifferentEditionComicVine(rawProposals));
   if (proposals.length === 0) return [];
 
   // Group proposals by volume number (used by both consensus and legacy paths)

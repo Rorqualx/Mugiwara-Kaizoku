@@ -37,6 +37,7 @@ import { phaseProviderFetch } from './phase-provider-fetch';
 import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-volume-cross-validation';
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
+import { gateChapterCount } from './phase-volume-cross-validation/gate-chapter-count';
 import { assignOverflowChapters } from './phase-volume-overflow';
 import { pruneFinishedSeriesPhantoms } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
@@ -509,7 +510,7 @@ function resolveVolumeGateCeiling(
   const rawExpected = computeExpectedChapterCount(result);
   const ceiling = plausibleTrustedCeiling(resolveTrustedFinalChapter(result, stored).ceiling, rawExpected ?? 0);
   if (ceiling === null) return { expectedChapterCount: rawExpected, trusted: false };
-  return { expectedChapterCount: Math.min(rawExpected ?? ceiling, ceiling), trusted: true };
+  return { expectedChapterCount: gateChapterCount(rawExpected, ceiling), trusted: true };
 }
 
 /**
