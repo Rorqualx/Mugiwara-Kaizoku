@@ -152,8 +152,9 @@ export const CHAPTER_RANGE_PATTERN =
   /(?:Contains\s+)?(?:Chapters?|Spells?|Curses?|Episodes?|Missions?|Stages?)\s+(\d+(?:\.\d+)?)\s*[-–—]\s*(?:(?:Chapters?|Spells?|Curses?|Episodes?|Missions?|Stages?)\s+)?(\d+(?:\.\d+)?)/i;
 
 export const DESCRIPTION_CHAPTER_PATTERNS = [
-  // "Chapter 123: Title" or "Chapter 123.5 - Title" (decimal for interludes/specials)
-  /^Chapter\s+(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
+  // "Chapter 123: Title" or "Chapter 123.5 - Title" (decimal for interludes/specials);
+  // also "Chapter #080: Title" (Tokyo Ghoul)
+  /^Chapter\s+#?(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // "Ch. 123: Title" or "Ch 123.5 - Title"
   /^Ch\.?\s*(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // "#123: Title" or "#123.5 - Title"

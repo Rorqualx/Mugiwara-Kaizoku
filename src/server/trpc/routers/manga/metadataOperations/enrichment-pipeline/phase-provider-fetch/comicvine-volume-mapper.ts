@@ -17,6 +17,9 @@ import { isBonusTitle } from '../types';
 
 const log = logger.child('ComicVineVolumeMapper');
 
+/** Share of a description's chapter lines that must carry a real number before the unnumbered ones are dropped as noise. */
+const NUMBERED_MAJORITY = 0.6;
+
 /** Result of extracting chapter range info from a description */
 interface ChapterRangeResult {
   /** Explicit start chapter (null when derived from title count only) */
@@ -134,8 +137,12 @@ function extractChapterRange(description: string | undefined | null): ChapterRan
     // the description, prefer those as the explicit start/end. Without this,
     // the cumulative running counter inflates ranges for series with many
     // volumes (One Piece vol 74 → chapterEnd=1472 instead of the real 742).
-    if (regular.length >= 2 && regular.every(ch => ch.hasRealNumber)) {
-      const sortedNums = [...regular.map(ch => ch.chapterNumber)].sort((a, b) => a - b);
+    // A few unnumbered lines among numbered chapters are not chapters
+    // (Tokyo Ghoul: "Print Edition - June 16, 2015" under the chapter list);
+    // counting them slid every later volume's cumulative range.
+    const numbered = regular.filter(ch => ch.hasRealNumber);
+    if (numbered.length >= 2 && numbered.length >= regular.length * NUMBERED_MAJORITY) {
+      const sortedNums = [...numbered.map(ch => ch.chapterNumber)].sort((a, b) => a - b);
       const start = sortedNums.at(0);
       const end = sortedNums.at(-1);
       if (start !== undefined && end !== undefined) {
@@ -146,11 +153,12 @@ function extractChapterRange(description: string | undefined | null): ChapterRan
         // gaps for bonus chapters but require count to cover at least half
         // the span. Skip dense check for tight ranges (≤8 chapters span).
         const span = end - start + 1;
-        const dense = span <= 8 || regular.length >= span / 2;
+        const dense = span <= 8 || numbered.length >= span / 2;
         if (end > start && end - start < 500 && dense) {
-          return { start, end, count: counted.length };
+          return { start, end, count: numbered.length };
         }
       }
+      return { start: null, end: null, count: numbered.length };
     }
     return { start: null, end: null, count: counted.length };
   }
