@@ -193,7 +193,7 @@ export const DESCRIPTION_CHAPTER_PATTERNS = [
  * Patterns that indicate the end of a chapter section in descriptions
  * Used by: comicvine-chapter-parser.ts
  */
-export const SECTION_TERMINATORS = /^(credits?|notes?|summary|synopsis|description|review)/i;
+export const SECTION_TERMINATORS = /^(credits?|notes?|summary|synopsis|description|review|release\s+dates?)/i;
 
 /**
  * Known non-English publishers used to detect wrong ComicVine matches.

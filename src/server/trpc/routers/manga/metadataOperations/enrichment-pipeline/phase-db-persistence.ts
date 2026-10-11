@@ -22,6 +22,7 @@ import { chapterHasUserData } from '../refresh/clear-auto-bindings';
 
 import { buildFileContentMatcher } from './file-content-matcher';
 import { insertNewChapters } from './phase-db-persistence/chapter-insert';
+import { planPhantomPairs } from './phase-db-persistence/phantom-pairing';
 import { findKeptVolumeFileRowIds } from './phase-finalize/volume-file-row-scheme';
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
 
@@ -451,42 +452,12 @@ async function pairPhantomToProviderChapter(tx: TxClient, phantom: ExistingChapt
   await tx.chapter.update({ where: { id: phantom.id }, data });
   return { ...phantom, chapterNumber: pch.chapterNumber, title: safeTitle };
 }
-async function pairPhantomsForVolume(tx: TxClient, phantoms: ExistingChapter[], volProviderChs: ProviderChapter[], bound: Map<number, ExistingChapter>): Promise<void> {
-  const len = Math.min(phantoms.length, volProviderChs.length);
-  for (let i = 0; i < len; i++) {
-    const phantom = phantoms[i]; const pch = volProviderChs[i];
-    if (!phantom || !pch) continue;
-    // eslint-disable-next-line no-await-in-loop -- sequential within tx
-    const updated = await pairPhantomToProviderChapter(tx, phantom, pch);
-    bound.set(pch.chapterNumber, updated);
-  }
-}
-function indexPhantomsByVolume(existing: ExistingChapter[]): Map<number, ExistingChapter[]> {
-  const m = new Map<number, ExistingChapter[]>();
-  for (const ch of existing) {
-    if (ch.chapterNumber !== null || ch.filePath === null || ch.volume === null) continue;
-    const arr = m.get(ch.volume) ?? []; arr.push(ch); m.set(ch.volume, arr);
-  }
-  return m;
-}
-function pickProviderChsForVolume(providerChapters: ProviderChapter[], vol: number): ProviderChapter[] {
-  const out: ProviderChapter[] = [];
-  for (const p of providerChapters) if (p.volume === vol) out.push(p);
-  out.sort((a, b) => a.chapterNumber - b.chapterNumber);
-  return out;
-}
-/** Pre-pair volume-archive phantom rows (chapterNumber=NULL, filePath set) with provider chapters in the same volume, 1:1 by index order. Without this, merge + reconciliation skip phantoms and create dup PENDING rows (Chainsaw Man Colored reidentify reproducer). */
+/** Pre-pair volume-archive phantom rows (chapterNumber=NULL, filePath set) with provider chapters in the same volume, by position. Without this, merge + reconciliation skip phantoms and create dup PENDING rows (Chainsaw Man Colored reidentify reproducer). */
 async function bindPhantomVolumeRows(tx: TxClient, existing: ExistingChapter[], providerChapters: ProviderChapter[]): Promise<Map<number, ExistingChapter>> {
   const bound = new Map<number, ExistingChapter>();
-  const phantomsByVolume = indexPhantomsByVolume(existing);
-  // A number that already has a row cannot take a phantom: the update would hit the (mangaId, chapterNumber) unique key and abort the whole chapter step.
-  const taken = new Set(existing.flatMap(ch => (ch.chapterNumber === null ? [] : [ch.chapterNumber])));
-  for (const [vol, phantoms] of phantomsByVolume) {
-    phantoms.sort((a, b) => a.index - b.index);
-    const volProviderChs = pickProviderChsForVolume(providerChapters, vol).filter(pch => !taken.has(pch.chapterNumber));
-    for (const pch of volProviderChs.slice(0, phantoms.length)) taken.add(pch.chapterNumber);
-    // eslint-disable-next-line no-await-in-loop -- sequential per-volume
-    await pairPhantomsForVolume(tx, phantoms, volProviderChs, bound);
+  for (const { phantom, providerChapter } of planPhantomPairs(existing, providerChapters)) {
+    // eslint-disable-next-line no-await-in-loop -- sequential within tx
+    bound.set(providerChapter.chapterNumber, await pairPhantomToProviderChapter(tx, phantom, providerChapter));
   }
   return bound;
 }
