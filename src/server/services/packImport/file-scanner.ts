@@ -79,7 +79,12 @@ export function parseChapterFileName(
     ?? nameWithoutExt.match(/\bs\d{1,2}\s*e\s*(\d+(?:\.\d+)?)\b/i)
     ?? nameWithoutExt.match(/\bep(?:isode)?\.?\s*(\d+(?:\.\d+)?)/i)
     ?? nameWithoutExt.match(/ch(?:apter)?\.?\s*(\d+(?:\.\d+)?)/i)
-    ?? nameWithoutExt.match(/\bc(\d{3,4}(?:\.\d+)?)\b/i);
+    ?? nameWithoutExt.match(/\bc(\d{3,4}(?:\.\d+)?)\b/i)
+    // A short `cNN` right after a volume marker (`v02 c05`, `v04c10`,
+    // `Vol.2 c5`). The bare-`c` pattern above needs 3+ digits to avoid false
+    // hits, so these parsed as volume-only: every chapter file of a volume
+    // collapsed onto the same volume and overwrote its siblings on import.
+    ?? nameWithoutExt.match(/v(?:ol(?:ume)?\.?\s*)?\d+[\s._-]*c(\d{1,4}(?:\.\d+)?)\b/i);
 
   // For bare number detection, strip metadata like (2024), (Digital), [Group]
   // so "Manga - 042 (2024) (Digital).cbz" becomes "Manga - 042"

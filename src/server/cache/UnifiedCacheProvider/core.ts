@@ -280,6 +280,7 @@ export class UnifiedCacheProvider {
         )
         ON CONFLICT (cache_key) DO UPDATE SET
           cache_value = EXCLUDED.cache_value,
+          namespace = EXCLUDED.namespace,
           expires_at = EXCLUDED.expires_at,
           tags = EXCLUDED.tags,
           size_bytes = EXCLUDED.size_bytes,

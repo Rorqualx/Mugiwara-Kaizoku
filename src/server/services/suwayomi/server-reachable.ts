@@ -25,8 +25,9 @@ import { logger } from '@/utils/logger';
 
 const log = logger.child('SuwayomiReachability');
 
-/** Same hardcoded URL the GraphQL client's DEFAULT_CONFIG uses. */
-const SUWAYOMI_GRAPHQL_URL = 'http://localhost:4567/api/graphql';
+/** Default port; replaced via {@link setSuwayomiProbePort} once the service knows the configured one. */
+const DEFAULT_PROBE_PORT = 4567;
+let graphqlUrl = `http://localhost:${DEFAULT_PROBE_PORT}/api/graphql`;
 
 const CACHE_TTL_MS = 60_000;
 const PROBE_TIMEOUT_MS = 3_000;
@@ -59,6 +60,18 @@ export async function isSuwayomiReachable(): Promise<boolean> {
   return reachable;
 }
 
+/**
+ * Point the probes at the port the JVM actually listens on. With a custom
+ * `suwayomi.port` the probe used to hit 4567 regardless, report a healthy
+ * server as unreachable, and get it recycled by the health monitor.
+ */
+export function setSuwayomiProbePort(port: number): void {
+  const next = `http://localhost:${port}/api/graphql`;
+  if (next === graphqlUrl) return;
+  graphqlUrl = next;
+  cache = null;
+}
+
 /** Force the next call to re-probe. Exposed for tests + manual recovery flows. */
 export function invalidateSuwayomiReachabilityCache(): void {
   cache = null;
@@ -80,7 +93,7 @@ async function probeOnce(): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
   try {
-    const resp = await fetch(SUWAYOMI_GRAPHQL_URL, {
+    const resp = await fetch(graphqlUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ query: '{ __typename }' }),

@@ -13,14 +13,34 @@ import type { CacheDataType, CacheInternalStats, CacheStats } from './types';
 import type { PrismaClient } from '@prisma/client';
 
 /**
- * LRU eviction when cache is full
+ * Expired rows are kept this long before they are deleted, so callers that
+ * read with `allowStale` (stale-while-error) still find last-known-good data
+ * during an upstream outage.
+ */
+export const EXPIRED_RETENTION_DAYS = 7;
+
+/** The size check scans the table, so run it at most this often per client. */
+const MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
+
+const lastMaintenanceAt = new WeakMap<PrismaClient, number>();
+
+/**
+ * Housekeeping run from the write path: remove long-expired rows, then evict
+ * if the table is still over capacity (expired rows first, then least used).
+ * Throttled so an ordinary `set` does not pay for a table count.
  */
 export async function evictIfNeeded(
   db: PrismaClient,
   maxCacheSize: number,
   stats: CacheInternalStats
 ): Promise<void> {
+  const now = Date.now();
+  if (now - (lastMaintenanceAt.get(db) ?? 0) < MAINTENANCE_INTERVAL_MS) return;
+  lastMaintenanceAt.set(db, now);
+
   try {
+    await clearExpiredEntries(db);
+
     const count = await db.$queryRaw<{ count: bigint }[]>`
       SELECT COUNT(*) as count FROM cache_unified
     `;
@@ -35,8 +55,8 @@ export async function evictIfNeeded(
         WHERE cache_key IN (
           SELECT cache_key
           FROM cache_unified
-          WHERE expires_at IS NULL OR expires_at > NOW()
           ORDER BY
+            (expires_at IS NOT NULL AND expires_at < NOW()) DESC,
             access_frequency ASC,
             last_accessed_at ASC
           LIMIT ${toEvict}
@@ -53,16 +73,19 @@ export async function evictIfNeeded(
 }
 
 /**
- * Clear expired entries
+ * Delete entries that expired more than {@link EXPIRED_RETENTION_DAYS} ago.
  */
 export async function clearExpiredEntries(db: PrismaClient): Promise<number> {
   try {
     const deleted = await db.$executeRaw`
       DELETE FROM cache_unified
-      WHERE expires_at IS NOT NULL AND expires_at < NOW()
+      WHERE expires_at IS NOT NULL
+        AND expires_at < NOW() - (${EXPIRED_RETENTION_DAYS} * INTERVAL '1 day')
     `;
 
-    logger.info(`Cleared ${deleted} expired cache entries`);
+    if (deleted > 0) {
+      logger.info(`Cleared ${deleted} expired cache entries`);
+    }
     return deleted;
   } catch (error) {
     logger.error('Clear expired error:', error);

@@ -54,10 +54,30 @@ export const jobsMutationsRouter = router({
         attempt_count: 0,
         last_error: Prisma.NullableJsonNullValueInput.DbNull,
       };
-      const result = await prisma.jobs.update({
-        where: { id_partition_key: { id: jobId, partition_key: 'active' } },
+      // Only a job that is no longer queued or running may be reset. Resetting
+      // an in-flight job hands it to a second worker while the first is still
+      // processing it. The status condition is part of the UPDATE so a job
+      // claimed between a check and the write cannot slip through.
+      const { count } = await prisma.jobs.updateMany({
+        where: {
+          id: jobId,
+          partition_key: 'active',
+          status: { notIn: [JobStatus.pending, JobStatus.active, JobStatus.retrying] },
+        },
         data: updateData,
       });
+      const result = await prisma.jobs.findUnique({
+        where: { id_partition_key: { id: jobId, partition_key: 'active' } },
+      });
+      if (!result) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Job not found.' });
+      }
+      if (count === 0) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: `Job is already ${result.status}; it can only be retried once it has finished.`,
+        });
+      }
 
       void realtimeEmitter.emitJobProgress(input.id, 0, {
         jobType: result.job_type,

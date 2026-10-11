@@ -280,3 +280,27 @@ describe('parseChapterFileName — iter-IK episode/season', () => {
       .toEqual({ volumeNumber: null, chapterNumber: 100 });
   });
 });
+
+describe('parseChapterFileName — short chapter marker after a volume marker', () => {
+  // These used to parse as volume-only, so every chapter file of a volume
+  // mapped to the same volume and overwrote its siblings on import.
+  it.each([
+    ['Title v02 c05.cbz', 5],
+    ['Title v02 c06.cbz', 6],
+    ['Title v04c10.cbz', 10],
+    ['Title Vol.2 c5.cbz', 5],
+    ['Title v03 - c07.5 (Digital).cbz', 7.5],
+    ['Title v12 c105.cbz', 105],
+  ])('%s → chapter %d, no volume', (name, chapter) => {
+    expect(parseChapterFileName(name, '.cbz')).toEqual({ volumeNumber: null, chapterNumber: chapter });
+  });
+
+  it.each([
+    ['Title v02 complete.cbz', 2],
+    ['Title v02 (c2c).cbz', 2],
+    ['Title v05 colored.cbz', 5],
+    ['Title v03.cbz', 3],
+  ])('%s stays volume %d', (name, volume) => {
+    expect(parseChapterFileName(name, '.cbz')).toEqual({ volumeNumber: volume, chapterNumber: null });
+  });
+});

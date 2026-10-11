@@ -79,6 +79,10 @@ const SERVER_WARMUP_GRACE_MS = 60_000;
 /** How long to wait after SIGTERM before escalating a wedged JVM to SIGKILL. */
 const WEDGE_SIGKILL_GRACE_MS = 8_000;
 
+/** Extra health probes before concluding that a live JVM is not serving. */
+const LIVE_PROCESS_REPROBE_ATTEMPTS = 3;
+const LIVE_PROCESS_REPROBE_DELAY_MS = 2_000;
+
 /**
  * Service for managing Suwayomi Server lifecycle and operations
  *
@@ -127,7 +131,8 @@ class SuwayomiService {
     });
     this.healthMonitor = new SuwayomiHealthMonitor({
       probe: async () => {
-        const { probeSuwayomiResponsive } = await import('./server-reachable');
+        const { probeSuwayomiResponsive, setSuwayomiProbePort } = await import('./server-reachable');
+        setSuwayomiProbePort(this.port);
         return probeSuwayomiResponsive();
       },
       isEligible: () => this.healthCheckEligibility(),
@@ -434,7 +439,8 @@ class SuwayomiService {
     // and then keep returning that stale value for the rest of the minute
     // even though Suwayomi is now answering. Same on a stop→start cycle.
     // Invalidate explicitly so the next consumer re-probes.
-    const { invalidateSuwayomiReachabilityCache } = await import('./server-reachable');
+    const { invalidateSuwayomiReachabilityCache, setSuwayomiProbePort } = await import('./server-reachable');
+    setSuwayomiProbePort(this.port);
     invalidateSuwayomiReachabilityCache();
 
     // Emit WebSocket event for server status change
@@ -501,14 +507,28 @@ class SuwayomiService {
    * "Server stopped" persisting across page navigation in dev mode.
    */
   async isServerRunning(): Promise<boolean> {
+    let isHealthy = false;
     try {
-      const isHealthy = await this.healthClient.checkServerHealth();
-      this.isRunning = isHealthy;
-      return isHealthy;
+      isHealthy = await this.healthClient.checkServerHealth();
     } catch {
-      this.isRunning = false;
-      return false;
+      isHealthy = false;
     }
+
+    if (isHealthy) {
+      this.isRunning = true;
+    } else if (!this.hasLiveChildProcess()) {
+      // Only a missing process means "stopped". A failed probe while our JVM
+      // is still alive is a busy or wedged server: keep the flag so the health
+      // monitor (which needs several consecutive failures) stays in charge.
+      this.isRunning = false;
+    }
+    return isHealthy;
+  }
+
+  /** True while the JVM this service spawned has not exited. */
+  private hasLiveChildProcess(): boolean {
+    const proc = this.serverProcess;
+    return proc !== null && proc.exitCode === null && proc.signalCode === null;
   }
 
   /** Port the server was last started on (or the default if never started). */
@@ -627,6 +647,27 @@ class SuwayomiService {
    */
   async ensureServerRunningOrRestart(): Promise<boolean> {
     if (await this.isServerRunning()) return true;
+
+    // Our JVM is alive but did not answer. One missed probe (GC pause, load)
+    // must not trigger a start: the start path clears the port by killing any
+    // Suwayomi JVM on it — including this healthy one, aborting its in-flight
+    // downloads. Give it a few more chances, then leave a genuinely wedged
+    // process to the health monitor's own threshold.
+    if (this.hasLiveChildProcess()) {
+      for (let attempt = 0; attempt < LIVE_PROCESS_REPROBE_ATTEMPTS; attempt++) {
+        // eslint-disable-next-line no-await-in-loop -- deliberate pacing between probes
+        await new Promise<void>((resolve) => { setTimeout(resolve, LIVE_PROCESS_REPROBE_DELAY_MS); });
+        // eslint-disable-next-line no-await-in-loop -- sequential probes
+        if (await this.isServerRunning()) return true;
+        if (!this.hasLiveChildProcess()) break;
+      }
+      if (this.hasLiveChildProcess()) {
+        logger.warn(
+          '[suwayomi-supervisor] ensureServerRunningOrRestart: process alive but unresponsive; leaving it to the health monitor',
+        );
+        return false;
+      }
+    }
 
     const config = await suwayomiConfigService.loadConfig();
     if (!config.enabled) return false;

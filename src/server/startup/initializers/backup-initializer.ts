@@ -104,9 +104,6 @@ export async function initializeBackupScheduler(): Promise<() => void> {
 
     // The loop runs even when automatic backups are off: each tick re-reads
     // the setting, so enabling them later takes effect without a restart.
-    if (!backupSettings.autoBackup) {
-      logger.info('Automatic backups are disabled');
-    }
 
     // Due-ness comes from the database (age of the newest SCHEDULED backup),
     // checked hourly. The old design slept for the whole backup interval in one
@@ -120,7 +117,11 @@ export async function initializeBackupScheduler(): Promise<() => void> {
     backupInitialCheck = setTimeout(runCheck, INITIAL_CHECK_DELAY_MS);
     backupSchedulerInterval = setInterval(runCheck, CHECK_INTERVAL_MS);
 
-    logger.info(`Backup scheduler initialized with ${backupSettings.backupFrequency} frequency`);
+    logger.info(
+      backupSettings.autoBackup
+        ? `Backup scheduler initialized (${backupSettings.backupFrequency} backups, checked hourly)`
+        : 'Backup scheduler initialized (automatic backups off; setting is re-checked hourly)'
+    );
 
     // Return cleanup function
     return stopBackupScheduler;

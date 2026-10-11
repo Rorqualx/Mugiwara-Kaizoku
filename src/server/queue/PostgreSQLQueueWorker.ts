@@ -295,7 +295,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
           -- Set hard timeout on first claim only (30 minutes absolute deadline)
           hard_timeout_at = COALESCE(hard_timeout_at, NOW() + INTERVAL '30 minutes'),
           attempt_count = attempt_count + 1,
-          wait_time_ms = EXTRACT(MILLISECOND FROM (NOW() - created_at))::INTEGER
+          wait_time_ms = LEAST(EXTRACT(EPOCH FROM (NOW() - created_at)) * 1000, 2147483647)::INTEGER
         FROM claimed_jobs c
         WHERE j."id" = c.id
         RETURNING j.*
