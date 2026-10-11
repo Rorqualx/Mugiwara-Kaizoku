@@ -496,14 +496,18 @@ export const browseRouter = router({
         WHERE lm."userId" = ${userId} AND array_length(md.authors, 1) > 0
         GROUP BY a ORDER BY count DESC LIMIT 1`;
 
-      // Pick the publisher with most titles in the caller's library
+      // Pick the publisher with most titles in the caller's library.
+      // Metadata.publisher was replaced by the publishers[] array; the old
+      // column no longer exists, so reading it failed this whole procedure
+      // (HTTP 500 on the Home page for every user with a title in their library).
       const topPublisher = await prisma.$queryRaw<Array<{ publisher: string; count: bigint }>>`
-        SELECT md.publisher, COUNT(*) as count
+        SELECT p as publisher, COUNT(*) as count
         FROM "Metadata" md
         JOIN "Manga" m ON m."metadataId" = md.id
         JOIN "LibraryMembership" lm ON lm."mangaId" = m.id
-        WHERE lm."userId" = ${userId} AND md.publisher IS NOT NULL AND md.publisher != ''
-        GROUP BY md.publisher ORDER BY count DESC LIMIT 1`;
+        , unnest(md.publishers) as p
+        WHERE lm."userId" = ${userId} AND array_length(md.publishers, 1) > 0 AND p != ''
+        GROUP BY p ORDER BY count DESC LIMIT 1`;
 
       const authorName = topAuthor[0]?.author ?? null;
       const publisherName = topPublisher[0]?.publisher ?? null;
