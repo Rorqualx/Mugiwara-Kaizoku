@@ -62,7 +62,6 @@ export const chapterListSelect = {
   description: true,
   size: true,
   mangaId: true,
-  isRead: true,
   filePath: true,
   downloadUrl: true,
   mangadexId: true,

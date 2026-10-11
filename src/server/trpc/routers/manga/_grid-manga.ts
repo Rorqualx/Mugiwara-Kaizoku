@@ -15,6 +15,8 @@
  */
 import { buildChapterStats } from '@/components/library/utils/chapter-stats-builder';
 import { isRealChapter } from '@/components/library/utils/library-chapter-stats';
+import { prisma } from '@/server/db';
+import { withMangaListReadState } from '@/server/services/reader/chapter-read-state';
 
 import { buildGridMangaData } from './chapter-stats-sql';
 
@@ -52,15 +54,19 @@ export function toGridManga(m: Record<string, unknown> & { Chapter?: unknown }):
  * stripped; the grid (chapters requested) gets the chapterStats aggregate +
  * recentChapters — computed in SQL (`buildGridMangaData`, parity-validated) when
  * enabled, else by the JS `toGridManga` over fetched chapters.
+ *
+ * Read counts and "last read" are those of `userId` (the caller): both paths
+ * take read state from ChapterReadState, never from the shared Chapter row.
  */
-export async function finalizeQueryRows<T extends { id: number }>(result: T[], includeChapters: boolean, useSqlStats: boolean): Promise<T[]> {
+export async function finalizeQueryRows<T extends { id: number }>(result: T[], includeChapters: boolean, useSqlStats: boolean, userId: string): Promise<T[]> {
   if (!includeChapters) return result.map((m) => stripHeavyManga(m as Record<string, unknown>)) as unknown as T[];
   if (useSqlStats) {
-    const grid = await buildGridMangaData(result.map((m) => m.id));
+    const grid = await buildGridMangaData(result.map((m) => m.id), userId);
     return result.map((m) => {
       const g = grid.get(m.id);
       return { ...stripHeavyManga(m as Record<string, unknown>), chapterStats: g?.chapterStats, recentChapters: g?.recentChapters };
     }) as unknown as T[];
   }
-  return result.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown })) as unknown as T[];
+  const withReadState = await withMangaListReadState(prisma, userId, result as Array<T & { Chapter?: Array<{ id: number }> }>);
+  return withReadState.map((m) => toGridManga(m as Record<string, unknown> & { Chapter?: unknown })) as unknown as T[];
 }

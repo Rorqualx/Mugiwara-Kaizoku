@@ -45,7 +45,8 @@ export function BulkActionsModal({ opened, onClose, mangaList }: BulkActionsModa
     const [statusToApply, setStatusToApply] = useState<MangaLibraryStatus>(MangaLibraryStatus.READING);
     // Get bulk mutations
     const bulkOperationMutation = trpc.bulk.performBulkAction.useMutation();
-    const markChaptersMutation = trpc.bulk.markChapters.useMutation();
+    // Read state is per user: this marks the titles for the signed-in user only.
+    const markChaptersMutation = trpc.chapter.markMangaChapters.useMutation();
     const changeStatusMutation = trpc.bulk.changeStatus.useMutation();
     const queueDownloadsMutation = trpc.bulk.queueDownloads.useMutation();
     const removeMangaMutation = trpc.bulk.removeManga.useMutation();

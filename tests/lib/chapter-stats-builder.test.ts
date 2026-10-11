@@ -25,7 +25,7 @@ describe('buildChapterStats', () => {
   it('computes scalar fields over real chapters only and scans all rows for monitored/lastRead', () => {
     const readAt = new Date('2026-06-01T12:00:00.000Z');
     const chapters: StatChapter[] = [
-      { index: 1, chapterNumber: 1, isRead: true, downloadStatus: COMPLETED, updatedAt: readAt },
+      { index: 1, chapterNumber: 1, isRead: true, downloadStatus: COMPLETED, readAt },
       { index: 2, chapterNumber: 2, isRead: false, downloadStatus: COMPLETED },
       { index: 3, chapterNumber: 3, isRead: false, downloadStatus: ERROR },
       // sentinel volume row: excluded from real scalars, but its monitored flag still counts
@@ -61,13 +61,13 @@ describe('buildChapterStats', () => {
     expect(buildChapterStats(chapters).latestChapterNumber).toBe('49.5');
   });
 
-  it('picks the newest updatedAt among read chapters for lastReadAt', () => {
+  it('picks the newest readAt among the read chapters for lastReadAt', () => {
     const older = new Date('2026-01-01T00:00:00.000Z');
     const newer = new Date('2026-06-15T08:30:00.000Z');
     const chapters: StatChapter[] = [
-      { index: 1, chapterNumber: 1, isRead: true, downloadStatus: COMPLETED, updatedAt: older },
-      { index: 2, chapterNumber: 2, isRead: true, downloadStatus: COMPLETED, updatedAt: newer },
-      { index: 3, chapterNumber: 3, isRead: false, downloadStatus: COMPLETED, updatedAt: new Date('2026-12-31T00:00:00.000Z') },
+      { index: 1, chapterNumber: 1, isRead: true, downloadStatus: COMPLETED, readAt: older },
+      { index: 2, chapterNumber: 2, isRead: true, downloadStatus: COMPLETED, readAt: newer },
+      { index: 3, chapterNumber: 3, isRead: false, downloadStatus: COMPLETED, readAt: null },
     ];
     expect(buildChapterStats(chapters).lastReadAt).toBe(newer.toISOString());
   });

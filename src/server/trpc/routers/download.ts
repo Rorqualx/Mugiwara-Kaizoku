@@ -278,15 +278,18 @@ export const downloadRouter = router({
   mutation(async ({ input, ctx }): Promise<{ message: string; chapterCount?: number }> => {
     try {
       const { mangaId, count } = input;
-      await assertMembership(ctx.prisma, requireUserId(ctx), mangaId);
+      const userId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, userId, mangaId);
 
-      // Get manga with unread chapters (assuming next chapters are unread ones)
+      // "Next" chapters are the first ones the CALLER has not read. Read state
+      // is per user (ChapterReadState), so another member having read ahead
+      // does not change which chapters are next for this user.
       const manga = await prisma.manga.findUnique({
         where: { id: mangaId },
         include: {
           Chapter: {
             where: {
-              isRead: false
+              readStates: { none: { userId } }
             },
             orderBy: { index: 'asc' },
             take: count

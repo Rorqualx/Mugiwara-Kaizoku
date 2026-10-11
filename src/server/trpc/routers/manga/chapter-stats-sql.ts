@@ -68,28 +68,31 @@ function rowToStats(row: RawStatRow): MangaChapterStats {
  * Manga with no chapters are returned with the empty aggregate (identical to
  * `buildChapterStats([])`), so the map always has an entry for every requested id.
  */
-export async function buildChapterStatsSql(mangaIds: number[]): Promise<Map<number, MangaChapterStats>> {
+export async function buildChapterStatsSql(mangaIds: number[], userId: string): Promise<Map<number, MangaChapterStats>> {
   const result = new Map<number, MangaChapterStats>();
   if (mangaIds.length === 0) return result;
 
   const empty = buildChapterStats([]);
   for (const id of mangaIds) result.set(id, empty);
 
+  // "isRead" / "readAt" are the CALLING USER's read state (ChapterReadState),
+  // not the legacy shared Chapter.isRead column.
   const rows = await prisma.$queryRaw<RawStatRow[]>(Prisma.sql`
     WITH base AS (
       SELECT
-        "mangaId",
-        "downloadStatus",
-        "isRead",
-        "monitored",
-        "updatedAt",
-        "chapterNumber",
-        (CASE WHEN "chapterNumber" IS NOT NULL THEN "chapterNumber" < 100000 ELSE "index" < 100000 END) AS is_real,
-        ("chapterNumber" IS NOT NULL) AS is_numbered,
-        (CASE WHEN "volume" IS NOT NULL AND "volume" >= 0 THEN "volume" ELSE -1 END) AS bucket,
-        ("downloadStatus" = 'COMPLETED' AND "filePath" IS NOT NULL AND "filePath" <> '') AS is_file_done
-      FROM "Chapter"
-      WHERE "mangaId" IN (${Prisma.join(mangaIds)})
+        c."mangaId",
+        c."downloadStatus",
+        (rs."chapterId" IS NOT NULL) AS "isRead",
+        rs."readAt",
+        c."monitored",
+        c."chapterNumber",
+        (CASE WHEN c."chapterNumber" IS NOT NULL THEN c."chapterNumber" < 100000 ELSE c."index" < 100000 END) AS is_real,
+        (c."chapterNumber" IS NOT NULL) AS is_numbered,
+        (CASE WHEN c."volume" IS NOT NULL AND c."volume" >= 0 THEN c."volume" ELSE -1 END) AS bucket,
+        (c."downloadStatus" = 'COMPLETED' AND c."filePath" IS NOT NULL AND c."filePath" <> '') AS is_file_done
+      FROM "Chapter" c
+      LEFT JOIN "ChapterReadState" rs ON rs."chapterId" = c."id" AND rs."userId" = ${userId}
+      WHERE c."mangaId" IN (${Prisma.join(mangaIds)})
     ),
     scalar_agg AS (
       SELECT
@@ -100,7 +103,7 @@ export async function buildChapterStatsSql(mangaIds: number[]): Promise<Map<numb
         bool_or(is_real AND "downloadStatus" = 'ERROR') AS "hasErrors",
         MAX("chapterNumber") FILTER (WHERE is_real) AS "latestChapter",
         bool_or("monitored") AS "isMonitored",
-        MAX("updatedAt") FILTER (WHERE "isRead") AS "lastReadAt"
+        MAX("readAt") AS "lastReadAt"
       FROM base
       GROUP BY "mangaId"
     ),
@@ -182,7 +185,7 @@ interface RawRecentRow {
  * chapterNumber descending (NULL → 0), capped at 5. Bounded per-manga so the
  * SQL path never materializes the full chapter array.
  */
-async function buildRecentChapters(mangaIds: number[]): Promise<Map<number, RecentChapterPreview[]>> {
+async function buildRecentChapters(mangaIds: number[], userId: string): Promise<Map<number, RecentChapterPreview[]>> {
   const out = new Map<number, RecentChapterPreview[]>();
   if (mangaIds.length === 0) return out;
 
@@ -190,11 +193,13 @@ async function buildRecentChapters(mangaIds: number[]): Promise<Map<number, Rece
     SELECT "mangaId", id, "chapterNumber", title, "isRead", "downloadStatus"::text AS "downloadStatus"
     FROM (
       SELECT
-        "mangaId", id, "chapterNumber", title, "isRead", "downloadStatus",
-        row_number() OVER (PARTITION BY "mangaId" ORDER BY COALESCE("chapterNumber", 0) DESC, "index" DESC) AS rn
-      FROM "Chapter"
-      WHERE "mangaId" IN (${Prisma.join(mangaIds)})
-        AND (CASE WHEN "chapterNumber" IS NOT NULL THEN "chapterNumber" < 100000 ELSE "index" < 100000 END)
+        c."mangaId", c."id", c."chapterNumber", c."title", c."downloadStatus",
+        (rs."chapterId" IS NOT NULL) AS "isRead",
+        row_number() OVER (PARTITION BY c."mangaId" ORDER BY COALESCE(c."chapterNumber", 0) DESC, c."index" DESC) AS rn
+      FROM "Chapter" c
+      LEFT JOIN "ChapterReadState" rs ON rs."chapterId" = c."id" AND rs."userId" = ${userId}
+      WHERE c."mangaId" IN (${Prisma.join(mangaIds)})
+        AND (CASE WHEN c."chapterNumber" IS NOT NULL THEN c."chapterNumber" < 100000 ELSE c."index" < 100000 END)
     ) t
     WHERE rn <= 5
     ORDER BY "mangaId", rn
@@ -219,8 +224,8 @@ export interface GridChapterData {
  * passes instead of fetching every chapter row. Output is identical to
  * `toGridManga` (chapterStats is parity-validated against `buildChapterStats`).
  */
-export async function buildGridMangaData(mangaIds: number[]): Promise<Map<number, GridChapterData>> {
-  const [stats, recent] = await Promise.all([buildChapterStatsSql(mangaIds), buildRecentChapters(mangaIds)]);
+export async function buildGridMangaData(mangaIds: number[], userId: string): Promise<Map<number, GridChapterData>> {
+  const [stats, recent] = await Promise.all([buildChapterStatsSql(mangaIds, userId), buildRecentChapters(mangaIds, userId)]);
   const out = new Map<number, GridChapterData>();
   for (const id of mangaIds) {
     out.set(id, { chapterStats: stats.get(id) ?? buildChapterStats([]), recentChapters: recent.get(id) ?? [] });

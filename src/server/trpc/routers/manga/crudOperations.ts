@@ -31,6 +31,7 @@ import {
   parseFilename,
 } from '@/server/services/matching';
 import type { SupportedProvider, VolumeForMatching } from '@/server/services/matching/types';
+import { withMangaReadState } from '@/server/services/reader/chapter-read-state';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { addMembership, assertMembership, membershipInLibraryWhere, membershipWhere, removeMembership, requireUserId } from '@/server/trpc/routers/_shared/library-access';
@@ -305,7 +306,7 @@ export const crudRouter = router({
         Metadata: input?.include?.metadata ?? false,
         // Chapters fetched (wide) only to COMPUTE the aggregate server-side — NOT returned (One Piece = 1324 rows ≈ 9MB that blocked the event loop). Skipped entirely on the SQL path.
         Chapter: input?.include?.chapters && !useSqlStats
-          ? { select: { id: true, index: true, isRead: true, monitored: true, downloadStatus: true, updatedAt: true, chapterNumber: true, volumeId: true, volume: true, filePath: true, title: true } }
+          ? { select: { id: true, index: true, monitored: true, downloadStatus: true, chapterNumber: true, volumeId: true, volume: true, filePath: true, title: true } }
           : false,
         Volume: input?.include?.volumes
           ? { select: { id: true } }
@@ -319,7 +320,7 @@ export const crudRouter = router({
     });
 
     // Strip heavy blobs (providerMetadata ~7.5MB/page, galleryImages); the grid also swaps the Chapter array for chapterStats + recentChapters. Cast back to the result type (clients read the extra fields via cast).
-    return (await finalizeQueryRows(result, input?.include?.chapters === true, useSqlStats)) as unknown as typeof result;
+    return (await finalizeQueryRows(result, input?.include?.chapters === true, useSqlStats, userId)) as unknown as typeof result;
   }),
 
   /**
@@ -354,13 +355,15 @@ export const crudRouter = router({
   ).query(async ({ input, ctx }) => {
     try {
       logger.info(`Fetching manga with ID ${input.id}, chapterLimit=${input.chapterLimit}`);
-      await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
+      const userId = requireUserId(ctx);
+      await assertMembership(ctx.prisma, userId, input.id);
       const cacheKey = `manga:${input.id}:limit:${input.chapterLimit}`;
 
-      // Check cache layers first
+      // The cache is shared by every user who has the title, so it holds the
+      // user-neutral row; the caller's read state is attached on the way out.
       const cached = await checkMangaCache(input.id, cacheKey);
       if (cached) {
-        return cached;
+        return await withMangaReadState(ctx.prisma, userId, cached);
       }
 
       // Cache miss: slim chapter select (18 of 51 fields) → ~80% smaller payload (~1.2MB → ~250KB for One Piece-sized manga).
@@ -386,7 +389,7 @@ export const crudRouter = router({
       // Check if chapter re-fetch is needed
       const refetched = await checkChapterRefetch(ctx.prisma, manga, input.chapterLimit);
       if (refetched) {
-        return refetched;
+        return await withMangaReadState(ctx.prisma, userId, refetched);
       }
 
       logger.debug(`Fetched manga: ${manga.title} (ID: ${manga.id}, chapters: ${manga.Chapter.length})`);
@@ -394,7 +397,7 @@ export const crudRouter = router({
       // Store in cache layers
       await storeMangaInCache(input.id, cacheKey, manga);
 
-      return manga;
+      return await withMangaReadState(ctx.prisma, userId, manga);
     } catch (error: unknown) {
       logger.error(`Error fetching manga with ID ${input.id}: ${error instanceof Error ? error.message : String(error)}`);
       if (error instanceof TRPCError) {
@@ -416,32 +419,24 @@ export const crudRouter = router({
       chapterLimit: z.number().optional().default(DEFAULT_CHAPTER_LIMIT)
     })
   ).query(async ({ input, ctx }) => {
-    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
-    // Delegate to 'get' procedure
-    return ctx.prisma.manga.findUnique({
-      where: {
-        id: input.id
-      },
+    const userId = requireUserId(ctx);
+    await assertMembership(ctx.prisma, userId, input.id);
+    const manga = await ctx.prisma.manga.findUnique({
+      where: { id: input.id },
       include: createMangaRelations(input.chapterLimit)
     });
+    return manga ? withMangaReadState(ctx.prisma, userId, manga) : null;
   }),
 
   /**
-   * Get all chapters for a specific manga
+   * Get all chapters for a specific manga (with the caller's read state)
    */
   getAllChapters: protectedProcedure.input(idSchema).query(async ({ input, ctx }) => {
-    await assertMembership(ctx.prisma, requireUserId(ctx), input.id);
+    const userId = requireUserId(ctx);
+    await assertMembership(ctx.prisma, userId, input.id);
     const manga = await ctx.prisma.manga.findUnique({
-      where: {
-        id: input.id
-      },
-      include: {
-        Chapter: {
-          orderBy: {
-            index: 'asc'
-          }
-        }
-      }
+      where: { id: input.id },
+      include: { Chapter: { orderBy: { index: 'asc' } } }
     });
 
     if (!manga) {
@@ -451,7 +446,7 @@ export const crudRouter = router({
       });
     }
 
-    return manga["Chapter"];
+    return (await withMangaReadState(ctx.prisma, userId, manga)).Chapter;
   }),
 
   /**

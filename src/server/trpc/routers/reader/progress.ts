@@ -12,6 +12,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
+import { markChapterRead } from '@/server/services/reader/chapter-read-state';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
 import { router } from '@/server/trpc/trpc';
@@ -94,6 +95,14 @@ export const readerProgressRouter = router({
             input.currentPage === input.totalPages ? new Date() : null,
         },
       });
+
+      // Reaching the last page marks the chapter read for this user. The mark
+      // is sticky: paging back afterwards clears `completedAt` above but does
+      // not make the chapter unread again. A failure here must not fail the
+      // progress save (markChapterRead reports it and logs).
+      if (input.currentPage === input.totalPages) {
+        await markChapterRead(ctx.prisma, userId, input.mangaId, input.chapterId);
+      }
 
       // Update analytics
       const today = new Date();

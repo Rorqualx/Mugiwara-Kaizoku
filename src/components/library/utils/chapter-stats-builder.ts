@@ -17,12 +17,14 @@ import type { CardTally } from './card-tally';
 export interface StatChapter {
   index: number;
   chapterNumber?: number | null;
+  /** Read by the user the aggregate is built for (per-user ChapterReadState). */
   isRead?: boolean | null;
+  /** When that user read it; null/absent for an unread chapter. */
+  readAt?: Date | string | null;
   downloadStatus?: string | null;
   volume?: number | null;
   filePath?: string | null;
   monitored?: boolean | null;
-  updatedAt?: Date | string | null;
 }
 
 /** Small recent-chapters preview returned alongside the aggregate (Detailed/Responsive views). */
@@ -46,7 +48,7 @@ export interface MangaChapterStats {
   hasErrors: boolean;
   /** Highest real chapter number, as a string (matches getLatestChapterNumber). */
   latestChapterNumber: string | null;
-  /** Newest updatedAt among read chapters (ISO), for last-read sorting. */
+  /** When the user most recently read a chapter of this title (ISO), for last-read sorting. */
   lastReadAt: string | null;
   /** Any chapter monitored. */
   isMonitored: boolean;
@@ -74,8 +76,8 @@ export function buildChapterStats(chapters: StatChapter[]): MangaChapterStats {
   let isMonitored = false;
   for (const c of chapters) {
     if (c.monitored === true) isMonitored = true;
-    if (c.isRead === true && c.updatedAt) {
-      const ms = new Date(c.updatedAt).getTime();
+    if (c.isRead === true && c.readAt) {
+      const ms = new Date(c.readAt).getTime();
       if (!Number.isNaN(ms) && (lastReadMs === null || ms > lastReadMs)) lastReadMs = ms;
     }
   }

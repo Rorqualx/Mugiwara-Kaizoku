@@ -2,8 +2,6 @@
  * Chapter Router - CRUD Operations
  *
  * Procedures:
- * - markAllAsRead: Mark all chapters of a manga as read
- * - markAllAsUnread: Mark all chapters of a manga as unread
  * - getByMangaId: Get chapters by manga ID
  * - fixChapterIndices: Fix chapter indices by applying an offset
  *
@@ -27,82 +25,6 @@ import { logger } from '@/utils/logger';
 // ============================================================================
 
 export const chapterCrudRouter = router({
-  /**
-   * Mark all chapters of a manga as read
-   */
-  markAllAsRead: protectedProcedure
-    .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ ctx, input }): Promise<{ updatedCount: number; message: string }> => {
-      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
-      const { mangaId } = input;
-
-      const manga = await prisma.manga.findUnique({
-        where: { id: mangaId },
-        select: { id: true, title: true }
-      });
-
-      if (!manga) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Manga not found' });
-      }
-
-      const result = await prisma.chapter.updateMany({
-        where: { mangaId, isRead: false },
-        data: { isRead: true }
-      });
-
-      logger.info(`Marked ${result.count} chapters as read for manga: ${manga.title}`);
-
-      void realtimeEmitter.emitChapterUpdate({
-        chapterId: 0,
-        mangaId,
-        action: 'read',
-        data: { count: result.count }
-      });
-
-      return {
-        updatedCount: result.count,
-        message: `Marked ${result.count} chapters as read`
-      };
-    }),
-
-  /**
-   * Mark all chapters of a manga as unread
-   */
-  markAllAsUnread: protectedProcedure
-    .input(z.object({ mangaId: z.number() }))
-    .mutation(async ({ ctx, input }): Promise<{ updatedCount: number; message: string }> => {
-      await assertMembership(ctx.prisma, requireUserId(ctx), input.mangaId);
-      const { mangaId } = input;
-
-      const manga = await prisma.manga.findUnique({
-        where: { id: mangaId },
-        select: { id: true, title: true }
-      });
-
-      if (!manga) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Manga not found' });
-      }
-
-      const result = await prisma.chapter.updateMany({
-        where: { mangaId, isRead: true },
-        data: { isRead: false }
-      });
-
-      logger.info(`Marked ${result.count} chapters as unread for manga: ${manga.title}`);
-
-      void realtimeEmitter.emitChapterUpdate({
-        chapterId: 0,
-        mangaId,
-        action: 'unread',
-        data: { count: result.count }
-      });
-
-      return {
-        updatedCount: result.count,
-        message: `Marked ${result.count} chapters as unread`
-      };
-    }),
-
   /**
    * Get chapters by manga ID
    */

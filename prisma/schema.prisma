@@ -84,6 +84,11 @@ model Chapter {
   description       String?
   fileFormat        String?                  @db.VarChar(10)
   filePath          String?                  @db.VarChar(500)
+  /// DEPRECATED — do not read or write. Read state is per user and lives in
+  /// ChapterReadState; this column was one flag shared by every user who has
+  /// the title. It is kept (frozen at its pre-migration value) only so the
+  /// previous release still runs if the deploy is rolled back; drop it in a
+  /// later migration.
   isRead            Boolean                  @default(false)
   monitored         Boolean                  @default(false)
   number            Float?
@@ -101,6 +106,7 @@ model Chapter {
   CalendarEvent     CalendarEvent[]
   jobs              jobs[]
   ReadingProgress   ReadingProgress[]
+  readStates        ChapterReadState[]
   ReaderBookmark    ReaderBookmark[]
   ReadingHistory    ReadingHistory[]
   WantedItem        WantedItem[]
@@ -205,6 +211,7 @@ model Manga {
   ReleaseHistory       ReleaseHistory[]
   jobs                 jobs[]
   ReadingProgress      ReadingProgress[]
+  ChapterReadState     ChapterReadState[]
   ReaderBookmark       ReaderBookmark[]
   ReadingHistory       ReadingHistory[]
   WantedItem           WantedItem[]
@@ -631,6 +638,7 @@ model User {
   Session          Session[]
   Notification     Notification[]
   ReadingProgress  ReadingProgress[]
+  ChapterReadState ChapterReadState[]
   ReadingAnalytics ReadingAnalytics[]
   ReaderBookmark   ReaderBookmark[]
   ReaderSettings   ReaderSettings?
@@ -718,6 +726,28 @@ model ReadingProgress {
   @@index([userId])
   @@index([mangaId])
   @@index([lastReadAt])
+}
+
+/// One row = "this user has read this chapter". A chapter with no row for a
+/// user is unread for that user. The manga catalog is shared between users
+/// (LibraryMembership), so read state cannot live on the Chapter row.
+/// Written by "mark read/unread" and when a chapter is finished in the reader;
+/// see src/server/services/reader/chapter-read-state.ts.
+model ChapterReadState {
+  userId    String
+  chapterId Int
+  /// Denormalised from Chapter so per-title marks and counts need no join.
+  mangaId   Int
+  readAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  manga   Manga   @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chapterId])
+  @@index([userId, mangaId])
+  @@index([chapterId])
+  @@index([mangaId])
 }
 
 model ReadingAnalytics {
