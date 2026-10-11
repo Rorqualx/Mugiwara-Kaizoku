@@ -32,6 +32,28 @@ import { prisma } from '../db';
 
 import { jobCircuitBreaker } from './modules/circuit-breaker';
 
+/** Per-attempt deadline for a job whose handler does the work itself. */
+const HARD_TIMEOUT_SECONDS = 30 * 60;
+
+/**
+ * Job types with no deadline.
+ * - `chapter_download` hands the transfer to a torrent/usenet client and stays
+ *   active for as long as that takes; the download monitor, not the worker,
+ *   decides when it is finished or dead.
+ * - Library scans/imports and backups are long by nature and their handlers
+ *   cannot be aborted, so recovering one mid-run would start a second copy
+ *   beside the first.
+ * The native downloaders (mangadex/suwayomi/getcomics) run inside their
+ * handler and keep the deadline — it exists because those handlers hung for
+ * hours.
+ */
+const NO_HARD_TIMEOUT_JOB_TYPES: string[] = [
+  JobType.chapter_download,
+  JobType.library_scan,
+  JobType.library_import,
+  JobType.backup_create,
+];
+
 export interface WorkerConfig {
   workerId?: string;
   queueNames?: string[];
@@ -292,8 +314,11 @@ export class PostgreSQLQueueWorker extends EventEmitter {
           worker_id = ${this.workerId},
           started_at = NOW(),
           lease_expires_at = NOW() + (${this.config.leaseTimeoutSeconds} * INTERVAL '1 second'),
-          -- Set hard timeout on first claim only (30 minutes absolute deadline)
-          hard_timeout_at = COALESCE(hard_timeout_at, NOW() + INTERVAL '30 minutes'),
+          -- Per-attempt deadline; NULL for job types with no time limit
+          hard_timeout_at = CASE
+            WHEN j.job_type::text = ANY(${NO_HARD_TIMEOUT_JOB_TYPES}::text[]) THEN NULL
+            ELSE NOW() + (${HARD_TIMEOUT_SECONDS} * INTERVAL '1 second')
+          END,
           attempt_count = attempt_count + 1,
           wait_time_ms = LEAST(EXTRACT(EPOCH FROM (NOW() - created_at)) * 1000, 2147483647)::INTEGER
         FROM claimed_jobs c
@@ -349,7 +374,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
       }
 
       // Hard-timeout enforcement: abort the handler when `hard_timeout_at`
-      // (set on first claim, default 30 min) is reached. Without this, a
+      // (set on every claim, see HARD_TIMEOUT_SECONDS) is reached. Without this, a
       // handler hung on a network call rides the unconditional 30s lease
       // heartbeat indefinitely — that's how a batch of mangadex_download
       // jobs spent ~15h "active" before a worker restart finally swept them.
@@ -394,6 +419,7 @@ export class PostgreSQLQueueWorker extends EventEmitter {
           && typeof (result as Record<string, unknown>)['downloadId'] === 'string';
         if (currentJob?.status === 'active' && hasDownloadId) {
           logger.info(`Job ${job["id"]} ongoing (downloadId set); skipping auto-complete`, { jobType: job.job_type });
+          await this.releaseLeaseForOngoingJob(job);
           this.stats.jobsProcessed++;
           this.emit('job:ongoing', { job, processingTimeMs: Date.now() - startTime });
           return;
@@ -407,8 +433,16 @@ export class PostgreSQLQueueWorker extends EventEmitter {
           processingTimeMs: Date.now() - startTime
         };
 
-        // Mark job as completed with merged result
-        await this.completeJob(job["id"], mergedResult);
+        // Mark job as completed with merged result. A false return means this
+        // attempt no longer owns the job (it was recovered and claimed again,
+        // or finished by someone else) — report nothing for it.
+        const completed = await this.completeJob(job["id"], job.attempt_count, mergedResult);
+        if (!completed) {
+          logger.warn(`Job ${job["id"]} finished but attempt ${job.attempt_count} no longer owns it; result discarded`, {
+            jobType: job.job_type,
+          });
+          return;
+        }
 
         // Record success in circuit breaker
         jobCircuitBreaker.recordSuccess(job.job_type, job.payload);
@@ -438,69 +472,115 @@ export class PostgreSQLQueueWorker extends EventEmitter {
         if (hardTimeoutHandle) clearTimeout(hardTimeoutHandle);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorDetails = error instanceof Error ? error.stack : undefined;
-
-      logger.error(`Job ${job["id"]} failed:`, error);
-
-      // Record failure in circuit breaker
-      jobCircuitBreaker.recordFailure(job.job_type, job.payload, errorMessage);
-
-      // Fail the job with retry logic
-      const result = await this.failJob(job["id"], errorMessage, {
-        stack: errorDetails,
-        workerId: this.workerId
-      });
-
-      // Clean up associated PackDownload records when a download job fails permanently
-      if (result === 'failed' && job.job_type === 'chapter_download') {
-        await this.cleanupPackDownloadOnFailure(job.id);
-      }
-
-      this.stats.jobsFailed++;
-
-      this.emit('job:failed', {
-        job,
-        error: errorMessage,
-        willRetry: result === 'retrying'
-      });
-
-      // Emit realtime event for WebSocket clients
-      void realtimeEmitter.emitJobUpdate({
-        jobId: String(job["id"]),
-        targetUserId: jobOwner,
-        status: result === 'retrying' ? 'pending' : 'failed',
-        error: errorMessage,
-        jobType: job.job_type,
-        metadata: {
-          willRetry: result === 'retrying',
-          attemptCount: job.attempt_count,
-          queueName: job.queue_name,
-        },
-      });
+      await this.handleJobFailure(job, error);
     } finally {
       this.activeJobs.delete(job["id"]);
     }
   }
 
   /**
+   * Record a failed attempt: retry or archive it, then notify listeners.
+   */
+  private async handleJobFailure(job: jobs, error: unknown): Promise<void> {
+    const jobOwner = job.initiated_by_user_id;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error ? error.stack : undefined;
+
+    logger.error(`Job ${job["id"]} failed:`, error);
+
+    // Record failure in circuit breaker
+    jobCircuitBreaker.recordFailure(job.job_type, job.payload, errorMessage);
+
+    // Fail the job with retry logic
+    const result = await this.failJob(job["id"], job.attempt_count, errorMessage, {
+      stack: errorDetails,
+      workerId: this.workerId
+    });
+
+    // This attempt no longer owns the job (recovered and claimed again, or
+    // already finished elsewhere): its failure must not touch the newer one.
+    if (result === 'not_found') {
+      logger.warn(`Job ${job["id"]} failed but attempt ${job.attempt_count} no longer owns it; failure discarded`, {
+        jobType: job.job_type,
+      });
+      return;
+    }
+
+    // Clean up associated PackDownload records when a download job fails permanently
+    if (result === 'failed' && job.job_type === 'chapter_download') {
+      await this.cleanupPackDownloadOnFailure(job.id);
+    }
+
+    this.stats.jobsFailed++;
+
+    this.emit('job:failed', {
+      job,
+      error: errorMessage,
+      willRetry: result === 'retrying'
+    });
+
+    // Emit realtime event for WebSocket clients
+    void realtimeEmitter.emitJobUpdate({
+      jobId: String(job["id"]),
+      targetUserId: jobOwner,
+      status: result === 'retrying' ? 'pending' : 'failed',
+      error: errorMessage,
+      jobType: job.job_type,
+      metadata: {
+        willRetry: result === 'retrying',
+        attemptCount: job.attempt_count,
+        queueName: job.queue_name,
+      },
+    });
+  }
+
+  /**
    * Complete a job successfully
    */
-  private async completeJob(jobId: bigint, result?: unknown): Promise<void> {
-    await prisma.$executeRaw`
-      SELECT complete_job(${jobId}::BIGINT, ${result ? JSON.stringify(result) : null}::JSONB)
+  private async completeJob(jobId: bigint, attempt: number, result?: unknown): Promise<boolean> {
+    const rows = await prisma.$queryRaw<{ complete_job: boolean }[]>`
+      SELECT complete_job(
+        ${jobId}::BIGINT,
+        ${result ? JSON.stringify(result) : null}::JSONB,
+        ${attempt}::INTEGER
+      ) as complete_job
     `;
+    return rows[0]?.complete_job ?? false;
+  }
+
+  /**
+   * A handler that hands its work to a download client returns while the job
+   * stays `active`; the download monitor finishes it later. Nothing heartbeats
+   * such a job, so drop its lease and deadline — otherwise stale recovery
+   * recycles it after ~15 minutes and eventually force-fails a healthy download.
+   */
+  private async releaseLeaseForOngoingJob(job: jobs): Promise<void> {
+    try {
+      await prisma.jobs.updateMany({
+        where: {
+          id: job["id"],
+          partition_key: job.partition_key,
+          worker_id: this.workerId,
+          status: 'active',
+          attempt_count: job.attempt_count,
+        },
+        data: { lease_expires_at: null, hard_timeout_at: null },
+      });
+    } catch (err) {
+      logger.warn(`Failed to release lease for ongoing job ${job["id"]}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   /**
    * Fail a job with retry logic
    */
-  private async failJob(jobId: bigint, error: string, details?: unknown): Promise<string> {
+  private async failJob(jobId: bigint, attempt: number, error: string, details?: unknown): Promise<string> {
     const result = await prisma.$queryRaw<{ fail_job: string }[]>`
       SELECT fail_job(
         ${jobId}::BIGINT,
         ${error}::TEXT,
-        ${details ? JSON.stringify(details) : null}::JSONB
+        ${details ? JSON.stringify(details) : null}::JSONB,
+        ${attempt}::INTEGER
       ) as fail_job
     `;
 

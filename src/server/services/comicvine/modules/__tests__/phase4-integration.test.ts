@@ -30,7 +30,6 @@ describe('Phase 4: Multi-tier Caching and Deduplication', () => {
         l2Enabled: true,
         // l2MaxSize not supported, skipping
         l2TtlMs: 5000,
-        l3Enabled: false, // Disable disk cache for tests
         deduplicationEnabled: true,
         deduplicationWindowMs: 500
       });
@@ -77,7 +76,6 @@ describe('Phase 4: Multi-tier Caching and Deduplication', () => {
           l1MaxSize: 5,
           l1TtlMs: 500,
           l2Enabled: false,
-          l3Enabled: false,
           deduplicationEnabled: false
         });
 
@@ -131,7 +129,6 @@ describe('Phase 4: Multi-tier Caching and Deduplication', () => {
           l1MaxSize: 5,
           l1TtlMs: 100, // Very short TTL
           l2Enabled: false,
-          l3Enabled: false,
           deduplicationEnabled: true,
           deduplicationWindowMs: 200
         });

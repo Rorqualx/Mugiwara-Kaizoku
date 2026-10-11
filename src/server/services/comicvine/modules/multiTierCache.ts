@@ -4,10 +4,15 @@
  * MIGRATED: Now uses UnifiedCacheProvider with Redis-like PostgreSQL
  * for improved performance and unified caching strategy.
  *
- * Implements a multi-tier caching strategy:
+ * Implements a two-tier caching strategy:
  * - L1: In-memory cache (fastest, limited size)
- * - L2: PostgreSQL UNLOGGED table (persistent, high-performance)
- * - L3: Hot data cache (frequently accessed items)
+ * - L2: PostgreSQL cache table (persistent, shared across restarts)
+ *
+ * There used to be an L3 "hot data" tier kept in a single hash row of the
+ * same table. It never stored anything (its heat score could only be raised
+ * by an L3 hit) and cost an extra query on every miss and every write; when
+ * made to work it served entries past their TTL and rewrote one ever-growing
+ * row per write (~32 ms per write at 1,000 keys versus 0.4 ms without it).
  *
  * Also includes request deduplication to prevent concurrent identical requests.
  */
@@ -50,10 +55,6 @@ export interface MultiTierCacheConfig {
     l2TtlMs?: number;
     l2Namespace?: string;
 
-    // L3 Hot data cache
-    l3Enabled?: boolean;
-    l3TtlMs?: number;
-
     // Deduplication
     deduplicationEnabled?: boolean;
     deduplicationWindowMs?: number;
@@ -73,7 +74,7 @@ interface DeduplicationEntry<T> {
 
 /**
  * Multi-Tier Cache Implementation
- * Now backed by UnifiedCacheProvider for L2/L3
+ * Now backed by UnifiedCacheProvider for L2
  */
 export class MultiTierCache<T = unknown> {
     // L1: In-memory cache (kept for ultra-fast access)
@@ -88,8 +89,6 @@ export class MultiTierCache<T = unknown> {
     private readonly L2_ENABLED: boolean;
     private readonly L2_TTL_MS: number;
     private readonly L2_NAMESPACE: string;
-    private readonly L3_ENABLED: boolean;
-    private readonly L3_TTL_MS: number;
 
     // Deduplication
     private readonly DEDUP_ENABLED: boolean;
@@ -100,7 +99,6 @@ export class MultiTierCache<T = unknown> {
     private stats: {
         l1: TierStats;
         l2: TierStats;
-        l3: TierStats;
         deduplication: {
             prevented: number;
             active: number;
@@ -119,9 +117,6 @@ export class MultiTierCache<T = unknown> {
         this.L2_TTL_MS = config.l2TtlMs ?? 3600000; // 1 hour
         this.L2_NAMESPACE = config.l2Namespace ?? 'comicvine';
 
-        this.L3_ENABLED = config.l3Enabled !== false;
-        this.L3_TTL_MS = config.l3TtlMs ?? 86400000; // 24 hours
-
         this.DEDUP_ENABLED = config.deduplicationEnabled !== false;
         this.DEDUP_WINDOW_MS = config.deduplicationWindowMs ?? 5000; // 5 seconds
 
@@ -135,14 +130,12 @@ export class MultiTierCache<T = unknown> {
         this.stats = {
             l1: { hits: 0, misses: 0, evictions: 0, size: 0, entries: 0 },
             l2: { hits: 0, misses: 0, evictions: 0, size: 0, entries: 0 },
-            l3: { hits: 0, misses: 0, evictions: 0, size: 0, entries: 0 },
             deduplication: { prevented: 0, active: 0 }
         };
 
         logger.info('Multi-tier cache initialized with UnifiedCacheProvider', {
             l1MaxSize: this.L1_MAX_SIZE,
             l2Enabled: this.L2_ENABLED,
-            l3Enabled: this.L3_ENABLED,
             dedupEnabled: this.DEDUP_ENABLED
         });
     }
@@ -167,19 +160,6 @@ export class MultiTierCache<T = unknown> {
             }
         }
 
-        // Check L3 (Hot data cache)
-        if (this.L3_ENABLED) {
-            const l3Result = await this.getFromL3(key);
-            if (l3Result !== undefined) {
-                // Promote to L1 and L2
-                this.setInL1(key, l3Result);
-                if (this.L2_ENABLED) {
-                    await this.setInL2(key, l3Result);
-                }
-                return l3Result;
-            }
-        }
-
         return undefined;
     }
 
@@ -193,14 +173,6 @@ export class MultiTierCache<T = unknown> {
         // Set in L2 if enabled
         if (this.L2_ENABLED) {
             await this.setInL2(key, value);
-        }
-
-        // Set in L3 if it's frequently accessed (heat score > threshold)
-        if (this.L3_ENABLED) {
-            const heatScore = await this.getHeatScore(key);
-            if (heatScore > 0.5) {
-                await this.setInL3(key, value);
-            }
         }
     }
 
@@ -273,17 +245,11 @@ export class MultiTierCache<T = unknown> {
             if (this.L2_ENABLED) {
                 await this.l2Provider.del(key, this.L2_NAMESPACE);
             }
-            if (this.L3_ENABLED) {
-                await this.clearFromL3(key);
-            }
         } else {
             // Clear all
             this.l1Cache.clear();
             if (this.L2_ENABLED) {
                 await this.l2Provider.clear({ namespace: this.L2_NAMESPACE });
-            }
-            if (this.L3_ENABLED) {
-                await this.l2Provider.clear({ namespace: 'comicvine_hot' });
             }
         }
     }
@@ -371,63 +337,6 @@ export class MultiTierCache<T = unknown> {
             });
         } catch (error) {
             logger.error('L2 cache set error:', error);
-        }
-    }
-
-    // ============================================================================
-    // L3 (Hot Data) Cache Operations
-    // ============================================================================
-
-    private async getFromL3(key: string): Promise<T | undefined> {
-        try {
-            // Use hot data cache with heat score tracking
-            const result = await this.l2Provider.hget(`hot:${this.L2_NAMESPACE}`, key);
-            if (result) {
-                this.stats.l3.hits++;
-                logger.debug(`L3 cache hit for key: ${key}`);
-
-                // Update heat score
-                await this.l2Provider.incr(`heat:${key}`);
-
-                return result as T;
-            }
-        } catch (error) {
-            logger.error('L3 cache get error:', error);
-        }
-        this.stats.l3.misses++;
-        return undefined;
-    }
-
-    private async setInL3(key: string, value: T): Promise<void> {
-        try {
-            // Store in hot data cache
-            await this.l2Provider.hset(`hot:${this.L2_NAMESPACE}`, key, value);
-
-            // Initialize heat score
-            await this.l2Provider.set(`heat:${key}`, 1, {
-                ttl: Math.floor(this.L3_TTL_MS / 1000),
-                namespace: 'heat_scores'
-            });
-        } catch (error) {
-            logger.error('L3 cache set error:', error);
-        }
-    }
-
-    private async clearFromL3(key: string): Promise<void> {
-        try {
-            await this.l2Provider.hset(`hot:${this.L2_NAMESPACE}`, key, null);
-            await cacheProvider.del(`heat:${key}`, 'heat_scores');
-        } catch (error) {
-            logger.error('L3 cache clear error:', error);
-        }
-    }
-
-    private async getHeatScore(key: string): Promise<number> {
-        try {
-            const score = await this.l2Provider.get<number>(`heat:${key}`, 'heat_scores');
-            return score ?? 0;
-        } catch (_error) {
-            return 0;
         }
     }
 

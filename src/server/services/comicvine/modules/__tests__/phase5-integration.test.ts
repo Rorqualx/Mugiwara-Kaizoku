@@ -252,7 +252,6 @@ describe('Phase 5: Comprehensive Error Handling', () => {
           l1MaxSize: 5,
           l1TtlMs: 100,
           l2Enabled: false,
-          l3Enabled: false,
           deduplicationEnabled: true
         },
         circuitConfig: {

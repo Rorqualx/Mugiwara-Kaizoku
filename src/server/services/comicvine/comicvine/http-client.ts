@@ -61,9 +61,7 @@ const httpClientCache = new MultiTierCache({
   l1TtlMs: 300000, // 5 minutes
   l2Enabled: true,
   l2TtlMs: 3600000, // 1 hour
-  l2Namespace: 'comicvine_http',
-  l3Enabled: true,
-  l3TtlMs: 86400000 // 24 hours
+  l2Namespace: 'comicvine_http'
 });
 
 // ============================================================================

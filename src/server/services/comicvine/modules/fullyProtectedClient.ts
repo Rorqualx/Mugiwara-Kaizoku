@@ -118,8 +118,6 @@ export class FullyProtectedComicVineClient {
             l2Enabled?: boolean;
             l2MaxSize?: number;
             l2TtlMs?: number;
-            l3Enabled?: boolean;
-            l3TtlMs?: number;
             deduplicationEnabled?: boolean;
             deduplicationWindowMs?: number;
         } | undefined;
@@ -129,8 +127,6 @@ export class FullyProtectedComicVineClient {
             l2Enabled: true,
             l2MaxSize: 1000,
             l2TtlMs: 3600000, // 1 hour
-            l3Enabled: true,
-            l3TtlMs: 86400000, // 24 hours
             deduplicationEnabled: true,
             deduplicationWindowMs: 5000
         });

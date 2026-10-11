@@ -200,9 +200,9 @@ export async function hashSet(
   try {
     await db.$executeRaw`
       INSERT INTO cache_unified (cache_key, cache_value, data_type)
-      VALUES (${normalizedKey}, jsonb_build_object(${field}, ${JSON.stringify(value)}::jsonb), ${hashDataType})
+      VALUES (${normalizedKey}, jsonb_build_object(${field}::text, ${JSON.stringify(value)}::jsonb), ${hashDataType})
       ON CONFLICT (cache_key) DO UPDATE SET
-        cache_value = cache_unified.cache_value ?? jsonb_build_object(${field}, ${JSON.stringify(value)}::jsonb),
+        cache_value = cache_unified.cache_value || jsonb_build_object(${field}::text, ${JSON.stringify(value)}::jsonb),
         access_count = cache_unified.access_count + 1,
         data_type = ${hashDataType}
     `;
