@@ -14,6 +14,7 @@
  */
 
 import { prisma } from '@/server/db';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -87,7 +88,7 @@ export class RateLimitService {
   public static getInstance(): RateLimitService {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Singleton pattern
     if (!RateLimitService.instance) {
-      RateLimitService.instance = new RateLimitService();
+      RateLimitService.instance = processSingleton('RateLimitService', () => new RateLimitService());
     }
     return RateLimitService.instance;
   }

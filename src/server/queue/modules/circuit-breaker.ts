@@ -8,6 +8,7 @@
  * @module server/queue/modules/circuit-breaker
  */
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 // ============================================================================
@@ -236,7 +237,7 @@ export class CircuitBreaker {
 // ============================================================================
 
 /** Global circuit breaker instance for job queue */
-export const jobCircuitBreaker = new CircuitBreaker({
+export const jobCircuitBreaker = processSingleton('jobCircuitBreaker', () => new CircuitBreaker({
   failureThreshold: 5,
   cooldownPeriod: 5 * 60 * 1000, // 5 minutes
-});
+}));

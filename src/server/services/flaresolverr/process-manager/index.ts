@@ -14,6 +14,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import { ensureBinaryExists, getBinaryPath } from '../binaryManager';
@@ -548,7 +549,7 @@ class ProcessManager {
 // =============================================================================
 
 /** Singleton process manager instance */
-export const processManager = new ProcessManager();
+export const processManager = processSingleton('flareSolverrProcessManager', () => new ProcessManager());
 
 // Re-export utilities for direct use if needed
 export {

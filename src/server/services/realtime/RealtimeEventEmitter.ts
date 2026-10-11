@@ -28,6 +28,7 @@
 
 import { websocketService } from '@/server/api/services/websocket-service';
 import { getRouter } from '@/server/realtime/DistributedMessageRouter';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { CHANNEL_PATTERNS, type WebSocketEvent } from '@/types/api/v1/websocket';
 import { logger } from '@/utils/logger';
 
@@ -270,7 +271,7 @@ class RealtimeEventEmitter {
    * Get singleton instance
    */
   public static getInstance(): RealtimeEventEmitter {
-    RealtimeEventEmitter.instance ??= new RealtimeEventEmitter();
+    RealtimeEventEmitter.instance ??= processSingleton('RealtimeEventEmitter', () => new RealtimeEventEmitter());
     return RealtimeEventEmitter.instance;
   }
 

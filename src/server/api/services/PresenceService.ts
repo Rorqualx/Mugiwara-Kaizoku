@@ -17,6 +17,7 @@
 import { EventEmitter } from 'events';
 
 import { prisma } from '@/server/db';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { getErrorMessage } from '@/utils/errors/helpers';
 import { logger } from '@/utils/logger';
 
@@ -78,7 +79,7 @@ export class PresenceService extends EventEmitter {
   public static getInstance(): PresenceService {
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- Singleton pattern
     if (!PresenceService.instance) {
-      PresenceService.instance = new PresenceService();
+      PresenceService.instance = processSingleton('PresenceService', () => new PresenceService());
     }
     return PresenceService.instance;
   }

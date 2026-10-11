@@ -5,6 +5,7 @@ import { CalendarEventService } from '@/server/services/calendar/CalendarEventSe
 import { CalendarAniListAdapter } from '@/server/services/calendar/CalendarProviderAdapters';
 import { createMangaUpdatesCalendarProvider } from '@/server/services/calendar/providers/MangaUpdatesCalendarProvider';
 import { ReleaseNotificationService } from '@/server/services/notifications/ReleaseNotificationService';
+import { processSingleton } from '@/server/utils/process-singleton';
 import type { ID } from '@/types/search.types';
 import { isError, isSuccess } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
@@ -554,4 +555,4 @@ logger.error('[CalendarSync] Fatal errorMessage during cleanup:', errorMessage);
     }
 }
 // Export singleton instance
-export const calendarSyncScheduler = new CalendarSyncScheduler();
+export const calendarSyncScheduler = processSingleton('calendarSyncScheduler', () => new CalendarSyncScheduler());

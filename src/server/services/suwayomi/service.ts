@@ -19,6 +19,7 @@ import * as path from 'path';
 
 import { flareSolverrConfigService } from '@/server/services/flaresolverr/configService';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import { suwayomiConfigService } from './configService';
@@ -686,4 +687,4 @@ class SuwayomiService {
 
 }
 
-export const suwayomiService = new SuwayomiService();
+export const suwayomiService = processSingleton('suwayomiService', () => new SuwayomiService());

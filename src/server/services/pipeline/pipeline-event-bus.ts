@@ -16,6 +16,7 @@
 
 import { EventEmitter } from 'events';
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import type {
   PipelineEventMap,
   PipelineEventName,
@@ -88,7 +89,7 @@ class PipelineEventBus {
    * Get singleton instance
    */
   static getInstance(): PipelineEventBus {
-    PipelineEventBus.instance ??= new PipelineEventBus();
+    PipelineEventBus.instance ??= processSingleton('PipelineEventBus', () => new PipelineEventBus());
     return PipelineEventBus.instance;
   }
 

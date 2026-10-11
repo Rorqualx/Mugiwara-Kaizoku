@@ -1,4 +1,5 @@
 import { DownloadManager } from '@/server/services/download/downloadManager';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { isError, isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
@@ -159,4 +160,4 @@ export class DownloadMonitorScheduler {
 }
 
 // Export a singleton instance with 2-minute interval
-export const downloadMonitorScheduler = new DownloadMonitorScheduler(120);
+export const downloadMonitorScheduler = processSingleton('downloadMonitorScheduler', () => new DownloadMonitorScheduler(120));

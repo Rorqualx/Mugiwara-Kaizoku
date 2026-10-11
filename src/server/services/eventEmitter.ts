@@ -6,6 +6,7 @@
  */
 import { EventEmitter } from 'events';
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import { eventService } from './events/eventService';
@@ -264,11 +265,12 @@ let eventEmitterInstance: ExtendedEventEmitter | null = null;
  * Get or create the global event emitter instance
  */
 export function getEventEmitter(): ExtendedEventEmitter {
-    if (!eventEmitterInstance) {
-        eventEmitterInstance = new ExtendedEventEmitter();
+    eventEmitterInstance ??= processSingleton('eventEmitter', () => {
+        const emitter = new ExtendedEventEmitter();
         // Increase max listeners to prevent warnings in production
-        eventEmitterInstance.setMaxListeners(100);
-    }
+        emitter.setMaxListeners(100);
+        return emitter;
+    });
     return eventEmitterInstance;
 }
 // Export convenience instance

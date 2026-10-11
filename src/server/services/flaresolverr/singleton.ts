@@ -13,6 +13,7 @@
  */
 
 import { prisma } from '@/server/db';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import { ensureBinaryExists, getBinaryInfo, updateBinary } from './binaryManager';
@@ -34,14 +35,17 @@ const FLARESOLVERR_PORT = flareSolverrConfigService.getPort();
  * const html = await flareSolverr.fetch('https://example.com');
  * ```
  */
-export const flareSolverr = new FlareSolverrClient();
+export const flareSolverr = processSingleton('flareSolverrClient', () => {
+  const client = new FlareSolverrClient();
 
-// Clean up expired sessions periodically (every 5 minutes)
-if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
-    flareSolverr.cleanupExpiredSessions();
-  }, 5 * 60 * 1000);
-}
+  // Clean up expired sessions periodically (every 5 minutes)
+  if (typeof setInterval !== 'undefined') {
+    setInterval(() => {
+      client.cleanupExpiredSessions();
+    }, 5 * 60 * 1000);
+  }
+  return client;
+});
 
 // ============================================================================
 // Process Cleanup (Delegates to ProcessManager)

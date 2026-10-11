@@ -3,6 +3,7 @@ import { subDays } from 'date-fns';
 import { prisma } from '@/server/db';
 import { CalendarEventService } from '@/server/services/calendar/CalendarEventService';
 import { NotificationService } from '@/server/services/notifications/NotificationService';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { isSuccess } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 import { logMaintenanceComplete } from '@/utils/system-events';
@@ -221,4 +222,4 @@ logger.error('[CalendarMaintenance] Error removing duplicates:', errorMessage);
     }
 }
 // Export singleton instance
-export const calendarMaintenanceScheduler = new CalendarMaintenanceScheduler();
+export const calendarMaintenanceScheduler = processSingleton('calendarMaintenanceScheduler', () => new CalendarMaintenanceScheduler());

@@ -14,6 +14,7 @@
  * @module server/services/anilist/request-queue
  */
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 /**
@@ -225,4 +226,4 @@ class AniListRequestQueue {
 /**
  * Singleton instance of the AniList request queue
  */
-export const anilistRequestQueue = new AniListRequestQueue();
+export const anilistRequestQueue = processSingleton('anilistRequestQueue', () => new AniListRequestQueue());

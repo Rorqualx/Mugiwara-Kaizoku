@@ -25,6 +25,7 @@
  * @module server/services/mangadex/at-home-rate-limiter
  */
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 const log = logger.child('AtHomeRateLimiter');
@@ -164,10 +165,10 @@ export class AtHomeRateLimiter {
  * Process-global singleton shared by every `KaizokuMangaDexClient` instance.
  * Tunable via `MANGADEX_ATHOME_MAX_PER_MIN` and `MANGADEX_ATHOME_MAX_WAIT_MS`.
  */
-export const atHomeRateLimiter = new AtHomeRateLimiter(
+export const atHomeRateLimiter = processSingleton('mangadexAtHomeRateLimiter', () => new AtHomeRateLimiter(
   readPositiveIntEnv('MANGADEX_ATHOME_MAX_PER_MIN', DEFAULT_MAX_PER_MINUTE),
   readPositiveIntEnv('MANGADEX_ATHOME_MAX_WAIT_MS', DEFAULT_MAX_WAIT_MS),
-);
+));
 
 log.info('MangaDex at-home rate limiter initialised', {
   maxPerMinute: readPositiveIntEnv('MANGADEX_ATHOME_MAX_PER_MIN', DEFAULT_MAX_PER_MINUTE),

@@ -10,6 +10,7 @@
  */
 
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import { transition, canTransition, isTerminalState, getValidEvents } from './state-machine';
@@ -42,7 +43,7 @@ class TrackedDownloadService {
    * Get singleton instance
    */
   public static getInstance(): TrackedDownloadService {
-    TrackedDownloadService.instance ??= new TrackedDownloadService();
+    TrackedDownloadService.instance ??= processSingleton('TrackedDownloadService', () => new TrackedDownloadService());
     return TrackedDownloadService.instance;
   }
 

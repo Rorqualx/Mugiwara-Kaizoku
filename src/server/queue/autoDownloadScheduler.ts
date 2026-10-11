@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db';
 import { runUnifiedReleaseSearch } from '@/server/services/library/releaseDispatcher/dispatch';
+import { processSingleton } from '@/server/utils/process-singleton';
 import { isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
@@ -202,4 +203,4 @@ export class AutoDownloadScheduler {
 
 // Export scheduler instance (will be initialized with config in server/index.ts)
 // Default: 24 hours (will be overridden by config)
-export const autoDownloadScheduler = new AutoDownloadScheduler(86400);
+export const autoDownloadScheduler = processSingleton('autoDownloadScheduler', () => new AutoDownloadScheduler(86400));

@@ -11,6 +11,7 @@ import { EventEmitter } from 'events';
 
 import { JobType, jobs, JobStatus } from '@prisma/client';
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 
@@ -64,7 +65,7 @@ export class QueueManager extends EventEmitter {
    * Get singleton instance
    */
   static getInstance(): QueueManager {
-    QueueManager.instance ??= new QueueManager();
+    QueueManager.instance ??= processSingleton('QueueManager', () => new QueueManager());
     return QueueManager.instance;
   }
 

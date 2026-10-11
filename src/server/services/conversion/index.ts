@@ -7,6 +7,7 @@
  * @module conversion
  */
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import { ConverterFactory } from './ConverterFactory';
@@ -129,8 +130,12 @@ export { KindleConverter } from './converters/KindleConverter';
 export { ConversionJobWorker } from './ConversionJobWorker';
 export type { ConversionWorkerConfig, ConversionJobStats } from './ConversionJobWorker';
 
-// Global worker instance
-let globalWorker: import('./ConversionJobWorker').ConversionJobWorker | null = null;
+// Worker instance, shared by every copy of this module in the process so the
+// startup initializer and the tRPC context cannot each start their own.
+const workerHolder = processSingleton<{
+  worker: import('./ConversionJobWorker').ConversionJobWorker | null;
+  starting: Promise<import('./ConversionJobWorker').ConversionJobWorker> | null;
+}>('conversionWorker', () => ({ worker: null, starting: null }));
 
 /**
  * Start the conversion job worker
@@ -144,25 +149,36 @@ let globalWorker: import('./ConversionJobWorker').ConversionJobWorker | null = n
 export async function startConversionWorker(
   config?: import('./ConversionJobWorker').ConversionWorkerConfig
 ): Promise<import('./ConversionJobWorker').ConversionJobWorker> {
-  if (globalWorker) {
-    logger.warn('[ConversionSystem] Conversion worker is already running');
-    return globalWorker;
+  if (workerHolder.worker) {
+    logger.debug('[ConversionSystem] Conversion worker is already running');
+    return workerHolder.worker;
   }
+  // A second caller arriving while the first is still starting waits for it.
+  if (workerHolder.starting) return workerHolder.starting;
 
-  const { ConversionJobWorker } = await import('./ConversionJobWorker');
-  globalWorker = new ConversionJobWorker(config);
+  workerHolder.starting = (async () => {
+    const { ConversionJobWorker } = await import('./ConversionJobWorker');
+    const worker = new ConversionJobWorker(config);
 
-  // Recover any stale jobs before starting
-  const recovered = await ConversionJobWorker.recoverStaleJobs();
-  if (recovered > 0) {
-    logger.info(`[ConversionSystem] Recovered ${recovered} stale conversion jobs`);
+    // Recover any stale jobs before starting
+    const recovered = await ConversionJobWorker.recoverStaleJobs();
+    if (recovered > 0) {
+      logger.info(`[ConversionSystem] Recovered ${recovered} stale conversion jobs`);
+    }
+
+    await worker.start();
+    workerHolder.worker = worker;
+
+    logger.info('[ConversionSystem] Conversion worker started');
+
+    return worker;
+  })();
+
+  try {
+    return await workerHolder.starting;
+  } finally {
+    workerHolder.starting = null;
   }
-
-  await globalWorker.start();
-
-  logger.info('[ConversionSystem] Conversion worker started');
-
-  return globalWorker;
 }
 
 /**
@@ -171,12 +187,13 @@ export async function startConversionWorker(
  * Gracefully stops the background worker.
  */
 export async function stopConversionWorker(): Promise<void> {
-  if (!globalWorker) {
+  const worker = workerHolder.worker;
+  if (!worker) {
     return;
   }
 
-  await globalWorker.stop();
-  globalWorker = null;
+  workerHolder.worker = null;
+  await worker.stop();
 
   logger.info('[ConversionSystem] Conversion worker stopped');
 }
@@ -187,5 +204,5 @@ export async function stopConversionWorker(): Promise<void> {
  * @returns The worker instance or null if not started
  */
 export function getConversionWorker(): import('./ConversionJobWorker').ConversionJobWorker | null {
-  return globalWorker;
+  return workerHolder.worker;
 }
