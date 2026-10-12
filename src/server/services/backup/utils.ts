@@ -220,7 +220,6 @@ export async function createConfigBackup(outputPath: string): Promise<string> {
     // which explicitly skips .env on the read side as defense-in-depth.
     const configFiles = [
       'next.config.mjs',
-      'tailwind.config.mjs',
       'tsconfig.json',
       'package.json',
     ];

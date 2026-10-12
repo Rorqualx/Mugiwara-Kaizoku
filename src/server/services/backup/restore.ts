@@ -43,7 +43,6 @@ import { backupConfig, execFileAsync } from './utils';
 // secrets-source-of-truth, not from a tar archive.
 const ALLOWED_CONFIG_FILES = new Set([
   'next.config.mjs',
-  'tailwind.config.mjs',
   'tsconfig.json',
   'package.json',
 ]);

@@ -8,11 +8,6 @@
  * - Global utility classes
  */
 
-/* Tailwind CSS Integration */
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /**
  * Safe Area and Browser UI Support
  * 
@@ -77,7 +72,7 @@ html, body {
  * Base Layer Styles
  * 
  * Contains component-specific styles and interactions
- * Uses Tailwind's layer system for proper CSS specificity
+ * A native CSS cascade layer: these rules yield to any unlayered rule.
  */
 @layer base {
   /**
