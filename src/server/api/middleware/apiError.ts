@@ -7,6 +7,8 @@
 import { createApiErrorResponse, getErrorStatusCode } from '@/utils/api-helpers';
 import { logger } from '@/utils/logger';
 
+import { redactUrl } from './redact-request';
+
 import type { ApiRequest } from './apiMiddleware';
 import type { NextApiResponse } from 'next';
 
@@ -25,7 +27,7 @@ export function apiErrorMiddleware(
     {
       requestId: req.requestId,
       method: req.method,
-      url: req.url,
+      url: redactUrl(req.url),
     }
   );
 

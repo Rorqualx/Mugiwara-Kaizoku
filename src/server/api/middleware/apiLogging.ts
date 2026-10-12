@@ -9,6 +9,8 @@ import crypto from 'crypto';
 
 import { logger } from '@/utils/logger';
 
+import { redactQuery, redactUrl } from './redact-request';
+
 import type { ApiRequest } from './apiMiddleware';
 import type { NextApiResponse } from 'next';
 
@@ -28,8 +30,9 @@ export function apiLoggingMiddleware(req: ApiRequest, res: NextApiResponse): Pro
     type: 'api_request',
     requestId: req.requestId,
     method: req.method ?? 'UNKNOWN',
-    url: req.url ?? '',
-    query: req.query,
+    // An API key may arrive as `?apiKey=`; it must not reach the log.
+    url: redactUrl(req.url),
+    query: redactQuery(req.query),
     headers: {
       'user-agent': req.headers['user-agent'],
       'content-type': req.headers['content-type'],
@@ -50,7 +53,7 @@ export function apiLoggingMiddleware(req: ApiRequest, res: NextApiResponse): Pro
       type: 'api_response',
       requestId: req.requestId,
       method: req.method ?? 'UNKNOWN',
-      url: req.url ?? '',
+      url: redactUrl(req.url),
       statusCode: res.statusCode,
       responseTime,
       headers: res.getHeaders(),
@@ -69,7 +72,7 @@ export function apiLoggingMiddleware(req: ApiRequest, res: NextApiResponse): Pro
         ipAddress?: string;
       } = {
         apiKeyId: authObj.apiKey,
-        endpoint: req.url ?? '',
+        endpoint: redactUrl(req.url),
         method: req.method ?? '',
         statusCode: res.statusCode,
         responseTime,

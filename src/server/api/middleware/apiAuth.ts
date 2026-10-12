@@ -150,7 +150,9 @@ function extractApiKey(req: ApiRequest): string | undefined {
     }
   }
 
-  // Check query parameter (not recommended for production)
+  // Query parameter. Kept because browser EventSource (the SSE stream at
+  // /api/v1/events/stream) cannot send headers; prefer a header everywhere
+  // else. The request logger redacts it (see redact-request.ts).
   if (req.query["apiKey"] && typeof req.query["apiKey"] === 'string') {
     return req.query["apiKey"];
   }

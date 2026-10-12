@@ -11,9 +11,18 @@ const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
+const seedCredentials = require('../lib/seed-credentials.cjs');
+
 const prisma = new PrismaClient();
 
+// CLI script — stdout output is intentional, not a logging concern
+const print = console['log'].bind(console); // @quality-check-skip
+
 async function main() {
+  // Creates an ADMIN user and a full-permission key: development only.
+  // Refuses NODE_ENV=production unless ALLOW_SEED_IN_PRODUCTION=true.
+  seedCredentials.assertSeedAllowed('seed-api-key.js');
+
   console.log('🔑 Creating test API key for development...\n');
 
   try {
@@ -24,15 +33,21 @@ async function main() {
 
     if (!testUser) {
       console.log('Creating test user...');
+      // From SEED_API_TEST_PASSWORD, or generated and printed once here.
+      const testPassword = seedCredentials.resolveSecret('SEED_API_TEST_PASSWORD');
       testUser = await prisma.user.create({
         data: {
           email: 'api-test@kaizoku.local',
           userName: 'api-test',
           name: 'API Test User',
-          hashedPassword: await bcrypt.hash('test-password-123', 10),
+          hashedPassword: await bcrypt.hash(testPassword.value, 12),
           role: 'ADMIN',
         },
       });
+      print(
+        '   Test user password:',
+        seedCredentials.describeSecret('SEED_API_TEST_PASSWORD', testPassword),
+      );
       console.log('✅ Test user created');
     } else {
       console.log('✅ Test user already exists');

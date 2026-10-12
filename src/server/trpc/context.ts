@@ -7,6 +7,7 @@
  *
  * @module server/trpc/context
  */
+import { resolveClientIp } from '@/server/utils/client-ip';
 import { logger } from '@/utils/logger';
 
 import { prisma } from "../db";
@@ -38,33 +39,9 @@ let conversionWorkerStarted = false;
  *   return data;
  * });
  */
-/**
- * Resolve the client IP, used as the rate-limit identity for unauthenticated
- * requests so anonymous callers are bucketed per-IP instead of all sharing a
- * single `anonymous` key.
- *
- * `X-Forwarded-For` / `X-Real-IP` are set by the caller unless a reverse proxy
- * overwrites them, so they are only honoured when TRUST_PROXY=true. Otherwise
- * the socket address is used and a client cannot pick its own bucket.
- */
-function resolveClientIp(req: CreateNextContextOptions['req']): string | undefined {
-  if (process.env['TRUST_PROXY'] !== 'true') {
-    return req.socket.remoteAddress ?? undefined;
-  }
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
-    return forwarded.split(',')[0]?.trim();
-  }
-  if (Array.isArray(forwarded) && forwarded.length > 0) {
-    return forwarded[0];
-  }
-  const real = req.headers['x-real-ip'];
-  if (typeof real === 'string' && real.length > 0) {
-    return real;
-  }
-  return req.socket.remoteAddress ?? undefined;
-}
-
+// The client IP is the rate-limit identity for unauthenticated requests, so
+// anonymous callers are bucketed per-IP instead of sharing one `anonymous` key.
+// Header trust (TRUST_PROXY) is decided in the shared `resolveClientIp` helper.
 export async function createContext(opts: CreateNextContextOptions): Promise<{
   prisma: typeof prisma;
   req: CreateNextContextOptions['req'];

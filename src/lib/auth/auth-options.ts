@@ -32,6 +32,7 @@ import { sanitizeError } from '@/server/utils/log-sanitizer';
 import { logSecurityEvent, SecurityEventType } from '@/server/utils/security-logger';
 import { logger } from '@/utils/logger';
 
+import { getDummyPasswordHash, readStampedClientIp } from './login-guard';
 import { resolveAuthSecret } from './secret';
 
 import type { ExtendedSession } from './types';
@@ -209,18 +210,11 @@ async function clearFailedAttempts(identifier: string): Promise<void> {
   });
 }
 
-/** Pull the client IP from the credentials-provider request headers. */
-function extractIpAddress(headers: RequestInternal['headers']): string {
-  const forwarded: unknown = headers?.['x-forwarded-for'];
-  const real: unknown = headers?.['x-real-ip'];
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
-    return forwarded.split(',')[0]?.trim() ?? 'unknown';
-  }
-  if (typeof real === 'string' && real.length > 0) {
-    return real;
-  }
-  return 'unknown';
-}
+/**
+ * Label recorded in logs/events when no client address could be resolved.
+ * It is never used as a lockout key — see `authorizeCredentials`.
+ */
+const UNRESOLVED_IP_LABEL = 'unresolved';
 
 /**
  * Credentials authorize handler. Hoisted to module scope to keep the provider
@@ -236,7 +230,12 @@ async function authorizeCredentials(
   }
 
   try {
-    const ipAddress = extractIpAddress(request.headers);
+    // Start the dummy hash early so it is ready whichever branch runs.
+    const dummyHash = getDummyPasswordHash();
+    // The API route stamps the socket-derived IP (or the proxy's, only when
+    // TRUST_PROXY=true). Client-supplied X-Forwarded-For is never read here.
+    const clientIp = readStampedClientIp(request.headers);
+    const ipAddress = clientIp ?? UNRESOLVED_IP_LABEL;
     const userAgent = (request.headers?.['user-agent'] as string | undefined) ?? undefined;
     const loginContext: LoginContext = {
       identifier: credentials.identifier,
@@ -244,8 +243,12 @@ async function authorizeCredentials(
       ...(userAgent !== undefined ? { userAgent } : {}),
     };
 
-    // Brute-force lockout, scoped to (identifier, IP).
-    const failedAttempts = await getFailedAttemptCount(credentials.identifier, ipAddress);
+    // Brute-force lockout, scoped to (identifier, IP). With no resolvable IP
+    // there is no per-client bucket to count against; counting such requests
+    // together would let one caller lock everyone out, so the lockout is
+    // skipped and the per-IP rate limit on the route is the remaining guard.
+    const failedAttempts =
+      clientIp === undefined ? 0 : await getFailedAttemptCount(credentials.identifier, clientIp);
     if (await handleAccountLockout(loginContext, failedAttempts)) {
       return null;
     }
@@ -255,6 +258,9 @@ async function authorizeCredentials(
     });
 
     if (!user?.hashedPassword) {
+      // Spend the same bcrypt work as a real check so timing does not reveal
+      // whether the username exists.
+      await compare(credentials.password, await dummyHash);
       await logLoginFailure(loginContext, 'User not found');
       return null;
     }

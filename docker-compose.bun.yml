@@ -32,13 +32,18 @@ services:
       # Database configuration
       POSTGRES_DB: ${DATABASE_NAME:-kaizoku}
       POSTGRES_USER: ${DATABASE_USER:-kaizoku}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-kaizoku}
+      # No default: compose refuses to start until DATABASE_PASSWORD is set
+      # (in .env or the shell), so a well-known password is never used.
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env - there is no default database password}
 
       # Performance tuning
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
 
     ports:
-      - "${DATABASE_PORT:-5432}:5432"
+      # Bound to loopback: reachable from this host only (psql, backups), not
+      # from the network. The app reaches Postgres over the compose network
+      # and does not need this mapping at all.
+      - "127.0.0.1:${DATABASE_PORT:-5432}:5432"
 
     volumes:
       # Persistent database storage
@@ -95,9 +100,14 @@ services:
       HOSTNAME: "0.0.0.0"
 
       # Database connection
-      DATABASE_URL: "postgresql://${DATABASE_USER:-kaizoku}:${DATABASE_PASSWORD:-kaizoku}@postgres:5432/${DATABASE_NAME:-kaizoku}"
+      DATABASE_URL: "postgresql://${DATABASE_USER:-kaizoku}:${DATABASE_PASSWORD:?Set DATABASE_PASSWORD in .env - there is no default database password}@postgres:5432/${DATABASE_NAME:-kaizoku}"
 
       # NextAuth configuration
+      # NEXTAUTH_URL must be the PUBLIC URL users type into the browser, and
+      # https:// for anything reachable from the internet (for example
+      # https://manga.example.com). The localhost default below is only
+      # correct for a local trial on this machine; with it, sign-in redirects
+      # and cookie security settings are wrong for every other client.
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       # Leave unset to let docker-entrypoint.sh auto-generate + persist a
       # strong secret on first boot. Set this only to pin/share a known value
@@ -200,12 +210,13 @@ networks:
 # Database Variables:
 # - DATABASE_NAME: PostgreSQL database name (default: kaizoku)
 # - DATABASE_USER: PostgreSQL username (default: kaizoku)
-# - DATABASE_PASSWORD: PostgreSQL password (default: kaizoku)
-# - DATABASE_PORT: PostgreSQL host port (default: 5432)
+# - DATABASE_PASSWORD: PostgreSQL password (REQUIRED - no default)
+# - DATABASE_PORT: PostgreSQL host port, loopback only (default: 5432)
 #
 # Application Variables:
 # - APP_PORT: Application host port (default: 3000)
-# - NEXTAUTH_URL: Full URL for NextAuth (default: http://localhost:3000)
+# - NEXTAUTH_URL: Public URL of the app; must be https:// when internet-facing
+#   (default http://localhost:3000 is for a local trial only)
 #
 # Optional External Services:
 # - ANILIST_CLIENT_ID: AniList API client ID

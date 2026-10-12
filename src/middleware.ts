@@ -131,7 +131,11 @@ export const config = {
     //   - /theme-init.js    render-blocking theme bootstrap (referenced from
     //                       _document.tsx, must load on the unauthenticated
     //                       /login page too to prevent the light-mode flash)
-    '/((?!api/auth|api/trpc|_next|favicon\\.ico|theme-init\\.js).*)',
+    //
+    // The three directory exclusions end in `/` on purpose. As bare prefixes
+    // they also excluded look-alike siblings (`/api/trpc-websocket`,
+    // `/api/authx`, `/_nextfoo`), which then answered without a session.
+    '/((?!api/auth/|api/trpc/|_next/|favicon\\.ico|theme-init\\.js).*)',
     // Keep `/api/protected/*` middleware-gated. The exclusion above would
     // also exclude it (matches the leading `/`), so we add it back here
     // explicitly — admin role-check still runs in the middleware body.

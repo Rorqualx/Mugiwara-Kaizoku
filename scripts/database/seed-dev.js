@@ -10,6 +10,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
+import seedCredentials from '../lib/seed-credentials.cjs';
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? '' });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
@@ -18,12 +20,20 @@ const prisma = new PrismaClient({ adapter });
 const print = console['log'].bind(console); // @quality-check-skip
 
 async function seedDevelopmentData() {
+  // Development data only: refuses NODE_ENV=production without an override.
+  seedCredentials.assertSeedAllowed('seed-dev.js');
+
   print('🌱 Seeding development database...');
+
+  // The admin password comes from SEED_ADMIN_PASSWORD, or is generated and
+  // printed once below. There is no built-in default password.
+  const adminPassword = seedCredentials.resolveSecret('SEED_ADMIN_PASSWORD');
+  let adminCreated = false;
 
   try {
     // Create default admin user
-    const hashedPassword = await bcrypt.hash('admin123', 12);
-    
+    const hashedPassword = await bcrypt.hash(adminPassword.value, 12);
+
     try {
       // Check if admin user already exists by email or username
       const existingUser = await prisma.user.findFirst({
@@ -51,6 +61,7 @@ async function seedDevelopmentData() {
             updatedAt: now,
           },
         });
+        adminCreated = true;
         print('✅ Created admin user:', adminUser.email);
       }
     } catch (userError) {
@@ -147,10 +158,15 @@ async function seedDevelopmentData() {
 
     print('🎉 Development database seeding complete!');
     print('');
-    print('🔑 Default Admin Credentials:');
-    print('   Email: admin@kaizoku.dev');
-    print('   Password: admin123');
-    print('');
+    if (adminCreated) {
+      print('🔑 Admin Credentials:');
+      print('   Email: admin@kaizoku.dev');
+      print('   Password:', seedCredentials.describeSecret('SEED_ADMIN_PASSWORD', adminPassword));
+      print('');
+    } else {
+      print('🔑 Admin user was already present; its password was not changed.');
+      print('');
+    }
     print('💡 You can create additional users with: npm run create-admin');
 
   } catch (error) {

@@ -12,6 +12,8 @@ import * as next from 'next';
 
 import { env } from '@/env/server';
 
+import { applySecurityDefaults } from './security-headers';
+
 // ============================================================================
 // Express and Next.js Initialization
 // ============================================================================
@@ -20,6 +22,10 @@ import { env } from '@/env/server';
  * Express application instance
  */
 export const app = express["default"]();
+
+// No `X-Powered-By`, plus baseline security headers on every response.
+// Registered here, at creation, so it runs before any route is mounted.
+applySecurityDefaults(app);
 
 /**
  * Server port from environment

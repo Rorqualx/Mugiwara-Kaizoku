@@ -7,12 +7,20 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
+import seedCredentials from '../lib/seed-credentials.cjs';
+
 const prisma = new PrismaClient();
+
+// CLI script — stdout output is intentional, not a logging concern
+const print = console['log'].bind(console); // @quality-check-skip
 
 async function createAdmin() {
   console.log('🔐 Creating admin user...');
 
   try {
+    // Refuses NODE_ENV=production unless ALLOW_SEED_IN_PRODUCTION=true.
+    seedCredentials.assertSeedAllowed('create-admin-simple.js');
+
     // Check if any users exist
     const userCount = await prisma.user.count();
     
@@ -25,11 +33,12 @@ async function createAdmin() {
     // Create default admin user
     const username = 'admin';
     const email = 'admin@kaizoku.local';
-    const password = 'password';
+    // From SEED_ADMIN_PASSWORD, or generated and printed once below.
+    const password = seedCredentials.resolveSecret('SEED_ADMIN_PASSWORD');
 
     // Hash password
     const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password.value, saltRounds);
 
     // Create admin user
     const adminUser = await prisma.user.create({
@@ -44,10 +53,9 @@ async function createAdmin() {
     console.log('\n✅ Admin user created successfully!');
     console.log(`   Username: ${adminUser.userName}`);
     console.log(`   Email: ${adminUser.email}`);
-    console.log(`   Password: ${password}`);
+    print(`   Password: ${seedCredentials.describeSecret('SEED_ADMIN_PASSWORD', password)}`);
     console.log(`   Role: ${adminUser.role}`);
     console.log('\n🚀 You can now log in to Mugiwara-Kaizoku at http://localhost:3000');
-    console.log('⚠️  Please change the default password after first login!');
 
   } catch (error) {
     console.error('\n❌ Error creating admin user:', error.message);

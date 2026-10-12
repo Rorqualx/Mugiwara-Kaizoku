@@ -8,6 +8,9 @@ const nextConfig = {
   // Note: 'standalone' output is incompatible with custom server (server-production.ts)
   // The custom server provides WebSocket support via programmatic Next.js API
 
+  // Do not advertise the framework in an `X-Powered-By` response header.
+  poweredByHeader: false,
+
   // Essential configuration only
   experimental: {
     // Canvas is optional dependency of jsdom - add to externals to prevent build errors

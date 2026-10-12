@@ -9,6 +9,7 @@ import type {} from '@prisma/client';
  * @module server/trpc/router/health
  */
 import { prisma } from '@/server/db';
+import { logger } from '@/utils/logger';
 
 import { publicProcedure } from '../procedures';
 import { router } from '../trpc';
@@ -47,9 +48,14 @@ export const healthRouter = router({
       };
     }
     catch (error: unknown) {
+      // This procedure is public: the driver's message can carry the host,
+      // port, database and user, so it stays in the server log only.
+      logger.error('Database health check failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown database error',
+        message: 'Database connection failed',
         timestamp: new Date().toISOString()
       };
     }

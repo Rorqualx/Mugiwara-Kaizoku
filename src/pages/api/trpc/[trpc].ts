@@ -73,11 +73,20 @@ export default handler;
  *
  * Default limit is 1mb, but large manga imports (Tokyo Ghoul: 62 volumes, 143 chapters)
  * can exceed this with full Fandom volume/chapter data including cover URLs.
+ *
+ * The body is parsed BEFORE any procedure checks the session, so this is also
+ * the most an anonymous caller can make the server buffer and parse. It is
+ * sized for the largest legitimate JSON call — `annotation.createPage`, whose
+ * `htmlSnapshot` is capped at 10M characters (up to ~30 MB as escaped UTF-8)
+ * plus its token list — and no larger. File uploads (backup restore) do not
+ * come through tRPC; they use the multipart route `/api/backup/upload`.
+ *
+ * Keep the value a string literal: Next reads this export statically.
  */
 export const config = {
     api: {
         bodyParser: {
-            sizeLimit: '100mb',
+            sizeLimit: '32mb',
         },
         responseLimit: false, // No response size limit
         externalResolver: true,
