@@ -11,6 +11,7 @@ import { parseChapterToken } from '@/server/parsers/chapter-number-extractor';
 import {
   CHAPTER_SECTION_HEADERS,
   DESCRIPTION_CHAPTER_PATTERNS,
+  EXPLICIT_CHAPTER_LINE_PATTERN,
   SECTION_TERMINATORS,
 } from '@/server/services/comicvine/constants';
 import { getErrorMessage } from '@/utils/errors/helpers';
@@ -245,6 +246,21 @@ function processChapterLine(
 }
 
 /**
+ * Accept a "Chapter N: Title" line that sits outside any recognised section.
+ * Without this, a description whose heading is not in CHAPTER_SECTION_HEADERS
+ * yielded only its first chapter line (Frieren volumes 11-14 parsed as one
+ * chapter each under the heading "Chapters Titles").
+ */
+function tryAppendExplicitChapterLine(line: string, chapters: ParsedChapter[]): void {
+  const match = line.match(EXPLICIT_CHAPTER_LINE_PATTERN);
+  if (!match) return;
+  const parsed = tryParseNumberedChapter(line, match);
+  if (!parsed) return;
+  if (chapters.some((ch) => ch.hasRealNumber && ch.chapterNumber === parsed.chapterNumber)) return;
+  chapters.push(parsed);
+}
+
+/**
  * Split concatenated chapter entries into separate lines.
  * Handles formats like "1.Death＆Strawberry2.Starter3.Headhittin'"
  * by inserting newlines before "N." number-dot patterns.
@@ -295,6 +311,8 @@ export function parseChaptersFromDescription(description: string | null | undefi
         const result = processChapterLine(line, inChapterSection, chapterIndex, chapters);
         if (result.shouldBreak) break;
         chapterIndex = result.newIndex;
+      } else {
+        tryAppendExplicitChapterLine(line, chapters);
       }
     }
 

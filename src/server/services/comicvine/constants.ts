@@ -117,7 +117,9 @@ export const LIST_SELECTORS = [
  * Used by: comicvine-chapter-parser.ts
  */
 export const CHAPTER_SECTION_HEADERS = [
-  /chapter\s*titles?/i,
+  // "Chapter Titles", "Chapter Title", and the plural-plural "Chapters Titles"
+  // ComicVine uses on Frieren volumes 11-14.
+  /chapters?\s*titles?/i,
   /table\s*of\s*contents?/i,
   // iter-PVM-3.1: trailing colon optional — CV descriptions often have bare
   // "Contents" / "Chapters" headings (e.g. <h2>Contents</h2>) where the colon
@@ -188,6 +190,17 @@ export const DESCRIPTION_CHAPTER_PATTERNS = [
   // Quoted titles
   /^["'](.+)["']$/,
 ] as const;
+
+/**
+ * A line that names its own chapter number with an explicit separator
+ * ("Chapter 98: Retribution", "Chapter #080 - Title"). Unambiguous enough to
+ * accept wherever it appears in a description, with or without a recognised
+ * section heading above it. The separator is required so prose such as
+ * "Chapter 12 concludes the arc" is not read as a chapter.
+ *
+ * Used by: comicvine-chapter-parser.ts
+ */
+export const EXPLICIT_CHAPTER_LINE_PATTERN = /^Chapter\s+#?(\d+(?:\.\d+)?)\s*[::\-–—]\s*(.+)$/i;
 
 /**
  * Patterns that indicate the end of a chapter section in descriptions
