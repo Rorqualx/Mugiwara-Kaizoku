@@ -14,6 +14,7 @@
 import {
   crossValidateVolumeRanges,
   collectVolumeRangeProposals,
+  truncateSourceDiscontinuities,
 } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation';
 import type { VolumeRangeProposal } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation';
 
@@ -371,5 +372,44 @@ describe('crossValidateVolumeRanges — numbering discontinuity guard', () => {
     ];
     const result = crossValidateVolumeRanges(proposals, 32);
     expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 4]);
+  });
+});
+
+describe('truncateSourceDiscontinuities — gaps in the LISTED volume numbers', () => {
+  const md = (volumeNumber: number, chapterStart: number, chapterEnd: number): VolumeRangeProposal => ({
+    volumeNumber, chapterStart, chapterEnd, source: 'mangadex', confidence: 0.8, extractionMethod: 'explicit-range',
+  });
+
+  it('keeps volumes listed after a hole in the volume numbers (MangaDex lists One Piece 1-7 then 61-115)', () => {
+    // Volume 7 ends at 62 and volume 61 starts at 595: a 532-chapter jump, but
+    // across 54 volume numbers — about ten chapters a volume, not a numbering break.
+    const proposals = [
+      md(1, 1, 8), md(2, 9, 17), md(3, 18, 26), md(4, 27, 35), md(5, 36, 44), md(6, 45, 53), md(7, 54, 62),
+      md(61, 595, 603), md(62, 604, 614), md(63, 615, 626),
+    ];
+    expect(truncateSourceDiscontinuities(proposals).map(p => p.volumeNumber))
+      .toEqual([1, 2, 3, 4, 5, 6, 7, 61, 62, 63]);
+  });
+
+  it('does not let a long broken tail back in as the dropped volumes widen the volume-number gap', () => {
+    // Sakamoto Days shape: volumes 1-4 end at chapter 30, then a tail numbered
+    // 5.. that starts at chapter 248 and advances nine chapters a volume.
+    const proposals = [md(1, 1, 7), md(2, 8, 16), md(3, 17, 25), md(4, 26, 30)];
+    for (let v = 5; v <= 28; v++) proposals.push(md(v, 248 + (v - 5) * 9, 256 + (v - 5) * 9));
+    // Different source for the tail so the per-source guard does not remove it first.
+    const mixed = proposals.map(p => (p.volumeNumber >= 5 ? { ...p, source: 'wikipedia' as const } : p));
+    const result = crossValidateVolumeRanges(mixed, null);
+    expect(result.map(r => r.volumeNumber)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('still cuts a jump too large for the number of skipped volumes', () => {
+    // Skipping one volume number (3) cannot explain a 91-chapter jump.
+    const proposals = [md(1, 1, 8), md(2, 9, 16), md(4, 108, 116), md(5, 117, 125)];
+    expect(truncateSourceDiscontinuities(proposals).map(p => p.volumeNumber)).toEqual([1, 2]);
+  });
+
+  it('still cuts a jump between consecutive volume numbers', () => {
+    const proposals = [md(1, 1, 8), md(2, 9, 16), md(3, 91, 99)];
+    expect(truncateSourceDiscontinuities(proposals).map(p => p.volumeNumber)).toEqual([1, 2]);
   });
 });

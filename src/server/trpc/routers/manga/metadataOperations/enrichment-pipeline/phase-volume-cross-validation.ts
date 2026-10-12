@@ -371,6 +371,11 @@ const MIN_CONTIGUOUS_PREFIX = 2;
  * Operates purely on each source's internal chapter sequence — no dependency on
  * an external expected-chapter-count anchor, so it can't over-drop when the
  * anchor undercounts the real chapter total.
+ *
+ * The allowed chapter gap scales with the volume-number gap between the two
+ * LISTED volumes: a source that lists volumes 1-7 and then 61-115 (MangaDex,
+ * One Piece) skips 53 volumes' worth of chapters between them, which is a
+ * hole in the listing, not a numbering break.
  */
 export function truncateSourceDiscontinuities(
   proposals: VolumeRangeProposal[],
@@ -391,7 +396,8 @@ export function truncateSourceDiscontinuities(
       const cur = sorted[i];
       if (!prev || !cur) continue;
       const gap = cur.chapterStart - prev.chapterEnd - 1;
-      if (i >= MIN_CONTIGUOUS_PREFIX && gap > SOURCE_DISCONTINUITY_GAP) {
+      const volumeDelta = Math.max(1, cur.volumeNumber - prev.volumeNumber);
+      if (i >= MIN_CONTIGUOUS_PREFIX && gap > SOURCE_DISCONTINUITY_GAP * volumeDelta) {
         cut = i;
         break;
       }
