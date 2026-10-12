@@ -80,6 +80,9 @@ function parseStatus(data: Record<string, unknown>): TrackedDownloadStatus | nul
 // Hook
 // ============================================================================
 
+/** Most recently updated downloads kept in memory by the hook. */
+const MAX_TRACKED_DOWNLOADS = 200;
+
 export function useTrackedDownloads(): UseTrackedDownloadsReturn {
   const { isConnected, subscribe } = useRealTime();
   const [stateMap, setStateMap] = useState<Map<string, TrackedDownloadStatus>>(new Map());
@@ -93,8 +96,25 @@ export function useTrackedDownloads(): UseTrackedDownloadsReturn {
     if (!status) return;
 
     setStateMap(prev => {
+      const current = prev.get(status.id);
+      // An event that repeats what is already shown changes nothing: keep the
+      // same map so consumers do not re-render.
+      if (
+        current?.state === status.state &&
+        current.progress === status.progress &&
+        current.errorMessage === status.errorMessage
+      ) {
+        return prev;
+      }
       const next = new Map(prev);
+      // Re-insert so the map stays ordered by last update, then drop the
+      // oldest entries: finished downloads never send a "forget me" event.
+      next.delete(status.id);
       next.set(status.id, status);
+      for (const staleId of next.keys()) {
+        if (next.size <= MAX_TRACKED_DOWNLOADS) break;
+        next.delete(staleId);
+      }
       return next;
     });
   }, []);
