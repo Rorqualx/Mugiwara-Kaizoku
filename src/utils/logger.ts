@@ -93,6 +93,16 @@ class Logger {
           stack: error.stack
         }
       };
+    } else if (typeof error === 'object' && error !== null && !Array.isArray(error) &&
+    Object.getPrototypeOf(error) === Object.prototype) {
+      // Many call sites pass their context object as the second argument
+      // (`logger.error('x failed', { id, error: err.message })`). Stringifying
+      // it logged "x failed: [object Object]" and dropped every field.
+      const fields = error as Record<string, unknown>;
+      const detail = typeof fields['error'] === 'string' ? fields['error']
+        : typeof fields['message'] === 'string' ? fields['message'] : undefined;
+      if (detail !== undefined) errorMessage = `${message}: ${detail}`;
+      errorContext = { ...errorContext, ...fields };
     } else if (error) {
       errorMessage = `${message}: ${String(error)}`;
       errorContext = {
