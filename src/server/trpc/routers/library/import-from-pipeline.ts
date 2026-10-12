@@ -24,12 +24,14 @@ import { validateImportResult } from '@/server/services/library/scanner/import-v
 import { extractAndSetLocalCover } from '@/server/services/library/scanner/local-cover-extractor';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { protectedProcedure } from '@/server/trpc/procedures';
+import { addMembership, requireLibraryOwner, requireUserId } from '@/server/trpc/routers/_shared/library-access';
+import { assertServerPathAllowed } from '@/server/trpc/routers/_shared/server-path-access';
 import { findMangaFiles } from '@/utils/file-utils';
 import { logger } from '@/utils/logger';
 
 import { processFilesForImport, queueConversionIfNeeded } from './import-file-processor';
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 /** Input schema for pipeline import */
 export const importFromPipelineSchema = z.object({
@@ -387,7 +389,29 @@ export async function runImportFromPipeline(input: ImportFromPipelineInput): Pro
   };
 }
 
+/**
+ * Run a pipeline import on behalf of the signed-in caller: the target library
+ * must be their own, the source folder one they may name (any path for an
+ * admin), and the imported title is added to their library.
+ */
+export async function importFromPipelineAsCaller(
+  ctx: { prisma: PrismaClient },
+  input: ImportFromPipelineInput,
+  run: (input: ImportFromPipelineInput) => Promise<ImportFromPipelineResult> = runImportFromPipeline,
+): Promise<ImportFromPipelineResult> {
+  const userId = requireUserId(ctx);
+  await requireLibraryOwner(ctx.prisma, userId, input.libraryId);
+  await assertServerPathAllowed(ctx, ctx.prisma, input.path);
+
+  const result = await run(input);
+
+  // Titles are listed through library membership. Without this row the
+  // import succeeds but the title never appears in the importer's library.
+  await addMembership(ctx.prisma, userId, result.mangaId, input.libraryId);
+  return result;
+}
+
 /** Import a manga from the import pipeline */
 export const importFromPipelineProcedure = protectedProcedure
   .input(importFromPipelineSchema)
-  .mutation(async ({ input }): Promise<ImportFromPipelineResult> => runImportFromPipeline(input));
+  .mutation(({ input, ctx }): Promise<ImportFromPipelineResult> => importFromPipelineAsCaller(ctx, input));

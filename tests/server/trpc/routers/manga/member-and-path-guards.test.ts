@@ -112,6 +112,69 @@ describe('membership and path guards', () => {
     });
   });
 
+  describe('pipeline import', () => {
+    const input = { libraryId: 3, path: '/downloads/completed/New Series', title: 'New Series' };
+
+    function contextWithLibrary(owned: boolean): unknown {
+      const ctx = createContext();
+      ctx.prisma.library.findFirst = jest.fn(() =>
+        Promise.resolve(owned ? { id: 3, name: 'My Manga', path: '/app/data/libraries/user-1/my-manga', ownerId: 'user-1' } : null));
+      ctx.prisma.libraryMembership.upsert = jest.fn(() => Promise.resolve({ id: 1 }));
+      return ctx;
+    }
+
+    it('refuses an import into a library the caller does not own', async () => {
+      const { importFromPipelineProcedure } = await import('@/server/trpc/routers/library/import-from-pipeline');
+      const { router } = await import('@/server/trpc/trpc');
+      const ctx = contextWithLibrary(false);
+      const caller = router({ importFromPipeline: importFromPipelineProcedure }).createCaller(ctx);
+
+      await expect(caller.importFromPipeline(input)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect(ctx.prisma.libraryMembership.upsert).not.toHaveBeenCalled();
+    });
+
+    it('refuses an import from a path outside the caller\'s folders', async () => {
+      const { importFromPipelineProcedure } = await import('@/server/trpc/routers/library/import-from-pipeline');
+      const { router } = await import('@/server/trpc/trpc');
+      const ctx = contextWithLibrary(true);
+      const caller = router({ importFromPipeline: importFromPipelineProcedure }).createCaller(ctx);
+
+      await expect(caller.importFromPipeline({ ...input, path: '/config' })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      expect(ctx.prisma.libraryMembership.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('pipeline import membership', () => {
+    it('adds the imported title to the importer\'s library', async () => {
+      const { importFromPipelineAsCaller } = await import('@/server/trpc/routers/library/import-from-pipeline');
+      const upsert = jest.fn(() => Promise.resolve({ id: 1 }));
+      const ctx = {
+        user: { id: 'user-1', role: 'USER' },
+        prisma: {
+          library: {
+            findFirst: jest.fn(() => Promise.resolve({ id: 3, name: 'My Manga', path: '/app/data/libraries/user-1/my-manga', ownerId: 'user-1' })),
+            findMany: jest.fn(() => Promise.resolve([{ path: '/app/data/libraries/user-1/my-manga' }])),
+          },
+          libraryMembership: { upsert },
+        },
+      };
+      const run = jest.fn(() => Promise.resolve({ mangaId: 106, title: 'New Series', chaptersCreated: 5 }));
+
+      const result = await importFromPipelineAsCaller(
+        ctx,
+        { libraryId: 3, path: '/downloads/completed/New Series', title: 'New Series', provider: 'local', providerId: 'local', createChapters: true },
+        run,
+      );
+
+      expect(result.mangaId).toBe(106);
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { userId_mangaId: { userId: 'user-1', mangaId: 106 } },
+        create: { userId: 'user-1', mangaId: 106, libraryId: 3 },
+      }));
+    });
+  });
+
   describe('relations', () => {
     it('refuses relations of a title the caller does not have', async () => {
       const { relationsRouter } = await import('@/server/trpc/routers/manga/relationsOperations');

@@ -19,6 +19,7 @@ import { comicvineService } from '@/server/services/comicvine/service';
 import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvine/service';
 import { createMangaSafe } from '@/server/services/library/manga-create-guard';
 import { cachedProtectedProcedure, protectedProcedure } from '@/server/trpc/procedures';
+import { addMembership, requireLibraryOwner, requireUserId } from '@/server/trpc/routers/_shared/library-access';
 import { router } from '@/server/trpc/trpc';
 import { getConfigBoolean } from '@/server/utils/configReader';
 import { logger } from '@/utils/logger';
@@ -182,10 +183,9 @@ export const comicvineRouter = router({
       await ensureComicbookTrackingEnabled();
       await ensureComicVineConfigured();
 
-      const library = await ctx.prisma.library.findUnique({ where: { id: input.libraryId } });
-      if (!library) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Library not found' });
-      }
+      // Series are added to one of the caller's own libraries.
+      const userId = requireUserId(ctx);
+      const library = await requireLibraryOwner(ctx.prisma, userId, input.libraryId);
 
       const sourceId = String(input.comicvineVolumeId);
       const existing = await ctx.prisma.manga.findFirst({
@@ -236,6 +236,10 @@ export const comicvineRouter = router({
           libraryPath: `${library.path.replace(/\/+$/, '')}/${title}`,
         },
       });
+
+      // Titles are listed through library membership; without this row the
+      // series is created but never appears in the caller's library.
+      await addMembership(ctx.prisma, userId, manga.id, input.libraryId);
 
       log.info('Added ComicVine series', { mangaId: manga.id, cvId: input.comicvineVolumeId, title });
       return { id: manga.id, title: manga.title };

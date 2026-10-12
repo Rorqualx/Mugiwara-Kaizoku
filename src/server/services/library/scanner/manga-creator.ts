@@ -90,6 +90,20 @@ export async function createMangaWithMetadata(
     }
   });
 
+  // A scan runs on behalf of the library's owner. Titles are listed through
+  // library membership, so a scanned-in title needs the owner's row to appear.
+  const library = await prisma.library.findUnique({
+    where: { id: manga.libraryId },
+    select: { ownerId: true },
+  });
+  if (library) {
+    await prisma.libraryMembership.upsert({
+      where: { userId_mangaId: { userId: library.ownerId, mangaId: manga.id } },
+      create: { userId: library.ownerId, mangaId: manga.id, libraryId: manga.libraryId },
+      update: {},
+    });
+  }
+
   // Emit manga added notification (legacy eventEmitter)
   if (hasTrackedEmit(eventEmitter)) {
     await eventEmitter.emitWithTracking({
