@@ -471,7 +471,7 @@ export class AniListService {
 
   async searchManga(
   query: string,
-  options: {limit?: number;includeDescription?: boolean;filterAdultContent?: boolean;} = {})
+  options: {limit?: number;includeDescription?: boolean;filterAdultContent?: boolean;onFailure?: (reason: string) => void;} = {})
   : Promise<AniListMangaResult[]> {
     return this.errorHandler.withErrorHandling(
       async () => {
@@ -554,6 +554,7 @@ export class AniListService {
     ).catch((error) => {
       // On error, return empty array instead of throwing
       logger.warn(`Search failed, returning empty results: ${error instanceof Error ? error.message : String(error)}`);
+      options.onFailure?.(error instanceof Error ? error.message : String(error));
       return [];
     });
   }
@@ -606,7 +607,7 @@ export class AniListService {
    * }
    * ```
    */
-  async getMangaDetails(id: number): Promise<AniListMangaDetails | null> {
+  async getMangaDetails(id: number, onFailure?: (reason: string) => void): Promise<AniListMangaDetails | null> {
     return this.errorHandler.withErrorHandling(
       async () => {
         const response = await anilistClient.query<AniListDetailsResponse>(
@@ -622,6 +623,7 @@ export class AniListService {
     ).catch((error) => {
       // On error, return null instead of throwing
       logger.warn(`Failed to get manga details, returning null: ${error instanceof Error ? error.message : String(error)}`);
+      onFailure?.(error instanceof Error ? error.message : String(error));
       return null;
     });
   }

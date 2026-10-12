@@ -33,7 +33,7 @@ class MangaUpdatesService {
    * @param limit - Max results
    * @returns Array of search hits
    */
-  async searchSeries(title: string, limit: number = 5): Promise<MUSearchHit[]> {
+  async searchSeries(title: string, limit: number = 5, onFailure?: (reason: string) => void): Promise<MUSearchHit[]> {
     try {
       const response: MUSearchResponse = await client.searchSeries(title, limit);
       return response.results;
@@ -42,6 +42,7 @@ class MangaUpdatesService {
         title,
         error: error instanceof Error ? error.message : String(error),
       });
+      onFailure?.(error instanceof Error ? error.message : String(error));
       return [];
     }
   }
@@ -52,7 +53,7 @@ class MangaUpdatesService {
    * @param seriesId - MangaUpdates series ID
    * @returns Series details or null on failure
    */
-  async getSeriesDetails(seriesId: number): Promise<MUSeriesDetails | null> {
+  async getSeriesDetails(seriesId: number, onFailure?: (reason: string) => void): Promise<MUSeriesDetails | null> {
     try {
       return await client.getSeriesDetails(seriesId);
     } catch (error: unknown) {
@@ -60,6 +61,7 @@ class MangaUpdatesService {
         seriesId,
         error: error instanceof Error ? error.message : String(error),
       });
+      onFailure?.(error instanceof Error ? error.message : String(error));
       return null;
     }
   }

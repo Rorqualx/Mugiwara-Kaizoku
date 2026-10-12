@@ -29,6 +29,13 @@ export interface FandomSnapshot {
   chapterList: ReadonlyArray<{ number: number }>;
   volumeList: readonly FandomVolumeLike[];
   parseSuccess: boolean;
+  /** Chapter pages the parser asked for while building the list, and how many came back. */
+  chapterPages?: PageCounts;
+}
+
+export interface PageCounts {
+  requested: number;
+  fetched: number;
 }
 
 export interface WikipediaSnapshot {
@@ -87,13 +94,18 @@ export interface ClaimRecorder {
   readonly runId: string;
   /** A fetch that failed inside a client that reports failure as "nothing found". */
   noteFetchFailure(provider: string, reason: string): void;
-  /** A gate is about to discard this provider's data; `preGate` is the data it discards. */
+  /**
+   * A gate discarded this provider's data. `preGate` holds the lists as they
+   * were when the gate emptied them at the source; leave it empty for a gate
+   * that only withholds the data from one consumer (the reconciliation gate),
+   * where the lists themselves still reach cross-validation.
+   */
   noteGated(provider: 'fandom' | 'wikipedia', reason: string, preGate: PreGateSnapshot): void;
   noteFetchPhase(snapshot: FetchPhaseSnapshot): void;
   /** The claims the selector was given and what it decided. */
   noteSelection(claims: readonly ProviderClaim[], shadow: ShadowSelection): void;
   /** A follow-up fetch for a provider (e.g. Fandom's per-chapter pages). */
-  noteStage(provider: string, stage: string, counts: { requested: number; fetched: number }): void;
+  noteStage(provider: string, stage: string, counts: PageCounts): void;
   /** Every source's ranges as they enter cross-validation, before any of its drops. */
   noteManifests(proposals: readonly ManifestProposal[]): void;
   /** What cross-validation kept, and which sources back each kept volume. */

@@ -200,6 +200,8 @@ function logMatched(result: KitsuDirectResult, message: string): void {
  * id) sends the caller back to the matcher.
  */
 async function fetchPinnedKitsu(kitsuId: string): Promise<KitsuDirectResult | null> {
+  // No failure sink here: a pin that cannot be fetched falls back to the
+  // search, and an outage is reported from there.
   const hit = await kitsuService.getMangaDetails(kitsuId);
   if (!hit) {
     log.warn('Kitsu: manual binding not found via API — falling back to the matcher', { kitsuId });
@@ -244,7 +246,7 @@ export async function fetchKitsuDirect(
   const allHits: KitsuManga[] = [];
   for (const q of queries) {
     // eslint-disable-next-line no-await-in-loop -- Sequential by design; rate limiter throttles
-    const hits = await kitsuService.searchManga(q, 5);
+    const hits = await kitsuService.searchManga(q, 5, directive?.onFailure);
     for (const hit of hits) {
       if (!seenIds.has(hit.id)) {
         seenIds.add(hit.id);

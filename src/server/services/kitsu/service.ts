@@ -14,24 +14,26 @@ import type { KitsuManga } from './types';
 const log = logger.child('KitsuService');
 
 class KitsuService {
-  async searchManga(title: string, limit: number = 5): Promise<KitsuManga[]> {
+  async searchManga(title: string, limit: number = 5, onFailure?: (reason: string) => void): Promise<KitsuManga[]> {
     try {
       const response = await client.searchManga(title, limit);
       return response.data;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : JSON.stringify(error);
       log.error(`Kitsu search failed for "${title}": ${message}`);
+      onFailure?.(message);
       return [];
     }
   }
 
-  async getMangaDetails(id: string): Promise<KitsuManga | null> {
+  async getMangaDetails(id: string, onFailure?: (reason: string) => void): Promise<KitsuManga | null> {
     try {
       const response = await client.getMangaDetails(id);
       return response.data;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : JSON.stringify(error);
       log.error(`Kitsu details fetch failed for id=${id}: ${message}`);
+      onFailure?.(message);
       return null;
     }
   }

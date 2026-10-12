@@ -50,7 +50,7 @@ function buildJikanUrl(malId: number, subPath = ''): string {
  * @param malId - MyAnimeList manga ID (positive integer)
  * @param retries - Number of retry attempts on failure
  * @param onFailure - Called when null means "Jikan did not answer" (network
- *   error, timeout, rate limit or a 5xx on every attempt) rather than "Jikan
+ *   error, timeout, rate limit, or any error status but 404) rather than "Jikan
  *   has no such manga" (a 404).
  * @returns Raw Jikan response or null on failure
  */
@@ -83,7 +83,7 @@ export async function fetchMangaById(
 
       if (!resp.ok) {
         log.debug('Jikan non-OK response', { malId, status: resp.status });
-        if (resp.status >= 500) onFailure?.(`http_${resp.status}`);
+        if (resp.status !== 404) onFailure?.(`http_${resp.status}`);
         return null;
       }
 

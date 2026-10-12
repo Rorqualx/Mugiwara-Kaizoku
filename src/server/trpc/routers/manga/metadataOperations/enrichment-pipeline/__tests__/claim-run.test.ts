@@ -38,7 +38,7 @@ function lastBatch(): ClaimRunBatch {
 
 beforeEach(() => {
   mockedWrite.mockReset();
-  mockedWrite.mockResolvedValue(0);
+  mockedWrite.mockImplementation(batch => Promise.resolve({ written: batch.rows.length, retention: Promise.resolve(0) }));
 });
 
 describe('ClaimRun — one recorder per run', () => {
@@ -79,6 +79,21 @@ describe('ClaimRun — one recorder per run', () => {
     const rows = run.buildRows().filter(r => r.provider === 'wikipedia' && r.field === 'chapters');
     expect(rows).toHaveLength(1);
     expect(rows[0]?.value).toBe(685);
+  });
+});
+
+describe('ClaimRun — a fetch phase that never reported', () => {
+  it('stamps claims noted before the phase threw as unknown, never ok, and writes no fetch rows', () => {
+    const run = new ClaimRun(73);
+    noteSelection(run, [{ provider: 'anilist', matchConfidence: 0.9, fields: { chapters: 706 } }]);
+    run.noteManifests([proposal('mangadex', 1, 1, 7)]);
+
+    const rows = run.buildRows();
+
+    expect(rows.filter(r => r.kind === 'fetch')).toEqual([]);
+    expect(row(rows, 'anilist', 'chapters')?.fetchOutcome).toBe('unknown');
+    expect(row(rows, 'mangadex', 'volumeRanges')?.fetchOutcome).toBe('unknown');
+    expect(rows.some(r => r.fetchOutcome === 'ok')).toBe(false);
   });
 });
 
@@ -136,18 +151,101 @@ describe('ClaimRun — volume manifests', () => {
   });
 });
 
-describe('ClaimRun — follow-up fetches', () => {
-  it('records Fandom\'s chapter pages as failed when none of the requested pages came back', () => {
+describe('ClaimRun — a gate noted after the fetch phase reported', () => {
+  it('records Fandom as gated when the reconciliation gate withholds its chapters, and keeps its ranges as entered', () => {
+    const run = new ClaimRun(73);
+    noteSelection(run, [{ provider: 'anilist', matchConfidence: 0.9, fields: { chapters: 60 } }]);
+    run.noteFetchPhase(snapshot());
+    run.noteGated('fandom', 'reconciliation gate: 686 chapters vs AniList 60 / MangaDex 6', {});
+    run.noteManifests([proposal('fandom', 1, 1, 7)]);
+
+    const rows = run.buildRows();
+    expect(row(rows, 'fandom', '_fetch')).toMatchObject({
+      fetchOutcome: 'gated', detail: { reason: 'reconciliation gate: 686 chapters vs AniList 60 / MangaDex 6' },
+    });
+    expect(row(rows, 'fandom', 'highestChapter')?.fetchOutcome).toBe('gated');
+    // Its lists were not emptied, so the ranges did enter cross-validation.
+    expect(row(rows, 'fandom', 'volumeRanges')).toMatchObject({
+      fetchOutcome: 'gated', detail: { enteredCrossValidation: true },
+    });
+    expect(row(rows, 'anilist', '_fetch')?.fetchOutcome).toBe('ok');
+  });
+
+  it('keeps the first gate\'s reason when a second gate fires for the same provider', () => {
+    const run = new ClaimRun(78);
+    const preGate = fandomSnapshot(700, []);
+    run.noteGated('fandom', 'first gate', { fandom: preGate });
+    run.noteFetchPhase(snapshot({ fandom: { ...preGate, chapterList: [] } }));
+    run.noteGated('fandom', 'second gate', {});
+
+    expect(row(run.buildRows(), 'fandom', '_fetch')?.detail).toMatchObject({ reason: 'first gate' });
+  });
+});
+
+describe('ClaimRun — follow-up fetches decide whether a fetch is ok', () => {
+  it('records Fandom as partial, not ok, when none of its requested chapter pages came back', () => {
     const run = new ClaimRun(73);
     run.noteFetchPhase(snapshot());
     run.noteStage('fandom', 'chapterPages', { requested: 110, fetched: 0 });
 
     const rows = run.buildRows();
     expect(row(rows, 'fandom', '_fetch.chapterPages')).toMatchObject({
-      kind: 'fetch', fetchOutcome: 'failed', detail: { requested: 110, fetched: 0 },
+      kind: 'fetch', fetchOutcome: 'failed', detail: { requested: 110, fetched: 0, calls: 1 },
     });
-    // The list fetch keeps its own outcome.
+    expect(row(rows, 'fandom', '_fetch')).toMatchObject({
+      fetchOutcome: 'partial', detail: { reason: 'stage_incomplete:chapterPages' },
+    });
+    // Its claims are kept, stamped with the lowered outcome.
+    expect(row(rows, 'fandom', 'highestChapter')?.fetchOutcome).toBe('partial');
+  });
+
+  it('records the stage and the provider as partial when only some pages came back', () => {
+    const run = new ClaimRun(73);
+    run.noteFetchPhase(snapshot());
+    run.noteStage('fandom', 'chapterPages', { requested: 110, fetched: 40 });
+
+    const rows = run.buildRows();
+    expect(row(rows, 'fandom', '_fetch.chapterPages')?.fetchOutcome).toBe('partial');
+    expect(row(rows, 'fandom', '_fetch')?.fetchOutcome).toBe('partial');
+  });
+
+  it('leaves Fandom ok when every requested page came back', () => {
+    const run = new ClaimRun(73);
+    run.noteFetchPhase(snapshot());
+    run.noteStage('fandom', 'chapterPages', { requested: 110, fetched: 110 });
+
+    const rows = run.buildRows();
+    expect(row(rows, 'fandom', '_fetch.chapterPages')?.fetchOutcome).toBe('ok');
     expect(row(rows, 'fandom', '_fetch')?.fetchOutcome).toBe('ok');
+  });
+
+  it('records the pages the parser fetched while building the list as their own stage', () => {
+    const run = new ClaimRun(73);
+    run.noteFetchPhase(snapshot({ fandom: { ...fandomSnapshot(110, []), chapterPages: { requested: 110, fetched: 0 } } }));
+
+    const rows = run.buildRows();
+    expect(row(rows, 'fandom', '_fetch.listChapterPages')).toMatchObject({
+      fetchOutcome: 'failed', detail: { requested: 110, fetched: 0 },
+    });
+    expect(row(rows, 'fandom', '_fetch')?.fetchOutcome).toBe('partial');
+  });
+
+  it('adds up repeated fetches of one stage into a single row', () => {
+    const run = new ClaimRun(73);
+    run.noteFetchPhase(snapshot());
+    run.noteStage('fandom', 'chapterPages', { requested: 110, fetched: 0 });
+    run.noteStage('fandom', 'chapterPages', { requested: 110, fetched: 110 });
+
+    const rows = run.buildRows().filter(r => r.field === '_fetch.chapterPages');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ fetchOutcome: 'partial', detail: { requested: 220, fetched: 110, calls: 2 } });
+  });
+
+  it('does not lower another provider\'s outcome', () => {
+    const run = new ClaimRun(73);
+    run.noteFetchPhase(snapshot());
+    run.noteStage('fandom', 'chapterPages', { requested: 110, fetched: 0 });
+    expect(row(run.buildRows(), 'wikipedia', '_fetch')?.fetchOutcome).toBe('ok');
   });
 });
 
@@ -172,11 +270,32 @@ describe('ClaimRun — recording cannot fail a run', () => {
     const run = new ClaimRun(73);
     run.noteSelection(null as unknown as ProviderClaim[], null as never);
     run.noteFetchPhase(snapshot());
-    expect(run.buildRows().filter(r => r.kind === 'fetch')).toHaveLength(8);
+    expect(run.buildRows().filter(r => r.kind === 'fetch' && r.field === '_fetch')).toHaveLength(8);
   });
 
   it('flush resolves when the store rejects', async () => {
     mockedWrite.mockRejectedValue(new Error('db down'));
+    const run = new ClaimRun(73);
+    run.noteFetchPhase(snapshot());
+    await expect(run.flush()).resolves.toBeUndefined();
+  });
+
+  it('flush stops waiting for a write that hangs, so the run can go on', async () => {
+    mockedWrite.mockImplementation(() => new Promise(() => { /* never settles */ }));
+    const run = new ClaimRun(73, 25);
+    run.noteFetchPhase(snapshot());
+
+    const started = Date.now();
+    await expect(run.flush()).resolves.toBeUndefined();
+
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('flush does not wait for the retention delete', async () => {
+    mockedWrite.mockImplementation(batch => Promise.resolve({
+      written: batch.rows.length, retention: new Promise<number>(() => { /* never settles */ }),
+    }));
     const run = new ClaimRun(73);
     run.noteFetchPhase(snapshot());
     await expect(run.flush()).resolves.toBeUndefined();

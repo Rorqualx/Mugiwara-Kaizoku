@@ -1394,6 +1394,7 @@ async function enrichChapterDetailsFromPages(
   mangaData: ReturnType<typeof buildMangaData>,
   domain: string,
   parsedPageUrl?: string,
+  onChapterPages?: (requested: number, fetched: number) => void,
 ): Promise<void> {
   const chapters = mangaData.chapterList ?? [];
   if (chapters.length === 0) return;
@@ -1428,6 +1429,7 @@ async function enrichChapterDetailsFromPages(
     const urls = needCovers.map(ch => ch.url).filter((u): u is string => Boolean(u));
     logger.info(`[adaptiveParse] Fetching chapter details for ${urls.length} chapters on ${domain}`);
     const details = await chapterDetailService.fetchMultipleChapterDetails(urls);
+    onChapterPages?.(urls.length, details.length);
     const detailMap = new Map(details.map(d => [d.url, d]));
 
     for (const ch of needCovers) {
@@ -2164,6 +2166,7 @@ export async function adaptiveParse(
         const urls = chaptersNeedingCovers.map(ch => ch.url).filter((u): u is string => Boolean(u));
         logger.info(`[adaptiveParse] Fetching chapter details for ${urls.length} chapters`);
         const details = await chapterDetailService.fetchMultipleChapterDetails(urls);
+        mergedOptions.onChapterPages?.(urls.length, details.length);
         mergeChapterDetails(extraction.parsedData, details);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -2244,7 +2247,7 @@ export async function adaptiveParse(
     }
 
     // Scrape chapter URLs from page HTML + fetch chapter detail pages for covers/descriptions
-    await enrichChapterDetailsFromPages(mangaData, canonicalDomain, finalUrl);
+    await enrichChapterDetailsFromPages(mangaData, canonicalDomain, finalUrl, mergedOptions.onChapterPages);
 
     return {
       success: true,
@@ -2303,7 +2306,7 @@ export async function adaptiveParse(
       : mangaData;
 
     // Scrape chapter URLs + fetch chapter details for covers/descriptions
-    await enrichChapterDetailsFromPages(mergedData, canonicalDomain, finalUrl);
+    await enrichChapterDetailsFromPages(mergedData, canonicalDomain, finalUrl, mergedOptions.onChapterPages);
 
     return {
       success: true,

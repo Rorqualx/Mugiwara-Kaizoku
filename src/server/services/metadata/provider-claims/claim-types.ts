@@ -16,14 +16,23 @@ export const MANIFEST_FIELD = 'volumeRanges';
 /**
  * What became of a provider's fetch in one run.
  *
- * - `ok`       — data fetched and usable.
+ * - `ok`       — everything asked of the provider arrived and was used.
+ * - `partial`  — the provider answered, but a follow-up fetch for it did not
+ *                bring back everything it asked for (Fandom's list arrived,
+ *                some or all of its chapter pages did not).
  * - `no_match` — the provider answered and has nothing for this title.
  * - `failed`   — error, timeout, outage, or a page our parser got nothing from.
  *                The provider may well have the data.
  * - `gated`    — data fetched, then discarded by a gate (cross-series gate).
  * - `skipped`  — not asked: disabled, unbound by the user, or not applicable.
+ * - `unknown`  — the fetch phase ended before it reported on its providers.
+ *
+ * Only `ok` is a good fetch: `getLastGoodClaim` skips every other outcome.
+ *
+ * A `_fetch.<stage>` row uses the same words for that stage alone: `failed`
+ * when nothing it asked for came back, `partial` when some did, `ok` when all did.
  */
-export type ClaimFetchOutcome = 'ok' | 'no_match' | 'failed' | 'gated' | 'skipped';
+export type ClaimFetchOutcome = 'ok' | 'partial' | 'no_match' | 'failed' | 'gated' | 'skipped' | 'unknown';
 
 /**
  * What the selector did with a scalar claim.

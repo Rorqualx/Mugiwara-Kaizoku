@@ -569,7 +569,7 @@ function generateFandomSlugs(title: string, altTitles: ReadonlyArray<string> = [
  * can update the cached URL.
  */
 // eslint-disable-next-line complexity -- Multi-strategy fetch: page-passthrough + self-heal retry + adaptive parse + direct-extract fallback + cross-wiki redirect detection. Each branch is a distinct, necessary fallback; splitting would scatter the single linear fetch flow.
-export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: string, seriesAltTitles?: string[]): Promise<{
+export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: string, seriesAltTitles?: string[], pageCounts?: { requested: number; fetched: number }): Promise<{
   chapterList: ChapterDataItem[];
   volumeList: VolumeDataItem[];
   rawHtml?: string;
@@ -594,6 +594,8 @@ export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: st
       useCache: false,
       ...(seriesTitle ? { seriesTitle } : {}),
       ...(seriesAltTitles && seriesAltTitles.length > 0 ? { seriesAltTitles } : {}),
+      // The caller's tally of chapter pages asked for and received, across every parse attempt.
+      ...(pageCounts ? { onChapterPages: (requested: number, fetched: number): void => addPageCounts(pageCounts, requested, fetched) } : {}),
     };
     let result = await adaptiveParse(parseInput, parseOpts);
 
@@ -665,6 +667,7 @@ export async function fetchWikipediaChapterData(
   title: string,
   mangaId: number,
   hints?: { anilistId?: number; malId?: number; anilistChapters?: number; mangaupdatesChapters?: number; mangadexChapters?: number },
+  onFailure?: (reason: string) => void,
 ): Promise<UnifiedProviderResults['wikipediaResult']> {
   try {
     const { isManuallyUnbound } = await import('./manual-binding-sentinel');
@@ -714,8 +717,16 @@ export async function fetchWikipediaChapterData(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`Wikipedia fetch failed: ${msg}`);
+    onFailure?.(msg);
     return null;
   }
+}
+
+function addPageCounts(tally: { requested: number; fetched: number }, requested: number, fetched: number): void {
+  // eslint-disable-next-line no-param-reassign -- the tally is the caller's accumulator
+  tally.requested += requested;
+  // eslint-disable-next-line no-param-reassign -- the tally is the caller's accumulator
+  tally.fetched += fetched;
 }
 
 /** Extract the domain from a Fandom URL so adaptive parser runs its internal URL discovery */

@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { crossValidateRecorded, noteFandomChapterPages } from '../claim-run/notes';
+import { crossValidateRecorded, noteFandomChapterPages, noteReconciliationGate } from '../claim-run/notes';
 import { crossValidateVolumeRanges, type VolumeRangeProposal } from '../phase-volume-cross-validation';
 
 import type { ClaimRecorder } from '../claim-run/recorder';
@@ -17,7 +17,7 @@ function spyRecorder(): { recorder: ClaimRecorder; calls: string[]; seenSources:
   const recorder: ClaimRecorder = {
     runId: 'run-1',
     noteFetchFailure: () => { calls.push('failure'); },
-    noteGated: () => { calls.push('gated'); },
+    noteGated: (provider, reason, preGate) => { calls.push(`gated:${provider}:${reason}:${Object.keys(preGate).length}`); },
     noteFetchPhase: () => { calls.push('fetch'); },
     noteSelection: () => { calls.push('selection'); },
     noteStage: (provider, stage, counts) => { calls.push(`stage:${provider}:${stage}:${counts.requested}:${counts.fetched}`); },
@@ -58,6 +58,24 @@ describe('crossValidateRecorded', () => {
 
     expect(crossValidateRecorded(undefined, simple, GATE)).toEqual(expected);
     expect(crossValidateRecorded({ claimRun: spyRecorder().recorder }, simple, GATE)).toEqual(expected);
+  });
+});
+
+describe('noteReconciliationGate', () => {
+  const counts = { mangadex: 6, anilist: 60 };
+
+  it('notes Fandom as gated, with no pre-gate lists, when chapters went into the reconciliation gate and none came out', () => {
+    const { recorder, calls } = spyRecorder();
+    noteReconciliationGate({ claimRun: recorder }, 686, 0, counts);
+    expect(calls).toEqual(['gated:fandom:reconciliation gate: 686 chapters vs AniList 60 / MangaDex 6:0']);
+  });
+
+  it('notes nothing when the gate let the chapters through or there were none to gate', () => {
+    const { recorder, calls } = spyRecorder();
+    noteReconciliationGate({ claimRun: recorder }, 110, 110, counts);
+    noteReconciliationGate({ claimRun: recorder }, 0, 0, counts);
+    noteReconciliationGate(undefined, 686, 0, counts);
+    expect(calls).toEqual([]);
   });
 });
 

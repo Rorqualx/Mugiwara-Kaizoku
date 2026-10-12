@@ -33,6 +33,20 @@ describe('fetch outcome per provider', () => {
     expect(verdict?.detail['reason']).toBe('This operation was aborted');
   });
 
+  it('names the MAL record that was asked for on a failed MAL row', () => {
+    const base = snapshot();
+    const fromAniList = snapshot({ providerStatus: status({ mal: 'no_match' }), mal: null });
+    const fromMangaDex = snapshot({
+      providerStatus: status({ mal: 'no_match' }), mal: null,
+      anilist: { id: 30012, details: { idMal: null } },
+      mangadex: base.mangadex ? { ...base.mangadex, malId: 4455 } : null,
+    });
+    const failed = notes({ failures: new Map([['mal', 'http_403']]) });
+
+    expect(verdictOf('mal', fromAniList, failed)?.recordId).toBe('12');
+    expect(verdictOf('mal', fromMangaDex, failed)?.recordId).toBe('4455');
+  });
+
   it('records no_match when MAL was asked, answered, and has nothing', () => {
     const snap = snapshot({ providerStatus: status({ mal: 'no_match' }), mal: null });
     expect(verdictOf('mal', snap)?.outcome).toBe('no_match');

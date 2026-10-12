@@ -39,6 +39,24 @@ describe('Jikan client — telling an outage from "no such manga"', () => {
     expect(onFailure).toHaveBeenCalledWith('http_503');
   });
 
+  it.each([400, 403, 500])('reports a failure on HTTP %i, which is not "no such manga"', async (status) => {
+    stubFetch(async () => response(status));
+    const onFailure = jest.fn();
+
+    await expect(fetchMangaById(12, 1, onFailure)).resolves.toBeNull();
+
+    expect(onFailure).toHaveBeenCalledWith(`http_${status}`);
+  });
+
+  it('reports a failure when every attempt is rate limited', async () => {
+    stubFetch(async () => response(429));
+    const onFailure = jest.fn();
+
+    await expect(fetchMangaById(12, 1, onFailure)).resolves.toBeNull();
+
+    expect(onFailure).toHaveBeenCalledWith('rate_limited');
+  }, 15_000);
+
   it('does not report a failure when Jikan answers that the manga does not exist', async () => {
     stubFetch(async () => response(404));
     const onFailure = jest.fn();

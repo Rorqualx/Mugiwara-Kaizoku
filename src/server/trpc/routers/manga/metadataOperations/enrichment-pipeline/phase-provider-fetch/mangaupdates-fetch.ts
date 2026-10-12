@@ -317,11 +317,14 @@ export async function fetchMangaUpdatesDirect(
   directive?: ProviderDirective<MangaUpdatesPinId>,
 ): Promise<MangaUpdatesDirectResult | null> {
   const pin = directive?.pin ?? { kind: 'none' };
+  const onFailure = directive?.onFailure;
   if (pin.kind === 'unbound') {
     log.info('MangaUpdates: skipping — manually marked as unbound', { title });
     return null;
   }
   if (pin.kind === 'pinned') {
+    // No failure sink here: a pin that cannot be fetched falls back to the
+    // search below, and an outage is reported from there.
     const pinned = await fetchPinnedMangaUpdates(pin.id);
     if (pinned) return pinned;
   } else if (pin.kind === 'unusable') {
@@ -339,7 +342,7 @@ export async function fetchMangaUpdatesDirect(
   const allHits: MUSearchHit[] = [];
   for (const q of queries) {
     // eslint-disable-next-line no-await-in-loop -- MangaUpdates is rate-limited and the loop runs only over title + alternative titles (typically 1-5 queries); serial avoids 429s
-    const hits = await mangaUpdatesService.searchSeries(q, 10);
+    const hits = await mangaUpdatesService.searchSeries(q, 10, onFailure);
     for (const hit of hits) {
       if (!seenIds.has(hit.record.series_id)) {
         seenIds.add(hit.record.series_id);
@@ -367,7 +370,7 @@ export async function fetchMangaUpdatesDirect(
     return null;
   }
 
-  const details = await mangaUpdatesService.getSeriesDetails(bestMatch.hit.record.series_id);
+  const details = await mangaUpdatesService.getSeriesDetails(bestMatch.hit.record.series_id, onFailure);
   if (!details) return null;
 
   const result = buildMangaUpdatesResult(details);

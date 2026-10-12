@@ -8,12 +8,15 @@
 
 import { prisma } from '@/server/db';
 
-import { getLastGoodClaimFrom, getLatestClaimsFrom, writeClaimRunTo } from './claim-queries';
+import { getLastGoodClaimFrom, getLatestClaimsFrom, writeClaimRunTo, type ClaimWriteResult } from './claim-queries';
 
 import type { ClaimRunBatch, LatestClaims, StoredClaim } from './claim-types';
 
-/** Write one run's rows in a single insert and apply retention. Never throws. */
-export async function writeClaimRun(batch: ClaimRunBatch): Promise<number> {
+/**
+ * Write one run's rows in a single insert. Retention starts afterwards and is
+ * not awaited (see `ClaimWriteResult.retention`). Never throws.
+ */
+export async function writeClaimRun(batch: ClaimRunBatch): Promise<ClaimWriteResult> {
   return writeClaimRunTo(prisma, batch);
 }
 

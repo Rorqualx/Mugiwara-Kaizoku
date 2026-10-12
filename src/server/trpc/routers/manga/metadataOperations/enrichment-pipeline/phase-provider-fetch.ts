@@ -124,8 +124,9 @@ export async function phaseProviderFetch(
   const rejections = await getRejectedIdsByProvider(mangaId);
   const rejectedAlIds = rejectedIdsFor(rejections, 'anilist');
   // Manual pins, unbound sentinels and rejections for the other providers.
+  const noteFailure = (provider: string, reason: string): void => options?.claimRun?.noteFetchFailure(provider, reason);
   const directives = buildProviderDirectives(
-    mangaPin?.providerMetadata, (provider) => rejectedIdsFor(rejections, provider),
+    mangaPin?.providerMetadata, (provider) => rejectedIdsFor(rejections, provider), noteFailure,
   );
   // Format gate: light novels are demoted unless the library title is one.
   const demoteNovels = !isNovelMediaType(mangaPin?.mediaType);
@@ -160,10 +161,10 @@ export async function phaseProviderFetch(
   // step then discarded.
   const [anilistSettled, mangadexSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, { pinnedId: pinnedAlId, fallbackId: options?.previousAniListId, rejectedIds: rejectedAlIds, demoteNovels }), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, { pinnedId: pinnedAlId, fallbackId: options?.previousAniListId, rejectedIds: rejectedAlIds, demoteNovels, onFailure: (reason) => noteFailure('anilist', reason) }), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
       enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title, directives.mangadex), T, 'mangadex-fetch', () => outcomes.markTimeout('mangadex')) : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch', () => outcomes.markTimeout('fandom')) : noop,
-      enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId), T, 'wikipedia-fetch', () => outcomes.markTimeout('wikipedia')) : noop,
+      enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId, undefined, (reason) => noteFailure('wikipedia', reason)), T, 'wikipedia-fetch', () => outcomes.markTimeout('wikipedia')) : noop,
       enabled.has('mangaupdates') ? withTimeoutOrNull(fetchMangaUpdatesDirect(title, undefined, directives.mangaupdates), T, 'mangaupdates-fetch', () => outcomes.markTimeout('mangaupdates')) : noop,
       enabled.has('kitsu') ? withTimeoutOrNull(fetchKitsuDirect(title, undefined, directives.kitsu), T, 'kitsu-fetch', () => outcomes.markTimeout('kitsu')) : noop,
     ]);
@@ -270,7 +271,7 @@ export async function phaseProviderFetch(
           ...(mdxCh && !isNaN(mdxCh) ? { mangadexChapters: mdxCh } : {}),
         };
         return withTimeoutOrNull(
-          fetchWikipediaChapterData(title, mangaId, wikiHints), T, 'wikipedia-retry', () => outcomes.markTimeout('wikipedia'),
+          fetchWikipediaChapterData(title, mangaId, wikiHints, (reason) => noteFailure('wikipedia', reason)), T, 'wikipedia-retry', () => outcomes.markTimeout('wikipedia'),
         );
       })(),
       // Re-discover Fandom when initial parallel fetch failed. Two fallback strategies:
@@ -429,7 +430,7 @@ export async function phaseProviderFetch(
   // An unbound MAL stays unfetched (it has no matcher, only this cross-reference fetch).
   const malData = enabled.has('mal') && !directives.malUnbound
     ? await withTimeoutOrNull(
-        fetchMALWithCrossValidation(anilistData, mangadexData, title, (reason) => options?.claimRun?.noteFetchFailure('mal', reason)), T, 'mal-fetch', () => outcomes.markTimeout('mal'),
+        fetchMALWithCrossValidation(anilistData, mangadexData, title, (reason) => noteFailure('mal', reason)), T, 'mal-fetch', () => outcomes.markTimeout('mal'),
       )
     : null;
 
@@ -716,11 +717,11 @@ export function extractBoundProviderId(providerMetadata: unknown, provider: stri
  * Try to fetch AniList by pinned ID, bypassing search + matcher.
  * Returns null if pinnedId is missing, invalid, or the API returns no data.
  */
-async function fetchAniListByPinnedId(pinnedId: string | null | undefined): Promise<AniListDirectResult | null> {
+async function fetchAniListByPinnedId(pinnedId: string | null | undefined, onFailure?: (reason: string) => void): Promise<AniListDirectResult | null> {
   if (!pinnedId) return null;
   const pinnedIdNum = Number(pinnedId);
   if (!Number.isInteger(pinnedIdNum) || pinnedIdNum <= 0) return null;
-  const details = await anilistService.getMangaDetails(pinnedIdNum);
+  const details = await anilistService.getMangaDetails(pinnedIdNum, onFailure);
   if (!details) {
     log.warn(`AniList: pinned ID ${pinnedIdNum} returned no details — falling back to search`);
     return null;
@@ -750,15 +751,16 @@ async function fetchAniListDirect(
     rejectedIds?: ReadonlySet<string>;
     /** Format gate — applies to the matcher only; a pinned id is the user's choice. */
     demoteNovels?: boolean;
+    onFailure?: (reason: string) => void;
   } = {},
 ): Promise<AniListDirectResult | null> {
-  const { pinnedId, fallbackId, rejectedIds, demoteNovels } = opts;
+  const { pinnedId, fallbackId, rejectedIds, demoteNovels, onFailure } = opts;
   await anilistService.initialize();
 
   const isRejected = (id: string | null | undefined): boolean =>
     id !== null && id !== undefined && (rejectedIds?.has(id) ?? false);
 
-  const pinned = await fetchAniListByPinnedId(pinnedId);
+  const pinned = await fetchAniListByPinnedId(pinnedId, onFailure);
   if (pinned) return pinned;
 
   // Iter-25: strip edition suffix ("Manga", "Colored"…), then retry with a
@@ -769,6 +771,7 @@ async function fetchAniListDirect(
   let results = await anilistService.searchManga(searchQuery, {
     limit: 5,
     includeDescription: true,
+    ...(onFailure ? { onFailure } : {}),
   });
   if (results.length < 3) {
     const fallback = buildFallbackSearchQuery(searchQuery);
@@ -796,7 +799,7 @@ async function fetchAniListDirect(
     // resolves fine — so fall back to the previous binding rather than failing the
     // anchor (a failed AniList anchor cascades into garbage ComicVine/Wikipedia
     // matches). Skip the fallback when that previous id has itself been rejected.
-    const fallback = isRejected(fallbackId) ? null : await fetchAniListByPinnedId(fallbackId);
+    const fallback = isRejected(fallbackId) ? null : await fetchAniListByPinnedId(fallbackId, onFailure);
     if (fallback) {
       log.info('AniList: title search empty — falling back to previous binding id', { title, fallbackId });
       return fallback;
@@ -808,7 +811,7 @@ async function fetchAniListDirect(
   if (!matched) return null;
 
   // Get full details
-  const details = await anilistService.getMangaDetails(matched.result.id);
+  const details = await anilistService.getMangaDetails(matched.result.id, onFailure);
   if (!details) return null;
 
   log.info('AniList: matched', {
@@ -840,7 +843,8 @@ async function fetchFandomForPhase1(
     ?? await discoverFandomWikiUrl(mangaId, title, forceRefresh, externalAltTitles);
   if (!fandomUrl) return null;
 
-  const fetchResult = await fetchFandomChapterData(fandomUrl, title, externalAltTitles);
+  const chapterPages = { requested: 0, fetched: 0 };
+  const fetchResult = await fetchFandomChapterData(fandomUrl, title, externalAltTitles, chapterPages);
 
   // Persist the actual article page the parser extracted from. This preserves
   // the granular spin-off page (e.g. ".../Attack_on_Titan:_Before_the_Fall_
@@ -861,6 +865,7 @@ async function fetchFandomForPhase1(
     parseSuccess: fetchResult.parseSuccess,
   };
   if (fetchResult.rawHtml) result.rawHtml = fetchResult.rawHtml;
+  if (chapterPages.requested > 0) result.chapterPages = chapterPages;
   return result;
 }
 

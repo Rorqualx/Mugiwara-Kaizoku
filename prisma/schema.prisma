@@ -215,6 +215,7 @@ model Manga {
   ReaderBookmark       ReaderBookmark[]
   ReadingHistory       ReadingHistory[]
   WantedItem           WantedItem[]
+  MetadataProviderClaim MetadataProviderClaim[]
   DownloadHistory      DownloadHistory[]
   autoDownloadRules    AutoDownloadRule[]
   BookmarkedVolume     BookmarkedVolume[]
@@ -3092,7 +3093,8 @@ model MetadataProviderClaim {
   value            Json?
   /// Outcome of this provider's fetch in this run, repeated on its scalar and
   /// manifest rows; a '_fetch.<stage>' row carries that stage's own outcome.
-  /// 'ok' | 'no_match' | 'failed' | 'gated' | 'skipped'.
+  /// 'ok' | 'partial' | 'no_match' | 'failed' | 'gated' | 'skipped' | 'unknown'.
+  /// Only 'ok' counts as a good fetch (see `getLastGoodClaim`).
   fetchOutcome     String
   /// Scalar rows only: 'winner' | 'agrees' | 'dissent' | 'refused' |
   /// 'not_selected' | 'not_counted' | 'not_compared'.
@@ -3109,9 +3111,10 @@ model MetadataProviderClaim {
   /// Fetch rows: why (reason, list sizes). Manifest rows: what cross-validation kept.
   detail           Json?
   createdAt        DateTime @default(now())
+  /// A title's claims go when the title is deleted.
+  Manga            Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
 
   @@index([mangaId, runId])
-  @@index([provider, field])
 }
 
 /// Phase 5 Sprint #1: AniList recommendation graph. Per-manga "similar

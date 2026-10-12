@@ -42,10 +42,16 @@ function isUnbound(provider: string, snapshot: FetchPhaseSnapshot): boolean {
   return false;
 }
 
-function hasMalId(snapshot: FetchPhaseSnapshot): boolean {
+/** The MAL id the phase asks with: AniList's, else MangaDex's (same order as the fetch). */
+function askedMalId(snapshot: FetchPhaseSnapshot): number | undefined {
   const fromAniList = snapshot.anilist?.details.idMal;
+  if (typeof fromAniList === 'number' && fromAniList > 0) return fromAniList;
   const fromMangaDex = snapshot.mangadex?.malId;
-  return (typeof fromAniList === 'number' && fromAniList > 0) || (typeof fromMangaDex === 'number' && fromMangaDex > 0);
+  return typeof fromMangaDex === 'number' && fromMangaDex > 0 ? fromMangaDex : undefined;
+}
+
+function hasMalId(snapshot: FetchPhaseSnapshot): boolean {
+  return askedMalId(snapshot) !== undefined;
 }
 
 /** An object came back — did anything usable come with it? */
@@ -101,7 +107,8 @@ const RECORD_ID_READERS: Readonly<Record<string, RecordIdReader>> = {
   comicvine: snapshot => idText(snapshot.comicvine?.volumeId),
   mangaupdates: snapshot => idText(snapshot.mangaupdates?.seriesId),
   kitsu: snapshot => idText(snapshot.kitsu?.kitsuId),
-  mal: snapshot => idText(snapshot.mal?.malId),
+  // The id MAL was asked for, so a failed fetch still names its record.
+  mal: snapshot => idText(snapshot.mal?.malId ?? askedMalId(snapshot)),
   fandom: (snapshot, preGate) => idText((preGate.fandom ?? snapshot.fandom)?.url),
   wikipedia: (snapshot, preGate) => wikipediaRecordId(preGate.wikipedia ?? snapshot.wikipedia),
 };

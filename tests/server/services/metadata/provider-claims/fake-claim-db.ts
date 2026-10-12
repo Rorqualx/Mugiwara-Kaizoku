@@ -61,16 +61,37 @@ function sortRows(rows: FakeRow[], orderBy: OrderBy | undefined): FakeRow[] {
   return sorted;
 }
 
+interface MaxAggregates {
+  runId: string;
+  createdAt: Date;
+  id: bigint;
+}
+
+type AggregateOrderBy = Array<{ _max?: Partial<Record<'createdAt' | 'id', 'asc' | 'desc'>> }>;
+
+function compareAggregates(a: MaxAggregates, b: MaxAggregates, orderBy: AggregateOrderBy | undefined): number {
+  for (const clause of orderBy ?? []) {
+    for (const [key, direction] of Object.entries(clause._max ?? {})) {
+      const field = key as 'createdAt' | 'id';
+      const diff = compareValues(a[field], b[field]);
+      if (diff !== 0) return direction === 'desc' ? -diff : diff;
+    }
+  }
+  return 0;
+}
+
 export interface FakeClaimDb {
   db: ClaimDb;
   rows: FakeRow[];
   calls: { createMany: number; deleteMany: number };
   /** Make the named operation reject from now on. */
   failOn(operation: 'createMany' | 'groupBy' | 'findFirst'): void;
+  /** Make the retention lookup take this long from now on. */
+  slowRetention(ms: number): void;
 }
 
 export function createFakeClaimDb(): FakeClaimDb {
-  const state = { rows: [] as FakeRow[], nextId: 1n, failing: new Set<string>() };
+  const state = { rows: [] as FakeRow[], nextId: 1n, failing: new Set<string>(), groupByDelayMs: 0 };
   const calls = { createMany: 0, deleteMany: 0 };
   const guard = (operation: string): void => {
     if (state.failing.has(operation)) throw new Error(`fake ${operation} failure`);
@@ -90,15 +111,23 @@ export function createFakeClaimDb(): FakeClaimDb {
     async findMany(args: { where?: Where; orderBy?: OrderBy }): Promise<FakeRow[]> {
       return sortRows(state.rows.filter(r => matches(r, args.where)), args.orderBy);
     },
-    async groupBy(args: { where?: Where; skip?: number }): Promise<Array<{ runId: string }>> {
+    async groupBy(args: { where?: Where; skip?: number; orderBy?: AggregateOrderBy }): Promise<Array<{ runId: string }>> {
       guard('groupBy');
-      const newest = new Map<string, FakeRow>();
+      // A real query takes a round trip: never answer within the caller's own tick.
+      await new Promise<void>(resolve => { setTimeout(resolve, state.groupByDelayMs); });
+      // One group per run, carrying the aggregates the query may order by.
+      const groups = new Map<string, MaxAggregates>();
       for (const row of state.rows.filter(r => matches(r, args.where))) {
-        const seen = newest.get(row.runId);
-        if (!seen || compareValues(row.createdAt, seen.createdAt) > 0 || row.id > seen.id) newest.set(row.runId, row);
+        const seen = groups.get(row.runId);
+        groups.set(row.runId, {
+          runId: row.runId,
+          createdAt: seen && compareValues(seen.createdAt, row.createdAt) > 0 ? seen.createdAt : row.createdAt,
+          id: seen && seen.id > row.id ? seen.id : row.id,
+        });
       }
-      const runs = [...newest.values()].sort((a, b) => compareValues(b.createdAt, a.createdAt) || compareValues(b.id, a.id));
-      return runs.slice(args.skip ?? 0).map(row => ({ runId: row.runId }));
+      // Ordered exactly as the query asks; with no orderBy the order is insertion order.
+      const runs = [...groups.values()].sort((a, b) => compareAggregates(a, b, args.orderBy));
+      return runs.slice(args.skip ?? 0).map(group => ({ runId: group.runId }));
     },
     async deleteMany(args: { where?: Where }): Promise<{ count: number }> {
       calls.deleteMany += 1;
@@ -114,5 +143,6 @@ export function createFakeClaimDb(): FakeClaimDb {
     rows: state.rows,
     calls,
     failOn: (operation): void => { state.failing.add(operation); },
+    slowRetention: (ms): void => { state.groupByDelayMs = ms; },
   };
 }

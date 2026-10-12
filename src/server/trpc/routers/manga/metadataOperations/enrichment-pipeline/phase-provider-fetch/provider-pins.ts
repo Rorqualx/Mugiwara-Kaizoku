@@ -38,6 +38,8 @@ export interface ProviderDirective<T> {
    * search now finds nothing, so a bound title keeps its provider data.
    */
   boundId?: T;
+  /** Told when the provider's service swallowed an error and returned "nothing". */
+  onFailure?: (reason: string) => void;
 }
 
 export interface MangaUpdatesPinId {
@@ -211,11 +213,14 @@ function comicVineDirective(providerMetadata: unknown, rejectedIds: ReadonlySet<
 export function buildProviderDirectives(
   providerMetadata: unknown,
   rejectedIdsFor: (provider: string) => ReadonlySet<string>,
+  onFailure?: (provider: string, reason: string) => void,
 ): ProviderDirectives {
+  const sink = (provider: string): Pick<ProviderDirective<unknown>, 'onFailure'> =>
+    (onFailure ? { onFailure: (reason: string): void => onFailure(provider, reason) } : {});
   return {
     mangadex: { pin: readMangaDexPin(providerMetadata), rejectedIds: rejectedIdsFor('mangadex') },
-    mangaupdates: { pin: readMangaUpdatesPin(providerMetadata), rejectedIds: rejectedIdsFor('mangaupdates') },
-    kitsu: { pin: readKitsuPin(providerMetadata), rejectedIds: rejectedIdsFor('kitsu') },
+    mangaupdates: { pin: readMangaUpdatesPin(providerMetadata), rejectedIds: rejectedIdsFor('mangaupdates'), ...sink('mangaupdates') },
+    kitsu: { pin: readKitsuPin(providerMetadata), rejectedIds: rejectedIdsFor('kitsu'), ...sink('kitsu') },
     comicvine: comicVineDirective(providerMetadata, rejectedIdsFor('comicvine')),
     malUnbound: isManuallyUnboundFromMetadata(providerMetadata, 'mal'),
   };

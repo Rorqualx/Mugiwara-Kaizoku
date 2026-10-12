@@ -1,6 +1,6 @@
 -- Per-provider claims store: what each provider said in each enrichment run,
 -- recorded before the gates and the selector. Append-only; no existing table
--- is changed. Retention (last N runs per title) is applied by the writer.
+-- is changed (one foreign key points at "Manga"). Retention (last N runs per title) is applied by the writer.
 
 CREATE TABLE IF NOT EXISTS "MetadataProviderClaim" (
     "id"               BIGSERIAL                       NOT NULL,
@@ -23,5 +23,12 @@ CREATE TABLE IF NOT EXISTS "MetadataProviderClaim" (
 
 CREATE INDEX IF NOT EXISTS "MetadataProviderClaim_mangaId_runId_idx"
     ON "MetadataProviderClaim" ("mangaId", "runId");
-CREATE INDEX IF NOT EXISTS "MetadataProviderClaim_provider_field_idx"
-    ON "MetadataProviderClaim" ("provider", "field");
+
+-- A title's claims go when the title is deleted.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'MetadataProviderClaim_mangaId_fkey') THEN
+    ALTER TABLE "MetadataProviderClaim" ADD CONSTRAINT "MetadataProviderClaim_mangaId_fkey"
+      FOREIGN KEY ("mangaId") REFERENCES "Manga"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;

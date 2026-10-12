@@ -108,6 +108,8 @@ export interface UnifiedProviderResults {
     volumeList: VolumeDataItem[];
     rawHtml?: string;
     parseSuccess: boolean;
+    /** Chapter pages the parser asked for while building the list, and how many came back. */
+    chapterPages?: { requested: number; fetched: number };
   } | null;
   wikipediaResult: {
     data: WikipediaMangaData;

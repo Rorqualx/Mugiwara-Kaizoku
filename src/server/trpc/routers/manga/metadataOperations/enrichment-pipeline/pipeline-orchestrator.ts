@@ -25,7 +25,7 @@ import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { logger } from '@/utils/logger';
 
 import { withClaimRun } from './claim-run/claim-run';
-import { crossValidateRecorded } from './claim-run/notes';
+import { crossValidateRecorded, noteReconciliationGate } from './claim-run/notes';
 import { collectFinalChapterWitnesses } from './corroborated-final-chapter';
 import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
@@ -123,6 +123,7 @@ async function reconcileFromProviderResults(
   mangaId: number,
   result: UnifiedProviderResults,
   onProgress?: EnrichmentProgress,
+  options?: EnrichmentPipelineOptions,
 ): Promise<void> {
   const rawFandomChapters = result.fandomResult?.chapterList ?? [];
   const wikiChapters = result.wikipediaResult?.chapterList ?? [];
@@ -152,6 +153,7 @@ async function reconcileFromProviderResults(
       tightRatio: FANDOM_TIGHT_RATIO, absOverflow: FANDOM_ABS_OVERFLOW, tightMinAniList: FANDOM_TIGHT_MIN_AL,
     },
   );
+  noteReconciliationGate(options, rawFandomChapters.length, fandomChapters.length, { mangadex: mangadexChapters.length, anilist: anilistChapterCount });
 
   const dbChapterCount = await prisma.chapter.count({ where: { mangaId } });
   // Stored terminal signal — last-resort trusted ceiling when live providers
@@ -563,7 +565,7 @@ async function executeEnrichmentPhases(
   await phaseDbPersistence(mangaId, result.enrichmentResult, onProgress, getMangaDexAggregateCount(result), chapterConsensus);
 
   // Phase 2.5: Chapter reconciliation (merge Fandom + Wikipedia chapters)
-  await reconcileFromProviderResults(mangaId, result, onProgress);
+  await reconcileFromProviderResults(mangaId, result, onProgress, options);
 
   // Phase 3: COLLECT proposals from all sources
   await onProgress?.('validating', 'Cross-validating volume ranges...');

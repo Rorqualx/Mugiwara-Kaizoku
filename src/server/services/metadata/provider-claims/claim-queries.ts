@@ -75,6 +75,8 @@ export async function pruneOldClaimRunsIn(
   keep: number = CLAIM_RUNS_KEPT_PER_TITLE,
 ): Promise<number> {
   try {
+    // Newest run first, so `skip` steps over the runs to keep and what is
+    // left is every older run.
     const stale = await db.metadataProviderClaim.groupBy({
       by: ['runId'],
       where: { mangaId },
@@ -93,24 +95,32 @@ export async function pruneOldClaimRunsIn(
   }
 }
 
+export interface ClaimWriteResult {
+  /** Rows inserted (0 when the insert failed). */
+  written: number;
+  /**
+   * The retention delete, started after a successful insert and NOT awaited
+   * by the write: it is best-effort and must not hold up a run. Resolves to
+   * the rows deleted; never rejects.
+   */
+  retention: Promise<number>;
+}
+
 /**
- * Write one run's rows in a single insert, then apply retention. Never
- * throws. Returns the number of rows written (0 when the write failed).
+ * Write one run's rows in a single insert, then start retention without
+ * waiting for it. Never throws.
  */
-export async function writeClaimRunTo(db: ClaimDb, batch: ClaimRunBatch): Promise<number> {
-  if (batch.rows.length === 0) return 0;
-  let written = 0;
+export async function writeClaimRunTo(db: ClaimDb, batch: ClaimRunBatch): Promise<ClaimWriteResult> {
+  if (batch.rows.length === 0) return { written: 0, retention: Promise.resolve(0) };
   try {
     const result = await db.metadataProviderClaim.createMany({
       data: batch.rows.map(row => toCreateInput(batch, row)),
     });
-    written = result.count;
+    return { written: result.count, retention: pruneOldClaimRunsIn(db, batch.mangaId) };
   } catch (err: unknown) {
     logger.warn(`Provider-claim write failed for manga ${batch.mangaId} run ${batch.runId}: ${errorText(err)}`);
-    return 0;
+    return { written: 0, retention: Promise.resolve(0) };
   }
-  await pruneOldClaimRunsIn(db, batch.mangaId);
-  return written;
 }
 
 /** Every row of the most recent run recorded for this title, or null when none is stored. */

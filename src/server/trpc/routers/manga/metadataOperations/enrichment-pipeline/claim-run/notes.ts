@@ -25,6 +25,24 @@ export function crossValidateRecorded(
   return validated;
 }
 
+/**
+ * The reconciliation phase's own cross-series gate: it withholds Fandom's
+ * chapter list from chapter reconciliation when the list looks cross-series.
+ * Fired when chapters went in and none came out. The lists themselves are
+ * left on the result, so nothing pre-gate needs keeping.
+ */
+export function noteReconciliationGate(
+  options: EnrichmentPipelineOptions | undefined,
+  before: number,
+  after: number,
+  counts: { mangadex: number; anilist: number },
+): void {
+  if (before === 0 || after > 0) return;
+  options?.claimRun?.noteGated(
+    'fandom', `reconciliation gate: ${before} chapters vs AniList ${counts.anilist} / MangaDex ${counts.mangadex}`, {},
+  );
+}
+
 /** Fandom's per-chapter pages: how many were asked for and how many came back. */
 export function noteFandomChapterPages(
   options: EnrichmentPipelineOptions | undefined,
