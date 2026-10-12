@@ -433,6 +433,35 @@ describe('reconcileMissingVolumeRecords', () => {
     expect(prisma.volume.createMany).not.toHaveBeenCalled();
   });
 
+  it('does not rebuild Volume 75 of a finished 74-volume series from stale Chapter.volume, and clears that number on file-less rows (Bleach churn)', async () => {
+    const existingVolumes = Array.from({ length: 74 }, (_, i) => makeVolume(i + 1, i * 9 + 1, (i + 1) * 9));
+    (prisma.$queryRaw as jest.Mock)
+      .mockResolvedValueOnce([{ volume: 75, count: BigInt(9), min_ch: 697, max_ch: 706 }])
+      .mockResolvedValueOnce([{ volumes: 74, status: 'COMPLETED', endDate: null, country: 'JP', format: 'MANGA' }]);
+    (prisma.volume.findMany as jest.Mock).mockResolvedValue(existingVolumes);
+
+    await reconcileMissingVolumeRecords(MANGA_ID, 74);
+
+    expect(prisma.volume.createMany).not.toHaveBeenCalled();
+    expect(prisma.chapter.updateMany).toHaveBeenCalledWith({
+      where: { mangaId: MANGA_ID, volume: { in: [75] }, volumeId: null, filePath: null },
+      data: { volume: null },
+    });
+  });
+
+  it('still allows the next volume of a running series (82 volumes counted, volume 83 has chapters)', async () => {
+    const existingVolumes = Array.from({ length: 82 }, (_, i) => makeVolume(i + 1, i * 9 + 1, (i + 1) * 9));
+    (prisma.$queryRaw as jest.Mock)
+      .mockResolvedValueOnce([{ volume: 83, count: BigInt(9), min_ch: 739, max_ch: 747 }])
+      .mockResolvedValueOnce([{ volumes: 82, status: 'ONGOING', endDate: null, country: 'JP', format: 'MANGA' }]);
+    (prisma.volume.findMany as jest.Mock).mockResolvedValue(existingVolumes);
+
+    await reconcileMissingVolumeRecords(MANGA_ID, 82);
+
+    expect(prisma.volume.createMany).toHaveBeenCalled();
+    expect(prisma.chapter.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: { volume: null } }));
+  });
+
   it('should create simple Volume record when orphan count is within average', async () => {
     const existingVolumes = [
       makeVolume(1, 1, 10),

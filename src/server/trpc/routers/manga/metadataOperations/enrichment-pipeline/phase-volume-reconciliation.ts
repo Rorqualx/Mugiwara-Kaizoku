@@ -380,6 +380,24 @@ async function ensureExpectedVolumesExist(
   }
 }
 
+/**
+ * A file-less row pointing at a volume that does not exist and may not be
+ * created is not evidence of that volume. Left in place, the number rebuilt
+ * the volume as soon as any cap allowed it (the daily sweep's, or a later
+ * run's), and the next refresh deleted it again. File-backed rows keep their
+ * number: the import is authoritative for them.
+ */
+async function clearStaleVolumeNumbers(mangaId: number, volumes: number[]): Promise<void> {
+  if (volumes.length === 0) return;
+  const cleared = await prisma.chapter.updateMany({
+    where: { mangaId, volume: { in: volumes }, volumeId: null, filePath: null },
+    data: { volume: null },
+  });
+  if (cleared.count > 0) {
+    logger.info(`[enrichmentPipeline] Cleared stale volume number on ${cleared.count} file-less chapters of manga ${mangaId} (volumes ${volumes.join(', ')})`);
+  }
+}
+
 export async function reconcileMissingVolumeRecords(
   mangaId: number,
   expectedVolumeCount: number | null,
@@ -408,9 +426,11 @@ export async function reconcileMissingVolumeRecords(
   let orphans = groups.filter(g => g.volume > 0 && !existingSet.has(g.volume));
   if (cap !== Infinity) {
     const before = orphans.length;
+    const overCap = orphans.filter(g => g.volume > cap).map(g => g.volume);
     orphans = orphans.filter(g => g.volume <= cap);
     const rejected = before - orphans.length;
     if (rejected > 0) {
+      await clearStaleVolumeNumbers(mangaId, overCap);
       logger.warn(
         `[enrichmentPipeline] Reconciliation dropped ${rejected} orphan vols above cap=${cap} ` +
         `(source=${capSource}) for manga ${mangaId}`,
