@@ -17,7 +17,7 @@ import { ANCHOR_PROVIDERS } from '@/lib/metadata/provider-registry';
 import { prisma } from '@/server/db';
 import { dropSupersededProvenanceKeys } from '@/server/services/metadata/selectors/column-mapping';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { parseFieldAlternatives } from '@/types/domain/field-alternatives-types';
+import { sanitizeFieldAlternatives } from '@/types/domain/field-alternatives-types';
 import { parseRatingJson } from '@/types/domain/rating-types';
 import type { UnifiedMangaMetadata } from '@/types/search.types';
 import { AsyncResult, createSuccessResult, createErrorResult } from '@/utils/async-result';
@@ -553,16 +553,30 @@ export class MetadataPersistenceService {
   /**
    * Phase 1.5 #12 cutover: extract `fieldAlternatives` from the metadata
    * Record (set by the selector overlay) + validate via Zod before write.
-   * Malformed payloads are silently dropped — the column stays null.
+   *
+   * Validation is per field: an over-long list is cut to the cap and a field
+   * with a malformed entry is dropped on its own, each with a warning. The
+   * rest is written — including `{}` when nothing dissented — so the column
+   * always describes the latest run. Only a caller that sends no payload at
+   * all (anything other than the enrichment overlay) leaves it untouched.
    */
   private buildFieldAlternatives(
     metadata: UnifiedMangaMetadata,
   ): Partial<Pick<MetadataUpdateData, 'fieldAlternatives'>> {
     const raw = (metadata as Record<string, unknown>)['fieldAlternatives'];
     if (raw === undefined || raw === null) return {};
-    const parsed = parseFieldAlternatives(raw);
-    if (parsed === null) return {};
-    return { fieldAlternatives: parsed as unknown as Prisma.InputJsonValue };
+    const sanitized = sanitizeFieldAlternatives(raw);
+    if (sanitized === null) {
+      this.logger.warn('fieldAlternatives payload is not an object; column left unchanged', { type: typeof raw });
+      return {};
+    }
+    if (sanitized.rejectedFields.length > 0 || sanitized.truncatedFields.length > 0) {
+      this.logger.warn('fieldAlternatives payload partly invalid; the valid fields are written', {
+        rejectedFields: sanitized.rejectedFields,
+        truncatedFields: sanitized.truncatedFields,
+      });
+    }
+    return { fieldAlternatives: sanitized.value as unknown as Prisma.InputJsonValue };
   }
 
   /**

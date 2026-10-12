@@ -29,7 +29,7 @@ import { getRejectedIdsByProvider, recordBinding, rejectedIdsFor } from '@/serve
 import { validateBindingFreshness } from '@/server/services/metadata/binding-validators/freshness-check';
 import { writeFieldReview } from '@/server/services/metadata/field-review';
 import { collectCandidates } from '@/server/services/metadata/selectors/collect-candidates';
-import { applySelectorCutover } from '@/server/services/metadata/selectors/cutover-overlay';
+import { applySelectorCutover, stashFieldAlternatives } from '@/server/services/metadata/selectors/cutover-overlay';
 import { persistSelectionAttempt } from '@/server/services/metadata/selectors/persist-attempt';
 import { computeShadowDeltas, runShadowSelection } from '@/server/services/metadata/selectors/shadow-mode';
 import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
@@ -965,15 +965,12 @@ async function applySelectorCutoverInPlace(inputs: ShadowInputs): Promise<void> 
     // It catches its own errors, so this cannot fail the enrichment.
     await writeFieldReview(inputs.mangaId, cutover.fieldReview);
 
-    // Stash fieldAlternatives on the result so the persister can write
-    // Metadata.fieldAlternatives. Lives on appliedMatch so it flows through
-    // the existing channel.
-    if (inputs.enrichmentResult.appliedMatch && Object.keys(cutover.fieldAlternatives).length > 0) {
-      const am = inputs.enrichmentResult.appliedMatch as { metadata?: Record<string, unknown> };
-      if (am.metadata) {
-        am.metadata['fieldAlternatives'] = cutover.fieldAlternatives;
-      }
-    }
+    // Metadata.fieldAlternatives travels on appliedMatch.metadata to the persister.
+    stashFieldAlternatives(
+      inputs.enrichmentResult.appliedMatch?.metadata as Record<string, unknown> | undefined,
+      cutover.fieldAlternatives,
+      new Set(claims.map(claim => claim.provider)).size,
+    );
 
     logger.info('Phase 1.5 cutover overlay applied', {
       mangaId: inputs.mangaId,

@@ -19,6 +19,7 @@
  */
 
 import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
+import { MAX_FIELD_ALTERNATIVES } from '@/types/domain/field-alternatives-types';
 
 import { OBJECTIVE_REVIEW_FIELDS, type FieldReviewMap } from '../field-review';
 
@@ -88,9 +89,7 @@ export function applySelectorCutover(
       // capture the alternatives (this branch otherwise records nothing).
       if (objective && outcome.alternatives.length > 0) {
         result.fieldReview[field] = { state: 'abstained' };
-        result.fieldAlternatives[field] = outcome.alternatives.map(a => ({
-          provider: a.provider, value: a.value, confidence: a.confidence,
-        }));
+        result.fieldAlternatives[field] = topAlternatives(outcome.alternatives);
         if (hasStoredValue(storedValues[field])) withholdAbstainedField(field, legacyMetadata, legacyProvenance);
       }
       continue;
@@ -109,13 +108,13 @@ export function applySelectorCutover(
       result.fieldReview[field] = { state: 'low-confidence', confidence: outcome.confidence };
     }
 
-    // Capture dissenters for the fieldAlternatives column.
-    if (outcome.alternatives.length > 0) {
-      result.fieldAlternatives[field] = outcome.alternatives.map(a => ({
-        provider: a.provider,
-        value: a.value,
-        confidence: a.confidence,
-      }));
+    // Capture dissenters for the fieldAlternatives column. A list field
+    // (tags, synonyms) is a union, not a contest: its "alternatives" are the
+    // items it did not keep, tied on confidence and often stored anyway by
+    // the legacy merge — recording them would present stored values as
+    // rejected ones.
+    if (outcome.alternatives.length > 0 && !Array.isArray(outcome.winnerValue)) {
+      result.fieldAlternatives[field] = topAlternatives(outcome.alternatives);
     }
   }
 
@@ -123,6 +122,47 @@ export function applySelectorCutover(
   adoptColumnProvenanceKeys(legacyMetadata, legacyProvenance);
 
   return result;
+}
+
+/**
+ * The alternatives worth storing for one field: the highest-confidence
+ * `MAX_FIELD_ALTERNATIVES`, best first. A list field hands over every item it
+ * did not keep (dozens, for tags and synonyms); sending them all made the
+ * whole payload fail the persister's schema.
+ */
+function topAlternatives(
+  alternatives: ReadonlyArray<{ provider: string; value: unknown; confidence: number }>,
+): Array<{ provider: string; value: unknown; confidence: number }> {
+  return alternatives
+    .map(a => ({ provider: a.provider, value: a.value, confidence: a.confidence }))
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, MAX_FIELD_ALTERNATIVES);
+}
+
+/** Fewest providers that must report before "no dissent" means agreement. */
+const MIN_PROVIDERS_FOR_AGREEMENT = 2;
+
+/**
+ * Put the run's alternatives on the metadata record the persister reads.
+ *
+ * A run with dissent always replaces the stored alternatives. A run with
+ * none replaces them with `{}` only when at least two providers reported —
+ * then the providers agree and what an earlier run stored is stale. When a
+ * single provider answered (an outage elsewhere) nothing could dissent, and
+ * the stored alternatives, including the covers offered for pinning, stay.
+ *
+ * Returns whether the key was set.
+ */
+export function stashFieldAlternatives(
+  metadata: Record<string, unknown> | undefined,
+  fieldAlternatives: Record<string, unknown>,
+  reportingProviders: number,
+): boolean {
+  if (!metadata) return false;
+  const hasDissent = Object.keys(fieldAlternatives).length > 0;
+  if (!hasDissent && reportingProviders < MIN_PROVIDERS_FOR_AGREEMENT) return false;
+  Object.assign(metadata, { fieldAlternatives });
+  return true;
 }
 
 /** The persister also reads these legacy spellings of the count columns. */

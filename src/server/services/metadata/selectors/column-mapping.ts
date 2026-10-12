@@ -16,6 +16,7 @@
  * Pure functions — no DB, no I/O.
  */
 
+import { synonymKey } from '@/lib/metadata/synonym-key';
 import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
 /** A selector winner about to be written for one field. */
@@ -122,7 +123,7 @@ function writeSummary(winner: ColumnWinner, metadata: MutableRecord, provenance:
 /**
  * Decision D3: synonyms are the legacy list (which carries the English,
  * romaji and native titles the selector's candidates lack) followed by
- * whatever the selector adds, de-duplicated case-insensitively.
+ * whatever the selector adds, de-duplicated on the shared `synonymKey`.
  *
  * One provenance slot cannot name several contributors; it names whoever
  * supplied most of the stored entries — the legacy list's provider unless
@@ -137,10 +138,10 @@ function writeSynonyms(winner: ColumnWinner, metadata: MutableRecord, provenance
   const addAll = (items: string[]): number => {
     let added = 0;
     for (const item of items) {
-      const key = item.trim().toLowerCase();
-      if (seen.has(key)) continue;
+      const key = synonymKey(item);
+      if (key.length === 0 || seen.has(key)) continue;
       seen.add(key);
-      merged.push(item);
+      merged.push(item.trim());
       added++;
     }
     return added;

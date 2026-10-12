@@ -23,6 +23,7 @@
  * Pure function — no DB, no I/O.
  */
 
+import { synonymKey } from '@/lib/metadata/synonym-key';
 import type { MetadataField } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
 import { resolveWeight } from './authority';
@@ -234,6 +235,8 @@ function prefersSpelling(display: string, weight: number, kept: ItemAccum): bool
 
 function normalizeListKey(display: string, field: MetadataField): string {
   if (PERSON_NAME_FIELDS.has(field)) return normalizePersonKey(display);
+  // Synonyms share one key with the overlay merge and the finalize union.
+  if (field === 'synonyms') return synonymKey(display);
   const lowered = display.toLowerCase().replace(/[\s_-]+/gu, ' ').trim();
   const alias = TAG_ALIASES.get(lowered);
   if (alias && (field === 'genres' || field === 'tags' || field === 'themes')) return alias;

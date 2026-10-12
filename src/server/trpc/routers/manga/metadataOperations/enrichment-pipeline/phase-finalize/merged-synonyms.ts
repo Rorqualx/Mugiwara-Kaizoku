@@ -13,25 +13,28 @@
  * downstream discovery much better search material.
  */
 
+import { dedupeSynonyms, sameSynonymList } from '@/lib/metadata/synonym-key';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
 import type { UnifiedProviderResults } from '../types';
 
-/** Add every non-empty string from `value` (a string or array of unknowns) to `set`. */
-function addStrings(set: Set<string>, value: unknown): void {
-  const items = Array.isArray(value) ? value : [value];
-  for (const item of items) {
-    if (typeof item === 'string' && item.length > 0) set.add(item);
-  }
+/** Append every string in `value` (a string or array of unknowns) to `list`. */
+function addStrings(list: unknown[], value: unknown): void {
+  if (Array.isArray(value)) list.push(...(value as unknown[]));
+  else list.push(value);
 }
 
-/** Union the seed synonyms with every provider's alt-title sources. */
-function collectProviderSynonyms(
-  seed: string[],
+/**
+ * Union the seed synonyms with every provider's alt-title sources, keyed on
+ * `synonymKey` so a spelling that differs only in case, width or separators
+ * is one entry. The seed comes first, so a stored spelling is kept.
+ */
+export function collectProviderSynonyms(
+  seed: readonly string[],
   providerResults: UnifiedProviderResults,
 ): string[] {
-  const collected = new Set<string>(seed);
+  const collected: unknown[] = [...seed];
 
   const enrichedData = providerResults.enrichmentResult.enrichedData as Record<string, unknown> | undefined;
   const unifiedManga = enrichedData?.['manga'] as Record<string, unknown> | undefined;
@@ -47,7 +50,7 @@ function collectProviderSynonyms(
 
   addStrings(collected, providerResults.malResult?.title);
 
-  return [...collected];
+  return dedupeSynonyms(collected);
 }
 
 export async function persistMergedSynonyms(
@@ -63,7 +66,9 @@ export async function persistMergedSynonyms(
 
     const seed = manga.Metadata?.synonyms ?? [];
     const merged = collectProviderSynonyms(seed, providerResults);
-    if (merged.length === seed.length) return;
+    // Compare content, not length: a list that only loses duplicates, or that
+    // loses one and gains one, has changed and must be written.
+    if (sameSynonymList(merged, seed)) return;
 
     await prisma.metadata.update({
       where: { id: manga.metadataId },
