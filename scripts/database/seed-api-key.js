@@ -1,146 +1,130 @@
 #!/usr/bin/env node
 /**
  * Seed API Key Script
- * 
+ *
  * Creates a test API key for development
- * 
- * Usage: node scripts/seed-api-key.js
+ *
+ * Usage: node scripts/database/seed-api-key.js
  */
 
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
+import crypto from 'node:crypto';
 
-const seedCredentials = require('../lib/seed-credentials.cjs');
+import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+import seedCredentials from '../lib/seed-credentials.cjs';
+import { createSeedPrisma, newUserFields } from '../lib/seed-prisma.mjs';
+
+const TEST_USER_EMAIL = 'api-test@kaizoku.local';
+const TEST_KEY_NAME = 'Development Test Key';
+
+const TEST_KEY_PERMISSIONS = [
+  { resource: 'manga', actions: ['read', 'write', 'delete'] },
+  { resource: 'library', actions: ['read', 'write', 'delete'] },
+  { resource: 'download', actions: ['read', 'write', 'delete'] },
+  { resource: 'metadata', actions: ['read', 'write'] },
+  { resource: 'user', actions: ['read', 'write'] },
+  { resource: 'webhook', actions: ['read', 'write', 'delete'] },
+];
 
 // CLI script — stdout output is intentional, not a logging concern
 const print = console['log'].bind(console); // @quality-check-skip
+
+/**
+ * The digest the API looks a key up by. Must stay identical to `hashApiKey`
+ * in src/server/api/services/apiAuth.ts, or the seeded key never authenticates.
+ * @param {string} rawKey
+ * @returns {string}
+ */
+function hashApiKey(rawKey) {
+  return crypto.createHash('sha256').update(rawKey).digest('hex');
+}
+
+async function findOrCreateTestUser(prisma) {
+  const existing = await prisma.user.findFirst({ where: { email: TEST_USER_EMAIL } });
+  if (existing) {
+    print('✅ Test user already exists');
+    return existing;
+  }
+
+  print('Creating test user...');
+  // From SEED_API_TEST_PASSWORD, or generated and printed once here.
+  const testPassword = seedCredentials.resolveSecret('SEED_API_TEST_PASSWORD');
+  const created = await prisma.user.create({
+    data: {
+      ...newUserFields(),
+      email: TEST_USER_EMAIL,
+      userName: 'api-test',
+      name: 'API Test User',
+      hashedPassword: await bcrypt.hash(testPassword.value, 12),
+      role: 'ADMIN',
+    },
+  });
+  print(
+    '   Test user password:',
+    seedCredentials.describeSecret('SEED_API_TEST_PASSWORD', testPassword),
+  );
+  print('✅ Test user created');
+  return created;
+}
 
 async function main() {
   // Creates an ADMIN user and a full-permission key: development only.
   // Refuses NODE_ENV=production unless ALLOW_SEED_IN_PRODUCTION=true.
   seedCredentials.assertSeedAllowed('seed-api-key.js');
 
-  console.log('🔑 Creating test API key for development...\n');
+  const { prisma, close } = createSeedPrisma();
+
+  print('🔑 Creating test API key for development...\n');
 
   try {
-    // Find or create a test user
-    let testUser = await prisma.user.findFirst({
-      where: { email: 'api-test@kaizoku.local' },
-    });
-
-    if (!testUser) {
-      console.log('Creating test user...');
-      // From SEED_API_TEST_PASSWORD, or generated and printed once here.
-      const testPassword = seedCredentials.resolveSecret('SEED_API_TEST_PASSWORD');
-      testUser = await prisma.user.create({
-        data: {
-          email: 'api-test@kaizoku.local',
-          userName: 'api-test',
-          name: 'API Test User',
-          hashedPassword: await bcrypt.hash(testPassword.value, 12),
-          role: 'ADMIN',
-        },
-      });
-      print(
-        '   Test user password:',
-        seedCredentials.describeSecret('SEED_API_TEST_PASSWORD', testPassword),
-      );
-      console.log('✅ Test user created');
-    } else {
-      console.log('✅ Test user already exists');
-    }
+    const testUser = await findOrCreateTestUser(prisma);
 
     // Check if test API key already exists
     const existingKey = await prisma.apiKey.findFirst({
-      where: {
-        userId: testUser.id,
-        name: 'Development Test Key',
-      },
+      where: { userId: testUser.id, name: TEST_KEY_NAME },
     });
 
     if (existingKey) {
-      console.log('\n⚠️  Test API key already exists');
-      console.log('ID:', existingKey.id);
-      console.log('Name:', existingKey.name);
-      console.log('\nTo create a new key, delete the existing one first.');
+      print('\n⚠️  Test API key already exists');
+      print('ID:', existingKey.id);
+      print('Name:', existingKey.name);
+      print('\nTo create a new key, delete the existing one first.');
       return;
     }
 
-    // Generate new API key
-    const rawKey = 'test-api-key-' + crypto.randomBytes(16).toString('hex');
-    const hashedKey = await bcrypt.hash(rawKey, 10);
+    // Same shape as keys issued by the app; only the digest is stored.
+    const rawKey = `mk_${crypto.randomBytes(32).toString('hex')}`;
 
-    // Create API key with full permissions
     const apiKey = await prisma.apiKey.create({
       data: {
-        key: hashedKey,
-        name: 'Development Test Key',
+        key: hashApiKey(rawKey),
+        name: TEST_KEY_NAME,
         userId: testUser.id,
-        permissions: {
-          create: [
-            {
-              resource: 'manga',
-              actions: ['read', 'write', 'delete'],
-            },
-            {
-              resource: 'library',
-              actions: ['read', 'write', 'delete'],
-            },
-            {
-              resource: 'download',
-              actions: ['read', 'write', 'delete'],
-            },
-            {
-              resource: 'metadata',
-              actions: ['read', 'write'],
-            },
-            {
-              resource: 'user',
-              actions: ['read', 'write'],
-            },
-            {
-              resource: 'webhook',
-              actions: ['read', 'write', 'delete'],
-            },
-          ],
-        },
-        metadata: {
-          environment: 'development',
-          purpose: 'testing',
-          createdBy: 'seed-script',
-        },
+        permissions: { create: TEST_KEY_PERMISSIONS },
       },
-      include: {
-        permissions: true,
-      },
+      include: { permissions: true },
     });
 
-    console.log('\n✅ API key created successfully!\n');
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log('SAVE THIS KEY - IT WILL NOT BE SHOWN AGAIN');
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log('\nAPI Key:', rawKey);
-    console.log('\n═══════════════════════════════════════════════════════════════');
-    console.log('\nKey Details:');
-    console.log('- ID:', apiKey.id);
-    console.log('- Name:', apiKey.name);
-    console.log('- User:', testUser.email);
-    console.log('- Permissions:', apiKey.permissions.length, 'resources');
-    console.log('\nUsage example:');
-    console.log(`curl -H "X-API-Key: ${rawKey}" http://localhost:3000/api/v1/health`);
-    console.log('\n');
-  } catch (error) {
-    console.error('❌ Error creating API key:', error);
-    process.exit(1);
+    print('\n✅ API key created successfully!\n');
+    print('═══════════════════════════════════════════════════════════════');
+    print('SAVE THIS KEY - IT WILL NOT BE SHOWN AGAIN');
+    print('═══════════════════════════════════════════════════════════════');
+    print('\nAPI Key:', rawKey);
+    print('\n═══════════════════════════════════════════════════════════════');
+    print('\nKey Details:');
+    print('- ID:', apiKey.id);
+    print('- Name:', apiKey.name);
+    print('- User:', testUser.email);
+    print('- Permissions:', apiKey.permissions.length, 'resources');
+    print('\nUsage example:');
+    print(`curl -H "X-API-Key: ${rawKey}" http://localhost:3000/api/v1/health`);
+    print('\n');
   } finally {
-    await prisma.$disconnect();
+    await close();
   }
 }
 
 main().catch((error) => {
-  console.error('❌ Unexpected error:', error);
-  process.exit(1);
+  console.error('❌ Error creating API key:', error);
+  process.exitCode = 1;
 });

@@ -81,6 +81,25 @@ describe('seed and admin scripts', () => {
     expect(read(script)).toMatch(/seedCredentials\.assertSeedAllowed\(/);
   });
 
+  it.each(SEED_SCRIPTS)('%s opens Prisma through the shared adapter-backed client', (script) => {
+    const source = read(script);
+    // Prisma 7 throws on `new PrismaClient()` without a driver adapter, and the
+    // repo is `"type": "module"`, so `require` does not exist in a .js script.
+    expect(source).not.toMatch(/new PrismaClient\(/);
+    expect(source).not.toMatch(/\brequire\(/);
+    const specifier = /['"]((?:\.\.?\/)+(?:lib\/)?seed-prisma\.mjs)['"]/.exec(source)?.[1];
+    expect(specifier).toBeDefined();
+    expect(existsSync(join(ROOT, script, '..', specifier ?? ''))).toBe(true);
+  });
+
+  it.each(SEED_SCRIPTS)('%s gives every new user the columns that have no database default', (script) => {
+    // User.id has no @default and User.updatedAt is not @updatedAt.
+    const creates = read(script).split('prisma.user.create(').slice(1);
+    for (const call of creates) {
+      expect(call.slice(0, 200)).toMatch(/\.\.\.(newUserFields\(\)|userFields)/);
+    }
+  });
+
   it.each(SEED_SCRIPTS)('%s can find the shared helper from where it lives', (script) => {
     const specifier = /['"]((?:\.\.?\/)+(?:lib\/)?seed-credentials\.cjs)['"]/.exec(read(script))?.[1];
     expect(specifier).toBeDefined();

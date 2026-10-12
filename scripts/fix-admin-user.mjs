@@ -8,16 +8,18 @@
  * ALLOW_SEED_IN_PRODUCTION=true.
  */
 
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import seedCredentials from './lib/seed-credentials.cjs';
-
-const prisma = new PrismaClient();
+import { createSeedPrisma, newUserFields } from './lib/seed-prisma.mjs';
 
 async function fixAdminUser() {
+  let database = null;
   try {
     seedCredentials.assertSeedAllowed('fix-admin-user.mjs');
+
+    database = createSeedPrisma();
+    const { prisma } = database;
 
     console.log('🔧 Fixing admin user...\n');
 
@@ -39,7 +41,9 @@ async function fixAdminUser() {
         data: {
           hashedPassword: hashedPassword,
           name: 'Admin',
-          userName: existingAdmin.userName || 'admin'
+          updatedAt: new Date(),
+          // A changed password invalidates sessions issued for the old one.
+          tokenVersion: { increment: 1 }
         }
       });
 
@@ -57,6 +61,7 @@ async function fixAdminUser() {
 
       await prisma.user.create({
         data: {
+          ...newUserFields(),
           email: 'admin@kaizoku.dev',
           name: 'Admin Dev',
           userName: 'admindev',
@@ -76,7 +81,8 @@ async function fixAdminUser() {
           where: { id: expectedAdmin.id },
           data: {
             hashedPassword: hashedPassword,
-            userName: expectedAdmin.userName || 'admin'
+            updatedAt: new Date(),
+            tokenVersion: { increment: 1 }
           }
         });
         changedAccounts.push('admin@kaizoku.dev');
@@ -114,7 +120,9 @@ async function fixAdminUser() {
     console.error(error);
     process.exitCode = 1;
   } finally {
-    await prisma.$disconnect();
+    if (database) {
+      await database.close();
+    }
   }
 }
 

@@ -5,16 +5,14 @@
 // This script is automatically run by the reset-dev.sh script
 // =============================================================================
 
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import seedCredentials from '../lib/seed-credentials.cjs';
+import { createSeedPrisma, newUserFields } from '../lib/seed-prisma.mjs';
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? '' });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const ADMIN_EMAIL = 'admin@kaizoku.dev';
+const ADMIN_USERNAME = 'admin';
+const ADMIN_WHERE = { OR: [{ email: ADMIN_EMAIL }, { userName: ADMIN_USERNAME }] };
 
 // CLI seed script — stdout output is intentional, not a logging concern
 const print = console['log'].bind(console); // @quality-check-skip
@@ -22,6 +20,8 @@ const print = console['log'].bind(console); // @quality-check-skip
 async function seedDevelopmentData() {
   // Development data only: refuses NODE_ENV=production without an override.
   seedCredentials.assertSeedAllowed('seed-dev.js');
+
+  const { prisma, close } = createSeedPrisma();
 
   print('🌱 Seeding development database...');
 
@@ -36,29 +36,22 @@ async function seedDevelopmentData() {
 
     try {
       // Check if admin user already exists by email or username
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { email: 'admin@kaizoku.dev' },
-            { userName: 'admin' }
-          ]
-        }
-      });
+      const existingUser = await prisma.user.findFirst({ where: ADMIN_WHERE });
 
       if (existingUser) {
         print('✅ Admin user already exists:', existingUser.email);
       } else {
-        const now = new Date();
+        const userFields = newUserFields();
         const adminUser = await prisma.user.create({
           data: {
+            ...userFields,
             id: 'admin-user-001', // Explicit ID for admin user
-            userName: 'admin',
-            email: 'admin@kaizoku.dev',
+            userName: ADMIN_USERNAME,
+            email: ADMIN_EMAIL,
             name: 'Admin User',
             hashedPassword,
             role: 'ADMIN',
-            emailVerified: now,
-            updatedAt: now,
+            emailVerified: userFields.updatedAt,
           },
         });
         adminCreated = true;
@@ -128,25 +121,30 @@ async function seedDevelopmentData() {
 
     print('✅ Created default queue configurations');
 
-    // Create sample library for development
-    // Check if the Development Library already exists
+    // Create sample library for development. A library belongs to a user
+    // (Library.ownerId is required), so it is owned by the admin account.
+    const libraryOwner = await prisma.user.findFirst({
+      where: ADMIN_WHERE,
+      select: { id: true },
+    });
+    if (!libraryOwner) {
+      throw new Error('Admin user is missing after the admin step; cannot own the development library.');
+    }
+
     const existingLibrary = await prisma.library.findFirst({
-      where: {
-        OR: [
-          { id: 1 },
-          { name: 'Development Library' }
-        ]
-      }
+      where: { name: 'Development Library' },
     });
 
     if (existingLibrary) {
       print('✅ Development library already exists');
     } else {
-      const devLibrary = await prisma.library.create({
+      // No explicit id: writing one would leave the Library id sequence
+      // behind it, and the next library created in the app would collide.
+      await prisma.library.create({
         data: {
-          id: 1,
           name: 'Development Library',
           path: '/tmp/manga-dev',
+          ownerId: libraryOwner.id,
         },
       });
       print('✅ Created development library');
@@ -160,7 +158,7 @@ async function seedDevelopmentData() {
     print('');
     if (adminCreated) {
       print('🔑 Admin Credentials:');
-      print('   Email: admin@kaizoku.dev');
+      print(`   Email: ${ADMIN_EMAIL}`);
       print('   Password:', seedCredentials.describeSecret('SEED_ADMIN_PASSWORD', adminPassword));
       print('');
     } else {
@@ -179,7 +177,7 @@ async function seedDevelopmentData() {
       throw error;
     }
   } finally {
-    await prisma.$disconnect();
+    await close();
   }
 }
 
