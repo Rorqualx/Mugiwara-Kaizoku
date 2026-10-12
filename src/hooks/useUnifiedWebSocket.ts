@@ -26,7 +26,8 @@ import type {
 } from '@/types/api/v1/websocket';
 import { logger } from '@/utils/logger';
 
-import { dispatchWebSocketMessage, type SubscriptionMap } from './unified-websocket/message-dispatch';
+import { dispatchWebSocketMessage } from './unified-websocket/message-dispatch';
+import { useChannelSubscriptions } from './unified-websocket/use-channel-subscriptions';
 
 // ============================================================================
 // Types
@@ -131,13 +132,6 @@ export function useUnifiedWebSocket({
   onErrorRef.current = onError;
   onMessageRef.current = onMessage;
 
-  // Subscription management. The channel set lives in a ref only: publishing it
-  // as React state re-rendered the provider (and, through its context value,
-  // every realtime consumer) on each first-subscribe / last-unsubscribe, which
-  // turned any effect that resubscribed per render into a render loop.
-  const subscriptionsRef = useRef<SubscriptionMap>(new Map());
-  const pendingSubscriptionsRef = useRef<Set<string>>(new Set());
-
   // ============================================================================
   // WebSocket URL Construction
   // ============================================================================
@@ -190,6 +184,13 @@ export function useUnifiedWebSocket({
     }
   }, []);
 
+  const isOpen = useCallback((): boolean => wsRef.current?.readyState === WebSocket.OPEN, []);
+  const { subscriptionsRef, subscribe, unsubscribe, clearOutbox } = useChannelSubscriptions({
+    isOpen,
+    sendSubscribeMessage,
+    sendUnsubscribeMessage,
+  });
+
   // ============================================================================
   // Connection Management (using refs to avoid dependencies)
   // ============================================================================
@@ -241,21 +242,20 @@ export function useUnifiedWebSocket({
     setConnectionStatus('connected');
     logger.info('WebSocket: Connected');
 
-    // Channels queued while disconnected are all still in the active set (an
-    // unsubscribe removes them from both), so one frame for the active set
-    // covers them; sending the queue separately subscribed each one twice.
-    pendingSubscriptionsRef.current.clear();
+    // A fresh connection has no subscriptions, so one frame for the whole
+    // active set replaces whatever the outbox held.
+    clearOutbox();
     const activeChannels = Array.from(subscriptionsRef.current.keys());
     if (activeChannels.length > 0) {
       sendSubscribeMessage(activeChannels);
     }
 
     onConnectRef.current?.();
-  }, [sendSubscribeMessage]);
+  }, [sendSubscribeMessage, clearOutbox, subscriptionsRef]);
 
   const handleMessage = useCallback((event: MessageEvent): void => {
     dispatchWebSocketMessage(event.data, subscriptionsRef.current, onMessageRef.current);
-  }, []);
+  }, [subscriptionsRef]);
 
   const handleError = useCallback((): void => {
     logger.warn('WebSocket: Connection error occurred');
@@ -362,49 +362,6 @@ export function useUnifiedWebSocket({
     setConnectionStatus('disconnected');
     connectionOpenTimeRef.current = null;
   }, [clearReconnectTimeout]);
-
-  // ============================================================================
-  // Subscription Management
-  // ============================================================================
-
-  const subscribe = useCallback((channel: string, callback: (event: WebSocketEvent) => void): () => void => {
-    // Add to local subscriptions
-    if (!subscriptionsRef.current.has(channel)) {
-      subscriptionsRef.current.set(channel, new Set());
-    }
-    subscriptionsRef.current.get(channel)?.add(callback);
-
-    // Send subscribe message if connected, otherwise queue
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      sendSubscribeMessage([channel]);
-    } else {
-      pendingSubscriptionsRef.current.add(channel);
-    }
-
-    logger.debug('WebSocket: Subscribed to channel', { channel });
-
-    // Return unsubscribe function
-    return () => {
-      const channelCallbacks = subscriptionsRef.current.get(channel);
-      if (channelCallbacks) {
-        channelCallbacks.delete(callback);
-
-        if (channelCallbacks.size === 0) {
-          subscriptionsRef.current.delete(channel);
-          pendingSubscriptionsRef.current.delete(channel);
-          sendUnsubscribeMessage([channel]);
-        }
-      }
-      logger.debug('WebSocket: Unsubscribed from channel', { channel });
-    };
-  }, [sendSubscribeMessage, sendUnsubscribeMessage]);
-
-  const unsubscribe = useCallback((channel: string): void => {
-    subscriptionsRef.current.delete(channel);
-    pendingSubscriptionsRef.current.delete(channel);
-    sendUnsubscribeMessage([channel]);
-    logger.debug('WebSocket: Unsubscribed from channel', { channel });
-  }, [sendUnsubscribeMessage]);
 
   // ============================================================================
   // Message Sending

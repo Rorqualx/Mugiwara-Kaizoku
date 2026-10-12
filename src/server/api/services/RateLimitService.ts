@@ -47,7 +47,11 @@ export enum RateLimitType {
 
 const DEFAULT_LIMITS: Record<RateLimitType, RateLimitConfig> = {
   [RateLimitType.CONNECTION_MESSAGE]: { limit: 100, windowSeconds: 60 },     // 100 msg/min per connection
-  [RateLimitType.CONNECTION_SUBSCRIBE]: { limit: 10, windowSeconds: 60 },    // 10 sub/min per connection
+  // Subscribe *messages* per connection (one message carries many channels).
+  // The client batches a page's subscriptions into one message, so each page
+  // visit costs about one; 10 refused subscriptions to anyone clicking
+  // through a few pages within a minute.
+  [RateLimitType.CONNECTION_SUBSCRIBE]: { limit: 60, windowSeconds: 60 },
   [RateLimitType.USER_CHANNEL]: { limit: 50, windowSeconds: 60 },           // 50 msg/min per user per channel
   [RateLimitType.CHANNEL_GLOBAL]: { limit: 1000, windowSeconds: 60 },       // 1000 msg/min per channel
 };
