@@ -139,8 +139,11 @@ export class CircuitBreaker {
         logger.warn('Circuit breaker: Recovery test failed, reopening circuit');
         this.state = CircuitState.OPEN;
         this.openTime = Date.now();
-      } else if (this.failures >= this.threshold) {
-        // Too many failures - open circuit
+      } else if (this.state === CircuitState.CLOSED && this.failures >= this.threshold) {
+        // Too many failures - open circuit. Only a CLOSED circuit can open:
+        // requests already in flight when it opened still report their
+        // failures here, and must neither log another "opening" nor push
+        // the open time (and so the recovery test) further out.
         logger.error(`Circuit breaker: Opening circuit after ${this.failures} failures`);
         this.state = CircuitState.OPEN;
         this.openTime = Date.now();

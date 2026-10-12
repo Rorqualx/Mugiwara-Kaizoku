@@ -23,6 +23,7 @@ import { isArcBasedStructure, parseArcBasedStructure } from './arc-based-parser'
 import { hasStandaloneVolumeTables, hasTableListChapters, isBulletedListStructure, parseBulletedListEnhanced, parseBulletedListStructure } from './bulleted-list-parser';
 import { discoverChaptersViaCategory, enrichChapterListTitlesFromWikitext } from './category-chapter-discovery';
 import { isCategoryPageStructure, parseCategoryPage } from './category-page-parser';
+import { resolveChapterUrlsInPlace } from './chapter-url-resolver';
 import { isCollapsibleTableStructure, parseCollapsibleTables } from './collapsible-table-parser';
 import { isIdVolumeTableStructure, parseIdVolumeTableStructure } from './id-volume-table-parser';
 import { isJoJoStructure, parseJoJoStructure } from './jojo-parser';
@@ -1409,12 +1410,7 @@ async function enrichChapterDetailsFromPages(
 
   // Fetch for chapters that have URLs but lack covers (cap at 500 to avoid long hangs)
   // Normalize relative URLs to absolute
-  for (const ch of chapters) {
-    const url = ch['url'];
-    if (typeof url === 'string' && url.startsWith('/wiki/')) {
-      ch['url'] = `https://${domain}${url}`;
-    }
-  }
+  resolveChapterUrlsInPlace(chapters, domain);
 
   // Deduplicate by chapter number before enrichment
   const seenNums = new Set<number>();
@@ -2157,7 +2153,10 @@ export async function adaptiveParse(
     // loops 1..50). Always try once; merge metadata + chapters if present.
     await mergeVolumeZeroIfPresent(canonicalDomain, extraction.parsedData, mergedOptions);
 
-    // Enhancement: Fetch individual chapter pages for covers and descriptions
+    // Enhancement: Fetch individual chapter pages for covers and descriptions.
+    // Parsers keep hrefs as scraped ("/wiki/Chapter_15"); the detail service
+    // needs absolute URLs, so resolve them against the canonical domain first.
+    resolveChapterUrlsInPlace(extraction.parsedData.chapters, canonicalDomain);
     const chaptersNeedingCovers = extraction.parsedData.chapters.filter(ch => ch.url && !ch.coverImage);
     if (chaptersNeedingCovers.length > 0) {
       try {
