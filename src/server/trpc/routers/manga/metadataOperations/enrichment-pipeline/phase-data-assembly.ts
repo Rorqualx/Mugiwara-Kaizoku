@@ -9,6 +9,7 @@
 import { logger } from '@/utils/logger';
 
 import { parseComicVineDescriptions } from './comicvine-description-parser';
+import { boundByCorroboratedFinal, collectFinalChapterWitnesses, corroborateFinalChapter } from './corroborated-final-chapter';
 
 import type {
   GapAnalysis,
@@ -307,6 +308,14 @@ export interface TrustedFinalChapter {
   volumeCeiling: number | null;
   /** True only when a terminal-status provider supplied a numeric chapter scalar. */
   trusted: boolean;
+  /**
+   * Highest numbered chapter that two or more providers agree on, when the
+   * series is finished; null when nothing corroborates. `ceiling` never
+   * exceeds it by more than the slack in `boundByCorroboratedFinal`.
+   */
+  corroboratedFinal?: number | null;
+  /** Providers behind `corroboratedFinal`. */
+  corroboratedBy?: string[];
 }
 
 /** Prisma MangaPublicationStatus values that mean the run has ended. AniList
@@ -382,11 +391,22 @@ export function resolveTrustedFinalChapter(
   results: UnifiedProviderResults,
   stored?: StoredTerminalSignal,
 ): TrustedFinalChapter {
-  return anilistTrustedCeiling(results)
+  const scalar = anilistTrustedCeiling(results)
     ?? malTrustedCeiling(results)
     ?? mangaupdatesTrustedCeiling(results)
-    ?? storedTrustedCeiling(stored)
-    ?? { ceiling: null, volumeCeiling: null, trusted: false };
+    ?? storedTrustedCeiling(stored);
+  if (!scalar) return { ceiling: null, volumeCeiling: null, trusted: false };
+  // The scalar is a chapter COUNT (Bleach: 706 = 686 numbered + 20 extras).
+  // Where providers that state the highest NUMBERED chapter agree on a lower
+  // one, that is the final chapter.
+  const witnesses = collectFinalChapterWitnesses(results);
+  const corroborated = corroborateFinalChapter(witnesses);
+  return {
+    ...scalar,
+    ceiling: scalar.ceiling === null ? null : boundByCorroboratedFinal(scalar.ceiling, corroborated, witnesses),
+    corroboratedFinal: corroborated?.chapter ?? null,
+    corroboratedBy: corroborated?.sources ?? [],
+  };
 }
 
 /** Fraction of the corroborated source count below which a "final chapter"

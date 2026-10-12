@@ -10,7 +10,7 @@
  * Extracted from manga-extractor (lines 464-715)
  */
 
-import { filterToMainSeriesContent } from '@/server/services/shared/parsing-utils';
+import { filterToMainSeriesContent, selectSequelSection } from '@/server/services/shared/parsing-utils';
 import { logger } from '@/utils/logger';
 
 import {
@@ -175,14 +175,19 @@ const CHAPTER_LIST_ALIASES: Record<string, string> = {
  *
  * @param mangaTitle - Manga title to search for chapter list
  * @param cache - Cache instance for storing results
+ * @param sequelTitle - Set when `mangaTitle` is an alias target shared with a
+ *   sequel: the sequel's own section of the page is parsed instead of the
+ *   first series on it
  * @returns Array of chapters with titles and metadata
  */
 // eslint-disable-next-line max-statements, complexity -- 60 statements + complexity 30: Wikipedia article fetch + cache check + section discovery + table parsing + chapter extraction with alias/redirect fallback paths; future split candidate
 export async function getChapterList(
   mangaTitle: string,
-  cache: Cache<unknown>
+  cache: Cache<unknown>,
+  sequelTitle?: string,
 ): Promise<WikipediaChapter[]> {
-  const cacheKey = `chapters:${mangaTitle}`;
+  // The same page read for a sequel yields different chapters, so it is cached apart.
+  const cacheKey = sequelTitle ? `chapters:${mangaTitle}#${sequelTitle}` : `chapters:${mangaTitle}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     logger.debug(`[WIKIPEDIA] Using cached chapters for: ${mangaTitle}`);
@@ -214,7 +219,7 @@ export async function getChapterList(
           const aliasPageId = aliasPages ? Object.keys(aliasPages)[0] : undefined;
           // eslint-disable-next-line max-depth -- depth 5 is the alias-page-found short-circuit recursing into the derived title; flattening would obscure the early-return
           if (aliasPageId && aliasPageId !== '-1') {
-            return await getChapterList(derivedTitle, cache);
+            return await getChapterList(derivedTitle, cache, mangaTitle);
           }
         }
       }
@@ -262,8 +267,11 @@ export async function getChapterList(
       return await parseDisambiguationPage(htmlContent, mangaTitle, cacheKey, cache);
     }
 
-    // Filter to main series content before parsing (excludes sequels like Tokyo Ghoul:re)
-    const filteredHtml = filterToMainSeriesContent(htmlContent, mangaTitle);
+    // Filter to main series content before parsing (excludes sequels like Tokyo Ghoul:re),
+    // unless the lookup came from a sequel that shares this page: then its own section.
+    const sequelHtml = sequelTitle ? selectSequelSection(htmlContent, sequelTitle) : null;
+    if (sequelHtml) logger.info(`[WIKIPEDIA] Using the "${sequelTitle}" section of the shared list page`);
+    const filteredHtml = sequelHtml ?? filterToMainSeriesContent(htmlContent, mangaTitle);
 
     // Parse as normal chapter page
     const chapters = parseChapterTables(filteredHtml);

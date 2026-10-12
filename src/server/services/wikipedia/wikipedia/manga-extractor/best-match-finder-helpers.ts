@@ -556,17 +556,19 @@ export async function mergeAdditionalVolumes(
  * Falls back to regular volume list if no descriptions found
  *
  * @param volumeListUrl - URL to fetch volumes from
+ * @param seriesTitle - Title being looked up, to select a sequel's section of a shared page
  * @returns Volumes with descriptions or regular volumes
  */
 export async function fetchEnrichedVolumes(
-  volumeListUrl: string
+  volumeListUrl: string,
+  seriesTitle?: string,
 ): Promise<WikipediaVolume[]> {
   logger.info(
     `[WIKIPEDIA] Following volume list URL: ${volumeListUrl}`
   );
 
   // Try to get volumes with descriptions (like Kaiju No. 8)
-  const enrichedVolumes = await getVolumesWithDescriptions(volumeListUrl);
+  const enrichedVolumes = await getVolumesWithDescriptions(volumeListUrl, seriesTitle);
 
   if (enrichedVolumes.length > 0) {
     logger.info(

@@ -232,12 +232,14 @@ export async function getVolumeWithChapters(
  * - Table-based volume lists with descriptions
  *
  * @param volumeListUrl - URL to the volume list page
+ * @param seriesTitle - Title being looked up, to select a sequel's section of a shared page
  * @returns Array of volumes with descriptions and chapter ranges
  */
 export async function getVolumesWithDescriptions(
-  volumeListUrl: string
+  volumeListUrl: string,
+  seriesTitle?: string,
 ): Promise<WikipediaVolume[]> {
-  return getVolumesWithDescriptionsInternal(volumeListUrl, cache);
+  return getVolumesWithDescriptionsInternal(volumeListUrl, cache, seriesTitle);
 }
 
 // ============================================================================

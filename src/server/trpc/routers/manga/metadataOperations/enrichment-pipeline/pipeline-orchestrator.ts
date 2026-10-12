@@ -24,12 +24,13 @@ import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { logger } from '@/utils/logger';
 
+import { collectFinalChapterWitnesses } from './corroborated-final-chapter';
 import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
 import { FandomPhaseDeadline } from './fandom-phase-deadline';
 import { reassignBonusChaptersToParentVolumes } from './phase-bonus-reassignment';
 import { reconcileChapterCount, mergeAllSourceChapters } from './phase-chapter-reconciliation';
-import { assembleSourceData, resolveTrustedFinalChapter, plausibleTrustedCeiling, type StoredTerminalSignal } from './phase-data-assembly';
+import { assembleSourceData, type StoredTerminalSignal } from './phase-data-assembly';
 import { phaseDbPersistence } from './phase-db-persistence';
 import { phaseFandomEnrichment } from './phase-fandom-enrichment';
 import { phaseFinalize } from './phase-finalize';
@@ -37,7 +38,7 @@ import { phaseProviderFetch } from './phase-provider-fetch';
 import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-volume-cross-validation';
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
-import { gateChapterCount } from './phase-volume-cross-validation/gate-chapter-count';
+import { applyCorroboratedFinalChapter, resolveVolumeGateCeiling } from './phase-volume-cross-validation/volume-gate-ceiling';
 import { assignOverflowChapters } from './phase-volume-overflow';
 import { pruneFinishedSeriesPhantoms } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
@@ -483,34 +484,17 @@ async function runStandaloneGalleryHarvest(mangaId: number, title: string): Prom
 }
 
 /**
- * Compute expected chapter count from available sources.
+ * Before anything reads the chapter scalar: a finished series' count that
+ * exceeds its cross-checked final chapter is replaced by that chapter.
  */
-function computeExpectedChapterCount(result: UnifiedProviderResults): number | null {
-  const wikiChapters = result.wikipediaResult?.data.chapters;
-  if (wikiChapters && wikiChapters > 0) return wikiChapters;
-
-  const metadata = result.enrichmentResult.appliedMatch?.metadata as Record<string, unknown> | undefined;
-  const scalar = typeof metadata?.['chapters'] === 'number' ? metadata['chapters'] as number : 0;
-  return scalar > 0 ? scalar : null;
-}
-
-/**
- * Resolve the volume-gate chapter ceiling for cross-validation.
- *
- * A finished series with a plausible trusted scalar clamps the ceiling to its
- * known final chapter and switches the gate to exact (no 1.1× tolerance), so an
- * end-of-series phantom volume (AoT "Volume 35" @ ch 140 past the real 139) is
- * rejected. plausibleTrustedCeiling ignores a broken scalar (Black Clover
- * chapters=1) so a real volume structure is never gated away.
- */
-function resolveVolumeGateCeiling(
-  result: UnifiedProviderResults,
-  stored?: StoredTerminalSignal,
-): { expectedChapterCount: number | null; trusted: boolean } {
-  const rawExpected = computeExpectedChapterCount(result);
-  const ceiling = plausibleTrustedCeiling(resolveTrustedFinalChapter(result, stored).ceiling, rawExpected ?? 0);
-  if (ceiling === null) return { expectedChapterCount: rawExpected, trusted: false };
-  return { expectedChapterCount: gateChapterCount(rawExpected, ceiling), trusted: true };
+function correctChapterScalar(mangaId: number, result: UnifiedProviderResults, stored: StoredTerminalSignal): void {
+  const witnesses = collectFinalChapterWitnesses(result).map(w => `${w.source}=${w.chapter}`).join(', ');
+  const fix = applyCorroboratedFinalChapter(result, stored);
+  if (!fix) {
+    logger.info(`[enrichmentPipeline] Final chapter for manga ${mangaId}: scalar kept (witnesses: ${witnesses || 'none'})`);
+    return;
+  }
+  logger.info(`[enrichmentPipeline] Final chapter for manga ${mangaId}: scalar ${fix.from} is a count; using ${fix.to} (agreed by ${fix.sources.join(', ')}; witnesses: ${witnesses})`);
 }
 
 /**
@@ -553,6 +537,7 @@ async function executeEnrichmentPhases(
   // gate has a reference floor independent of AniList — MangaDex publishes one
   // entry per actually-uploaded chapter across every language.
   await onProgress?.('persisting', 'Persisting provider data to database...');
+  correctChapterScalar(mangaId, result, await loadStoredTerminalSignal(mangaId));
   // Compute cross-source chapter-count consensus to cap stub-row creation when
   // AniList's scalar overshoots (e.g. Sweat and Soap AL=110 vs canon=66).
   // Confidence high/medium acts as a ceiling on `expectedCount`; low/unknown

@@ -162,7 +162,7 @@ async function enrichMangaData(
     }
   } else if (mangaInfo.volumeListUrl) {
     // Step 5 (fallback): No enhanced data, fetch from volume list URL
-    const enrichedVolumes = await fetchEnrichedVolumes(mangaInfo.volumeListUrl);
+    const enrichedVolumes = await fetchEnrichedVolumes(mangaInfo.volumeListUrl, mangaTitle);
     volumesWithDetails = enrichedVolumes;
 
     // Extract chapters from enriched volumes

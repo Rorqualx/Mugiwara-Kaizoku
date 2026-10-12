@@ -648,6 +648,46 @@ export function findMainSeriesBoundaries(
   };
 }
 
+/** Heading text reduced to what a title comparison needs. */
+function normalizeHeadingText(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&#0?39;|&apos;|[\u2018\u2019]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * The section of a shared list page that belongs to a sequel.
+ *
+ * "List of Tokyo Ghoul chapters" holds Tokyo Ghoul, then Tokyo Ghoul:re, each
+ * under its own level-2 heading with volume numbering that restarts at 1.
+ * `filterToMainSeriesContent` keeps the first series whatever was asked for,
+ * so the sequel was given the parent's 143 chapters and volume ranges.
+ *
+ * Returns the HTML from the heading whose text is exactly `seriesTitle` up to
+ * the next level-2 heading, and only when volume markers precede it — i.e. the
+ * title is a later series on the page. Returns null otherwise, so the first
+ * series and single-series pages keep their existing handling.
+ *
+ * @param html - Full HTML content of the list page
+ * @param seriesTitle - Title of the series being looked up
+ * @returns The sequel's section, or null when the page has none for this title
+ */
+export function selectSequelSection(html: string, seriesTitle: string): string | null {
+  const wanted = normalizeHeadingText(seriesTitle);
+  if (!wanted) return null;
+  const headings = [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)];
+  const at = headings.findIndex(h => normalizeHeadingText(h[1] ?? '') === wanted);
+  const heading = headings[at];
+  if (heading?.index === undefined) return null;
+  if (!/id="vol\d+"/.test(html.substring(0, heading.index))) return null;
+  const end = headings[at + 1]?.index ?? html.length;
+  return html.substring(heading.index, end);
+}
+
 /**
  * Filter HTML to only include the main manga series content
  *

@@ -10,6 +10,7 @@
  * Extracted from manga-extractor (lines 716-998)
  */
 
+import { selectSequelSection } from '@/server/services/shared/parsing-utils';
 import {
   parseVolumeTable,
   parseVolumeTableWithDescriptions,
@@ -348,13 +349,16 @@ export async function getVolumeWithChapters(
  *
  * @param volumeListUrl - URL to the volume list page
  * @param cache - Cache instance for storing results
+ * @param seriesTitle - Title being looked up; when the page lists it as a
+ *   sequel under its own heading, only that section's volumes are returned
  * @returns Array of volumes with descriptions and chapter ranges
  */
 export async function getVolumesWithDescriptions(
   volumeListUrl: string,
-  cache: Cache<unknown>
+  cache: Cache<unknown>,
+  seriesTitle?: string,
 ): Promise<WikipediaVolume[]> {
-  const cacheKey = `volumes-desc:${volumeListUrl}`;
+  const cacheKey = seriesTitle ? `volumes-desc:${volumeListUrl}#${seriesTitle}` : `volumes-desc:${volumeListUrl}`;
   const cached = cache.get(cacheKey);
   if (cached) {
     logger.debug(`[WIKIPEDIA] Using cached volumes with descriptions for: ${volumeListUrl}`);
@@ -394,8 +398,11 @@ export async function getVolumesWithDescriptions(
       return [];
     }
 
-    // Use volume-parser to parse volumes with descriptions
-    const volumes = parseVolumeTableWithDescriptions(htmlContent);
+    // Use volume-parser to parse volumes with descriptions. A sequel that
+    // shares the page reads its own section: parsed whole, the page's volumes
+    // are deduplicated by number across both series.
+    const sequelHtml = seriesTitle ? selectSequelSection(htmlContent, seriesTitle) : null;
+    const volumes = parseVolumeTableWithDescriptions(sequelHtml ?? htmlContent);
 
     logger.info(`[WIKIPEDIA] Found ${volumes.length} volumes with descriptions`);
     cache.set(cacheKey, volumes);

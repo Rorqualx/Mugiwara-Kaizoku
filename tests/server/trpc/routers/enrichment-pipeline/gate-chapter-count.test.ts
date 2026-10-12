@@ -23,4 +23,22 @@ describe('gateChapterCount — the chapter count volume ranges are clamped to', 
     expect(gateChapterCount(null, 95)).toBe(95);
     expect(gateChapterCount(0, 95)).toBe(95);
   });
+
+  // Why this exists: Wikipedia read the parent's section of a shared list page
+  // for Tokyo Ghoul:re and reported 143. 143 is above half of 181, so the
+  // floor above did not catch it and the gate clamped volume ranges to 143
+  // although MangaDex and ComicVine agree the series ends at 179.
+  it('does not go below a final chapter two providers agree on', () => {
+    expect(gateChapterCount(143, 181, 179)).toBe(179);
+  });
+
+  it('a corroborated final chapter never lifts the gate above the ceiling or above a higher source count', () => {
+    expect(gateChapterCount(143, 150, 179)).toBe(150);
+    expect(gateChapterCount(141, 139, 139)).toBe(139);
+    expect(gateChapterCount(686, 686, 686)).toBe(686);
+  });
+
+  it('behaves as before when nothing is corroborated', () => {
+    expect(gateChapterCount(143, 181, null)).toBe(143);
+  });
 });
