@@ -18,6 +18,8 @@ import { Anchor, Badge, Group, Loader, Paper, Stack, Switch, Text, Title } from 
 import { notifications } from '@mantine/notifications';
 import { IconBook, IconExternalLink, IconPlugConnected, IconWorldWww } from '@tabler/icons-react';
 
+import { suwayomiStatusPollMs } from '@/components/settings/suwayomi/SuwayomiServerControls';
+import { useRealTime } from '@/providers/RealTimeProvider';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client';
 
@@ -70,8 +72,9 @@ function useMangaDexStatus(): { label: string; color: string } {
 }
 
 function useSuwayomiStatus(): { label: string; color: string } {
+  const { isConnected } = useRealTime();
   const { data, isLoading } = trpc.suwayomiV2.getServerStatus.useQuery(undefined, {
-    refetchInterval: 30_000,
+    refetchInterval: suwayomiStatusPollMs(isConnected),
   });
   if (isLoading) return { label: 'Checking…', color: 'gray' };
   return data?.isRunning === true

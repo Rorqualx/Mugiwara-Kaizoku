@@ -63,8 +63,10 @@ function strip(name: string): string {
 }
 
 export function ExtensionsTab(): React.ReactElement {
+  // No socket event covers this (extension count, catalog, FlareSolverr
+  // flags), so it polls — slowly: these change on user action, not by the second.
   const statusQuery = trpc.suwayomiV2.getInfrastructureStatus.useQuery(undefined, {
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
   });
   const status = statusQuery.data as
     | { isRunning?: boolean; catalogConfigured?: boolean; flareSolverrEnabled?: boolean; extensionCount?: number }

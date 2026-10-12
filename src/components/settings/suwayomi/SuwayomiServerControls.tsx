@@ -37,11 +37,31 @@ import { IconInfoCircle } from '@tabler/icons-react';
 
 import { useRealTime } from '@/providers/RealTimeProvider';
 import type { WebSocketEvent } from '@/types/api/v1/websocket';
-import { notify } from '@/utils/notify';
+import { notify, type NotifyOptions } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
 
 /** Health-check polling worst case (HEALTH_CHECK_CONFIG.maxRetries × retryDelay). */
 const COLD_START_BUDGET_SECONDS = 30;
+
+/**
+ * How often to re-read the Suwayomi server status. While the socket is up,
+ * every supervisor event (start, stop, failure, restart, crash loop)
+ * refreshes the status, so the poll only backstops a crash that announced
+ * nothing; it used to run every 5s regardless.
+ */
+export function suwayomiStatusPollMs(isConnected: boolean): number {
+  return isConnected ? 60_000 : 10_000;
+}
+
+/** Supervisor events after which the server status may have changed. */
+const SERVER_STATE_EVENTS: ReadonlySet<string> = new Set([
+  'system:suwayomi:server:starting',
+  'system:suwayomi:server:started',
+  'system:suwayomi:server:stopped',
+  'system:suwayomi:server:start:failed',
+  'system:suwayomi:supervisor:restart-attempted',
+  'system:suwayomi:supervisor:crash-looping',
+]);
 
 /** Track how long a pending mutation has been running, in whole seconds. */
 function useElapsedSeconds(isPending: boolean): number {
@@ -137,8 +157,11 @@ function MutationErrorAlert({ message }: MutationErrorAlertProps): React.ReactEl
   );
 }
 
+/** The supervisor banner's content. */
+type BannerState = { color: 'blue' | 'orange' | 'red'; title: string; message: string };
+
 interface SupervisorBannerProps {
-  banner: { color: 'blue' | 'orange' | 'red'; title: string; message: string } | null;
+  banner: BannerState | null;
   onDismiss: () => void;
 }
 
@@ -157,11 +180,60 @@ function SupervisorBanner({ banner, onDismiss }: SupervisorBannerProps): React.R
   );
 }
 
+/** What one supervisor event shows: banner (`null` clears it, absent keeps it) and an optional toast. */
+interface SupervisorFeedback {
+  banner?: BannerState | null;
+  toast?: NotifyOptions;
+}
+
+/**
+ * Feedback per Suwayomi supervisor event, given the event's message (empty
+ * when it has none).
+ *
+ * `start:failed` keeps its banner even though `restart-scheduled` usually
+ * follows and replaces it, so the failure shows even if that event is late.
+ */
+const SUPERVISOR_FEEDBACK: Readonly<Record<string, (message: string) => SupervisorFeedback>> = {
+  'system:suwayomi:server:starting': (m) => ({
+    banner: { color: 'blue', title: 'Starting Suwayomi…', message: m || 'JVM cold start typically takes 5–30s.' },
+  }),
+  'system:suwayomi:server:started': () => ({
+    banner: null,
+    toast: { severity: 'SUCCESS', title: 'Suwayomi server started', message: 'JVM is up and answering on its GraphQL endpoint.', persist: false },
+  }),
+  'system:suwayomi:server:stopped': () => ({
+    banner: null,
+    toast: { severity: 'INFO', title: 'Suwayomi server stopped', message: 'JVM has shut down cleanly.', persist: false },
+  }),
+  'system:suwayomi:server:start:failed': (m) => ({
+    banner: { color: 'orange', title: 'Suwayomi start failed', message: m || 'Supervisor will retry shortly.' },
+    toast: { severity: 'WARNING', title: 'Suwayomi failed to start', message: m || 'The JVM could not be started. Supervisor will retry.', persist: false },
+  }),
+  'system:suwayomi:supervisor:restart-scheduled': (m) => ({
+    banner: { color: 'orange', title: 'Suwayomi restart scheduled', message: m || 'The supervisor will retry shortly.' },
+  }),
+  'system:suwayomi:supervisor:restart-attempted': (m) => ({
+    banner: { color: 'blue', title: 'Restarting Suwayomi…', message: m || 'Supervisor is bringing the JVM back up.' },
+  }),
+  'system:suwayomi:supervisor:crash-looping': (m) => ({
+    banner: { color: 'red', title: 'Suwayomi crash-looping', message: m || 'Auto-restart disabled — use the Start button to retry.' },
+    toast: { severity: 'ERROR', title: 'Suwayomi crash-looping', message: m || 'Auto-restart disabled.', persist: false },
+  }),
+  'system:suwayomi:supervisor:failure-counter-reset': () => ({ banner: null }),
+};
+
+/** The `message` field of an event payload, or `''`. */
+function eventMessage(data: unknown): string {
+  return typeof data === 'object' && data !== null && 'message' in data
+    ? String((data as { message?: unknown }).message ?? '')
+    : '';
+}
+
 /**
  * Subscribe to `system:events` and project Suwayomi-relevant messages
  * into:
  *  - immediate `getServerStatus` invalidation (badge + button state
- *    flip without waiting for the 5s poll)
+ *    flip without waiting for the poll)
  *  - top-of-panel supervisor banner (restart-scheduled / restart-attempted
  *    / crash-looping — the supervisor narrates what it's doing)
  *  - severity-mapped toast for every transition (so the user sees what
@@ -170,11 +242,11 @@ function SupervisorBanner({ banner, onDismiss }: SupervisorBannerProps): React.R
 function useSuwayomiRealtimeFeedback(
   invalidateStatus: () => void,
 ): {
-  banner: { color: 'blue' | 'orange' | 'red'; title: string; message: string } | null;
+  banner: BannerState | null;
   dismissBanner: () => void;
 } {
   const { isConnected, subscribe } = useRealTime();
-  const [banner, setBanner] = useState<{ color: 'blue' | 'orange' | 'red'; title: string; message: string } | null>(null);
+  const [banner, setBanner] = useState<BannerState | null>(null);
 
   const dismissBanner = useCallback((): void => setBanner(null), []);
 
@@ -182,50 +254,12 @@ function useSuwayomiRealtimeFeedback(
     if (!isConnected) return;
     const handler = (event: WebSocketEvent): void => {
       const type = event.type;
-      if (typeof type !== 'string' || !type.startsWith('system:suwayomi:')) return;
-      const message = typeof event.data === 'object' && event.data !== null && 'message' in event.data
-        ? String((event.data as { message?: unknown }).message ?? '')
-        : '';
-      switch (type) {
-        case 'system:suwayomi:server:starting':
-          invalidateStatus();
-          setBanner({ color: 'blue', title: 'Starting Suwayomi…', message: message || 'JVM cold start typically takes 5–30s.' });
-          break;
-        case 'system:suwayomi:server:started':
-          invalidateStatus();
-          setBanner(null);
-          notify({ severity: 'SUCCESS', title: 'Suwayomi server started', message: 'JVM is up and answering on its GraphQL endpoint.', persist: false });
-          break;
-        case 'system:suwayomi:server:stopped':
-          invalidateStatus();
-          setBanner(null);
-          notify({ severity: 'INFO', title: 'Suwayomi server stopped', message: 'JVM has shut down cleanly.', persist: false });
-          break;
-        case 'system:suwayomi:server:start:failed':
-          invalidateStatus();
-          // Supervisor will fire `restart-scheduled` immediately after if a
-          // retry is queued; that overwrites this banner. We still surface
-          // the failure here so the user sees something even if the retry
-          // event arrives late.
-          setBanner({ color: 'orange', title: 'Suwayomi start failed', message: message || 'Supervisor will retry shortly.' });
-          notify({ severity: 'WARNING', title: 'Suwayomi failed to start', message: message || 'The JVM could not be started. Supervisor will retry.', persist: false });
-          break;
-        case 'system:suwayomi:supervisor:restart-scheduled':
-          setBanner({ color: 'orange', title: 'Suwayomi restart scheduled', message: message || 'The supervisor will retry shortly.' });
-          break;
-        case 'system:suwayomi:supervisor:restart-attempted':
-          setBanner({ color: 'blue', title: 'Restarting Suwayomi…', message: message || 'Supervisor is bringing the JVM back up.' });
-          break;
-        case 'system:suwayomi:supervisor:crash-looping':
-          setBanner({ color: 'red', title: 'Suwayomi crash-looping', message: message || 'Auto-restart disabled — use the Start button to retry.' });
-          notify({ severity: 'ERROR', title: 'Suwayomi crash-looping', message: message || 'Auto-restart disabled.', persist: false });
-          break;
-        case 'system:suwayomi:supervisor:failure-counter-reset':
-          setBanner(null);
-          break;
-        default:
-          break;
-      }
+      if (typeof type !== 'string') return;
+      if (SERVER_STATE_EVENTS.has(type)) invalidateStatus();
+      const feedback = SUPERVISOR_FEEDBACK[type]?.(eventMessage(event.data));
+      if (!feedback) return;
+      if (feedback.banner !== undefined) setBanner(feedback.banner);
+      if (feedback.toast) notify(feedback.toast);
     };
     return subscribe('system:events', handler);
   }, [isConnected, subscribe, invalidateStatus]);
@@ -235,9 +269,10 @@ function useSuwayomiRealtimeFeedback(
 
 export function SuwayomiServerControls(): React.ReactElement {
   const utils = trpc.useUtils();
+  const { isConnected } = useRealTime();
   const javaQuery = trpc.suwayomiV2.checkJava.useQuery(undefined, { staleTime: 30_000 });
   const statusQuery = trpc.suwayomiV2.getServerStatus.useQuery(undefined, {
-    refetchInterval: 5_000,
+    refetchInterval: suwayomiStatusPollMs(isConnected),
   });
   const startMutation = trpc.suwayomiV2.startServer.useMutation({
     onSuccess: () => { void utils.suwayomiV2.getServerStatus.invalidate(); },
