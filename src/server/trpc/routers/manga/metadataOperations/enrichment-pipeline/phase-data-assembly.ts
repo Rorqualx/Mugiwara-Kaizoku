@@ -8,6 +8,7 @@
 
 import { logger } from '@/utils/logger';
 
+import { collectedChapterFloor, collectVolumePlacements } from './collected-chapter-floor';
 import { parseComicVineDescriptions } from './comicvine-description-parser';
 import { boundByCorroboratedFinal, collectFinalChapterWitnesses, corroborateFinalChapter } from './corroborated-final-chapter';
 
@@ -314,8 +315,15 @@ export interface TrustedFinalChapter {
    * exceeds it by more than the slack in `boundByCorroboratedFinal`.
    */
   corroboratedFinal?: number | null;
-  /** Providers behind `corroboratedFinal`. */
+  /** Providers behind `ceiling` when it was lowered: those agreeing on
+   *  `corroboratedFinal`, or those placing `collectedFloor` in a volume. */
   corroboratedBy?: string[];
+  /**
+   * Lowest count the providers' volume lists allow (collected-chapter-floor.ts):
+   * the highest chapter placed in a numbered volume. Null when later volumes
+   * hold unnumbered chapters past the final one, so no lower count is safe.
+   */
+  collectedFloor?: number | null;
 }
 
 /** Prisma MangaPublicationStatus values that mean the run has ended. AniList
@@ -401,11 +409,20 @@ export function resolveTrustedFinalChapter(
   // one, that is the final chapter.
   const witnesses = collectFinalChapterWitnesses(results);
   const corroborated = corroborateFinalChapter(witnesses);
+  // Never below a chapter a provider places in a collected volume (Dr. STONE 233-236).
+  const placements = corroborated ? collectVolumePlacements(results) : [];
+  const floor = corroborated ? collectedChapterFloor(placements, corroborated.chapter, scalar.volumeCeiling) : 0;
+  const ceiling = scalar.ceiling === null ? null : boundByCorroboratedFinal(scalar.ceiling, corroborated, witnesses, floor);
+  const collected = ceiling !== null && corroborated !== null && ceiling > corroborated.chapter && ceiling === floor;
   return {
     ...scalar,
-    ceiling: scalar.ceiling === null ? null : boundByCorroboratedFinal(scalar.ceiling, corroborated, witnesses),
+    ceiling,
     corroboratedFinal: corroborated?.chapter ?? null,
-    corroboratedBy: corroborated?.sources ?? [],
+    // A bound raised to a collected chapter names the providers that place it.
+    corroboratedBy: collected
+      ? [...new Set(placements.filter(p => p.chapter === floor).map(p => p.source))]
+      : corroborated?.sources ?? [],
+    collectedFloor: Number.isFinite(floor) ? floor : null,
   };
 }
 

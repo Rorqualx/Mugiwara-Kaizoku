@@ -137,15 +137,21 @@ export function corroborateFinalChapter(witnesses: FinalChapterWitness[]): Corro
  * A witness that states the scalar itself as the highest numbered chapter
  * means the scalar is a chapter number, not a count: two lower witnesses that
  * agree with each other (two listings that both stop early) do not outvote it.
+ *
+ * `collectedFloor` (collected-chapter-floor.ts) is the lowest count the
+ * providers' volume lists allow: a chapter printed in a volume is real, so the
+ * bound is never below it (Dr. STONE keeps 233-236, collected in volume 27).
  */
 export function boundByCorroboratedFinal(
   ceiling: number,
   corroborated: CorroboratedFinalChapter | null,
   witnesses: FinalChapterWitness[] = [],
+  collectedFloor = 0,
 ): number {
   if (corroborated === null) return ceiling;
   if (witnesses.some(w => Math.abs(w.chapter - ceiling) <= WITNESS_AGREEMENT_WINDOW)) return ceiling;
-  if (ceiling - corroborated.chapter <= FINAL_CHAPTER_SLACK) return ceiling;
   if (corroborated.chapter < ceiling * CORROBORATION_FLOOR) return ceiling;
-  return corroborated.chapter;
+  const bound = Math.max(corroborated.chapter, collectedFloor);
+  if (ceiling - bound <= FINAL_CHAPTER_SLACK) return ceiling;
+  return bound;
 }

@@ -96,8 +96,10 @@ export function applyCorroboratedFinalChapter(
   const final = resolveTrustedFinalChapter(result, stored);
   const [firstSource] = final.corroboratedBy ?? [];
   if (!final.trusted || final.ceiling === null || final.ceiling >= scalar || firstSource === undefined) return null;
-  // A lower ceiling that is some other provider's scalar is not a cross-checked number.
-  if (final.ceiling !== final.corroboratedFinal) return null;
+  // A lower ceiling that is some other provider's scalar is not a cross-checked
+  // number; the corroborated final chapter, or a chapter a provider places in a
+  // collected volume above it, is.
+  if (final.ceiling !== final.corroboratedFinal && final.ceiling !== final.collectedFloor) return null;
 
   metadata['chapters'] = final.ceiling;
   if (applied.perFieldProvenance) applied.perFieldProvenance['chapters'] = firstSource;
