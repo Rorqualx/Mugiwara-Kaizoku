@@ -1,6 +1,6 @@
 // @file-size-justified: phase-2 DB-persistence cohesion — splitting the merge
-// graph (mergeEnrichmentChapters, buildChapterUpdates, findStaleChapterIds,
-// buildNewChapterRecords) into separate files would scatter tightly-coupled
+// graph (mergeEnrichmentChapters, buildChapterUpdates, buildNewChapterRecords)
+// (findStaleChapterIds lives in phase-db-persistence/stale-chapter-sweep.ts) into separate files would scatter tightly-coupled
 // helpers across 4-5 modules with no clean seam. Pre-existing at >500 lines.
 /**
  * Phase 2: DB Persistence
@@ -18,13 +18,11 @@ import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { isError } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
-import { chapterHasUserData } from '../refresh/clear-auto-bindings';
-
 import { buildFileContentMatcher } from './file-content-matcher';
 import { insertNewChapters } from './phase-db-persistence/chapter-insert';
 import { finishedSeriesFinalChapter, withoutOverflowPastFinal } from './phase-db-persistence/final-chapter-overflow';
 import { planPhantomPairs } from './phase-db-persistence/phantom-pairing';
-import { findKeptVolumeFileRowIds } from './phase-finalize/volume-file-row-scheme';
+import { findStaleChapterIds } from './phase-db-persistence/stale-chapter-sweep';
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
 
 import type { ChapterConsensus } from './phase-volume-cross-validation/chapter-consensus-resolver';
@@ -33,6 +31,7 @@ import type { Prisma } from '@prisma/client';
 
 // Re-export for external consumers
 export type { ProviderChapter };
+export { findStaleChapterIds };
 
 /** Defense-in-depth: reject titles that are CSS/HTML garbage before DB insert */
 function sanitizeChapterTitle(title: string | undefined, chapterNumber: number): string {
@@ -262,7 +261,9 @@ async function createChaptersAndVolumes(
       await prisma.$transaction(async (tx) => {
         await deleteExistingVolumes(tx, mangaId);
         const finalChapter = finishedSeriesFinalChapter(metadata['status'], inferredChapterCount);
-        const mergeResult = await mergeEnrichmentChapters(tx, mangaId, providerChapters, inferredChapterCount, finalChapter);
+        const mergeResult = await mergeEnrichmentChapters(tx, mangaId, providerChapters, {
+          expectedCount: inferredChapterCount, finalChapter, seriesChapterCount: scalarChapterCount,
+        });
         logger.info(
           `Chapter merge for manga ${mangaId}: ${mergeResult.updated} updated, ` +
           `${mergeResult.created} created, ${mergeResult.preserved} preserved`
@@ -353,64 +354,6 @@ function buildChapterUpdates(
   return Object.keys(updates).length > 0 ? updates : null;
 }
 
-/**
- * Find stale PENDING chapter IDs that should be removed.
- *
- * Two passes:
- *   1. Numbered-but-orphaned — rows whose chapterNumber isn't in providerNumbers
- *      and aren't matched by file content. Only runs when provider coverage ≥ 80%.
- *   2. Phantom-stub — rows with chapterNumber=null AND filePath=null AND zero
- *      user-data signals. These are remnants from prior wrong bindings (CV
- *      issues misread as chapters) or from reidentify passes that nulled the
- *      row's chapterNumber. The previous filter required `chapterNumber !== null`
- *      so these were immortal. See audit plan 2026-05-19.
- *      Per-volume rows from `ensureVolumeFileRows` look the same and are kept.
- */
-/** A titled chapter 0 is a prologue the provider list does not number, so its absence there does not make it stale; the sweep deleted Bleach's "side-A the sand" and the Fandom phase re-created it under a new id on every refresh. */
-function isTitledPrologue(ch: ExistingChapter): boolean {
-  return ch.chapterNumber === 0 && ch.title.trim() !== '' && !GENERIC_TITLE_RE.test(ch.title);
-}
-
-export function findStaleChapterIds(
-  existing: ExistingChapter[],
-  providerNumbers: Set<number>,
-  matchedIds: Set<number>,
-  expectedChapterCount: number,
-): number[] {
-  const coverageRatio = expectedChapterCount > 0
-    ? providerNumbers.size / expectedChapterCount
-    : 0;
-
-  const numberedStale = coverageRatio < 0.8 ? [] : existing
-    .filter(ch =>
-      ch.downloadStatus === 'PENDING' &&
-      ch.filePath === null &&
-      ch.chapterNumber !== null &&
-      Number.isInteger(ch.chapterNumber) &&
-      !providerNumbers.has(ch.chapterNumber) &&
-      !isTitledPrologue(ch) &&
-      !matchedIds.has(ch.id)
-    )
-    .map(ch => ch.id);
-
-  // Phantom sweep runs regardless of coverage: a row with no chapterNumber AND
-  // no filePath AND no user-data signals carries no information and only
-  // exists to clutter the UI.
-  const keptVolumeFileRows = findKeptVolumeFileRowIds(existing);
-  const phantomStale = existing
-    .filter(ch =>
-      !keptVolumeFileRows.has(ch.id) &&
-      ch.chapterNumber === null &&
-      ch.filePath === null &&
-      ch.downloadStatus === 'PENDING' &&
-      !matchedIds.has(ch.id) &&
-      !chapterHasUserData(ch)
-    )
-    .map(ch => ch.id);
-
-  return [...numberedStale, ...phantomStale];
-}
-
 /** Build createMany data for new provider chapters */
 function buildNewChapterRecords(
   mangaId: number,
@@ -471,14 +414,24 @@ async function bindPhantomVolumeRows(tx: TxClient, existing: ExistingChapter[], 
   return bound;
 }
 
+/** The counts the chapter merge works against. */
+interface MergeCounts {
+  /** Consensus-capped expected chapter count (coverage basis of the stale sweep). */
+  expectedCount: number;
+  /** Last chapter of a finished series, or null. */
+  finalChapter: number | null;
+  /** The series' chapter count this run (Metadata.chapters): rows 1..N are never stale. */
+  seriesChapterCount: number;
+}
+
 /** Merge provider chapters into existing DB chapters */
 async function mergeEnrichmentChapters(
   tx: TxClient,
   mangaId: number,
   providerChapters: ProviderChapter[],
-  expectedCount: number,
-  finalChapter: number | null,
+  counts: MergeCounts,
 ): Promise<MergeResult> {
+  const { expectedCount, finalChapter, seriesChapterCount } = counts;
   const existing = await fetchExistingChaptersForMerge(tx, mangaId);
 
   // Pre-pass: bind volume-archive phantoms to provider chapters in their vol.
@@ -542,7 +495,7 @@ async function mergeEnrichmentChapters(
     }
   }
 
-  const staleIds = findStaleChapterIds(existing, providerNumbers, matchedIds, expectedCount);
+  const staleIds = findStaleChapterIds(existing, providerNumbers, matchedIds, expectedCount, seriesChapterCount);
   if (staleIds.length > 0) {
     await tx.chapter.deleteMany({ where: { id: { in: staleIds } } });
     logger.info(`Cleaned up ${staleIds.length} stale PENDING chapters for manga ${mangaId}`);

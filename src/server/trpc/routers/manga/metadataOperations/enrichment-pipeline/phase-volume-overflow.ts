@@ -32,6 +32,48 @@ export function shouldDeleteSpuriousOverflow(
   return isTerminalStatus(status) && (lastVolumeSource ?? '').includes('+');
 }
 
+/**
+ * The chapter count of a finished series, inside which no chapter is overflow:
+ * Metadata.chapters when the run has ended (terminal status or an end date),
+ * else null. `volume = -1` means "past the last volume, waiting for a
+ * tankōbon" — that cannot be true of a chapter a finished series already
+ * counts. Its volume is merely unknown here (a volume missing from the
+ * rebuild), so it is left NULL for the volume-id backfill to place.
+ */
+export function finishedSeriesChapterCount(
+  status: MangaPublicationStatus | null | undefined,
+  hasEndDate: boolean,
+  storedChapters: number | null | undefined,
+): number | null {
+  if (!isTerminalStatus(status) && !hasEndDate) return null;
+  return storedChapters !== null && storedChapters !== undefined && storedChapters > 0 ? storedChapters : null;
+}
+
+/** True when an overflow row may be tagged "unassigned" (-1): not one of a finished series' own chapters. */
+export function isTaggableOverflow(chapterNumber: number | null, finishedCount: number | null): boolean {
+  if (chapterNumber === null) return false;
+  return finishedCount === null || chapterNumber > finishedCount;
+}
+
+/**
+ * Undo an earlier "-1" on chapters a finished series counts and no volume
+ * holds, so the volume-id backfill can place them. Returns rows reset.
+ */
+async function untagCountedChapters(mangaId: number, finishedCount: number | null): Promise<number> {
+  if (finishedCount === null) return 0;
+  const reset = await prisma.chapter.updateMany({
+    where: { mangaId, volume: -1, volumeId: null, chapterNumber: { gte: 1, lte: finishedCount } },
+    data: { volume: null },
+  });
+  if (reset.count > 0) {
+    logger.info(
+      `[enrichmentPipeline] Cleared the unassigned tag on ${reset.count} chapter(s) within the ` +
+      `finished series' ${finishedCount} chapters for manga ${mangaId}`,
+    );
+  }
+  return reset.count;
+}
+
 interface OverflowVolume { id: number; number: number; chapterEnd: number }
 
 /** Smallest free decimal in (base, base+1) — base=147 → 147.1, skipping already-taken numbers. */
@@ -78,6 +120,7 @@ async function renumberFileBackedOverflow(
   mangaId: number,
   lastVolEnd: number,
   volumes: OverflowVolume[],
+  finishedCount: number | null,
 ): Promise<void> {
   const fileOverflow = await prisma.chapter.findMany({
     where: { mangaId, chapterNumber: { gt: lastVolEnd }, filePath: { not: null } },
@@ -85,7 +128,7 @@ async function renumberFileBackedOverflow(
   });
   const ints = fileOverflow
     .filter((c): c is { id: number; chapterNumber: number; fileName: string } =>
-      c.chapterNumber !== null && Number.isInteger(c.chapterNumber))
+      c.chapterNumber !== null && Number.isInteger(c.chapterNumber) && isTaggableOverflow(c.chapterNumber, finishedCount))
     .sort((a, b) => a.chapterNumber - b.chapterNumber);
   if (ints.length === 0) return;
 
@@ -135,6 +178,15 @@ export async function assignOverflowChapters(
   mangaId: number,
   _expectedVolumeCount?: number,
 ): Promise<void> {
+  const manga = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { publicationStatus: true, Metadata: { select: { endDate: true, chapters: true } } },
+  });
+  const finishedCount = finishedSeriesChapterCount(
+    manga?.publicationStatus, Boolean(manga?.Metadata?.endDate), manga?.Metadata?.chapters,
+  );
+  await untagCountedChapters(mangaId, finishedCount);
+
   const volumes = await prisma.volume.findMany({
     where: { mangaId, number: { gt: 0 }, chapterStart: { not: null }, chapterEnd: { not: null } },
     select: { id: true, number: true, chapterEnd: true, source: true },
@@ -152,15 +204,10 @@ export async function assignOverflowChapters(
   });
   if (maxChResult._max.chapterNumber === null || maxChResult._max.chapterNumber <= lastVolEnd) return;
 
-  const manga = await prisma.manga.findUnique({
-    where: { id: mangaId },
-    select: { publicationStatus: true },
-  });
-
   if (shouldDeleteSpuriousOverflow(manga?.publicationStatus, lastVolume.source)) {
     const overflowVolumes = volumes.map(v => ({ id: v.id, number: v.number, chapterEnd: v.chapterEnd as number }));
     // File-backed integer overflow = real omake → decimal in its parent volume (keeps the file).
-    await renumberFileBackedOverflow(mangaId, lastVolEnd, overflowVolumes);
+    await renumberFileBackedOverflow(mangaId, lastVolEnd, overflowVolumes, finishedCount);
     // No-file integer overflow = spurious provider numbering → delete (167.x decimals are kept).
     const noFile = await prisma.chapter.findMany({
       where: { mangaId, chapterNumber: { gt: lastVolEnd }, filePath: null },
@@ -168,6 +215,7 @@ export async function assignOverflowChapters(
     });
     const spuriousIds = noFile
       .filter(c => c.chapterNumber !== null && Number.isInteger(c.chapterNumber))
+      .filter(c => isTaggableOverflow(c.chapterNumber, finishedCount))
       .map(c => c.id);
     if (spuriousIds.length > 0) {
       await prisma.chapter.deleteMany({ where: { id: { in: spuriousIds } } });
@@ -180,10 +228,11 @@ export async function assignOverflowChapters(
   }
 
   // Conservative path: tag still-unassigned overflow as verified-unassigned.
-  const toTag = await prisma.chapter.findMany({
+  // A finished series' own chapters are never overflow (finishedSeriesChapterCount).
+  const toTag = (await prisma.chapter.findMany({
     where: { mangaId, chapterNumber: { gt: lastVolEnd }, volume: null },
-    select: { id: true },
-  });
+    select: { id: true, chapterNumber: true },
+  })).filter(c => isTaggableOverflow(c.chapterNumber, finishedCount));
   if (toTag.length === 0) return;
   await prisma.chapter.updateMany({
     where: { id: { in: toTag.map(c => c.id) } },

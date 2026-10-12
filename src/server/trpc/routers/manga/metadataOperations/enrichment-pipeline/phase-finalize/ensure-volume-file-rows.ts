@@ -260,8 +260,10 @@ async function removeOrphanedVolumeFileRows(
  */
 export async function ensureVolumeFileRows(mangaId: number): Promise<void> {
   try {
+    // Volume -1 is "unassigned", not a volume: a row for it was a numberless,
+    // file-less stub the next run's stale sweep deleted and this step re-created.
     const chapters = await prisma.chapter.findMany({
-      where: { mangaId, chapterNumber: { not: null }, volume: { not: null } },
+      where: { mangaId, chapterNumber: { not: null }, volume: { gte: 0 } },
       select: {
         index: true, pageCount: true, size: true,
         filePath: true, fileName: true, fileFormat: true,

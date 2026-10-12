@@ -17,6 +17,8 @@
  *     did not find again;
  *   - descriptive fields (title, cover, ISBN…) and an empty chapter range the
  *     rebuild left on a volume whose previous data came from such a provider;
+ *   - volumes the rebuild did not produce that are numbered within the
+ *     stored volume count and fill a gap it left (planWithinCountRestore);
  *   - user volume progress, re-pointed at the rebuilt row for the same number.
  */
 
@@ -108,6 +110,36 @@ export function planVolumeRestore(
     .map(v => v.number);
 }
 
+type RangedVolume = Pick<Volume, 'number' | 'chapterStart' | 'chapterEnd'>;
+
+/**
+ * Snapshot volumes the rebuild dropped that are still the series' own: numbered
+ * within the stored volume count, covering chapters within the stored chapter
+ * count, and not overlapping any rebuilt volume's range. No provider rebuilds a
+ * volume that only this library knows — "Vol 14 (placeholder)" of a 14-volume,
+ * 66-chapter series (chapters 60-66, which no provider places in a volume) —
+ * so the rebuild deleted it on every refresh and its chapters fell out as
+ * overflow. A volume of a since-corrected wrong binding is not put back unless
+ * it fits the counts and the gap the rebuild left.
+ */
+export function planWithinCountRestore(
+  snapshot: ReadonlyArray<RangedVolume>,
+  current: ReadonlyArray<RangedVolume>,
+  storedVolumes: number,
+  storedChapters: number,
+): number[] {
+  if (storedVolumes <= 0 || storedChapters <= 0) return [];
+  const currentNumbers = new Set(current.map(v => v.number));
+  const overlapsRebuilt = (start: number, end: number): boolean => current.some(v =>
+    v.chapterStart !== null && v.chapterEnd !== null && start <= v.chapterEnd && end >= v.chapterStart);
+  return snapshot
+    .filter(v => v.number >= 1 && v.number <= storedVolumes && !currentNumbers.has(v.number))
+    .filter(v => v.chapterStart !== null && v.chapterEnd !== null
+      && v.chapterStart >= 1 && v.chapterEnd >= v.chapterStart && v.chapterEnd <= storedChapters
+      && !overlapsRebuilt(v.chapterStart, v.chapterEnd))
+    .map(v => v.number);
+}
+
 /** Descriptive columns a provider supplies; ranges and source are owned by the rebuild. */
 const REFILLABLE_FIELDS = [
   'title', 'subtitle', 'alternativeTitle', 'description', 'summary', 'isbn', 'isbn13',
@@ -180,9 +212,15 @@ export async function restoreVolumesAfterRebuild(
   const none: VolumeRestoreResult = { restoredVolumes: 0, refilledVolumes: 0, relinkedChapters: 0, restoredProgress: 0 };
   if (snapshot.volumes.length === 0) return none;
   try {
-    const current = await prisma.volume.findMany({ where: { mangaId }, select: { id: true, number: true } });
+    const [current, counts] = await Promise.all([
+      prisma.volume.findMany({ where: { mangaId }, select: { id: true, number: true, chapterStart: true, chapterEnd: true } }),
+      prisma.manga.findUnique({ where: { id: mangaId }, select: { Metadata: { select: { volumes: true, chapters: true } } } }),
+    ]);
     const unanswered = providersToKeep(providerStatus, snapshot.boundProviders);
-    const toRestore = new Set(planVolumeRestore(snapshot.volumes, new Set(current.map(v => v.number)), unanswered));
+    const toRestore = new Set([
+      ...planVolumeRestore(snapshot.volumes, new Set(current.map(v => v.number)), unanswered),
+      ...planWithinCountRestore(snapshot.volumes, current, counts?.Metadata?.volumes ?? 0, counts?.Metadata?.chapters ?? 0),
+    ]);
     const rows = snapshot.volumes.filter(v => toRestore.has(v.number));
 
     let relinkedChapters = 0;

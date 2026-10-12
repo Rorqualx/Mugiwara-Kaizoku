@@ -31,8 +31,7 @@ const NO_USER_DATA = { chapterFiles: 0, ReadingProgress: 0, ReaderBookmark: 0, R
 
 function row(over: { id: number; index: number; chapterNumber: number | null; volume: number | null; filePath?: string | null; downloadStatus?: string }): Parameters<typeof findStaleChapterIds>[0][number] {
   return {
-    title: '', description: null, coverImage: null, pages: null, pageCount: null, releaseDate: null,
-    packDownloadId: null, filePath: null, downloadStatus: 'PENDING', _count: NO_USER_DATA, ...over,
+    title: '', packDownloadId: null, filePath: null, downloadStatus: 'PENDING', _count: NO_USER_DATA, ...over,
   };
 }
 

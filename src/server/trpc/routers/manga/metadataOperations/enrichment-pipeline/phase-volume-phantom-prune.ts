@@ -70,6 +70,36 @@ async function prunableVolumeCeiling(mangaId: number, storedVolumes: number): Pr
   return Number.isFinite(cap) ? Math.max(cap, storedVolumes) : storedVolumes;
 }
 
+/**
+ * A volume numbered within the series' stored volume count is one of its real
+ * volumes, whatever its title or range says. The prunes never remove it: the
+ * refresh of "Why Does Nobody Remember Me in this World" (14 volumes) removed
+ * its "Vol 14 (placeholder)" as an empty phantom, and its seven chapters were
+ * then tagged as overflow past volume 13.
+ */
+export function isWithinStoredVolumeCount(volumeNumber: number, storedVolumes: number): boolean {
+  return storedVolumes > 0 && volumeNumber >= 1 && volumeNumber <= storedVolumes;
+}
+
+/**
+ * Which empty numbered volumes of a finished series are phantoms: numbered
+ * beyond the volume ceiling, or placeholder-titled — but never one numbered
+ * within the stored volume count.
+ */
+export function selectEmptyPhantomVolumeIds(
+  empties: ReadonlyArray<{ id: number; number: number; title: string | null }>,
+  storedVolumes: number,
+  volumeCeiling: number,
+): number[] {
+  return empties
+    .filter(v => !isWithinStoredVolumeCount(v.number, storedVolumes))
+    .filter(v =>
+      (v.title ?? '').toLowerCase().includes('placeholder') ||
+      (volumeCeiling > 0 && v.number > volumeCeiling),
+    )
+    .map(v => v.id);
+}
+
 /** The trusted "real extent" of a finished series and the inputs behind it. */
 interface RealExtent {
   /** Known final chapter scalar (Metadata.chapters), always > 0. */
@@ -83,6 +113,8 @@ interface RealExtent {
    *  Metadata.chapters=141 vs real 139, but volumes=34 is correct, so Vol 35 and
    *  its chapters 140/141 are still caught). */
   volumeCeiling: number;
+  /** Metadata.volumes, or 0 if unknown. Volumes numbered 1..storedVolumes are never pruned. */
+  storedVolumes: number;
 }
 
 /**
@@ -114,7 +146,8 @@ async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
 
   const metaCeiling = manga?.Metadata?.chapters ?? 0;
   if (metaCeiling <= 0) return null;
-  const volumeCeiling = await prunableVolumeCeiling(mangaId, manga?.Metadata?.volumes ?? 0);
+  const storedVolumes = manga?.Metadata?.volumes ?? 0;
+  const volumeCeiling = await prunableVolumeCeiling(mangaId, storedVolumes);
 
   const maxChResult = await prisma.chapter.aggregate({
     where: {
@@ -125,16 +158,16 @@ async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
     _max: { chapterNumber: true },
   });
   const maxFileBacked = maxChResult._max.chapterNumber ?? 0;
-  return { metaCeiling, maxFileBacked, realExtent: Math.max(metaCeiling, maxFileBacked), volumeCeiling };
+  return { metaCeiling, maxFileBacked, realExtent: Math.max(metaCeiling, maxFileBacked), volumeCeiling, storedVolumes };
 }
 
 export async function pruneOutOfRangeVolumes(mangaId: number): Promise<number> {
   const extent = await resolveRealExtent(mangaId);
   if (!extent) return 0;
-  const { realExtent, metaCeiling, maxFileBacked } = extent;
+  const { realExtent, metaCeiling, maxFileBacked, storedVolumes } = extent;
 
   // Numbered volumes whose declared start is beyond the real extent.
-  const candidates = await prisma.volume.findMany({
+  const found = await prisma.volume.findMany({
     where: {
       mangaId,
       number: { gt: 0 },
@@ -142,11 +175,15 @@ export async function pruneOutOfRangeVolumes(mangaId: number): Promise<number> {
     },
     select: {
       id: true,
+      number: true,
       chapters: {
         select: { id: true, downloadStatus: true, pageCount: true, filePath: true },
       },
     },
   });
+
+  // A volume numbered within the stored count is real even when its range is off.
+  const candidates = found.filter(v => !isWithinStoredVolumeCount(v.number, storedVolumes));
 
   const isFileBacked = (c: { downloadStatus: string; pageCount: number | null; filePath: string | null }): boolean =>
     c.downloadStatus === 'COMPLETED' && (c.pageCount ?? 0) > 0 && c.filePath !== null;
@@ -241,7 +278,8 @@ export async function pruneOutOfRangeChapters(mangaId: number): Promise<number> 
 
 /**
  * Remove EMPTY phantom volumes a finished series should not have: placeholder-
- * titled volumes, or volumes numbered beyond the trusted volume count. This
+ * titled volumes, or volumes numbered beyond the trusted volume count — never
+ * one numbered within the stored count (see isWithinStoredVolumeCount). This
  * complements pruneOutOfRangeVolumes, which keys off chapterStart (chapter
  * position) and so misses an empty "Vol 39" of a 38-volume series whose declared
  * start happens to fall inside the real chapter range. Only EMPTY volumes (zero
@@ -254,18 +292,14 @@ export async function removeEmptyPhantomVolumes(mangaId: number): Promise<number
   });
   const finished = isTerminalStatus(manga?.publicationStatus) || Boolean(manga?.Metadata?.endDate);
   if (!finished) return 0;
-  const volumeCeiling = await prunableVolumeCeiling(mangaId, manga?.Metadata?.volumes ?? 0);
+  const storedVolumes = manga?.Metadata?.volumes ?? 0;
+  const volumeCeiling = await prunableVolumeCeiling(mangaId, storedVolumes);
 
   const empties = await prisma.volume.findMany({
     where: { mangaId, number: { gt: 0 }, chapters: { none: {} } },
     select: { id: true, number: true, title: true },
   });
-  const phantomIds = empties
-    .filter(v =>
-      (v.title ?? '').toLowerCase().includes('placeholder') ||
-      (volumeCeiling > 0 && v.number > volumeCeiling),
-    )
-    .map(v => v.id);
+  const phantomIds = selectEmptyPhantomVolumeIds(empties, storedVolumes, volumeCeiling);
   if (phantomIds.length === 0) return 0;
 
   await prisma.volume.deleteMany({ where: { id: { in: phantomIds } } });
