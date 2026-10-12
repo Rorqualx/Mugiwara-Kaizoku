@@ -19,7 +19,6 @@ import { trpc } from '@/utils/trpc-client';
 
 export interface QuickDownloadMutationOptions {
     mangaId: number | undefined;
-    chapterIds: number[];
     onForceRefresh?: (() => void) | undefined;
 }
 
@@ -31,12 +30,11 @@ export interface QuickDownloadMutationOptions {
  * Quick Download mutation for volume-level downloads
  * Automatically searches Prowlarr for the best volume pack and downloads it
  *
- * @param options - Mutation options including mangaId, chapterIds, and refresh callback
+ * @param options - Mutation options including mangaId and refresh callback
  * @returns tRPC mutation object
  */
 export function useQuickDownloadVolume({
     mangaId,
-    chapterIds,
     onForceRefresh
 }: QuickDownloadMutationOptions): ReturnType<typeof trpc.manga.quickDownloadWithSearch.useMutation> {
     const utils = trpc.useUtils();
@@ -64,7 +62,9 @@ export function useQuickDownloadVolume({
             try {
                 await utils.manga.get.invalidate({ id: mangaId ?? 0 });
                 await utils.manga.get.refetch({ id: mangaId ?? 0 });
-                await utils.reader.verifyChapterFiles.invalidate({ chapterIds });
+                // No input filter: the manga page verifies all of its chapters
+                // in one query, keyed by every chapter id, not this volume's.
+                await utils.reader.verifyChapterFiles.invalidate();
                 if (onForceRefresh) onForceRefresh();
             } catch (error) {
                 logger.error('[Quick Download] Refetch error:', error);

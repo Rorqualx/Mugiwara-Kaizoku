@@ -27,7 +27,6 @@ import classes from '../chaptersTable.module.css';
 
 import {
     useProgressMap,
-    useChapterFileVerification,
     useToggleVolumeMonitoring,
     useQuickDownloadVolume,
     useToggleChapterMonitoring,
@@ -43,7 +42,6 @@ import { isValidChapter, type FileVerificationMap } from './utils';
 import { VolumeHeader, VolumeContent, VolumeModals } from './volume-table-components';
 
 import type { VolumeChaptersTableProps } from './types';
-import type { Chapter } from "@prisma/client";
 
 /**
  * Table component for displaying chapters within a volume
@@ -114,17 +112,12 @@ export const VolumeChaptersTable = memo(({
     const localProgressMap = useProgressMap(progressList);
     const progressMap = parentProgressMap ?? localProgressMap;
 
-    // Get chapter IDs for file verification
-    // Pass empty array when parent provides verification to disable local query
-    const chapterIds = useMemo(
-        () => parentFileVerification ? [] : chapters.map((ch: Chapter) => ch.id),
-        [chapters, parentFileVerification]
-    );
-
-    // Verify that chapter files actually exist on disk
-    // Skipped when parent provides file verification (empty chapterIds disables the query)
-    const { data: fileVerificationData } = useChapterFileVerification(chapterIds);
-    const fileVerification: FileVerificationMap | undefined = parentFileVerification ?? (fileVerificationData as FileVerificationMap | undefined);
+    // File verification comes from VolumeGroupedChapters, which verifies every
+    // chapter of the manga in one query. A per-volume fallback query used to
+    // run until the parent's result arrived, so the first render of a manga
+    // with N volumes sent N + 1 verification queries. Until the parent's
+    // result arrives, chapters render as present.
+    const fileVerification: FileVerificationMap | undefined = parentFileVerification;
 
     // Calculate volume monitoring state
     const {
@@ -143,7 +136,6 @@ export const VolumeChaptersTable = memo(({
 
     const { mutate: quickDownloadVolume, isPending: isDownloadingVolume } = useQuickDownloadVolume({
         mangaId,
-        chapterIds,
         onForceRefresh
     });
 
