@@ -58,7 +58,8 @@ export function finishedSeriesFinalChapter(status: unknown, expectedCount: numbe
 /**
  * Split `chapters` into those to merge and the generic-titled overflow past
  * `finalChapter`. Returns everything as kept when there is no final chapter
- * or the list does not cover the main run.
+ * or the list does not cover the main run. Up to two chapters past the final
+ * chapter are kept as an epilogue, unless the overflow run continues past them.
  */
 export function splitOverflowPastFinal(
   chapters: ProviderChapter[],
@@ -68,12 +69,17 @@ export function splitOverflowPastFinal(
   const limit = finalChapter + FINAL_CHAPTER_SLACK;
   const mainRun = chapters.filter(c => c.chapterNumber <= limit).length;
   if (mainRun < finalChapter * MIN_MAIN_RUN_COVERAGE) return { kept: chapters, refused: [] };
+  const isGenericWhole = (c: ProviderChapter): boolean =>
+    Number.isInteger(c.chapterNumber) && isGenericChapterTitle(c.title);
+  // The slack is for an epilogue that stands alone. When the generic run goes
+  // straight on past it (JoJo Part 3: 152 chapters, listed again as 114-265),
+  // the chapters inside the slack are the same second numbering, not an epilogue.
+  const runContinuesPastSlack = chapters.some(c => c.chapterNumber === limit + 1 && isGenericWhole(c));
+  const from = runContinuesPastSlack ? finalChapter : limit;
   const kept: ProviderChapter[] = [];
   const refused: ProviderChapter[] = [];
   for (const chapter of chapters) {
-    const overflow = chapter.chapterNumber > limit
-      && Number.isInteger(chapter.chapterNumber)
-      && isGenericChapterTitle(chapter.title);
+    const overflow = chapter.chapterNumber > from && isGenericWhole(chapter);
     (overflow ? refused : kept).push(chapter);
   }
   return { kept, refused };

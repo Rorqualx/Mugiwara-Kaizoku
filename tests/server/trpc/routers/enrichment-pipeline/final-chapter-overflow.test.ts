@@ -53,6 +53,20 @@ describe('splitOverflowPastFinal', () => {
     expect(kept).toHaveLength(176);
   });
 
+  it('refuses the chapters just past the final chapter when the generic run continues beyond the epilogue allowance', () => {
+    // JoJo Part 3: 152 chapters, listed again as 114-265. 153 and 154 are that second numbering, not an epilogue.
+    const { kept, refused } = splitOverflowPastFinal([...run(1, 152, n => `Title ${n}`), ...run(153, 265)], 152);
+    expect(kept).toHaveLength(152);
+    expect(refused.map(c => c.chapterNumber).slice(0, 3)).toEqual([153, 154, 155]);
+    expect(refused).toHaveLength(113);
+  });
+
+  it('keeps a two-chapter epilogue when a separate generic run starts later', () => {
+    const { kept, refused } = splitOverflowPastFinal([...run(1, 176), ...run(266, 439)], 174);
+    expect(kept).toHaveLength(176);
+    expect(refused).toHaveLength(174);
+  });
+
   it('keeps decimal chapters past the final chapter', () => {
     const { refused } = splitOverflowPastFinal([...run(1, 174), { chapterNumber: 200.5 }], 174);
     expect(refused).toHaveLength(0);

@@ -41,6 +41,7 @@ import { isNovelMediaType, pickBestTitleMatchWithScore } from './phase-provider-
 import { resolveAniListPin } from './phase-provider-fetch/anilist-pin';
 import { buildTitleOnlyAniListDetails, runLanguageAwareComicVineMatch, type ComicVineDirectResult } from './phase-provider-fetch/comicvine-fetch';
 import { buildEnrichmentResult } from './phase-provider-fetch/enrichment-result-builder';
+import { withoutChaptersPastVolumeCeiling } from './phase-provider-fetch/fandom-volume-ceiling';
 import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } from './phase-provider-fetch/kitsu-fetch';
 import { fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal-fetch';
 import { fetchMangaDexDirect, verifyMangaDexWithAniList, type MangaDexDirectResult } from './phase-provider-fetch/mangadex-fetch';
@@ -508,6 +509,9 @@ export async function phaseProviderFetch(
         mangaId, fandomChapters: fandomChCount, reason, fandomUrl: fandomResult.url,
       });
       fandomResult = { ...fandomResult, chapterList: [], volumeList: [] };
+    } else {
+      // A whole-franchise wiki under the count gate still files its chapters under volumes this series does not have.
+      fandomResult = withoutChaptersPastVolumeCeiling(mangaId, fandomResult, anilistData?.details.status, anilistData?.details.volumes);
     }
   }
   if (wikipediaResult) {
