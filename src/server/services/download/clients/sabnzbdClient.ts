@@ -22,6 +22,8 @@ import { ValidationError } from '@/utils/errors';
 
 import { BaseDownloadClient } from '../base';
 
+import { downloadClientRequestSignal } from './request-timeout';
+
 import type { DownloadItem, AddDownloadOptions, GetStatusOptions, ApiClientConfig, ConnectionStatus, DownloadStatusInfo } from '../base';
 // Define types for SABnzbd API responses
 interface SabnzbdQueueResponse {
@@ -440,7 +442,8 @@ export class SabnzbdClient extends BaseDownloadClient {
             // Make GET request to API
             const url = this.buildUrl('/api');
             const response = await fetch(`${url}?${new URLSearchParams(queryParams).toString()}`, {
-                headers: this.buildAuthHeaders()
+                headers: this.buildAuthHeaders(),
+                signal: downloadClientRequestSignal()
             });
             if (!response.ok) {
                 throw new ValidationError(`HTTP error! status: ${response["status"]}`);
@@ -466,6 +469,7 @@ export class SabnzbdClient extends BaseDownloadClient {
             const url = this.buildUrl(this.proxyPath);
             const response = await fetch(url, {
                 method: 'POST',
+                signal: downloadClientRequestSignal(),
                 headers: {
                     ...this.buildAuthHeaders(),
                     'Content-Type': 'application/json'

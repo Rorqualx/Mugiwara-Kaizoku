@@ -39,6 +39,7 @@ import {
     handleError,
     hasResponseProperty,
 } from './nzbget/utils';
+import { downloadClientRequestSignal } from './request-timeout';
 
 import type { DownloadItem, AddDownloadOptions, GetStatusOptions, ApiClientConfig, ConnectionStatus, DownloadStatusInfo } from '../base';
 /**
@@ -102,6 +103,7 @@ export class NzbgetClient extends BaseDownloadClient {
 
         const fetchResponse = await fetch(url, {
             method: 'POST',
+            signal: downloadClientRequestSignal(),
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Basic ${auth}`

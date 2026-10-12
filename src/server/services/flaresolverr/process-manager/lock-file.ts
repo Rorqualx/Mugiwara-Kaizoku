@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+import { processSingleton } from '@/server/utils/process-singleton';
 import { logger } from '@/utils/logger';
 
 import type { LockResult, ProcessLockFile } from './types';
@@ -33,8 +34,12 @@ const OLD_PID_FILE_PATH = path.join(process.cwd(), '.flaresolverr.pid');
 /** Stale lock threshold (5 minutes - if lock older and process dead, consider stale) */
 const STALE_LOCK_THRESHOLD_MS = 5 * 60 * 1000;
 
-/** Unique app instance ID generated at startup */
-const APP_INSTANCE_ID = crypto.randomUUID();
+/**
+ * Unique app instance ID generated at startup. One per process: this module
+ * is loaded twice (custom server + Next.js bundle), and a FlareSolverr started
+ * from the UI must still count as ours when the server shuts down.
+ */
+const APP_INSTANCE_ID = processSingleton('flaresolverr:appInstanceId', () => crypto.randomUUID());
 
 // =============================================================================
 // Lock File Operations

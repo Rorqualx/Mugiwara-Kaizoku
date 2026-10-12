@@ -12,6 +12,8 @@ import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 
 
+import { downloadClientRequestSignal } from '../request-timeout';
+
 import { DelugeErrorCode, DelugeRateLimiter } from './types';
 
 import type {
@@ -262,7 +264,8 @@ export async function directRequest<T>(
         const httpResponse = await fetch(url, {
             method: 'POST',
             headers,
-            body: JSON.stringify(request)
+            body: JSON.stringify(request),
+            signal: downloadClientRequestSignal()
         });
 
         if (!httpResponse.ok) {
@@ -339,7 +342,8 @@ export async function proxyRequest<T>(
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(proxyPayload)
+            body: JSON.stringify(proxyPayload),
+            signal: downloadClientRequestSignal()
         });
 
         if (!httpResponse.ok) {

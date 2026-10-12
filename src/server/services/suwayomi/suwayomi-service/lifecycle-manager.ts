@@ -15,6 +15,7 @@ import { promisify } from 'util';
 
 import axios from 'axios';
 
+import { clearStaleKcefProfileLock } from '@/server/services/suwayomi/kcef-profile-lock';
 import { logger } from '@/utils/logger';
 
 import {
@@ -458,6 +459,9 @@ export async function startServer(context: {
 
     try {
         await sanitizePortIfOrphaned(context.port);
+        // No Suwayomi JVM of ours is running at this point, so a profile lock
+        // naming another host or a dead pid is left over from a killed one.
+        await clearStaleKcefProfileLock(context.configPath);
 
         // Get advanced config for memory settings
         const advancedConfig = context.getAdvancedConfig();

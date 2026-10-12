@@ -230,32 +230,16 @@ function checkChromeDependency(): void {
 let shutdownHandlerRegistered = false;
 
 /**
- * Handle crash - synchronous cleanup for uncaught exceptions
- * Uses ProcessManager's cleanupSync for safe process group cleanup
- */
-function handleCrash(type: string, error: Error | unknown): void {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const errorStack = error instanceof Error ? error.stack : undefined;
-
-  // Write to stderr directly for crash handling when logger may be unavailable
-  process.stderr.write(`[FlareSolverr] ${type}: ${errorMessage}\n`);
-  if (errorStack) {
-    process.stderr.write(`${errorStack}\n`);
-  }
-
-  processManager.cleanupSync();
-}
-
-/**
  * Register process shutdown handlers to stop FlareSolverr
  *
- * This ensures FlareSolverr is stopped when the app exits, including:
- * - Graceful shutdown (SIGINT, SIGTERM)
- * - Process exit (beforeExit, exit)
- * - Crashes (uncaughtException, unhandledRejection)
- *
- * Note: The main server-shutdown.ts also handles shutdown.
- * This provides FlareSolverr-specific handlers for crash recovery.
+ * Only an `exit` handler: whenever the process really exits, the child is
+ * killed. Crashes are deliberately NOT handled here. server-shutdown.ts owns
+ * `uncaughtException` / `unhandledRejection`: it keeps running through
+ * operational errors and otherwise shuts down in order (which stops
+ * FlareSolverr and then exits, firing this handler). A second handler here
+ * used to rethrow — a hard exit before the ordered shutdown — and killed
+ * FlareSolverr on every unhandled rejection, including ones the server
+ * survives.
  */
 export function registerShutdownHandler(): void {
   if (shutdownHandlerRegistered) {
@@ -268,17 +252,8 @@ export function registerShutdownHandler(): void {
     processManager.cleanupSync();
   });
 
-  process.on('uncaughtException', (error) => {
-    handleCrash('uncaughtException', error);
-    throw error;
-  });
-
-  process.on('unhandledRejection', (reason) => {
-    handleCrash('unhandledRejection', reason);
-  });
-
   shutdownHandlerRegistered = true;
-  logger.debug('[FlareSolverr] Shutdown handlers registered (crash handlers only)');
+  logger.debug('[FlareSolverr] Exit handler registered');
 }
 
 // ============================================================================

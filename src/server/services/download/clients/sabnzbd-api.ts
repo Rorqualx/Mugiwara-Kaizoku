@@ -9,6 +9,8 @@
 
 import { ValidationError } from '@/utils/errors';
 
+import { downloadClientRequestSignal } from './request-timeout';
+
 // Configuration interface for API requests
 export interface SabnzbdApiConfig {
   apiKey: string;
@@ -73,7 +75,8 @@ export async function directRequest<T>(
     // Make GET request to API
     const url = config.buildUrl('/api');
     const response = await fetch(`${url}?${new URLSearchParams(queryParams).toString()}`, {
-      headers: config.buildAuthHeaders()
+      headers: config.buildAuthHeaders(),
+      signal: downloadClientRequestSignal()
     });
 
     if (!response.ok) {
@@ -106,6 +109,7 @@ export async function proxyRequest<T>(
     const url = config.buildUrl(config.proxyPath);
     const response = await fetch(url, {
       method: 'POST',
+      signal: downloadClientRequestSignal(),
       headers: {
         ...config.buildAuthHeaders(),
         'Content-Type': 'application/json'
