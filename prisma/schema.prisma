@@ -2779,8 +2779,6 @@ model cache_unified {
   updated_at       DateTime? @default(now()) @db.Timestamptz(6)
 
   @@index([expires_at], map: "idx_cache_unified_expires", where: raw("(expires_at IS NOT NULL)"))
-  @@index([cache_value], map: "idx_cache_unified_gin", type: Gin)
-  @@index([cache_key], map: "idx_cache_unified_hash", type: Hash)
   @@index([access_frequency, last_accessed_at], map: "idx_cache_unified_lru")
   @@index([namespace], map: "idx_cache_unified_namespace")
   @@index([tags], map: "idx_cache_unified_tags", type: Gin)

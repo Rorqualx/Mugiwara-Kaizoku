@@ -190,26 +190,35 @@ export class UnifiedCacheProvider {
       return firstResult['cache_value'] as T;
     }
 
-    // Update access statistics
-    const updated = await this.db.$queryRaw<Array<{ access_count: number }>>`
-      UPDATE cache_unified
-      SET
-        access_count = access_count + 1,
-        last_accessed_at = NOW(),
-        access_frequency = access_frequency * 0.95 + 1.0
-      WHERE cache_key = ${key} AND namespace = ${namespace}
-      RETURNING access_count
-    `;
-
-    // Check for hot promotion (async, don't wait)
-    const accessCount = updated[0]?.access_count ?? 0;
-    if (accessCount > 0 && accessCount % 10 === 0) {
-      checkHotPromotion(key, namespace, firstResult['cache_value'], accessCount).catch(err =>
-        logger.debug('Hot promotion check failed:', err)
-      );
-    }
+    // Record the hit in the background: the value is already in hand, and
+    // waiting for the bookkeeping write doubled the round trips of every hit.
+    void this.recordAccess(key, namespace, firstResult['cache_value']);
 
     return firstResult['cache_value'] as T;
+  }
+
+  /**
+   * Bump a cache row's access statistics (used by eviction order) and, every
+   * tenth hit, consider it for the hot tier. Never rejects.
+   */
+  private async recordAccess(key: string, namespace: string, value: unknown): Promise<void> {
+    try {
+      const updated = await this.db.$queryRaw<Array<{ access_count: number }>>`
+        UPDATE cache_unified
+        SET
+          access_count = access_count + 1,
+          last_accessed_at = NOW(),
+          access_frequency = access_frequency * 0.95 + 1.0
+        WHERE cache_key = ${key} AND namespace = ${namespace}
+        RETURNING access_count
+      `;
+      const accessCount = updated[0]?.access_count ?? 0;
+      if (accessCount > 0 && accessCount % 10 === 0) {
+        await checkHotPromotion(key, namespace, value, accessCount);
+      }
+    } catch (err) {
+      logger.debug('Cache access tracking failed:', err);
+    }
   }
 
   /**

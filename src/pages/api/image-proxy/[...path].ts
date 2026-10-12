@@ -20,6 +20,9 @@ import { isHostInDomains } from '@/server/utils/outbound-url-guard';
 import { createBinaryRoute } from '@/utils/api-route-factory';
 import { logger } from '@/utils/logger';
 
+/** How stale an image's last-accessed time may get before a hit refreshes it. */
+const LAST_ACCESSED_REFRESH_MS = 60 * 60 * 1000;
+
 /** Hosts images may be fetched from. A redirect must stay on this list too. */
 const ALLOWED_IMAGE_DOMAINS = [
   'static.wikia.nocookie.net',
@@ -170,9 +173,13 @@ export default createBinaryRoute({
           where: { proxyPath }
         });
         if (cached) {
-          // Update last accessed time asynchronously (don't wait)
-          prisma.imageCache.update({
-            where: { id: cached.id },
+          // Refresh the last-accessed time in the background, at most once an
+          // hour per image: cleanup only needs to know roughly when an image
+          // was last used, and each write rewrites a row that carries the
+          // image bytes.
+          const staleBefore = new Date(Date.now() - LAST_ACCESSED_REFRESH_MS);
+          prisma.imageCache.updateMany({
+            where: { id: cached.id, lastAccessed: { lt: staleBefore } },
             data: { lastAccessed: new Date() }
           }).catch((err: unknown) => logger.error('Failed to update last accessed:', err));
           // Return cached image
