@@ -309,6 +309,17 @@ if [[ "$NODE_ENV" == "production" ]]; then
     fi
   fi
 
+  # Virtual display for Suwayomi's embedded browser (KCEF). Chromium refuses
+  # to start without an X server ("Missing X server or $DISPLAY"), and the
+  # sources that go through it then return nothing. DISPLAY is NOT exported
+  # here: only the Suwayomi JVM is pointed at it (see lifecycle-manager.ts),
+  # so the headless Chrome that FlareSolverr drives is unaffected. Best
+  # effort — the app starts either way.
+  if command -v Xvfb >/dev/null 2>&1; then
+    rm -f /tmp/.X99-lock
+    gosu app Xvfb :99 -screen 0 1280x800x24 -nolisten tcp >/dev/null 2>&1 &
+  fi
+
   echo -e "${GREEN}✅ Database setup complete. Starting application${NC}"
   # exec into the app under the 'app' user. If bundled postgres is running,
   # it stays as a child of this process (PID 1 is the entrypoint shell).

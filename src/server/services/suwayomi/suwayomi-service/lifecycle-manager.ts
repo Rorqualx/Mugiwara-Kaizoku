@@ -342,6 +342,10 @@ async function sanitizePortIfOrphaned(port: number): Promise<void> {
     if (killed > 0) logger.info(`Sanitized ${killed} orphan Suwayomi process(es) before spawn`);
 }
 
+/** Virtual display the container entrypoint starts for the embedded browser. */
+const VIRTUAL_DISPLAY = ':99';
+const VIRTUAL_DISPLAY_SOCKET = '/tmp/.X11-unix/X99';
+
 function spawnServerProcess(command: string, args: string[]): ChildProcess | null {
     logger.info(`Spawning Suwayomi process...`);
 
@@ -349,6 +353,11 @@ function spawnServerProcess(command: string, args: string[]): ChildProcess | nul
         const spawnEnv: NodeJS.ProcessEnv = { ...process.env };
         if (command.includes('/')) {
             spawnEnv['JAVA_HOME'] = path.dirname(path.dirname(command));
+        }
+        // The embedded browser needs an X display. The container entrypoint
+        // runs a virtual one; point only this JVM at it.
+        if (!spawnEnv['DISPLAY'] && fs.existsSync(VIRTUAL_DISPLAY_SOCKET)) {
+            spawnEnv['DISPLAY'] = VIRTUAL_DISPLAY;
         }
 
         const serverProcess = spawn(command, args, {

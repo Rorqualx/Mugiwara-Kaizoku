@@ -9,7 +9,7 @@
     "dev": "./scripts/build/dev-integrated.sh",
     "start": "NODE_ENV=production bun src/server/index.ts",
     "start:prod": "NODE_ENV=production bun src/server/index.ts",
-    "create-admin": "node scripts/create-admin-simple.js",
+    "create-admin": "node scripts/utilities/create-admin-simple.js",
     "generate": "prisma generate",
     "ci:local": "bash scripts/ci-local.sh",
     "ci:quick": "bash scripts/ci-local.sh --skip-tests --skip-security",

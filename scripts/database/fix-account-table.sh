@@ -185,8 +185,8 @@ done
 
 # Create default admin user
 echo -e "${BLUE}👤 Creating default admin user...${NC}"
-if [ -f "scripts/create-admin-simple.js" ]; then
-    node scripts/create-admin-simple.js || echo -e "${YELLOW}⚠️ Failed to create admin user - you can create one later${NC}"
+if [ -f "scripts/utilities/create-admin-simple.js" ]; then
+    node scripts/utilities/create-admin-simple.js || echo -e "${YELLOW}⚠️ Failed to create admin user - you can create one later${NC}"
 else
     echo -e "${YELLOW}⚠️ Admin creation script not found${NC}"
 fi

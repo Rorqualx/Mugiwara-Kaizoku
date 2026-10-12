@@ -91,10 +91,11 @@ RUN install -d /usr/share/postgresql-common/pgdg && \
 ENV PATH="/usr/lib/postgresql/15/bin:${PATH}"
 
 # Adoptium Temurin Java 21 — required by the bundled Suwayomi engine
+# xvfb: virtual display for Suwayomi's embedded browser (started by the entrypoint)
 RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor > /etc/apt/trusted.gpg.d/adoptium.gpg && \
     echo "deb https://packages.adoptium.net/artifactory/deb jammy main" > /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends temurin-21-jre && \
+    apt-get install -y --no-install-recommends temurin-21-jre xvfb && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
