@@ -79,23 +79,83 @@ export function volumeCapFor(signal: VolumeCapSignal | null, callerHint?: number
   return { cap: Infinity, source: 'none' };
 }
 
+/** A downloaded row that may sit past the last counted volume. */
+export interface PastFileRow {
+  chapterNumber: number | null;
+  /** `Chapter.volume`, which survives the per-run volume rebuild. */
+  volume: number | null;
+}
+
+/** 139.5 after a last volume ending at 139: an extra of that volume, not a new one. */
+function isDecimalRightAfter(n: number | null, lastEnd: number | null): boolean {
+  return n !== null && lastEnd !== null && !Number.isInteger(n) && n > lastEnd && n < lastEnd + 1;
+}
+
+/**
+ * Do downloaded chapters need one volume past the count?
+ *
+ * - A whole-numbered file at least one past the last counted volume's end
+ *   (Solo Leveling: volumes end at 48, files run to 201). A decimal extra does
+ *   not count: Attack on Titan's 139.5 after volume 34 (ending 139) belongs to
+ *   volume 34 and must not allow a volume 35.
+ * - A downloaded row already filed in a volume past the count, other than such
+ *   a decimal extra: Yofukashi no Uta's chapters 10-22 (in no provider range)
+ *   in its "Misc" volume 21, Jujutsu Kaisen's chapter 0 and "Vol 00"/"V31"
+ *   archives in volume 31, Vinland Saga's "Vol 30" archive. Refusing the
+ *   volume would leave those files without one.
+ *
+ * Pure — no DB.
+ */
+export function filesOutrunLastVolume(
+  rows: readonly PastFileRow[],
+  lastEnd: number | null,
+  count: number | null,
+): boolean {
+  return rows.some((row) => {
+    const n = row.chapterNumber;
+    const wholePastEnd = n !== null && lastEnd !== null && Number.isInteger(n) && n >= lastEnd + 1;
+    const filedPastCount = count !== null && count > 0 && row.volume !== null && row.volume > count
+      && !isDecimalRightAfter(n, lastEnd);
+    return wholePastEnd || filedPastCount;
+  });
+}
+
+/** Most candidate rows any title needs to decide `filesOutrunLastVolume`. */
+const PAST_FILE_ROW_LIMIT = 500;
+
+interface VolumeCapRow extends Omit<VolumeCapSignal, 'filesPastLastVolume'> {
+  lastVolumeEnd: number | null;
+  pastRows: PastFileRow[] | null;
+}
+
 export async function getVolumeCapForManga(
   mangaId: number,
   callerHint?: number,
 ): Promise<VolumeCap> {
-  const rows = await prisma.$queryRaw<VolumeCapSignal[]>`
+  // Candidates only: downloaded rows numbered past the last counted volume's
+  // end, or filed in a volume past the count. `filesOutrunLastVolume` decides.
+  const rows = await prisma.$queryRaw<VolumeCapRow[]>`
     SELECT md.volumes AS volumes, md.status::text AS status, md."endDate" AS "endDate",
            md."countryOfOrigin" AS country, md.format AS format,
-           EXISTS (
-             SELECT 1 FROM "Chapter" c
-             WHERE c."mangaId" = m.id AND c."filePath" IS NOT NULL
-               AND c."chapterNumber" > (
-                 SELECT MAX(v."chapterEnd") FROM "Volume" v
-                 WHERE v."mangaId" = m.id AND v.number BETWEEN 1 AND md.volumes
-               )
-           ) AS "filesPastLastVolume"
+           le."lastEnd" AS "lastVolumeEnd",
+           (SELECT json_agg(json_build_object('chapterNumber', p."chapterNumber", 'volume', p.volume))
+              FROM (
+                SELECT c."chapterNumber", c.volume FROM "Chapter" c
+                WHERE c."mangaId" = m.id AND c."filePath" IS NOT NULL
+                  AND (c."chapterNumber" > le."lastEnd" OR c.volume > md.volumes)
+                LIMIT ${PAST_FILE_ROW_LIMIT}
+              ) p
+           ) AS "pastRows"
     FROM "Manga" m JOIN "Metadata" md ON m."metadataId" = md.id
+    LEFT JOIN LATERAL (
+      SELECT MAX(v."chapterEnd") AS "lastEnd" FROM "Volume" v
+      WHERE v."mangaId" = m.id AND v.number BETWEEN 1 AND md.volumes
+    ) le ON true
     WHERE m.id = ${mangaId}
   `;
-  return volumeCapFor(rows[0] ?? null, callerHint);
+  const row = rows[0];
+  if (!row) return volumeCapFor(null, callerHint);
+  const { lastVolumeEnd, pastRows, ...signal } = row;
+  const filesPastLastVolume = filesOutrunLastVolume(pastRows ?? [], lastVolumeEnd, signal.volumes);
+  return volumeCapFor({ ...signal, filesPastLastVolume }, callerHint);
 }

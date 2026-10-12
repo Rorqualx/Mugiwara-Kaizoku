@@ -12,7 +12,8 @@ import { describe, it, expect, jest } from '@jest/globals';
 
 jest.mock('@/server/db', () => ({ prisma: { $queryRaw: jest.fn() } }));
 
-import { volumeCapFor } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation/db-volume-cap';
+import { prisma } from '@/server/db';
+import { filesOutrunLastVolume, getVolumeCapForManga, volumeCapFor } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation/db-volume-cap';
 
 const base = { endDate: null, country: 'JP', format: 'MANGA' };
 
@@ -46,5 +47,56 @@ describe('volumeCapFor', () => {
     expect(volumeCapFor({ ...base, volumes: 0, status: 'ONGOING', country: 'KR', format: 'MANHWA' })).toEqual({ cap: 1, source: 'kr-webtoon' });
     expect(volumeCapFor(null, 20)).toEqual({ cap: 22, source: 'caller' });
     expect(volumeCapFor(null)).toEqual({ cap: Infinity, source: 'none' });
+  });
+});
+
+describe('filesOutrunLastVolume — which downloads earn the one volume past the count', () => {
+  it('does not let a decimal extra right after the last volume allow another volume (Attack on Titan: 139.5 after volume 34 ending at 139)', () => {
+    expect(filesOutrunLastVolume([{ chapterNumber: 139.5, volume: 34 }], 139, 34)).toBe(false);
+    // Even when an earlier run had already filed it in a volume 35.
+    expect(filesOutrunLastVolume([{ chapterNumber: 139.5, volume: 35 }], 139, 34)).toBe(false);
+  });
+
+  it('lets a whole-numbered file at least one past the last volume\'s end allow it (Solo Leveling: volumes end at 48, files to 201)', () => {
+    expect(filesOutrunLastVolume([{ chapterNumber: 49, volume: null }], 48, 15)).toBe(true);
+    expect(filesOutrunLastVolume([{ chapterNumber: 201, volume: 16 }], 48, 15)).toBe(true);
+  });
+
+  it('keeps the volume for files that no counted range holds and that already sit past the count (Yofukashi no Uta: chapters 10-22 in Misc volume 21)', () => {
+    const misc = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].map(n => ({ chapterNumber: n, volume: 21 }));
+    expect(filesOutrunLastVolume([...misc, { chapterNumber: 200.5, volume: 20 }], 200, 20)).toBe(true);
+  });
+
+  it('keeps the volume for chapter 0 and numberless archives filed past the count (Jujutsu Kaisen: volume 31; Vinland Saga: "Vol 30")', () => {
+    const jjk = [
+      { chapterNumber: null, volume: 31 }, { chapterNumber: 0, volume: 31 },
+      { chapterNumber: 272.1, volume: 30 }, { chapterNumber: 272.2, volume: 30 },
+    ];
+    expect(filesOutrunLastVolume(jjk, 272, 30)).toBe(true);
+    expect(filesOutrunLastVolume([{ chapterNumber: null, volume: 30 }], 220, 29)).toBe(true);
+  });
+
+  it('allows nothing without a past-the-end file, a last volume end or a count', () => {
+    expect(filesOutrunLastVolume([], 139, 34)).toBe(false);
+    expect(filesOutrunLastVolume([{ chapterNumber: 140, volume: null }], null, 34)).toBe(false);
+    expect(filesOutrunLastVolume([{ chapterNumber: null, volume: 35 }], 139, null)).toBe(false);
+  });
+});
+
+describe('getVolumeCapForManga', () => {
+  it('caps finished Attack on Titan at 34 when its only file past volume 34 is the decimal extra 139.5', async () => {
+    jest.mocked(prisma.$queryRaw).mockResolvedValueOnce([{
+      ...base, volumes: 34, status: 'COMPLETED', endDate: new Date('2021-04-09'),
+      lastVolumeEnd: 139, pastRows: [{ chapterNumber: 139.5, volume: 34 }],
+    }] as never);
+    await expect(getVolumeCapForManga(52)).resolves.toEqual({ cap: 34, source: 'metadata' });
+  });
+
+  it('keeps Yofukashi no Uta\'s 21st volume while its downloaded chapters 10-22 are filed there', async () => {
+    jest.mocked(prisma.$queryRaw).mockResolvedValueOnce([{
+      ...base, volumes: 20, status: 'COMPLETED', lastVolumeEnd: 200,
+      pastRows: [{ chapterNumber: 10, volume: 21 }, { chapterNumber: 200.5, volume: 20 }],
+    }] as never);
+    await expect(getVolumeCapForManga(27)).resolves.toEqual({ cap: 21, source: 'metadata' });
   });
 });

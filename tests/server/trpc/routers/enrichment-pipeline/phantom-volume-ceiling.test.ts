@@ -31,7 +31,12 @@ const mocked = prisma as unknown as {
 function finishedSeries(filesPastLastVolume: boolean): void {
   mocked.manga.findUnique.mockResolvedValue({ publicationStatus: 'COMPLETED', Metadata: { endDate: null, volumes: 15 } } as never);
   mocked.$queryRaw.mockResolvedValue([
-    { volumes: 15, status: 'COMPLETED', endDate: null, country: 'KR', format: 'MANGA', filesPastLastVolume },
+    {
+      volumes: 15, status: 'COMPLETED', endDate: null, country: 'KR', format: 'MANGA',
+      // Solo Leveling: 15 volumes end at chapter 48; downloaded files run on past it.
+      lastVolumeEnd: 48,
+      pastRows: filesPastLastVolume ? [{ chapterNumber: 49, volume: null }, { chapterNumber: 201, volume: null }] : [],
+    },
   ] as never);
   mocked.volume.findMany.mockResolvedValue([
     { id: 116, number: 16, title: null },
