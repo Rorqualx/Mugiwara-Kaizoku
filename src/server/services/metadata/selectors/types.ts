@@ -70,6 +70,18 @@ export interface SelectorAlternative {
  * the field-type. `guardRefused` true means the numeric drift-guard
  * (folded into selectNumeric) overrode an otherwise-acceptable winner.
  */
+/**
+ * One candidate as a voting selector counted it: its value after the
+ * selector's own normalisation, and whether it sat in the winning
+ * cluster/group. Candidates the selector dropped as unusable have no ballot.
+ * Read by the claims recorder, which must not redo the selector's work.
+ */
+export interface SelectorBallot {
+  provider: SourceName;
+  normalized: string | number;
+  inWinningGroup: boolean;
+}
+
 export interface SelectorResult {
   winner: Candidate | null;
   confidence: number;
@@ -79,6 +91,8 @@ export interface SelectorResult {
   guardRefused: boolean;
   /** Debugging only — not persisted. */
   reason: string;
+  /** Only the voting selectors (numeric, categorical) report ballots. */
+  ballots?: SelectorBallot[];
 }
 
 /**

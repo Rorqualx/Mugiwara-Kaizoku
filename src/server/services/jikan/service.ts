@@ -15,6 +15,10 @@ import { MAL_STATUS_MAP, type MALResult } from './types';
 
 const log = logger.child('JikanService');
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 class JikanService {
   private available: boolean | null = null;
 
@@ -22,11 +26,12 @@ class JikanService {
    * Get manga metadata by MyAnimeList ID.
    *
    * @param malId - MyAnimeList manga ID (positive integer)
+   * @param onFailure - Called when null means Jikan did not answer, not that it has no such manga
    * @returns Normalized MAL result or null on failure
    */
-  async getMangaByMALId(malId: number): Promise<MALResult | null> {
+  async getMangaByMALId(malId: number, onFailure?: (reason: string) => void): Promise<MALResult | null> {
     try {
-      const response = await client.fetchMangaById(malId);
+      const response = await client.fetchMangaById(malId, undefined, onFailure);
       const data = response?.data;
       if (!data) return null;
 
@@ -55,10 +60,9 @@ class JikanService {
         isAdult,
       };
     } catch (error: unknown) {
-      log.error('Failed to fetch MAL data', {
-        malId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const message = errorMessage(error);
+      log.error('Failed to fetch MAL data', { malId, error: message });
+      onFailure?.(message);
       return null;
     }
   }

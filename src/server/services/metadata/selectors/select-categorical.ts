@@ -52,6 +52,7 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
       alternatives: [],
       guardRefused: false,
       reason: 'no candidates with normalizable categorical values',
+      ballots: [],
     };
   }
 
@@ -70,6 +71,9 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
   );
 
   const alternatives = buildAlternatives(parsed, winnerParsed);
+  const ballots = parsed.map(p => ({
+    provider: p.candidate.provider, normalized: p.normalized, inWinningGroup: p.normalized === winnerGroup.normalized,
+  }));
   const decision = classifyConfidence(winnerConfidence, FIELD_TYPE);
 
   if (decision === 'reject') {
@@ -79,6 +83,7 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
       alternatives,
       guardRefused: false,
       reason: `winner confidence ${winnerConfidence.toFixed(2)} below categorical reject threshold`,
+      ballots,
     };
   }
 
@@ -95,6 +100,7 @@ export function selectCategorical(ctx: SelectorContext): RawSelectorResult {
     alternatives,
     guardRefused: false,
     reason: `${winnerGroup.members.length}/${parsed.length} providers agree on "${winnerGroup.normalized}" (${(agreement * 100).toFixed(0)}%)`,
+    ballots,
   };
 }
 

@@ -72,6 +72,7 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
       alternatives: [],
       guardRefused: false,
       reason: 'no candidates with finite numeric values',
+      ballots: [],
     };
   }
 
@@ -90,6 +91,9 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
   );
 
   const alternatives = buildAlternatives(parsed, winnerParsed);
+  const ballots = parsed.map(p => ({
+    provider: p.candidate.provider, normalized: p.value, inWinningGroup: winningCluster.members.includes(p),
+  }));
   const decision = classifyConfidence(winnerConfidence, FIELD_TYPE);
 
   if (decision === 'reject') {
@@ -99,6 +103,7 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
       alternatives,
       guardRefused: false,
       reason: `winner confidence ${winnerConfidence.toFixed(2)} below numeric reject threshold`,
+      ballots,
     };
   }
 
@@ -112,6 +117,7 @@ export function selectNumeric(ctx: SelectorContext): RawSelectorResult {
     reason: guardRefused
       ? `non-anchor drift > ${(DRIFT_TOLERANCE * 100).toFixed(0)}% from anchor ${String(ctx.existingProvider)}(${String(ctx.existingValue)})`
       : `cluster agreement ${(agreement * 100).toFixed(0)}%`,
+    ballots,
   };
 }
 

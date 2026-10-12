@@ -12,6 +12,7 @@
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
+import { noteFandomChapterPages } from './claim-run/notes';
 import { tryAdaptiveParser } from './fandom-adaptive-bridge';
 import { loadChapterUrlTemplate } from './fandom-provider-storage';
 import { extractTemplateFromUrls, generateUrlsFromTemplate } from './fandom-url-template';
@@ -299,6 +300,7 @@ async function fetchChapterDetailsFromFandom(ctx: FetchDetailCtx): Promise<Fetch
     if (urlToChapterNum.size === 0) return { discoveredTemplate, storedTemplateFailed };
 
     const details = await batchFetchDetails(chapterDetailService, urlToChapterNum, onProgress);
+    noteFandomChapterPages(options, urlToChapterNum.size, details.length);
     const { coversFound, descsFound } = mergeChapterDetails(details, urlToChapterNum, maps);
     logger.info(`[enrichmentPipeline] Chapter detail fetch: ${coversFound} covers, ${descsFound} descriptions from ${details.length}/${urlToChapterNum.size} pages`);
 

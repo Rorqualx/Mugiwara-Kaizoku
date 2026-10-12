@@ -429,7 +429,7 @@ export async function phaseProviderFetch(
   // An unbound MAL stays unfetched (it has no matcher, only this cross-reference fetch).
   const malData = enabled.has('mal') && !directives.malUnbound
     ? await withTimeoutOrNull(
-        fetchMALWithCrossValidation(anilistData, mangadexData, title), T, 'mal-fetch', () => outcomes.markTimeout('mal'),
+        fetchMALWithCrossValidation(anilistData, mangadexData, title, (reason) => options?.claimRun?.noteFetchFailure('mal', reason)), T, 'mal-fetch', () => outcomes.markTimeout('mal'),
       )
     : null;
 
@@ -508,6 +508,7 @@ export async function phaseProviderFetch(
       log.warn('Fandom chapter list disabled — likely cross-series wiki', {
         mangaId, fandomChapters: fandomChCount, reason, fandomUrl: fandomResult.url,
       });
+      options?.claimRun?.noteGated('fandom', reason, { fandom: fandomResult });
       fandomResult = { ...fandomResult, chapterList: [], volumeList: [] };
     } else {
       // A whole-franchise wiki under the count gate still files its chapters under volumes this series does not have.
@@ -522,6 +523,7 @@ export async function phaseProviderFetch(
         mangaId, wikipediaChapters: wikiChCount, reason,
         wikipediaTitle: wikipediaResult.data.title,
       });
+      options?.claimRun?.noteGated('wikipedia', reason, { wikipedia: wikipediaResult });
       wikipediaResult = {
         ...wikipediaResult,
         chapterList: [],
@@ -553,6 +555,7 @@ export async function phaseProviderFetch(
     kitsu: kitsuData,
     comicvine: comicvineData,
     enrichmentResult,
+    claimRun: options?.claimRun,
   });
 
   logPhase1Summary(enrichmentResult, {
@@ -571,6 +574,7 @@ export async function phaseProviderFetch(
     log.warn(`Provider fetch degraded for manga ${mangaId} — no answer from: ${unanswered.join(', ')}`);
   }
 
+  options?.claimRun?.noteFetchPhase({ providerStatus, directives, anilist: anilistData, mangadex: mangadexData, comicvine: comicvineData, mangaupdates: muData, kitsu: kitsuData, mal: malData, fandom: fandomResult, wikipedia: wikipediaResult });
   return {
     ...buildUnifiedResults(enrichmentResult, {
       anilistData, comicvineData, muData, mangadexData, fandomResult, wikipediaResult, malData, kitsuData,
@@ -635,15 +639,17 @@ async function fetchMALWithCrossValidation(
   anilistData: AniListDirectResult | null,
   mangadexData: MangaDexDirectResult | null,
   title: string,
+  onFailure?: (reason: string) => void,
 ): Promise<MALDirectResult | null> {
   const idMal = anilistData?.details.idMal ?? mangadexData?.malId;
   if (!idMal) return null;
 
   let malData: MALDirectResult | null = null;
   try {
-    malData = await fetchMALDirect(idMal);
+    malData = await fetchMALDirect(idMal, onFailure);
   } catch (err: unknown) {
     log.warn('MAL fetch failed', { error: err instanceof Error ? err.message : String(err) });
+    onFailure?.(err instanceof Error ? err.message : String(err));
   }
 
   // Cross-validate AniList ↔ MangaDex MAL IDs
@@ -914,6 +920,7 @@ interface ShadowInputs {
   kitsu: KitsuDirectResult | null;
   comicvine: ComicVineDirectResult | null;
   enrichmentResult: EnrichmentResult;
+  claimRun: EnrichmentPipelineOptions['claimRun'];
 }
 
 /**
@@ -950,6 +957,7 @@ async function applySelectorCutoverInPlace(inputs: ShadowInputs): Promise<void> 
     if (claims.length === 0) return;
     const byField = collectCandidates(claims);
     const shadow = runShadowSelection(byField);
+    inputs.claimRun?.noteSelection(claims, shadow);
     const legacyMetadata = (inputs.enrichmentResult.appliedMatch?.metadata ?? {}) as Record<string, unknown>;
     const legacyProvenance = (inputs.enrichmentResult.appliedMatch?.perFieldProvenance ?? {}) as Record<string, string>;
 

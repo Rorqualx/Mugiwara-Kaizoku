@@ -76,7 +76,7 @@ function addClaimToCandidates(
  * → `chapters`, `coverImage` → `cover`) — that aliasing folds here so
  * provider fetchers can keep emitting whatever they emit today.
  */
-function mapKeyToField(rawKey: string): MetadataField | null {
+export function mapKeyToField(rawKey: string): MetadataField | null {
   // Direct hits.
   if (rawKey in FIELD_TYPE_REGISTRY) return rawKey as MetadataField;
 

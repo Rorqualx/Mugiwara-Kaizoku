@@ -11,7 +11,7 @@
 import type { MetadataField, SourceName } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/source-priority-config';
 
 import { type ConfidenceClass } from './thresholds';
-import { getFieldType, type Candidate, type SelectorContext } from './types';
+import { getFieldType, type Candidate, type SelectorBallot, type SelectorContext } from './types';
 
 import { selectField } from './index';
 
@@ -24,6 +24,8 @@ export interface ShadowFieldOutcome {
   alternatives: Array<{ provider: SourceName; value: unknown; confidence: number }>;
   guardRefused: boolean;
   reason: string;
+  /** How a voting selector counted each candidate; absent for ranked/merged field types. */
+  ballots?: SelectorBallot[];
 }
 
 export interface ShadowSelection {
@@ -56,6 +58,7 @@ export function runShadowSelection(byField: Map<MetadataField, Candidate[]>): Sh
       alternatives: result.alternatives,
       guardRefused: result.guardRefused,
       reason: result.reason,
+      ...(result.ballots ? { ballots: result.ballots } : {}),
     });
     if (result.guardRefused) refusedFields.push(field);
   }

@@ -10,6 +10,7 @@ import type { WikipediaMangaData } from '@/server/services/wikipedia/wikipedia/t
 import type { MangaWithRelations } from '@/server/trpc/routers/manga/shared';
 import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 
+import type { ClaimRecorder } from './claim-run/recorder';
 import type { ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
 
 export interface EnrichmentProgress {
@@ -27,6 +28,11 @@ export interface EnrichmentPipelineOptions {
    * reproduce the title (e.g. "Völundio ~Divergent Sword Saga~" → id 123314).
    */
   previousAniListId?: string | null;
+  /**
+   * This run's provider-claims recorder. Set by `runEnrichmentPipeline`
+   * (`withClaimRun`), never by callers; absent when a phase is run on its own.
+   */
+  claimRun?: ClaimRecorder;
 }
 
 export interface EnrichmentPipelineResult {

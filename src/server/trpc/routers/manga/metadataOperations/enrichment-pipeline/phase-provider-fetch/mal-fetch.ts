@@ -53,10 +53,11 @@ export interface MALDirectResult {
  * doesn't flow downstream. Mirrors AniList's filterAdultContent behavior.
  *
  * @param malId - MyAnimeList manga ID (from AniList idMal or MangaDex links.mal)
+ * @param onFailure - Called when null means Jikan did not answer, not that it has no data
  * @returns Normalized MAL result or null on failure / when filtered
  */
-export async function fetchMALDirect(malId: number): Promise<MALDirectResult | null> {
-  const result = await jikanService.getMangaByMALId(malId);
+export async function fetchMALDirect(malId: number, onFailure?: (reason: string) => void): Promise<MALDirectResult | null> {
+  const result = await jikanService.getMangaByMALId(malId, onFailure);
   if (!result) {
     log.info('MAL: no data found', { malId });
     return null;

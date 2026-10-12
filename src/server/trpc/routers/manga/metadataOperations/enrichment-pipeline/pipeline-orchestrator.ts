@@ -24,6 +24,8 @@ import { withTimeoutOrNull } from '@/server/services/shared/with-timeout';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { logger } from '@/utils/logger';
 
+import { withClaimRun } from './claim-run/claim-run';
+import { crossValidateRecorded } from './claim-run/notes';
 import { collectFinalChapterWitnesses } from './corroborated-final-chapter';
 import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
@@ -35,7 +37,7 @@ import { phaseDbPersistence } from './phase-db-persistence';
 import { phaseFandomEnrichment } from './phase-fandom-enrichment';
 import { phaseFinalize } from './phase-finalize';
 import { phaseProviderFetch } from './phase-provider-fetch';
-import { collectVolumeRangeProposals, crossValidateVolumeRanges } from './phase-volume-cross-validation';
+import { collectVolumeRangeProposals } from './phase-volume-cross-validation';
 import { resolveExpectedChapterCount } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import { resolveExpectedVolumeCount } from './phase-volume-cross-validation/consensus-resolver';
 import { applyCorroboratedFinalChapter, resolveVolumeGateCeiling } from './phase-volume-cross-validation/volume-gate-ceiling';
@@ -44,6 +46,7 @@ import { pruneFinishedSeriesPhantoms } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
+import { toFandomVolumeInputs, toWikipediaVolumeInputs } from './pipeline-orchestrator/volume-inputs';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybePlausibilityCheck, maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
 import { isBonusTitle } from './types';
@@ -565,47 +568,8 @@ async function executeEnrichmentPhases(
   // Phase 3: COLLECT proposals from all sources
   await onProgress?.('validating', 'Cross-validating volume ranges...');
   const comicvineVolumes = await extractComicVineVolumes(mangaId, result);
-  const wikiVolumes = (result.wikipediaResult?.data.volumeList ?? []).map(wv => {
-    const chNums = wv.chapters
-      .map(c => typeof c.number === 'number' ? c.number : parseFloat(String(c.number)))
-      .filter((n): n is number => !isNaN(n) && n > 0)
-      .sort((a, b) => a - b);
-    const first = chNums[0];
-    const last = chNums[chNums.length - 1];
-    const wvAny = wv as unknown as Record<string, unknown>;
-    return {
-      number: wv.number,
-      chapters: wv.chapters.map(c => ({ number: c.number })),
-      ...(first !== undefined && last !== undefined ? { chapterStart: first, chapterEnd: last } : {}),
-      ...(typeof wvAny['title'] === 'string' ? { title: wvAny['title'] as string } : {}),
-      ...(typeof wvAny['description'] === 'string' ? { description: wvAny['description'] as string } : {}),
-      ...(typeof wvAny['coverImage'] === 'string' ? { coverImage: wvAny['coverImage'] as string } : {}),
-      // Wikipedia uses `originalReleaseDate` / `englishReleaseDate` — the unnamed
-      // `releaseDate` is rare. Fall through so Fix 1's downstream persistence fires.
-      ...(typeof wvAny['originalReleaseDate'] === 'string' ? { releaseDate: wvAny['originalReleaseDate'] as string }
-        : typeof wvAny['englishReleaseDate'] === 'string' ? { releaseDate: wvAny['englishReleaseDate'] as string }
-        : typeof wvAny['releaseDate'] === 'string' ? { releaseDate: wvAny['releaseDate'] as string }
-        : {}),
-      // Wikipedia volume rows often carry ISBN (extracted via the table-parser).
-      // Prefer isbn13, fall back to isbn.
-      ...(typeof wvAny['isbn13'] === 'string' ? { isbn: wvAny['isbn13'] as string }
-        : typeof wvAny['isbn'] === 'string' ? { isbn: wvAny['isbn'] as string }
-        : {}),
-    };
-  });
-  const fandomVolumes = (result.fandomResult?.volumeList ?? []).map(fv => {
-    const entry: { number: number; chapterStart?: number; chapterEnd?: number; title?: string; description?: string; coverImage?: string; releaseDate?: string; isbn?: string; pageCount?: number } = { number: fv.number };
-    if (fv.chapterStart !== undefined) entry.chapterStart = fv.chapterStart;
-    if (fv.chapterEnd !== undefined) entry.chapterEnd = fv.chapterEnd;
-    if (fv.title !== undefined) entry.title = fv.title;
-    if (fv.description !== undefined) entry.description = fv.description;
-    if (fv.coverImage !== undefined) entry.coverImage = fv.coverImage;
-    if (fv.releaseDate !== undefined) entry.releaseDate = fv.releaseDate;
-    if (fv.isbn !== undefined) entry.isbn = fv.isbn;
-    else if (fv.isbnEn !== undefined) entry.isbn = fv.isbnEn;
-    if (fv.pageCount !== undefined) entry.pageCount = fv.pageCount;
-    return entry;
-  });
+  const wikiVolumes = toWikipediaVolumeInputs(result.wikipediaResult?.data.volumeList ?? []);
+  const fandomVolumes = toFandomVolumeInputs(result.fandomResult?.volumeList ?? []);
 
   const mangadexVolumes = result.mangadexAggregate?.volumes ?? [];
   // iter-PVM-1: surface per-chapter list on CV volume rows from their
@@ -621,8 +585,8 @@ async function executeEnrichmentPhases(
     await resolveVolumeGateContext(mangaId, result);
 
   // Phase 4: CROSS-VALIDATE + PERSIST validated volume ranges
-  const validatedRanges = crossValidateVolumeRanges(
-    proposals, expectedChapterCount, expectedVolumeCount, volumeTrusted,
+  const validatedRanges = crossValidateRecorded(
+    options, proposals, { expectedChapterCount, expectedVolumeCount, volumeTrusted },
   );
   if (validatedRanges.length > 0) {
     await persistValidatedVolumeRanges(mangaId, validatedRanges, expectedChapterCount);
@@ -722,9 +686,9 @@ export async function runEnrichmentPipeline(
   mangaId: number,
   title: string,
   onProgress?: EnrichmentProgress,
-  options?: EnrichmentPipelineOptions,
+  callerOptions?: EnrichmentPipelineOptions,
 ): Promise<EnrichmentPipelineResult> {
-  return withEnrichmentLock(mangaId, async () => {
+  return withEnrichmentLock(mangaId, () => withClaimRun(mangaId, callerOptions, async (options) => {
     // Phase 1: Fetch metadata from providers
     await onProgress?.('fetching', `Fetching metadata for "${title}" from AniList, ComicVine, Fandom, Wikipedia...`);
     const result = await phaseProviderFetch(mangaId, title, onProgress, options);
@@ -769,5 +733,5 @@ export async function runEnrichmentPipeline(
     await maybePlausibilityCheck(mangaId, result);
 
     return { result: result.enrichmentResult, manga, ...(completeness ? { completeness } : {}) };
-  });
+  }));
 }

@@ -3066,6 +3066,54 @@ model ProviderBinding {
   @@index([mangaId, provider, origin])
 }
 
+/// Per-provider claims store: what each provider said in each enrichment run,
+/// recorded BEFORE the gates and the selector, so a provider's own claim can
+/// be told from merged output, providers can be scored later, and a failed
+/// fetch can be told from "no match". Append-only; one batch of rows per run,
+/// all sharing `runId` and `createdAt`. The last `CLAIM_RUNS_KEPT_PER_TITLE`
+/// runs per title are kept (see `provider-claims/claim-store.ts`). Nothing
+/// reads this table to make a selection decision.
+model MetadataProviderClaim {
+  id               BigInt   @id @default(autoincrement())
+  mangaId          Int
+  /// One id per pipeline run (uuid), created when the run starts.
+  runId            String
+  /// 'anilist' | 'mangadex' | 'mal' | 'mangaupdates' | 'kitsu' | 'comicvine' | 'fandom' | 'wikipedia'
+  provider         String
+  /// 'fetch' (one per run and provider, plus one per sub-stage) | 'scalar' | 'manifest'
+  kind             String
+  /// '_fetch' or '_fetch.<stage>' for fetch rows; the Metadata column or the
+  /// provider's own key for scalar rows; 'volumeRanges' for manifest rows.
+  field            String
+  /// The provider record the claim was read from (id, slug or page URL).
+  providerRecordId String?
+  /// The provider's own value. Null on fetch rows. Manifest rows hold
+  /// { volumeCount, highestChapter, lowestChapter, methods, ranges: [[volume, start, end], ...] }.
+  value            Json?
+  /// Outcome of this provider's fetch in this run, repeated on its scalar and
+  /// manifest rows; a '_fetch.<stage>' row carries that stage's own outcome.
+  /// 'ok' | 'no_match' | 'failed' | 'gated' | 'skipped'.
+  fetchOutcome     String
+  /// Scalar rows only: 'winner' | 'agrees' | 'dissent' | 'refused' |
+  /// 'not_selected' | 'not_counted' | 'not_compared'.
+  selectorOutcome  String?
+  /// Scalar rows the selector voted on: whether the value sat in the winning
+  /// cluster/group (a count within tolerance of the winner is in the group
+  /// without being the same value).
+  inWinningGroup   Boolean?
+  /// The matcher's confidence in this provider's binding (the claim's own).
+  matchConfidence  Float?
+  /// The selector's confidence in the field's decision; the same on every
+  /// row of a field, so it is never compared against a per-claim weight.
+  fieldConfidence  Float?
+  /// Fetch rows: why (reason, list sizes). Manifest rows: what cross-validation kept.
+  detail           Json?
+  createdAt        DateTime @default(now())
+
+  @@index([mangaId, runId])
+  @@index([provider, field])
+}
+
 /// Phase 5 Sprint #1: AniList recommendation graph. Per-manga "similar
 /// manga" edges sourced from AL's
 /// `Media.recommendations.edges[].node.mediaRecommendation`. Distinct from

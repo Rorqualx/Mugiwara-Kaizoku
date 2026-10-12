@@ -49,13 +49,18 @@ function buildJikanUrl(malId: number, subPath = ''): string {
  *
  * @param malId - MyAnimeList manga ID (positive integer)
  * @param retries - Number of retry attempts on failure
+ * @param onFailure - Called when null means "Jikan did not answer" (network
+ *   error, timeout, rate limit or a 5xx on every attempt) rather than "Jikan
+ *   has no such manga" (a 404).
  * @returns Raw Jikan response or null on failure
  */
 export async function fetchMangaById(
   malId: number,
   retries: number = 3,
+  onFailure?: (reason: string) => void,
 ): Promise<JikanMangaResponse | null> {
   const url = buildJikanUrl(malId);
+  let lastFailure = 'no_response';
 
   /* eslint-disable no-await-in-loop -- retry loop is intentionally sequential: rate-limit gate, request, 429 backoff, and error backoff must each complete before the next attempt */
   for (let attempt = 0; attempt < retries; attempt++) {
@@ -71,12 +76,14 @@ export async function fetchMangaById(
       if (resp.status === 429) {
         const wait = Math.min(10_000, (attempt + 1) * 2_000);
         log.warn('Jikan rate limited (429), retrying', { malId, attempt, waitMs: wait });
+        lastFailure = 'rate_limited';
         await new Promise<void>((r) => { setTimeout(r, wait); });
         continue;
       }
 
       if (!resp.ok) {
         log.debug('Jikan non-OK response', { malId, status: resp.status });
+        if (resp.status >= 500) onFailure?.(`http_${resp.status}`);
         return null;
       }
 
@@ -85,14 +92,17 @@ export async function fetchMangaById(
       const msg = error instanceof Error ? error.message : String(error);
       if (attempt < retries - 1) {
         log.debug('Jikan fetch error, retrying', { malId, attempt, error: msg });
+        lastFailure = msg;
         await new Promise<void>((r) => { setTimeout(r, 1_000); });
       } else {
         log.warn('Jikan fetch failed after retries', { malId, retries, error: msg });
+        lastFailure = msg;
       }
     }
   }
   /* eslint-enable no-await-in-loop */
 
+  onFailure?.(lastFailure);
   return null;
 }
 
