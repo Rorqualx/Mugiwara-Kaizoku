@@ -9,7 +9,9 @@ import { enqueueDownloadTask } from '@/server/queue/download';
 import { queueManager } from '@/server/queue/queueManager';
 import { deleteMangaFiles } from '@/server/services/library/manga-file-deletion';
 import { enqueueRefreshChain } from '@/server/services/metadata/refresh-queue';
+import { markMangaRead, markMangaUnread } from '@/server/services/reader/chapter-read-state';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { isError, isSuccess } from '@/utils/async-result';
 import { ValidationError } from '@/utils/errors';
 import { toNumberId } from '@/utils/id-converters';
 import { serverLogger } from '@/utils/serverLogger';
@@ -245,17 +247,20 @@ async function handleBulkStatusChange(
   return result;
 }
 
-/** Mirrors chapter/crud.ts markAllAsRead/markAllAsUnread but scoped to many manga. */
+/** Mark every chapter of many titles read or unread for the calling user only. */
 async function handleMarkReadUnread(
+  userId: string,
   mangaIds: number[],
   operation: 'mark-read' | 'mark-unread',
 ): Promise<BulkOperationResult> {
-  const targetIsRead = operation === 'mark-read';
-  const updated = await prisma.chapter.updateMany({
-    where: { mangaId: { in: mangaIds }, isRead: !targetIsRead },
-    data: { isRead: targetIsRead },
-  });
-  serverLogger.info('Bulk mark read/unread', { operation, mangaCount: mangaIds.length, chaptersUpdated: updated.count });
+  const result = operation === 'mark-read'
+    ? await markMangaRead(prisma, userId, mangaIds)
+    : await markMangaUnread(prisma, userId, mangaIds);
+  if (isError(result)) {
+    return { successCount: 0, errorCount: mangaIds.length, errors: [result.error.message] };
+  }
+  const chaptersUpdated = isSuccess(result) ? result.data : 0;
+  serverLogger.info('Bulk mark read/unread', { operation, mangaCount: mangaIds.length, chaptersUpdated });
   return { successCount: mangaIds.length, errorCount: 0, errors: [] };
 }
 
@@ -303,7 +308,7 @@ export const bulkRouter = router({
         switch (operation) {
           case 'mark-read':
           case 'mark-unread': {
-            result = await handleMarkReadUnread(mangaIds, operation);
+            result = await handleMarkReadUnread(userId, mangaIds, operation);
             break;
           }
 
@@ -380,12 +385,15 @@ export const bulkRouter = router({
     .input(bulkMarkChaptersSchema)
     .mutation(async ({ input, ctx }) => {
       const { isRead } = input;
-      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, requireUserId(ctx), input.mangaIds);
+      const userId = requireUserId(ctx);
+      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, userId, input.mangaIds);
       try {
-        const updated = await prisma.chapter.updateMany({
-          where: { mangaId: { in: mangaIds }, isRead: !isRead },
-          data: { isRead },
-        });
+        // Read state is per user: only the caller's marks change.
+        const marked = isRead
+          ? await markMangaRead(prisma, userId, mangaIds)
+          : await markMangaUnread(prisma, userId, mangaIds);
+        if (isError(marked)) throw marked.error;
+        const updated = { count: isSuccess(marked) ? marked.data : 0 };
         void realtimeEmitter.emitSystemEvent({
           eventType: `bulk:chapters:${isRead ? 'read' : 'unread'}`,
           source: 'bulk-router',
