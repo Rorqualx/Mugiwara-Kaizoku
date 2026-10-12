@@ -126,7 +126,10 @@ export class DownloadMonitor {
     const { downloadId, clientType, mode, mangaId } = parsed;
     const isPack = isPackMode(mode);
 
-    const chaptersResult = await fetchDownloadingChapters(this.prismaClient, mangaId, isPack);
+    const chaptersResult = await fetchDownloadingChapters(this.prismaClient, mangaId, isPack, {
+      id: job.id,
+      payload: job.payload,
+    });
     if (!isSuccess(chaptersResult)) {
       if (isError(chaptersResult)) {
         logger.error(`[DownloadMonitor] Failed to fetch chapters for job ${job.id}:`, chaptersResult.error);

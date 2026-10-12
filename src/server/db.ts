@@ -148,7 +148,11 @@ class EnhancedPrismaClient extends PrismaClient {
     // @ts-ignore - Prisma types don't include $on for error event
     this.$on('error', (e: unknown) => {
       // Serialize error properly to avoid [object Object] in logs
-      const errorMessage = e instanceof Error ? e.message : String(e);
+      // Prisma emits a log event object ({ message, target, timestamp }), not
+      // an Error; String() of it is "[object Object]".
+      const event = (typeof e === 'object' && e !== null ? e : {}) as Record<string, unknown>;
+      const errorMessage = e instanceof Error ? e.message
+        : typeof event['message'] === 'string' ? event['message'] : String(e);
       logger.error('Database error', { error: errorMessage });
 
       // NOTE: Do NOT emit WebSocket events here - it causes a feedback loop

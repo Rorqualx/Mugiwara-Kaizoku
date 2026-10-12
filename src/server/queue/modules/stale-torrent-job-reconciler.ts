@@ -39,6 +39,7 @@ import { JobStatus } from '@prisma/client';
 
 import { prisma } from '@/server/db';
 import { ClientDownloadService } from '@/server/services/download/clientDownload';
+import { findJobDownloadingChapters } from '@/server/services/download/job-chapter-scope';
 import { logger } from '@/utils/logger';
 
 const log = logger.child('StaleTorrentJobReconciler');
@@ -124,21 +125,24 @@ async function findCandidates(): Promise<CandidateRow[]> {
   `;
 }
 
-async function resetChapters(mangaId: number | null, _downloadId: string): Promise<number> {
-  // First try chapters with explicit downloadId in their metadata
-  // (NativeDownload sourceChapterId links them via the FK in some flows),
-  // fall back to "all DOWNLOADING for this manga" — same shape the
-  // existing handleProgressFailure uses.
+/**
+ * Put the failed job's own DOWNLOADING chapters back to PENDING. Other jobs
+ * of the same title may be downloading different chapters; those are left.
+ */
+async function resetChapters(mangaId: number | null, jobId: string): Promise<number> {
   if (mangaId === null) return 0;
+  const chapters = await findJobDownloadingChapters(prisma, mangaId, { id: jobId });
+  if (chapters.length === 0) return 0;
   const result = await prisma.chapter.updateMany({
-    where: { mangaId, downloadStatus: 'DOWNLOADING' },
+    where: { id: { in: chapters.map((chapter) => chapter.id) }, downloadStatus: 'DOWNLOADING' },
     data: { downloadStatus: 'PENDING' },
   });
   return result.count;
 }
 
-async function failJob(jobId: string, partitionKey: string, reason: string): Promise<void> {
-  await prisma.jobs.updateMany({
+/** Fail the job if it is still active. Returns false when it no longer is. */
+async function failJob(jobId: string, partitionKey: string, reason: string): Promise<boolean> {
+  const failed = await prisma.jobs.updateMany({
     where: { id: BigInt(jobId), partition_key: partitionKey, status: JobStatus.active },
     data: {
       status: JobStatus.failed,
@@ -146,6 +150,7 @@ async function failJob(jobId: string, partitionKey: string, reason: string): Pro
       last_error: { source: 'stale-torrent-job-reconciler', message: reason },
     },
   });
+  return failed.count === 1;
 }
 
 async function processCandidate(
@@ -174,8 +179,10 @@ async function processCandidate(
   const reason = `Torrent ${r.downloadId} missing from ${r.clientType}` +
     (r.releaseTitle ? ` (release: ${r.releaseTitle})` : '');
   try {
-    await failJob(c.id, c.partition_key, reason);
-    const resetCount = await resetChapters(c.manga_id, r.downloadId);
+    // The job finished or was taken over since it was listed: leave it and
+    // its chapters alone.
+    if (!(await failJob(c.id, c.partition_key, reason))) return;
+    const resetCount = await resetChapters(c.manga_id, c.id);
     // `report` is an explicit accumulator threaded into every candidate
     // — mutating it here is the intended pattern, not a bug.
     /* eslint-disable no-param-reassign */

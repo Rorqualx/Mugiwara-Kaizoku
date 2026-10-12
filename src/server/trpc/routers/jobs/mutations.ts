@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { cache } from '@/server/cache/cache-adapter';
 import { prisma } from '@/server/db';
+import { findJobDownloadingChapters } from '@/server/services/download/job-chapter-scope';
 import { syncToDatabase } from '@/server/services/download/tracked-download/db-sync';
 import { TrackedDownloadService } from '@/server/services/download/tracked-download/tracked-download-service';
 import { TrackedDownloadEvent } from '@/server/services/download/tracked-download/types';
@@ -127,10 +128,18 @@ export const jobsMutationsRouter = router({
       });
 
       if (result.manga_id) {
-        await prisma.chapter.updateMany({
-          where: { mangaId: result.manga_id, downloadStatus: 'DOWNLOADING' },
-          data: { downloadStatus: 'PENDING' },
+        // Only the cancelled job's chapters: another job for the same title
+        // may still be downloading others.
+        const chapters = await findJobDownloadingChapters(prisma, result.manga_id, {
+          id: jobId,
+          payload: result.payload,
         });
+        if (chapters.length > 0) {
+          await prisma.chapter.updateMany({
+            where: { id: { in: chapters.map((chapter) => chapter.id) }, downloadStatus: 'DOWNLOADING' },
+            data: { downloadStatus: 'PENDING' },
+          });
+        }
       }
 
       void realtimeEmitter.emitJobUpdate({

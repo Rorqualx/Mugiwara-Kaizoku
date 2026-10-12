@@ -12,6 +12,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import { countPagesInArchive } from '@/server/services/download/fileImporter/page-counter';
+import { findJobDownloadingChapters, type JobChapterRef } from '@/server/services/download/job-chapter-scope';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
@@ -26,12 +27,14 @@ import type { PrismaClient } from '@prisma/client';
  * @param prisma - Prisma client instance
  * @param mangaId - Manga ID to fetch chapters for
  * @param isPack - Whether this is a PACK mode download
+ * @param job - The download job whose chapters are wanted
  * @returns AsyncResult containing array of chapter IDs
  */
 export async function fetchDownloadingChapters(
   prisma: PrismaClient,
   mangaId: number,
-  isPack: boolean
+  isPack: boolean,
+  job: JobChapterRef
 ): Promise<AsyncResult<number[], Error>> {
   try {
     if (isPack) {
@@ -39,16 +42,9 @@ export async function fetchDownloadingChapters(
       return createSuccessResult([]);
     }
 
-    // Lines 161-169 from source
-    const downloadingChapters = await prisma.chapter.findMany({
-      where: {
-        mangaId,
-        downloadStatus: 'DOWNLOADING'
-      },
-      select: {
-        id: true
-      }
-    });
+    // Only this job's chapters: another job for the same title may be
+    // downloading different ones.
+    const downloadingChapters = await findJobDownloadingChapters(prisma, mangaId, job);
 
     return createSuccessResult(downloadingChapters.map(ch => ch.id));
   } catch (error: unknown) {

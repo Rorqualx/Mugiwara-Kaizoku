@@ -24,6 +24,7 @@ import { createSuccessResult, createErrorResult, isSuccess, isError } from '@/ut
 import { logger } from '@/utils/logger';
 
 import { cleanupAfterImport } from '../cleanup/cleanup-service';
+import { findJobDownloadingChapters } from '../job-chapter-scope';
 import { getPathMapper } from '../pathMapper';
 
 import { updateChaptersToError } from './chapter-manager';
@@ -240,6 +241,7 @@ async function handleInaccessiblePackPath(
   resolved: ResolvedPackPath,
   savePath: string,
   mangaId: number,
+  jobId: bigint,
 ): Promise<void> {
   const mappingHint = resolved.mappingRemotePath
     ? `(mapping: ${resolved.mappingRemotePath} → ${resolved.path})`
@@ -251,7 +253,7 @@ async function handleInaccessiblePackPath(
     message,
     level: 'error',
   });
-  await resetChaptersOnFailure(prisma, mangaId);
+  await resetChaptersOnFailure(prisma, mangaId, jobId);
 }
 
 interface ResolvedPackPath {
@@ -315,20 +317,18 @@ async function resolvePackPath(savePath: string): Promise<ResolvedPackPath> {
 }
 
 /**
- * Reset all DOWNLOADING chapters for a manga to ERROR status.
+ * Reset the job's DOWNLOADING chapters to ERROR status.
  * Used when pack import fails after download completes, to prevent
  * chapters from being permanently stuck in DOWNLOADING.
  *
  * SAFETY: Skips chapters that already have a valid filePath — those
  * were successfully imported and should be marked COMPLETED, not ERROR.
  */
-async function resetChaptersOnFailure(prisma: PrismaClient, mangaId: number): Promise<void> {
+async function resetChaptersOnFailure(prisma: PrismaClient, mangaId: number, jobId: bigint): Promise<void> {
   try {
-    // Fetch ALL DOWNLOADING chapters, then split by filePath presence
-    const allDownloading = await prisma.chapter.findMany({
-      where: { mangaId, downloadStatus: 'DOWNLOADING' },
-      select: { id: true, filePath: true },
-    });
+    // This job's DOWNLOADING chapters (not the whole title's: another job
+    // may be downloading other chapters), then split by filePath presence
+    const allDownloading = await findJobDownloadingChapters(prisma, mangaId, { id: jobId });
 
     if (allDownloading.length === 0) return;
 
@@ -515,7 +515,7 @@ export async function handlePackImport(
     }
 
     if (!resolved.accessible) {
-      await handleInaccessiblePackPath(prisma, resolved, savePath, mangaId);
+      await handleInaccessiblePackPath(prisma, resolved, savePath, mangaId, jobId);
       return false;
     }
 
@@ -546,7 +546,7 @@ export async function handlePackImport(
       if (!isSuccess(packDownloadResult)) {
         const fallbackErr = isError(packDownloadResult) ? packDownloadResult.error : new Error('Unknown fallback error');
         logger.error(`[DownloadMonitor] Failed to create fallback PackDownload:`, fallbackErr);
-        await resetChaptersOnFailure(prisma, mangaId);
+        await resetChaptersOnFailure(prisma, mangaId, jobId);
         return false;
       }
     }
@@ -592,7 +592,7 @@ export async function handlePackImport(
       );
 
       // Reset stuck DOWNLOADING chapters
-      await resetChaptersOnFailure(prisma, mangaId);
+      await resetChaptersOnFailure(prisma, mangaId, jobId);
 
       // Emit WebSocket event for real-time sync
       void realtimeEmitter.emitImportProgress({
@@ -606,7 +606,7 @@ export async function handlePackImport(
     }
 
     logger.warn(`[DownloadMonitor] Pack import returned unexpected result status for PackDownload #${packDownload.id}`);
-    await resetChaptersOnFailure(prisma, mangaId);
+    await resetChaptersOnFailure(prisma, mangaId, jobId);
     return false;
 
   } catch (error: unknown) {
@@ -614,7 +614,7 @@ export async function handlePackImport(
     logger.error(`[DownloadMonitor] Error handling pack import for job ${jobId}:`, error);
 
     // Reset stuck DOWNLOADING chapters
-    await resetChaptersOnFailure(prisma, mangaId);
+    await resetChaptersOnFailure(prisma, mangaId, jobId);
 
     // Try to update PackDownload to FAILED if we can find it
     try {

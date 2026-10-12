@@ -46,15 +46,20 @@ async function reconcileOne(o: OrphanRow): Promise<NativeDownloadStatus | null> 
   const errorMessage = o.job_last_error
     ?? `Reconciled from terminally-${o.job_status} job ${o.job_id}`;
   try {
-    await prisma.nativeDownload.update({
-      where: { id: o.download_id },
+    // Re-check the status in the write: a handler may have finished the
+    // download between the listing and now, and must not be overwritten.
+    const updated = await prisma.nativeDownload.updateMany({
+      where: {
+        id: o.download_id,
+        status: { in: [NativeDownloadStatus.QUEUED, NativeDownloadStatus.DOWNLOADING] },
+      },
       data: {
         status: targetStatus,
         error: errorMessage,
         endTime: new Date(),
       },
     });
-    return targetStatus;
+    return updated.count === 1 ? targetStatus : null;
   } catch (err) {
     log.warn('Failed to reconcile NativeDownload row', {
       downloadId: o.download_id,
