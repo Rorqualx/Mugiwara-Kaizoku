@@ -1,3 +1,9 @@
+-- OUTCOME 2026-10-12 ~21:55 UTC: NOT run as written. The deploy of ab871a43b restarted
+-- the app at 21:52, and the boot reassignment sweep (now capped at exactly 14 volumes)
+-- recreated "Vol 14 (placeholder)" (60-66) and linked rows 49672-49678 with volume 14
+-- by itself, so this script's guard ("already has a volume 14") stopped it. Only the
+-- last step was done by hand, in a guarded transaction: row 49680 (numberless,
+-- file-less, volume -1, no user or download data) deleted.
 -- NOT APPLIED. Written 2026-10-12; dry-run checked read-only against production.
 --
 -- Repair "Why Does Nobody Remember Me in this World" (manga 39; finished,
