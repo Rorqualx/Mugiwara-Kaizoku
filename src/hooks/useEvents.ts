@@ -5,7 +5,7 @@
  * using the AsyncResult pattern for proper type-safety and state handling.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import { useRealTime } from '@/providers/RealTimeProvider';
 
@@ -67,7 +67,8 @@ interface ActivityCounts extends ActivityData {
   apiCalls: ApiCallInfo[];
 }
 
-const POLL_INTERVAL = 3000; // 3 seconds
+/** Polling fallback, only while the WebSocket is down. */
+const POLL_INTERVAL = 15_000;
 
 /**
  * Default activity counts for when data isn't available
@@ -165,36 +166,22 @@ export function useEvents(): UseEventsResult {
   const [countsResult, setCountsResult] = useState<AsyncResult<ActivityCounts, Error>>(createLoadingResult());
   const [apiCalls, setApiCalls] = useState<ApiCallInfo[]>([]);
 
-  // WebSocket connection for real-time updates
-  const { isConnected, subscribe } = useRealTime();
+  // WebSocket connection state decides whether to poll
+  const { isConnected } = useRealTime();
 
   // Use ref for apiCalls to avoid triggering effect re-runs
   const apiCallsRef = useRef<ApiCallInfo[]>(apiCalls);
   apiCallsRef.current = apiCalls;
 
-  // Use tRPC activity query directly - activity router is guaranteed to exist
-  // Use WebSocket-first with polling fallback
+  // WebSocket-first with polling fallback. While connected, job events
+  // refresh this query through useActivityLiveUpdates (mounted once in
+  // AppProviders) — this hook runs in several components and must not
+  // subscribe itself, or each job event would fetch once per caller.
   const activityQuery = trpc.activity.query.useQuery(undefined, {
     refetchInterval: isConnected ? false : POLL_INTERVAL,
     staleTime: 60_000, // 1 minute — avoid refetching on every mount
     gcTime: 5 * 60 * 1000, // 5 minutes — prevent stale payloads from accumulating in cache
   });
-
-  // Refetch callback for WebSocket subscription
-  const refetch = useCallback((): void => {
-    void activityQuery.refetch();
-  }, [activityQuery]);
-
-  // Subscribe to WebSocket jobs:active events for real-time updates
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const unsubscribe = subscribe('jobs:active', () => {
-      refetch();
-    });
-
-    return unsubscribe;
-  }, [isConnected, subscribe, refetch]);
 
   // Use memoized values to avoid object identity changes triggering effects
   const queryData = activityQuery.data ?? MOCK_ACTIVITY_DATA;

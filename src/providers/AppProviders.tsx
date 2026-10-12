@@ -65,6 +65,7 @@ import { IntegrationStatusProvider } from '../contexts/IntegrationStatusContext'
 // provider and consumer can no longer drift onto mismatched context objects.
 import { MainSearchProvider } from '../contexts/search';
 import { UserProvider } from '../contexts/UserContext';
+import { useActivityLiveUpdates } from '../hooks/useActivityLiveUpdates';
 import { useCustomTheme } from '../hooks/useCustomTheme';
 import { RootStoreProvider } from '../store/RootStoreProvider';
 import { StoreProvider } from '../store/StoreProvider';
@@ -108,6 +109,12 @@ function ThemeProvider({ children }: {children: React.ReactNode;}): React.ReactE
   }, [mounted, isCustomTheme, customColors]);
 
   return <>{children}</>;
+}
+
+/** The single subscriber that keeps the activity counts live (see useActivityLiveUpdates). */
+function ActivityLiveUpdates(): null {
+  useActivityLiveUpdates();
+  return null;
 }
 
 /**
@@ -182,6 +189,7 @@ export function AppProviders({
               <ModalsProvider>
                 <Notifications position="top-right" limit={8} />
                 <RealTimeProvider>
+                  <ActivityLiveUpdates />
                   <StoreProvider>
                     <RootStoreProvider>
                       <IntegrationStatusProvider>

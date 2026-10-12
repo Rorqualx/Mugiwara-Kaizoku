@@ -5,7 +5,7 @@
  * and mobile navigation patterns based on device type
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 
 import { useMobileState } from '@/hooks/mobile';
 import { useBreakpoint } from '@/hooks/mobile';
@@ -36,27 +36,15 @@ export function ResponsiveNavigation({
   useMobileState();
   const [drawerOpened, setDrawerOpened] = useState(false);
 
-  // WebSocket connection for real-time updates
-  const { isConnected, subscribe } = useRealTime();
+  // WebSocket connection state decides whether to poll
+  const { isConnected } = useRealTime();
 
-  // Get activity data if not provided with WebSocket + polling fallback
+  // Get activity data if not provided. While connected, job events refresh
+  // this query through useActivityLiveUpdates (mounted once in AppProviders).
   const activityQuery = trpc.activity.query.useQuery(undefined, {
     enabled: !activityCounts,
     refetchInterval: isConnected ? false : 30000 // Only poll when WebSocket disconnected
   });
-
-  // Subscribe to WebSocket job events for real-time updates (reuses existing jobs:active channel)
-  // Extract refetch to avoid infinite loop (activityQuery object changes every render)
-  const { refetch: refetchActivity } = activityQuery;
-  useEffect(() => {
-    if (!isConnected || activityCounts) return;
-
-    const unsubscribe = subscribe('jobs:active', () => {
-      void refetchActivity();
-    });
-
-    return unsubscribe;
-  }, [isConnected, subscribe, activityCounts, refetchActivity]);
 
   const defaultActivityCounts: ActivityCounts = {
     active: 0,
