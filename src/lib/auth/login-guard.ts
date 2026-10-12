@@ -111,7 +111,27 @@ export function createCredentialsRateLimiter(): LimiterMiddleware {
   return limiter as unknown as LimiterMiddleware;
 }
 
-const credentialsRateLimiter = createCredentialsRateLimiter();
+/**
+ * The process-wide limiter lives on `globalThis`, not in module scope. Next
+ * re-evaluates server modules (in development whenever another page compiles),
+ * and a module-scoped limiter would start again from zero each time — which
+ * silently hands an attacker a fresh allowance.
+ */
+interface LimiterHolder {
+  kaizokuCredentialsRateLimiter?: LimiterMiddleware | undefined;
+}
+
+/** The shared limiter, created once per process. */
+export function getCredentialsRateLimiter(): LimiterMiddleware {
+  const holder = globalThis as LimiterHolder;
+  const existing = holder.kaizokuCredentialsRateLimiter;
+  if (existing !== undefined) {
+    return existing;
+  }
+  const created = createCredentialsRateLimiter();
+  holder.kaizokuCredentialsRateLimiter = created;
+  return created;
+}
 
 /** True for the request that actually tests a password. */
 export function isCredentialsSignIn(req: Pick<NextApiRequest, 'method' | 'query'>): boolean {
@@ -131,7 +151,7 @@ export function isCredentialsSignIn(req: Pick<NextApiRequest, 'method' | 'query'
 export async function allowCredentialsSignIn(
   req: NextApiRequest,
   res: NextApiResponse,
-  limiter: LimiterMiddleware = credentialsRateLimiter,
+  limiter: LimiterMiddleware = getCredentialsRateLimiter(),
 ): Promise<boolean> {
   if (!isCredentialsSignIn(req)) {
     return true;

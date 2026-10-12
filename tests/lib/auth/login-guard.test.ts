@@ -115,6 +115,24 @@ describe('isCredentialsSignIn', () => {
   });
 });
 
+describe('shared sign-in limiter', () => {
+  it('keeps its counts when the module is evaluated again (a page recompile must not reset it)', () => {
+    type Guard = typeof import('@/lib/auth/login-guard');
+    let first: Guard | undefined;
+    let second: Guard | undefined;
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- fresh module instance
+      first = require('@/lib/auth/login-guard') as Guard;
+    });
+    jest.isolateModules(() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- fresh module instance
+      second = require('@/lib/auth/login-guard') as Guard;
+    });
+    expect(first).not.toBe(second);
+    expect(first?.getCredentialsRateLimiter()).toBe(second?.getCredentialsRateLimiter());
+  });
+});
+
 describe('credentials sign-in rate limit', () => {
   const originalTrustProxy = process.env['TRUST_PROXY'];
   const originalNextAuthUrl = process.env['NEXTAUTH_URL'];
