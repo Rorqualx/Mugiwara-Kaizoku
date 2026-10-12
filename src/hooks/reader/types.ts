@@ -20,6 +20,8 @@ export interface ChapterInfoResponse {
 /** Response from progress API */
 export interface ProgressResponse {
   currentPage: number;
+  /** Set once the chapter was read to the end. */
+  completedAt?: Date | string | null;
 }
 
 /** Chapter navigation data from tRPC query */

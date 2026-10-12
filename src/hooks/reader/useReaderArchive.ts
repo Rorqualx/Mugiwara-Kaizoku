@@ -33,6 +33,13 @@ export function useReaderArchive(): UseReaderArchiveReturn {
   // `mutate` is stable across renders; the mutation result object is not, and
   // depending on it gave loadChapter a new identity on every render.
   const { mutate: recordHistory } = trpc.reader.addHistory.useMutation();
+  // `useUtils()` is stable across renders. `staleTime: 0` so reopening a
+  // chapter reads the page saved moments ago, not a cached one.
+  const utils = trpc.useUtils();
+  const fetchProgress = useCallback<ProgressFetcher>(
+    (input) => utils.reader.getProgress.fetch(input, { staleTime: 0 }),
+    [utils]
+  );
 
   /** Sequence number of the most recent loadChapter call. */
   const loadSeqRef = useRef(0);
@@ -60,7 +67,7 @@ export function useReaderArchive(): UseReaderArchiveReturn {
       // Parallel fetch of metadata and progress (NO archive download!)
       const [chapterInfoResult, savedPage] = await Promise.all([
         fetchChapterInfo(mangaId, chapterId),
-        fetchSavedProgress(mangaId, chapterId)
+        fetchSavedProgress(fetchProgress, mangaId, chapterId)
       ]);
       if (isStale()) return;
 
@@ -82,7 +89,8 @@ export function useReaderArchive(): UseReaderArchiveReturn {
 
       const file = createMangaFile(mangaId, chapterId, chapterInfo);
       setFile(file);
-      setPage(savedPage);
+      // A re-imported file can have fewer pages than when progress was saved.
+      setPage(Math.min(Math.max(savedPage, 1), chapterInfo.pageCount));
 
       addToHistory({ mangaId, chapterId, timestamp: Date.now() });
       recordHistory({ mangaId, chapterId, pagesRead: 0, totalTime: 0 });
@@ -99,7 +107,7 @@ export function useReaderArchive(): UseReaderArchiveReturn {
       // A superseded load leaves the spinner to the load that replaced it.
       if (!isStale()) setIsLoading(false);
     }
-  }, [setFile, setPage, addToHistory, recordHistory]);
+  }, [setFile, setPage, addToHistory, recordHistory, fetchProgress]);
 
   // Reload the current chapter (e.g., after file source switch)
   const reloadCurrentChapter = useCallback(async () => {
@@ -161,19 +169,25 @@ async function fetchChapterInfo(
   }
 }
 
-/**
- * Fetch saved reading progress.
- * Returns page 1 if progress endpoint fails (graceful degradation).
- */
-async function fetchSavedProgress(mangaId: number, chapterId: number): Promise<number> {
-  try {
-    const response = await fetch(`/api/reader/progress/${mangaId}/${chapterId}`);
-    if (!response.ok) return 1;
+/** Reads the current user's saved progress for one chapter. */
+type ProgressFetcher = (input: { mangaId: number; chapterId: number }) => Promise<unknown>;
 
-    const data: unknown = await response.json();
-    return isValidProgress(data) ? data.currentPage : 1;
-  } catch {
-    // Graceful degradation - start from page 1 if progress fetch fails
+/**
+ * Fetch the page to resume at.
+ * A chapter read to the end starts over at page 1. Returns page 1 if the
+ * progress lookup fails (graceful degradation).
+ */
+async function fetchSavedProgress(
+  fetchProgress: ProgressFetcher,
+  mangaId: number,
+  chapterId: number
+): Promise<number> {
+  try {
+    const data = await fetchProgress({ mangaId, chapterId });
+    if (!isValidProgress(data)) return 1;
+    return data.completedAt === null || data.completedAt === undefined ? data.currentPage : 1;
+  } catch (err) {
+    logger.warn('Saved reading progress unavailable; starting at page 1', { mangaId, chapterId, error: err });
     return 1;
   }
 }
