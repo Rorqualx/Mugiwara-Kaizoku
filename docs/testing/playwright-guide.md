@@ -39,9 +39,15 @@ bun run dev
 ### Default Development Credentials
 
 ```python
+import os
+
 EMAIL = 'admin@kaizoku.dev'
-PASSWORD = 'admin123'
+PASSWORD = os.environ['SEED_ADMIN_PASSWORD']
 ```
+
+The dev seed no longer has a fixed password. Set `SEED_ADMIN_PASSWORD` before
+seeding (`SEED_ADMIN_PASSWORD=... node scripts/database/seed-dev.js`) and export
+the same value for the tests; without it the seed prints a random password once.
 
 ### Login Pattern
 
@@ -53,7 +59,7 @@ def login(page):
 
     # Fill credentials
     page.locator('input').first.fill('admin@kaizoku.dev')
-    page.locator('input[type="password"]').first.fill('admin123')
+    page.locator('input[type="password"]').first.fill(PASSWORD)
 
     # Click sign in
     page.locator('button:has-text("Sign in")').first.click()
@@ -182,7 +188,7 @@ def test_add_manga():
             page.wait_for_timeout(2000)
 
             page.locator('input').first.fill('admin@kaizoku.dev')
-            page.locator('input[type="password"]').first.fill('admin123')
+            page.locator('input[type="password"]').first.fill(PASSWORD)
             page.locator('button:has-text("Sign in")').first.click()
             page.wait_for_timeout(3000)
 
@@ -337,7 +343,7 @@ page.locator('.mantine-Modal-root:has-text("Search for Manga")')
 ```python
 # Correct credentials
 EMAIL = 'admin@kaizoku.dev'  # NOT admin@example.com
-PASSWORD = 'admin123'
+PASSWORD = os.environ['SEED_ADMIN_PASSWORD']
 
 # Wait for redirect
 page.wait_for_url('http://localhost:3000/', timeout=10000)

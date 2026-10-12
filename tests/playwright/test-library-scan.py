@@ -11,7 +11,7 @@ import time
 
 # Auth credentials from playwright-guide.md
 EMAIL = 'admin@kaizoku.dev'
-PASSWORD = 'admin123'
+PASSWORD = os.environ['SEED_ADMIN_PASSWORD']  # the password the dev seed was given
 
 # Library path to scan during the test. Override with TEST_LIBRARY_PATH env
 # var to point at your own seeded manga directory.

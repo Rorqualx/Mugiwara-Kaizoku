@@ -21,7 +21,7 @@ async function testLogout() {
       },
       body: new URLSearchParams({
         identifier: 'admin@kaizoku.dev',
-        password: 'admin123',
+        password: process.env.SEED_ADMIN_PASSWORD ?? '',
         csrfToken: 'test' // NextAuth requires this
       }),
       redirect: 'manual'

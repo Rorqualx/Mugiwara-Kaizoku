@@ -21,7 +21,7 @@ async function testShutdown() {
     },
     body: new URLSearchParams({
       username: 'admin@kaizoku.dev',
-      password: 'admin123',
+      password: process.env.SEED_ADMIN_PASSWORD ?? '',
       csrfToken: '', // Would need to get this from the login page
     }),
     redirect: 'manual',
