@@ -65,3 +65,14 @@ export function unansweredProviders(outcomes: ProviderOutcomes | undefined): str
     .filter(([, outcome]) => outcome === 'timeout' || outcome === 'error')
     .map(([provider]) => provider);
 }
+
+/**
+ * Does a provider client's swallowed-error reason mean "did not answer"?
+ * Clients such as the AniList service return null/[] on any error and report
+ * the reason through `onFailure`; without this the phase would read the
+ * outage as a plain no-match. A not-found reply is an answer (the entity is
+ * gone), not an outage.
+ */
+export function isUnansweredReason(reason: string): boolean {
+  return !/\bnot found\b|\b404\b/iu.test(reason);
+}

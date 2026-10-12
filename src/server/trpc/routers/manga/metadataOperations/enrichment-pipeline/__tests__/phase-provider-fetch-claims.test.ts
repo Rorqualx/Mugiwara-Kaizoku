@@ -6,6 +6,7 @@
  * outcomes. Removing any one of those calls from the phase fails a test here.
  */
 import { anilistService } from '@/server/services/anilist/service';
+import { writeFieldReview } from '@/server/services/metadata/field-review';
 
 import { phaseProviderFetch } from '../phase-provider-fetch';
 import { fetchMALDirect } from '../phase-provider-fetch/mal-fetch';
@@ -127,6 +128,33 @@ describe('phaseProviderFetch — what it tells the claims recorder', () => {
     });
     const recorder = await runPhase();
     expect(recorder.noteFetchFailure).toHaveBeenCalledWith('anilist', 'AniList 500');
+  });
+
+  it('reads an AniList outage swallowed by the service as error, not as no match', async () => {
+    jest.mocked(anilistService.getMangaDetails).mockImplementation((_id, onFailure) => {
+      onFailure?.('connect ECONNREFUSED 127.0.0.1:9');
+      return Promise.resolve(null);
+    });
+    jest.mocked(anilistService.searchManga).mockImplementation((_query, options) => {
+      options?.onFailure?.('connect ECONNREFUSED 127.0.0.1:9');
+      return Promise.resolve([]);
+    });
+    await expect(phaseProviderFetch(73, 'Bleach')).resolves.toMatchObject({ providerStatus: { anilist: 'error' } });
+    // The run will be skipped, so the stored field-review markers stay as they are.
+    expect(jest.mocked(writeFieldReview)).not.toHaveBeenCalled();
+  });
+
+  it('writes the field-review markers when AniList answered', async () => {
+    await phaseProviderFetch(73, 'Bleach');
+    expect(jest.mocked(writeFieldReview)).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads an AniList not-found reply as no match, not as an outage', async () => {
+    jest.mocked(anilistService.getMangaDetails).mockImplementation((_id, onFailure) => {
+      onFailure?.('Not Found.');
+      return Promise.resolve(null);
+    });
+    await expect(phaseProviderFetch(73, 'Bleach')).resolves.toMatchObject({ providerStatus: { anilist: 'no_match' } });
   });
 
   it('notes the cross-series gate with the lists as they were before it emptied them', async () => {

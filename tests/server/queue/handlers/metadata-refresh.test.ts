@@ -54,6 +54,7 @@ jest.mock('@/server/services/realtime/RealtimeEventEmitter', () => ({
 jest.mock('@/utils/logger', () => ({ logger: mockLogger }));
 
 import { handleMetadataRefresh } from '@/server/queue/handlers/metadata';
+import { MetadataRefreshSkippedError } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/pipeline-orchestrator/anchor-gate';
 
 const CIRCUIT_OPEN = 'Circuit breaker open for metadata_refresh. Too many recent failures.';
 
@@ -152,6 +153,19 @@ describe('handleMetadataRefresh', () => {
     world.openJobs = [];
     await handleMetadataRefresh(job(11, { mangaId: 2, remainingMangaIds: [] }));
     expect(mockRunMetadataRefresh).toHaveBeenCalledTimes(2);
+  });
+
+  it('records a refresh skipped because AniList did not answer as failed, reports it as skipped, and still hands the chain on', async () => {
+    const skip = new MetadataRefreshSkippedError(1, { reason: 'anchor-unanswered', provider: 'anilist', outcome: 'timeout' });
+    mockRunMetadataRefresh.mockRejectedValueOnce(skip);
+
+    await expect(handleMetadataRefresh(job(10, { mangaId: 1, remainingMangaIds: [2] }))).rejects.toBe(skip);
+
+    expect(mockEmitRefreshProgress).toHaveBeenCalledWith(1, 'error', 0, 'Metadata refresh skipped', skip.message);
+    expect(mockEmitRefreshProgress).not.toHaveBeenCalledWith(1, 'completed', expect.anything(), expect.anything());
+    expect(mockEmitMangaUpdate).not.toHaveBeenCalled();
+    expect(mockLogger.warn).toHaveBeenCalledWith(skip.message, { mangaId: 1, skip: skip.skip });
+    expect(mockEnqueue.mock.calls[0]?.[1]).toEqual({ mangaId: 2, forceRefresh: false, remainingMangaIds: [] });
   });
 
   // Bug: with the queue's circuit breaker open the enqueue in `finally` threw.

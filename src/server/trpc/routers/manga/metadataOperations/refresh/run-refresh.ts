@@ -13,6 +13,7 @@ import { logger } from '@/utils/logger';
 import { runEnrichmentPipeline } from '../enrichment-pipeline';
 import { extractBoundAniListId } from '../enrichment-pipeline/phase-provider-fetch';
 import { removePhantomArtifacts } from '../enrichment-pipeline/phase-volume-phantom-prune';
+import { MetadataRefreshSkippedError } from '../enrichment-pipeline/pipeline-orchestrator/anchor-gate';
 
 import { clearAutoBindingsForReidentify } from './clear-auto-bindings';
 
@@ -69,6 +70,8 @@ export interface MetadataRefreshOutcome {
  *
  * @param forceRefresh - re-identify: clear automatic bindings first so every
  *   provider is matched again. False keeps the bindings and only refreshes.
+ * @throws MetadataRefreshSkippedError when AniList did not answer and the
+ *   pipeline left the title unchanged.
  */
 export async function runMetadataRefresh(
   db: PrismaClient,
@@ -96,7 +99,7 @@ export async function runMetadataRefresh(
     }
   }
 
-  const { manga: freshManga } = await runEnrichmentPipeline(
+  const { manga: freshManga, skipped } = await runEnrichmentPipeline(
     id,
     manga.title,
     async (pipelinePhase, message) => {
@@ -107,6 +110,10 @@ export async function runMetadataRefresh(
     },
     { forceRefresh, previousAniListId },
   );
+
+  // AniList did not answer: the pipeline wrote nothing, and the phantom sweep
+  // below must not run either. Throwing records the job as not completed.
+  if (skipped) throw new MetadataRefreshSkippedError(id, skipped);
 
   // Explicit phantom-removal step: delete any end-of-series phantom volumes
   // and chapters this title still carries so a reidentify leaves the DB —

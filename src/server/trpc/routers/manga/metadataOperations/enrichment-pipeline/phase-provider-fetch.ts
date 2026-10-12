@@ -47,9 +47,10 @@ import { fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal
 import { fetchMangaDexDirect, verifyMangaDexWithAniList, type MangaDexDirectResult } from './phase-provider-fetch/mangadex-fetch';
 import { fetchMangaUpdatesDirect, verifyMUWithAniList, type MangaUpdatesDirectResult } from './phase-provider-fetch/mangaupdates-fetch';
 import { buildClaimsForShadow } from './phase-provider-fetch/provider-claims';
-import { ProviderOutcomeTracker, unansweredProviders } from './phase-provider-fetch/provider-outcome';
+import { isUnansweredReason, ProviderOutcomeTracker, unansweredProviders } from './phase-provider-fetch/provider-outcome';
 import { buildProviderDirectives, skipsSecondWave } from './phase-provider-fetch/provider-pins';
 import { settledValueOr } from './phase-provider-fetch/wave-merge';
+import { anchorUnanswered } from './pipeline-orchestrator/anchor-gate';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
 import type { EnrichmentPipelineOptions, EnrichmentProgress, UnifiedProviderResults } from './types';
@@ -161,7 +162,7 @@ export async function phaseProviderFetch(
   // step then discarded.
   const [anilistSettled, mangadexSettled, fandomSettled, wikiSettled, muSettled, kitsuSettled] =
     await Promise.allSettled([
-      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, { pinnedId: pinnedAlId, fallbackId: options?.previousAniListId, rejectedIds: rejectedAlIds, demoteNovels, onFailure: (reason) => noteFailure('anilist', reason) }), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
+      enabled.has('anilist') ? withTimeoutOrNull(fetchAniListDirect(title, { pinnedId: pinnedAlId, fallbackId: options?.previousAniListId, rejectedIds: rejectedAlIds, demoteNovels, onFailure: (reason) => { noteFailure('anilist', reason); if (isUnansweredReason(reason)) outcomes.markError('anilist'); } }), T, 'anilist-fetch', () => outcomes.markTimeout('anilist')) : noop,
       enabled.has('mangadex') ? withTimeoutOrNull(fetchMangaDexDirect(title, directives.mangadex), T, 'mangadex-fetch', () => outcomes.markTimeout('mangadex')) : noop,
       enabled.has('fandom') ? withTimeoutOrNull(fetchFandomForPhase1(mangaId, title, options?.forceRefresh), T, 'fandom-fetch', () => outcomes.markTimeout('fandom')) : noop,
       enabled.has('wikipedia') ? withTimeoutOrNull(fetchWikipediaChapterData(title, mangaId, undefined, (reason) => noteFailure('wikipedia', reason)), T, 'wikipedia-fetch', () => outcomes.markTimeout('wikipedia')) : noop,
@@ -557,6 +558,8 @@ export async function phaseProviderFetch(
     comicvine: comicvineData,
     enrichmentResult,
     claimRun: options?.claimRun,
+    // AniList did not answer: the run will be skipped, so keep the stored review markers.
+    keepStoredReview: anchorUnanswered(outcomes.build(enabled, { anilist: anilistData })) !== null,
   });
 
   logPhase1Summary(enrichmentResult, {
@@ -926,6 +929,8 @@ interface ShadowInputs {
   comicvine: ComicVineDirectResult | null;
   enrichmentResult: EnrichmentResult;
   claimRun: EnrichmentPipelineOptions['claimRun'];
+  /** Leave providerMetadata.fieldReview as stored (a run that will be skipped). */
+  keepStoredReview?: boolean;
 }
 
 /**
@@ -980,7 +985,7 @@ async function applySelectorCutoverInPlace(inputs: ShadowInputs): Promise<void> 
     // whole providerMetadata JSON, and when left in flight the persistence
     // phase read the row before it landed and wrote the markers away again.
     // It catches its own errors, so this cannot fail the enrichment.
-    await writeFieldReview(inputs.mangaId, cutover.fieldReview);
+    if (inputs.keepStoredReview !== true) await writeFieldReview(inputs.mangaId, cutover.fieldReview);
 
     // Metadata.fieldAlternatives travels on appliedMatch.metadata to the persister.
     stashFieldAlternatives(

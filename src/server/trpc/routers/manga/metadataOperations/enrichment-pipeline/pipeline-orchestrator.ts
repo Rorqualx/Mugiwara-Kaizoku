@@ -45,6 +45,7 @@ import { assignOverflowChapters } from './phase-volume-overflow';
 import { pruneFinishedSeriesPhantoms } from './phase-volume-phantom-prune';
 import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssignments, reassignNullNumberedVolumeArchives } from './phase-volume-reconciliation';
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
+import { anchorUnanswered, logAnchorSkip } from './pipeline-orchestrator/anchor-gate';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
 import { toFandomVolumeInputs, toWikipediaVolumeInputs } from './pipeline-orchestrator/volume-inputs';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
@@ -694,6 +695,13 @@ export async function runEnrichmentPipeline(
     // Phase 1: Fetch metadata from providers
     await onProgress?.('fetching', `Fetching metadata for "${title}" from AniList, ComicVine, Fandom, Wikipedia...`);
     const result = await phaseProviderFetch(mangaId, title, onProgress, options);
+
+    // AniList did not answer: stop before anything writes (see anchor-gate.ts).
+    const skipped = anchorUnanswered(result.providerStatus);
+    if (skipped) {
+      logAnchorSkip(mangaId, skipped);
+      return { result: result.enrichmentResult, manga: null, skipped };
+    }
 
     // Phases 2-4: AI agent or adaptive parser
     await executeEnrichmentPhases(mangaId, title, result, onProgress, options);

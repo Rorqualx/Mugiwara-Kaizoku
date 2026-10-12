@@ -12,6 +12,7 @@ import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 
 import type { ClaimRecorder } from './claim-run/recorder';
 import type { ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
+import type { AnchorSkip } from './pipeline-orchestrator/anchor-gate';
 
 export interface EnrichmentProgress {
   (phase: string, message: string): Promise<void>;
@@ -40,6 +41,11 @@ export interface EnrichmentPipelineResult {
   manga: MangaWithRelations | null;
   /** Post-run completeness score — see src/server/services/completeness/manga-completeness.ts */
   completeness?: CompletenessReport;
+  /**
+   * Set when the run stopped after the provider fetch because AniList did not
+   * answer; nothing was written and `manga` is null.
+   */
+  skipped?: AnchorSkip;
 }
 
 /** Raw provider data from phase 1 */

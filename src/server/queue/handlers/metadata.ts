@@ -14,6 +14,7 @@ import {
   type MetadataRefreshPayload,
 } from '@/server/services/metadata/refresh-queue';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
+import { isMetadataRefreshSkippedError } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/pipeline-orchestrator/anchor-gate';
 import {
   emitRefreshProgress,
   runMetadataRefresh,
@@ -56,7 +57,11 @@ async function refreshOne(payload: MetadataRefreshPayload): Promise<void> {
     await emitRefreshProgress(mangaId, 'completed', TOTAL_REFRESH_PHASES, 'Metadata refresh complete');
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    await emitRefreshProgress(mangaId, 'error', 0, 'Metadata refresh failed', message);
+    // A skipped run (AniList did not answer) left the title unchanged; it is
+    // still thrown so the job is recorded failed, not "completed".
+    const skipped = isMetadataRefreshSkippedError(error);
+    if (skipped) logger.warn(message, { mangaId, skip: error.skip });
+    await emitRefreshProgress(mangaId, 'error', 0, skipped ? 'Metadata refresh skipped' : 'Metadata refresh failed', message);
     throw error;
   }
 
