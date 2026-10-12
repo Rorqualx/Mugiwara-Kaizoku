@@ -30,6 +30,12 @@ describe('volumeCapFor', () => {
     expect(volumeCapFor({ ...base, volumes: 14, status: 'COMPLETED' }, 8)).toEqual({ cap: 14, source: 'metadata' });
   });
 
+  it('allows exactly one volume past the count when downloaded chapters outrun the last volume (Solo Leveling: 15 volumes to chapter 48, files to 201)', () => {
+    expect(volumeCapFor({ ...base, volumes: 15, status: 'COMPLETED', filesPastLastVolume: true }).cap).toBe(16);
+    expect(volumeCapFor({ ...base, volumes: 15, status: 'COMPLETED', filesPastLastVolume: false }).cap).toBe(15);
+    expect(volumeCapFor({ ...base, volumes: 15, status: 'COMPLETED', filesPastLastVolume: true }, 15).cap).toBe(16);
+  });
+
   it('keeps the 1.1x allowance for a running series, so the next volume can be created', () => {
     expect(volumeCapFor({ ...base, volumes: 74, status: 'ONGOING' }).cap).toBe(82);
     expect(volumeCapFor({ ...base, volumes: 74, status: 'HIATUS' }, 20).cap).toBe(22);

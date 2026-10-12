@@ -48,12 +48,26 @@ import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
 import { unansweredProviders, type ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
+import { getVolumeCapForManga } from './phase-volume-cross-validation/db-volume-cap';
 import { classifyPhantomChapters, normalizeChapterTitle } from './types';
 
 import type { MangaPublicationStatus } from '@prisma/client';
 
 function isTerminalStatus(status: MangaPublicationStatus | null | undefined): boolean {
   return status === 'COMPLETED' || status === 'CANCELLED';
+}
+
+/**
+ * The volume number past which the pruners treat a volume as phantom: the same
+ * cap every volume writer uses, so nothing is created that is pruned later.
+ * That includes the one volume allowed past the count for a series whose files
+ * outrun its volumes — it is created before its chapters are linked, and was
+ * removed as "empty" in between (Solo Leveling volume 16, 152 files).
+ */
+async function prunableVolumeCeiling(mangaId: number, storedVolumes: number): Promise<number> {
+  if (storedVolumes <= 0) return 0;
+  const { cap } = await getVolumeCapForManga(mangaId);
+  return Number.isFinite(cap) ? Math.max(cap, storedVolumes) : storedVolumes;
 }
 
 /** The trusted "real extent" of a finished series and the inputs behind it. */
@@ -100,7 +114,7 @@ async function resolveRealExtent(mangaId: number): Promise<RealExtent | null> {
 
   const metaCeiling = manga?.Metadata?.chapters ?? 0;
   if (metaCeiling <= 0) return null;
-  const volumeCeiling = manga?.Metadata?.volumes ?? 0;
+  const volumeCeiling = await prunableVolumeCeiling(mangaId, manga?.Metadata?.volumes ?? 0);
 
   const maxChResult = await prisma.chapter.aggregate({
     where: {
@@ -240,7 +254,7 @@ export async function removeEmptyPhantomVolumes(mangaId: number): Promise<number
   });
   const finished = isTerminalStatus(manga?.publicationStatus) || Boolean(manga?.Metadata?.endDate);
   if (!finished) return 0;
-  const volumeCeiling = manga?.Metadata?.volumes ?? 0;
+  const volumeCeiling = await prunableVolumeCeiling(mangaId, manga?.Metadata?.volumes ?? 0);
 
   const empties = await prisma.volume.findMany({
     where: { mangaId, number: { gt: 0 }, chapters: { none: {} } },

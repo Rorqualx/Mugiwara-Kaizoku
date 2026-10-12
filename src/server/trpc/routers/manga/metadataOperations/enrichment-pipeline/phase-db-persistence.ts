@@ -22,6 +22,7 @@ import { chapterHasUserData } from '../refresh/clear-auto-bindings';
 
 import { buildFileContentMatcher } from './file-content-matcher';
 import { insertNewChapters } from './phase-db-persistence/chapter-insert';
+import { withoutOverflowPastFinal } from './phase-db-persistence/final-chapter-overflow';
 import { planPhantomPairs } from './phase-db-persistence/phantom-pairing';
 import { findKeptVolumeFileRowIds } from './phase-finalize/volume-file-row-scheme';
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
@@ -249,11 +250,12 @@ async function createChaptersAndVolumes(
   const dedupedChapters = deduplicateChapters(granularChapters);
   const granularTitleMap = buildGranularTitleMap(dedupedChapters);
 
-  const providerChapters = useGranularChapters
+  const allProviderChapters = useGranularChapters
     ? buildTier1ChapterList(dedupedChapters)
     : inferredChapterCount > 0
       ? buildTier2ChapterList(inferredChapterCount, granularTitleMap)
       : [];
+  const providerChapters = withoutOverflowPastFinal(mangaId, allProviderChapters, metadata['status'], scalarChapterCount, chapterConsensus);
 
   try {
     if (providerChapters.length > 0) {

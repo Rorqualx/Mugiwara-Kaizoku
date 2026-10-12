@@ -1,0 +1,85 @@
+/**
+ * Provider chapters numbered past a finished series' agreed final chapter.
+ *
+ * A source that lists a series under its whole-franchise numbering (MangaDex
+ * lists JoJo Part 4, chapters 1-174, again as 266-439) hands the merge a
+ * second run of chapters. They carry a page count, so the phantom prune keeps
+ * them as real, and they were stored as monitored chapters waiting to be
+ * downloaded. They are refused before the merge instead.
+ *
+ * Only generic-titled whole numbers are dropped: a chapter with its own title
+ * past the scalar is a real late chapter (Berserk 384, 385) and stays.
+ *
+ * No DB access; `withoutOverflowPastFinal` only logs.
+ */
+
+import { logger } from '@/utils/logger';
+
+import { isGenericChapterTitle } from '../types';
+
+import type { ChapterConsensus } from '../phase-volume-cross-validation/chapter-consensus-resolver';
+import type { ProviderChapter } from '../types';
+
+/** An epilogue or omake may sit this far past the count. */
+const FINAL_CHAPTER_SLACK = 2;
+/** The list must hold at least this share of 1..final for the rest to be a second numbering. */
+const MIN_MAIN_RUN_COVERAGE = 0.5;
+
+const FINISHED_STATUSES = new Set<string>(['COMPLETED', 'FINISHED', 'CANCELLED']);
+
+/**
+ * The final chapter of a finished series, when the chapter consensus agrees
+ * with the stored scalar. Null for a running series, a disputed count, or no
+ * consensus — then nothing is refused.
+ */
+export function agreedFinalChapter(
+  status: unknown,
+  scalarChapters: number,
+  consensus: ChapterConsensus | undefined,
+): number | null {
+  if (typeof status !== 'string' || !FINISHED_STATUSES.has(status.toUpperCase())) return null;
+  if (scalarChapters <= 0 || !consensus) return null;
+  if (consensus.confidence !== 'high' && consensus.confidence !== 'medium') return null;
+  if (Math.abs(consensus.count - scalarChapters) > FINAL_CHAPTER_SLACK) return null;
+  return Math.max(consensus.count, scalarChapters);
+}
+
+/**
+ * Split `chapters` into those to merge and the generic-titled overflow past
+ * `finalChapter`. Returns everything as kept when there is no final chapter
+ * or the list does not cover the main run.
+ */
+export function splitOverflowPastFinal(
+  chapters: ProviderChapter[],
+  finalChapter: number | null,
+): { kept: ProviderChapter[]; refused: ProviderChapter[] } {
+  if (finalChapter === null) return { kept: chapters, refused: [] };
+  const limit = finalChapter + FINAL_CHAPTER_SLACK;
+  const mainRun = chapters.filter(c => c.chapterNumber <= limit).length;
+  if (mainRun < finalChapter * MIN_MAIN_RUN_COVERAGE) return { kept: chapters, refused: [] };
+  const kept: ProviderChapter[] = [];
+  const refused: ProviderChapter[] = [];
+  for (const chapter of chapters) {
+    const overflow = chapter.chapterNumber > limit
+      && Number.isInteger(chapter.chapterNumber)
+      && isGenericChapterTitle(chapter.title);
+    (overflow ? refused : kept).push(chapter);
+  }
+  return { kept, refused };
+}
+
+/** The chapters to merge for one title, with any refused overflow logged. */
+export function withoutOverflowPastFinal(
+  mangaId: number,
+  chapters: ProviderChapter[],
+  status: unknown,
+  scalarChapters: number,
+  consensus: ChapterConsensus | undefined,
+): ProviderChapter[] {
+  const { kept, refused } = splitOverflowPastFinal(chapters, agreedFinalChapter(status, scalarChapters, consensus));
+  if (refused.length > 0) {
+    const numbers = refused.map(c => c.chapterNumber);
+    logger.info(`[enrichmentPipeline] Refused ${refused.length} generic chapter(s) past the final chapter of finished manga ${mangaId} (${Math.min(...numbers)}-${Math.max(...numbers)})`);
+  }
+  return kept;
+}

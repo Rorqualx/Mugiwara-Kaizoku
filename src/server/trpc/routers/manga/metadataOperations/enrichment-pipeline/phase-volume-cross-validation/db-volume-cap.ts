@@ -29,6 +29,9 @@ export interface VolumeCap {
   source: 'caller' | 'metadata' | 'kr-webtoon' | 'none';
 }
 
+/** One volume past the count, for a finished series whose files outrun its volumes. */
+const TRAILING_VOLUMES_FOR_FILES = 1;
+
 /** Statuses that mean the run has ended: the volume count is final. */
 const FINISHED_STATUSES = new Set<string>(['COMPLETED', 'CANCELLED']);
 
@@ -38,6 +41,8 @@ export interface VolumeCapSignal {
   endDate: Date | null;
   country: string | null;
   format: string | null;
+  /** Downloaded chapters are numbered past the end of the last counted volume. */
+  filesPastLastVolume?: boolean | null;
 }
 
 /**
@@ -51,6 +56,12 @@ export interface VolumeCapSignal {
  * the larger of the hint and the stored count: a hint resolved from a sparse
  * source (Tokyo Ghoul: 8 of 14) must not cut real volumes.
  *
+ * One exception: when downloaded chapters are numbered past the end of the last
+ * counted volume (Solo Leveling: 15 collected volumes end at chapter 48, files
+ * run to 201), exactly one further volume is allowed to hold them. It is stable
+ * because every reader of the cap sees the same files, and the phantom prune
+ * never removes a volume that holds a file.
+ *
  * Pure — no DB.
  */
 export function volumeCapFor(signal: VolumeCapSignal | null, callerHint?: number): VolumeCap {
@@ -58,7 +69,8 @@ export function volumeCapFor(signal: VolumeCapSignal | null, callerHint?: number
   const stored = Math.max(0, signal?.volumes ?? 0);
   const finished = Boolean(signal?.endDate) || FINISHED_STATUSES.has(signal?.status ?? '');
   if (finished && (hint > 0 || stored > 0)) {
-    return { cap: Math.ceil(Math.max(hint, stored)), source: hint > stored ? 'caller' : 'metadata' };
+    const trailing = signal?.filesPastLastVolume === true ? TRAILING_VOLUMES_FOR_FILES : 0;
+    return { cap: Math.ceil(Math.max(hint, stored)) + trailing, source: hint > stored ? 'caller' : 'metadata' };
   }
   if (hint > 0) return { cap: Math.ceil(hint * OVERSHOOT_FACTOR), source: 'caller' };
   if (!signal) return { cap: Infinity, source: 'none' };
@@ -73,7 +85,15 @@ export async function getVolumeCapForManga(
 ): Promise<VolumeCap> {
   const rows = await prisma.$queryRaw<VolumeCapSignal[]>`
     SELECT md.volumes AS volumes, md.status::text AS status, md."endDate" AS "endDate",
-           md."countryOfOrigin" AS country, md.format AS format
+           md."countryOfOrigin" AS country, md.format AS format,
+           EXISTS (
+             SELECT 1 FROM "Chapter" c
+             WHERE c."mangaId" = m.id AND c."filePath" IS NOT NULL
+               AND c."chapterNumber" > (
+                 SELECT MAX(v."chapterEnd") FROM "Volume" v
+                 WHERE v."mangaId" = m.id AND v.number BETWEEN 1 AND md.volumes
+               )
+           ) AS "filesPastLastVolume"
     FROM "Manga" m JOIN "Metadata" md ON m."metadataId" = md.id
     WHERE m.id = ${mangaId}
   `;
