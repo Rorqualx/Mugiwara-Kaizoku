@@ -26,8 +26,24 @@ const PROGRESS_FLUSH_MS = 250;
 /** Trailing window that collapses a burst of finished jobs into one refetch. */
 const REFETCH_DEBOUNCE_MS = 750;
 
-/** Poll interval used only while the socket is disconnected. */
-const FALLBACK_POLL_MS = 3000;
+/**
+ * Window that collapses a burst of job events into one refetch per status
+ * group. A job finishing emits `jobs:active` and `jobs:completed` together,
+ * and a batch emits dozens; each used to refetch immediately.
+ */
+const JOB_EVENT_DEBOUNCE_MS = 500;
+
+/**
+ * Poll intervals used only while the socket is disconnected. This is the
+ * page's only polling: in-progress statuses (three queries) change quickly,
+ * completed/failed slowly. Polling all five every 3s tripped the API rate
+ * limiter.
+ */
+const FALLBACK_ACTIVE_POLL_MS = 5_000;
+const FALLBACK_FINISHED_POLL_MS = 15_000;
+
+/** Status groups a job event can make stale. */
+type JobGroup = 'active' | 'completed' | 'failed';
 
 /** Transfer statistics reported by the download client for one job. */
 export interface JobLiveStats {
@@ -114,6 +130,22 @@ export function useJobsRealtime(refetchers: JobsRealtimeRefetchers): JobLiveOver
   const pendingRef = useRef<Map<string, PendingUpdate>>(new Map());
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const staleGroupsRef = useRef<Set<JobGroup>>(new Set());
+  const jobEventTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refetchStaleGroups = useCallback((): void => {
+    jobEventTimerRef.current = null;
+    const groups = staleGroupsRef.current;
+    staleGroupsRef.current = new Set();
+    if (groups.has('active')) refetchActiveStatuses();
+    if (groups.has('completed')) void refetchCompleted();
+    if (groups.has('failed')) void refetchFailed();
+  }, [refetchActiveStatuses, refetchCompleted, refetchFailed]);
+
+  const markStale = useCallback((group: JobGroup): void => {
+    staleGroupsRef.current.add(group);
+    jobEventTimerRef.current ??= setTimeout(refetchStaleGroups, JOB_EVENT_DEBOUNCE_MS);
+  }, [refetchStaleGroups]);
 
   const flush = useCallback((): void => {
     flushTimerRef.current = null;
@@ -143,13 +175,13 @@ export function useJobsRealtime(refetchers: JobsRealtimeRefetchers): JobLiveOver
   useEffect(() => {
     if (!isConnected) return;
     const unsubs = [
-      subscribe('jobs:active', refetchActiveStatuses),
-      subscribe('jobs:failed', () => { void refetchFailed(); }),
-      subscribe('jobs:completed', () => { void refetchCompleted(); }),
+      subscribe('jobs:active', () => { markStale('active'); }),
+      subscribe('jobs:failed', () => { markStale('failed'); }),
+      subscribe('jobs:completed', () => { markStale('completed'); }),
       subscribe('downloads:progress', handleDownloadProgress),
     ];
     return () => { unsubs.forEach(unsubscribe => unsubscribe()); };
-  }, [isConnected, subscribe, refetchActiveStatuses, refetchFailed, refetchCompleted, handleDownloadProgress]);
+  }, [isConnected, subscribe, markStale, handleDownloadProgress]);
 
   // Timers outlive a reconnect on purpose (a pending flush still applies);
   // they are only dropped when the page unmounts.
@@ -157,17 +189,27 @@ export function useJobsRealtime(refetchers: JobsRealtimeRefetchers): JobLiveOver
     return () => {
       if (flushTimerRef.current !== null) clearTimeout(flushTimerRef.current);
       if (refetchTimerRef.current !== null) clearTimeout(refetchTimerRef.current);
+      if (jobEventTimerRef.current !== null) clearTimeout(jobEventTimerRef.current);
       flushTimerRef.current = null;
       refetchTimerRef.current = null;
+      jobEventTimerRef.current = null;
     };
   }, []);
 
-  // Fallback polling while the socket is down.
+  // Fallback polling while the socket is down. Skipped while the tab is
+  // hidden; a reconnect or the next visible tick catches up.
   useEffect(() => {
     if (isConnected) return;
-    const interval = setInterval(refetchAll, FALLBACK_POLL_MS);
-    return () => clearInterval(interval);
-  }, [isConnected, refetchAll]);
+    const whenVisible = (fn: () => void) => (): void => {
+      if (document.visibilityState === 'visible') fn();
+    };
+    const active = setInterval(whenVisible(refetchActiveStatuses), FALLBACK_ACTIVE_POLL_MS);
+    const finished = setInterval(
+      whenVisible(() => { void refetchCompleted(); void refetchFailed(); }),
+      FALLBACK_FINISHED_POLL_MS
+    );
+    return () => { clearInterval(active); clearInterval(finished); };
+  }, [isConnected, refetchActiveStatuses, refetchCompleted, refetchFailed]);
 
   return overlay;
 }
