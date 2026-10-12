@@ -6,10 +6,11 @@ import { jobs } from '@prisma/client';
 
 import { prisma } from '@/server/db';
 import {
-  enqueueRefreshJob,
+  handOffRefreshChain,
   MetadataRefreshPayloadSchema,
   nextRefreshPayload,
   type EnqueueJob,
+  type HandoffDeps,
   type MetadataRefreshPayload,
 } from '@/server/services/metadata/refresh-queue';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
@@ -67,20 +68,19 @@ async function refreshOne(payload: MetadataRefreshPayload): Promise<void> {
 }
 
 /**
- * The next link of the chain whose title still exists. A title deleted while
- * the batch was waiting is stepped over: a job row cannot reference it, and
- * the failed insert would strand everything queued behind it.
+ * Everything the chain hand-off needs. The hand-off steps over titles deleted
+ * while the batch was waiting, skips titles another open job already covers,
+ * and retries on its own when the queue refuses the job — it never throws.
  */
-async function nextExistingTitle(payload: MetadataRefreshPayload): Promise<MetadataRefreshPayload | null> {
-  let next = nextRefreshPayload(payload);
-  while (next) {
-    // eslint-disable-next-line no-await-in-loop -- walks the chain until a title exists; normally the first
-    const exists = await prisma.manga.findUnique({ where: { id: next.mangaId }, select: { id: true } });
-    if (exists) return next;
-    logger.warn(`Metadata refresh skipped: manga ${next.mangaId} no longer exists`);
-    next = nextRefreshPayload(next);
-  }
-  return null;
+function handoffDeps(enqueue: EnqueueJob): HandoffDeps {
+  return {
+    db: prisma,
+    enqueue,
+    log: {
+      warn: (message, meta) => logger.warn(message, meta),
+      error: (message, meta) => logger.error(message, undefined, meta),
+    },
+  };
 }
 
 export async function handleMetadataRefresh(job: jobs): Promise<void> {
@@ -98,11 +98,18 @@ export async function handleMetadataRefresh(job: jobs): Promise<void> {
 
   if (refreshSlot.busy) {
     // Hand the slot back and come round again rather than hold it while waiting.
-    await enqueueRefreshJob(enqueue, payload, {
+    // A refused enqueue is retried by the hand-off instead of failing this job:
+    // the job has one attempt, so a throw here would drop this title and every
+    // title queued behind it.
+    const outcome = await handOffRefreshChain(handoffDeps(enqueue), payload, {
       initiatedByUserId,
       scheduledFor: new Date(Date.now() + BUSY_RETRY_DELAY_MS),
+      excludeJobId: job.id,
     });
-    logger.info(`Metadata refresh for manga ${mangaId} deferred: another refresh is running`, { jobId: String(job.id) });
+    logger.info(`Metadata refresh for manga ${mangaId} deferred: another refresh is running`, {
+      jobId: String(job.id),
+      handoff: outcome,
+    });
     return;
   }
 
@@ -124,10 +131,12 @@ export async function handleMetadataRefresh(job: jobs): Promise<void> {
     logger.info(`Metadata refresh completed for manga ${mangaId}`);
   } finally {
     refreshSlot.busy = false;
-    // One title failing must not strand the rest of the batch.
-    const next = await nextExistingTitle(payload);
+    // One title failing must not strand the rest of the batch, and a refused
+    // enqueue must neither hide this title's own error nor fail a title that
+    // was refreshed: the hand-off retries by itself and never throws.
+    const next = nextRefreshPayload(payload);
     if (next) {
-      await enqueueRefreshJob(enqueue, next, { initiatedByUserId });
+      await handOffRefreshChain(handoffDeps(enqueue), next, { initiatedByUserId, excludeJobId: job.id });
     }
   }
 }

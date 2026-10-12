@@ -8,7 +8,7 @@ import { prisma } from '@/server/db';
 import { enqueueDownloadTask } from '@/server/queue/download';
 import { queueManager } from '@/server/queue/queueManager';
 import { deleteMangaFiles } from '@/server/services/library/manga-file-deletion';
-import { enqueueRefreshChain } from '@/server/services/metadata/refresh-queue';
+import { queueBulkRefresh, type BulkRefreshResult } from '@/server/services/metadata/bulk-refresh';
 import { markMangaRead, markMangaUnread } from '@/server/services/reader/chapter-read-state';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
 import { isError, isSuccess } from '@/utils/async-result';
@@ -614,59 +614,46 @@ export const bulkRouter = router({
       mangaIds: z.array(z.number()).min(1, 'At least one manga ID is required'),
       reidentify: z.boolean().optional()
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }): Promise<BulkRefreshResult> => {
       const userId = requireUserId(ctx);
-      const mangaIds = await filterMangaIdsToLibrary(ctx.prisma, userId, input.mangaIds);
+      const libraryIds = await filterMangaIdsToLibrary(ctx.prisma, userId, input.mangaIds);
       const reidentify = input.reidentify ?? false;
 
-      serverLogger.info('Starting bulk metadata refresh', { mangaCount: mangaIds.length, reidentify });
+      serverLogger.info('Starting bulk metadata refresh', { mangaCount: libraryIds.length, reidentify });
 
-      const existing = await prisma.manga.findMany({ where: { id: { in: mangaIds } }, select: { id: true } });
-      const existingIds = new Set(existing.map(m => m.id));
-      const errors = mangaIds.filter(id => !existingIds.has(id)).map(id => `Manga ${id} not found`);
+      // The result says what happened to every requested title: queued,
+      // already queued, or failed. `success` is false when nothing was queued.
+      const result = await queueBulkRefresh(
+        prisma,
+        (jobType, payload, options) => queueManager.enqueue(jobType, payload, options),
+        { requestedIds: input.mangaIds, libraryIds, reidentify, userId }
+      );
 
-      let queued: number[] = [];
-      let alreadyQueued: number[] = [];
-      try {
-        ({ queued, alreadyQueued } = await enqueueRefreshChain(
-          prisma,
-          (jobType, payload, options) => queueManager.enqueue(jobType, payload, options),
-          mangaIds.filter(id => existingIds.has(id)),
-          { forceRefresh: reidentify, initiatedByUserId: userId }
-        ));
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        errors.push(`Failed to queue metadata refresh: ${errorMessage}`);
-        serverLogger.error('Failed to queue metadata refresh', { mangaIds, error: errorMessage });
+      const summary = {
+        outcome: result.outcome,
+        successCount: result.successCount,
+        alreadyQueued: result.alreadyQueuedCount,
+        errorCount: result.errorCount,
+        totalCount: result.totalCount
+      };
+      if (result.outcome === 'failed') {
+        serverLogger.error('Bulk metadata refresh queued nothing', { ...summary, errors: result.errors });
+      } else if (result.errors) {
+        serverLogger.warn('Bulk metadata refresh could not queue every title', { ...summary, errors: result.errors });
+      } else {
+        serverLogger.info('Bulk metadata refresh complete', summary);
       }
 
-      const successCount = queued.length;
-      serverLogger.info('Bulk metadata refresh complete', {
-        successCount,
-        alreadyQueued: alreadyQueued.length,
-        errorCount: errors.length,
-        totalCount: mangaIds.length
-      });
-
       // Emit WebSocket event for real-time sync
-      if (successCount > 0) {
+      if (result.successCount > 0) {
         void realtimeEmitter.emitSystemEvent({
           eventType: 'bulk:metadata:refresh:queued',
           source: 'bulk-router',
-          message: `Queued ${successCount} manga for metadata refresh`,
-          data: { successCount, totalCount: mangaIds.length }
+          message: `Queued ${result.successCount} manga for metadata refresh`,
+          data: { successCount: result.successCount, totalCount: result.totalCount }
         });
       }
 
-      const skippedNote = alreadyQueued.length > 0 ? ` (${alreadyQueued.length} already queued)` : '';
-      return {
-        success: true,
-        successCount,
-        alreadyQueuedCount: alreadyQueued.length,
-        errorCount: errors.length,
-        totalCount: mangaIds.length,
-        errors: errors.length > 0 ? errors : null,
-        message: `Queued ${successCount} of ${mangaIds.length} manga for metadata refresh${skippedNote}`
-      };
+      return result;
     })
 });

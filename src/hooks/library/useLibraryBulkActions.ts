@@ -4,6 +4,7 @@
  *
  * @module hooks/library/useLibraryBulkActions
  */
+import { bulkRefreshNotice } from '@/components/library/utils/bulkRefreshNotice';
 import { useNotification } from '@/hooks/useNotification';
 import { useLibraryViewStore } from '@/store/index';
 import { withRemovalToast } from '@/utils/removalToast';
@@ -28,7 +29,7 @@ export function useLibraryBulkActions(
 ): LibraryBulkActions {
   const setSelectionMode = useLibraryViewStore(state => state.setSelectionMode);
   const clearSelection = useLibraryViewStore(state => state.clearSelection);
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showInfo } = useNotification();
 
   const bulkRefreshMutation = trpc.bulk.bulkRefreshMetadata.useMutation();
   const bulkDeleteMutation = trpc.bulk.removeManga.useMutation();
@@ -44,10 +45,11 @@ export function useLibraryBulkActions(
       const result = await bulkRefreshMutation.mutateAsync({
         mangaIds: selectedItems.map(id => Number(id))
       });
-      showSuccess({
-        title: 'Metadata Refresh Queued',
-        message: result.message
-      });
+      // Green only when titles were queued; "nothing queued" and failures say so.
+      const notice = bulkRefreshNotice(result);
+      const show = { success: showSuccess, info: showInfo, error: showError }[notice.kind];
+      show({ title: notice.title, message: notice.message });
+      if (notice.keepSelection) return;
       leaveSelection();
     } catch (error: unknown) {
       showError({
