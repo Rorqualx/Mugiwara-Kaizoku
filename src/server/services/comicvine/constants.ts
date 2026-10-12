@@ -157,6 +157,10 @@ export const DESCRIPTION_CHAPTER_PATTERNS = [
   // "Chapter 123: Title" or "Chapter 123.5 - Title" (decimal for interludes/specials);
   // also "Chapter #080: Title" (Tokyo Ghoul)
   /^Chapter\s+#?(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
+  // "Chapter 675. Title" or "Chapter 520.5. Title" (Bleach volumes 70, 73, 74).
+  // Without it the line fell to the title-only fallback and was numbered by
+  // position, which put volume 74's chapters at 695-706 in a series ending at 686.
+  /^Chapter\s+#?(\d+(?:\.\d+)?)\.\s+(.+)$/i,
   // "Ch. 123: Title" or "Ch 123.5 - Title"
   /^Ch\.?\s*(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // "#123: Title" or "#123.5 - Title"

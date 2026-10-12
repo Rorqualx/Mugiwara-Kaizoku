@@ -65,6 +65,55 @@ async function findExistingVolumeFileRow(
   });
 }
 
+/**
+ * The one archive a volume's chapter rows share, or null.
+ *
+ * At least two rows must point at it. A volume where a single chapter has a
+ * file (the rest are pending) has one distinct path too, but that file is the
+ * chapter, not the volume: Blue Exorcist volume 10 got a second file-backed
+ * row for `c039.cbz`, which read as that chapter deleted and re-created.
+ */
+export function sharedArchivePath(rows: Array<{ filePath: string | null }>): string | null {
+  const holders = new Map<string, number>();
+  for (const r of rows) {
+    if (r.filePath) holders.set(r.filePath, (holders.get(r.filePath) ?? 0) + 1);
+  }
+  if (holders.size !== 1) return null;
+  const [only] = [...holders.entries()];
+  return only !== undefined && only[1] >= 2 ? only[0] : null;
+}
+
+/**
+ * True when `archivePath` already has a numberless row and this volume's own
+ * row is not one of them. One archive is one row: Bleach's `V74.cbz` row sits
+ * in volume 74, its mis-numbered chapter rows in volume 75, and every refresh
+ * added another file-backed row for the same archive to volume 75. A volume
+ * whose own row holds the archive is still refreshed.
+ */
+export function archiveHasOtherRow(
+  archivePath: string | null,
+  archiveRowIds: Map<string, number[]>,
+  ownRowId: number | null,
+): boolean {
+  if (archivePath === null) return false;
+  const holders = archiveRowIds.get(archivePath) ?? [];
+  return holders.length > 0 && (ownRowId === null || !holders.includes(ownRowId));
+}
+
+/** Ids of the manga's numberless file-backed rows, by archive path. */
+async function loadArchiveRowIds(mangaId: number): Promise<Map<string, number[]>> {
+  const rows = await prisma.chapter.findMany({
+    where: { mangaId, chapterNumber: null, filePath: { not: null } },
+    select: { id: true, filePath: true },
+  });
+  const byPath = new Map<string, number[]>();
+  for (const r of rows) {
+    if (!r.filePath) continue;
+    byPath.set(r.filePath, [...(byPath.get(r.filePath) ?? []), r.id]);
+  }
+  return byPath;
+}
+
 function aggregateChapterRows(
   rows: Array<{ index: number; pageCount: number | null; size: bigint; filePath: string | null; fileName: string; fileFormat: string | null; downloadStatus: string }>,
 ): ChapterAggregate {
@@ -72,21 +121,18 @@ function aggregateChapterRows(
   let totalPages = 0;
   let totalSize = BigInt(0);
   let largestSize = BigInt(0);
-  const filePaths = new Set<string>();
-  let firstFileName: string | null = null;
-  let firstFileFormat: string | null = null;
   let seedIndex = rows[0]?.index ?? 0;
   for (const r of rows) {
     if (r.downloadStatus === ChapterStatus.COMPLETED) completedCount++;
     totalPages += r.pageCount ?? 0;
     totalSize += r.size;
     if (r.size > largestSize) largestSize = r.size;
-    if (r.filePath) filePaths.add(r.filePath);
-    firstFileName ??= r.fileName;
-    firstFileFormat ??= r.fileFormat;
     if (r.index < seedIndex) seedIndex = r.index;
   }
-  const sharedFilePath = filePaths.size === 1 ? [...filePaths][0] ?? null : null;
+  const sharedFilePath = sharedArchivePath(rows);
+  const carrier = sharedFilePath !== null ? rows.find(r => r.filePath === sharedFilePath) : undefined;
+  const firstFileName = carrier?.fileName ?? null;
+  const firstFileFormat = carrier?.fileFormat ?? null;
   return {
     count: rows.length,
     completedCount,
@@ -107,8 +153,10 @@ async function ensureRowForVolume(
   volume: number,
   volumeId: number | null,
   agg: ChapterAggregate,
+  archiveRowIds: Map<string, number[]>,
 ): Promise<'created' | 'updated' | 'skipped'> {
   const existing = await findExistingVolumeFileRow(mangaId, volume);
+  if (archiveHasOtherRow(agg.sharedFilePath, archiveRowIds, existing?.id ?? null)) return 'skipped';
   const downloadStatus: ChapterStatus = agg.completedCount === agg.count
     ? ChapterStatus.COMPLETED
     : ChapterStatus.PENDING;
@@ -232,11 +280,12 @@ export async function ensureVolumeFileRows(mangaId: number): Promise<void> {
       byVolume.set(c.volume, bucket);
     }
 
+    const archiveRowIds = await loadArchiveRowIds(mangaId);
     let created = 0, updated = 0, skipped = 0;
     for (const [volume, { volumeId, rows }] of byVolume.entries()) {
       const agg = aggregateChapterRows(rows);
       // eslint-disable-next-line no-await-in-loop -- per-volume sequential write keeps DB pressure low
-      const verdict = await ensureRowForVolume(mangaId, volume, volumeId, agg);
+      const verdict = await ensureRowForVolume(mangaId, volume, volumeId, agg, archiveRowIds);
       if (verdict === 'created') created++;
       else if (verdict === 'updated') updated++;
       else skipped++;

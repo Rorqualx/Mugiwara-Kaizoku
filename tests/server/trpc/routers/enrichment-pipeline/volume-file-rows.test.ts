@@ -75,6 +75,21 @@ describe('findStaleChapterIds — per-volume rows survive the phantom sweep', ()
   });
 });
 
+describe('findStaleChapterIds — a refresh does not delete a titled chapter 0 only for the Fandom phase to re-create it', () => {
+  // Bleach "side-A the sand": no provider list numbers a chapter 0, so the
+  // sweep deleted it and the Fandom phase created it again, under a new id, on every refresh.
+  const one = row({ id: 1, index: 1, chapterNumber: 1, volume: 1, filePath: '/lib/c001.cbz', downloadStatus: 'COMPLETED' });
+  const prologue = { ...row({ id: 2, index: 900, chapterNumber: 0, volume: null }), title: 'side-A the sand' };
+  const genericZero = { ...row({ id: 3, index: 901, chapterNumber: 0, volume: null }), title: 'Chapter 0' };
+  const staleTitled = { ...row({ id: 4, index: 902, chapterNumber: 7, volume: null }), title: 'A Wrong Binding' };
+
+  it('keeps the titled chapter 0 and still removes a generic chapter 0 and other unlisted stubs', () => {
+    const stale = findStaleChapterIds([one, prologue, genericZero, staleTitled], new Set([1]), new Set(), 1);
+    expect(stale).not.toContain(2);
+    expect(stale.sort()).toEqual([3, 4]);
+  });
+});
+
 /** Largest value the old int4 column held; One Piece's summed volume exceeds it. */
 const INT4_MAX = BigInt(2_147_483_647);
 const ONE_PIECE_VOLUME_BYTES = BigInt(2_558_355_943);
@@ -144,5 +159,58 @@ describe('ensureVolumeFileRows', () => {
     await ensureVolumeFileRows(81);
     expect(mockChapter.update).toHaveBeenCalledTimes(1);
     expect(mockChapter.update.mock.calls[0]?.[0]).toMatchObject({ where: { id: 500 }, data: { downloadStatus: 'COMPLETED' } });
+  });
+});
+
+describe('ensureVolumeFileRows — a refresh never manufactures a second file-backed row for a file that already has one', () => {
+  const V74 = '/library/Bleach/Volumes/Bleach V74/Bleach V74.cbz';
+  const numberedRow = (index: number, volume: number, filePath: string | null, downloadStatus = 'COMPLETED'): Record<string, unknown> => ({
+    index, pageCount: 20, size: BigInt(1000), filePath, fileName: filePath?.split('/').pop() ?? `c${index}.cbz`, fileFormat: 'cbz',
+    volume, volumeId: volume, downloadStatus,
+  });
+  /** Route the three findMany calls: numbered chapters, archive rows, file-less containers. */
+  function mockRows(numbered: Array<Record<string, unknown>>, archiveRows: Array<{ id: number; filePath: string }>): void {
+    mockChapter.findMany.mockImplementation(async (args) => {
+      if (args.where['chapterNumber'] !== null) return numbered;
+      return 'OR' in args.where ? [] : archiveRows;
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockChapter.deleteMany.mockResolvedValue({ count: 0 });
+    mockChapter.create.mockResolvedValue({});
+    mockChapter.update.mockResolvedValue({});
+    mockChapter.findFirst.mockResolvedValue(null);
+  });
+
+  it('a second refresh on unchanged input does not create a row: Bleach V74.cbz already has its archive row in volume 74', async () => {
+    // Four mis-numbered rows of the one archive sit in volume 75; the archive's
+    // own numberless row sits in volume 74. Every refresh added another
+    // file-backed V74.cbz row to volume 75 (771, 772, 773 … rows).
+    mockRows([689, 695, 696, 705].map(i => numberedRow(i, 75, V74)), [{ id: 49452, filePath: V74 }]);
+    await ensureVolumeFileRows(73);
+    expect(mockChapter.create).not.toHaveBeenCalled();
+    expect(mockChapter.update).not.toHaveBeenCalled();
+  });
+
+  it('does not turn one chapter\'s own file into a whole-volume archive row (it read as the chapter deleted and re-created)', async () => {
+    // Blue Exorcist volume 10: five numbered rows, one of them downloaded.
+    const rows = [numberedRow(41, 10, '/library/Blue Exorcist/c041.cbz'), ...[39, 40, 42, 43].map(i => numberedRow(i, 10, null, 'PENDING'))];
+    mockRows(rows, []);
+    await ensureVolumeFileRows(72);
+    expect(mockChapter.create).toHaveBeenCalledTimes(1);
+    expect(mockChapter.create.mock.calls[0]?.[0].data).toMatchObject({ volume: 10, filePath: null, fileName: '', downloadStatus: 'PENDING' });
+  });
+
+  it('still refreshes the archive row that is the volume\'s own', async () => {
+    // A duplicate numberless row of the same archive (501) does not stop the refresh of 500.
+    mockRows([1, 2, 3].map(i => numberedRow(i, 1, V74)), [{ id: 500, filePath: V74 }, { id: 501, filePath: V74 }]);
+    mockChapter.findFirst.mockImplementation(async (args) => ('volume' in args.where
+      ? { id: 500, pageCount: 10, size: BigInt(1000), filePath: V74, downloadStatus: 'COMPLETED' }
+      : null));
+    await ensureVolumeFileRows(73);
+    expect(mockChapter.create).not.toHaveBeenCalled();
+    expect(mockChapter.update.mock.calls[0]?.[0]).toMatchObject({ where: { id: 500 }, data: { pageCount: 60 } });
   });
 });

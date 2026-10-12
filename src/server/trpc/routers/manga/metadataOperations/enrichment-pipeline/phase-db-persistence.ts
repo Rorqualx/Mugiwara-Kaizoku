@@ -22,7 +22,7 @@ import { chapterHasUserData } from '../refresh/clear-auto-bindings';
 
 import { buildFileContentMatcher } from './file-content-matcher';
 import { insertNewChapters } from './phase-db-persistence/chapter-insert';
-import { withoutOverflowPastFinal } from './phase-db-persistence/final-chapter-overflow';
+import { finishedSeriesFinalChapter, withoutOverflowPastFinal } from './phase-db-persistence/final-chapter-overflow';
 import { planPhantomPairs } from './phase-db-persistence/phantom-pairing';
 import { findKeptVolumeFileRowIds } from './phase-finalize/volume-file-row-scheme';
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
@@ -261,7 +261,8 @@ async function createChaptersAndVolumes(
     if (providerChapters.length > 0) {
       await prisma.$transaction(async (tx) => {
         await deleteExistingVolumes(tx, mangaId);
-        const mergeResult = await mergeEnrichmentChapters(tx, mangaId, providerChapters, inferredChapterCount);
+        const finalChapter = finishedSeriesFinalChapter(metadata['status'], inferredChapterCount);
+        const mergeResult = await mergeEnrichmentChapters(tx, mangaId, providerChapters, inferredChapterCount, finalChapter);
         logger.info(
           `Chapter merge for manga ${mangaId}: ${mergeResult.updated} updated, ` +
           `${mergeResult.created} created, ${mergeResult.preserved} preserved`
@@ -365,6 +366,11 @@ function buildChapterUpdates(
  *      so these were immortal. See audit plan 2026-05-19.
  *      Per-volume rows from `ensureVolumeFileRows` look the same and are kept.
  */
+/** A titled chapter 0 is a prologue the provider list does not number, so its absence there does not make it stale; the sweep deleted Bleach's "side-A the sand" and the Fandom phase re-created it under a new id on every refresh. */
+function isTitledPrologue(ch: ExistingChapter): boolean {
+  return ch.chapterNumber === 0 && ch.title.trim() !== '' && !GENERIC_TITLE_RE.test(ch.title);
+}
+
 export function findStaleChapterIds(
   existing: ExistingChapter[],
   providerNumbers: Set<number>,
@@ -382,6 +388,7 @@ export function findStaleChapterIds(
       ch.chapterNumber !== null &&
       Number.isInteger(ch.chapterNumber) &&
       !providerNumbers.has(ch.chapterNumber) &&
+      !isTitledPrologue(ch) &&
       !matchedIds.has(ch.id)
     )
     .map(ch => ch.id);
@@ -455,9 +462,9 @@ async function pairPhantomToProviderChapter(tx: TxClient, phantom: ExistingChapt
   return { ...phantom, chapterNumber: pch.chapterNumber, title: safeTitle };
 }
 /** Pre-pair volume-archive phantom rows (chapterNumber=NULL, filePath set) with provider chapters in the same volume, by position. Without this, merge + reconciliation skip phantoms and create dup PENDING rows (Chainsaw Man Colored reidentify reproducer). */
-async function bindPhantomVolumeRows(tx: TxClient, existing: ExistingChapter[], providerChapters: ProviderChapter[]): Promise<Map<number, ExistingChapter>> {
+async function bindPhantomVolumeRows(tx: TxClient, existing: ExistingChapter[], providerChapters: ProviderChapter[], finalChapter: number | null): Promise<Map<number, ExistingChapter>> {
   const bound = new Map<number, ExistingChapter>();
-  for (const { phantom, providerChapter } of planPhantomPairs(existing, providerChapters)) {
+  for (const { phantom, providerChapter } of planPhantomPairs(existing, providerChapters, finalChapter)) {
     // eslint-disable-next-line no-await-in-loop -- sequential within tx
     bound.set(providerChapter.chapterNumber, await pairPhantomToProviderChapter(tx, phantom, providerChapter));
   }
@@ -470,11 +477,12 @@ async function mergeEnrichmentChapters(
   mangaId: number,
   providerChapters: ProviderChapter[],
   expectedCount: number,
+  finalChapter: number | null,
 ): Promise<MergeResult> {
   const existing = await fetchExistingChaptersForMerge(tx, mangaId);
 
   // Pre-pass: bind volume-archive phantoms to provider chapters in their vol.
-  const phantomBound = await bindPhantomVolumeRows(tx, existing, providerChapters);
+  const phantomBound = await bindPhantomVolumeRows(tx, existing, providerChapters, finalChapter);
 
   const byChapterNumber = new Map<number, ExistingChapter>();
   for (const ch of existing) {

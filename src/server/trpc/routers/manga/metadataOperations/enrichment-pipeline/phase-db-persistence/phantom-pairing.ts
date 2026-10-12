@@ -42,10 +42,17 @@ function indexPhantomsByVolume<T extends PairableChapter>(existing: T[]): Map<nu
  * the archive is the volume, not a chapter. It must not slide to the next
  * free number — that labelled Attack on Titan's volume 34 archive "chapter
  * 144" and SPY x FAMILY's volume 1 archive "Chapter 5.5".
+ *
+ * Nor does it take a number past `finalChapter`, the last chapter of a
+ * finished series. A provider list that counts extras as chapters runs past
+ * the end (ComicVine lists Bleach's volume 74 as 695-706; the series ends at
+ * 686), so the positional number was free and the archive became "chapter
+ * 695": a downloaded chapter past the end, which then justified a volume 75.
  */
 export function planPhantomPairs<T extends PairableChapter>(
   existing: T[],
   providerChapters: ProviderChapter[],
+  finalChapter: number | null = null,
 ): Array<PhantomPair<T>> {
   const taken = new Set(existing.flatMap(ch => (ch.chapterNumber === null ? [] : [ch.chapterNumber])));
   const pairs: Array<PhantomPair<T>> = [];
@@ -57,6 +64,7 @@ export function planPhantomPairs<T extends PairableChapter>(
     phantoms.forEach((phantom, position) => {
       const providerChapter = volumeChapters[position];
       if (!providerChapter || taken.has(providerChapter.chapterNumber)) return;
+      if (finalChapter !== null && providerChapter.chapterNumber > finalChapter) return;
       taken.add(providerChapter.chapterNumber);
       pairs.push({ phantom, providerChapter });
     });

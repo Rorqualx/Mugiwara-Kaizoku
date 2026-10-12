@@ -45,6 +45,17 @@ export function agreedFinalChapter(
 }
 
 /**
+ * The last chapter number a finished series can have, from the merge's
+ * expected count; null while the series is running or the count is unknown.
+ * Unlike `agreedFinalChapter` it needs no consensus: it only stops a
+ * whole-volume archive row from being numbered past the end.
+ */
+export function finishedSeriesFinalChapter(status: unknown, expectedCount: number): number | null {
+  if (typeof status !== 'string' || !FINISHED_STATUSES.has(status.toUpperCase())) return null;
+  return expectedCount > 0 ? expectedCount : null;
+}
+
+/**
  * Split `chapters` into those to merge and the generic-titled overflow past
  * `finalChapter`. Returns everything as kept when there is no final chapter
  * or the list does not cover the main run.

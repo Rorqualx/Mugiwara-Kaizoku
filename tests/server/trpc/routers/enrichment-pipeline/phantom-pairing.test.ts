@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from '@jest/globals';
 
+import { finishedSeriesFinalChapter } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-db-persistence/final-chapter-overflow';
 import { planPhantomPairs } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-db-persistence/phantom-pairing';
 
 const archive = (id: number, volume: number, index = id): { id: number; index: number; chapterNumber: null; filePath: string; volume: number } =>
@@ -46,5 +47,39 @@ describe('planPhantomPairs — a volume archive takes its volume\'s first chapte
       archive(3, 9),
     ];
     expect(planPhantomPairs(existing, provider(1, 1, 2))).toEqual([]);
+  });
+});
+
+describe('planPhantomPairs — a whole-volume archive row is never given a chapter number past the final chapter', () => {
+  // Bleach ends at chapter 686. ComicVine's list put volume 74 at 695-706, so
+  // the first positional number was free and two `Bleach V74.cbz` rows became
+  // file-backed "chapters" 695 and 696, which then justified a volume 75.
+  const bleach = [archive(13025, 74, 74_000), archive(48931, 74, 107_500), loose(1, 675, 74), loose(2, 686, 74)];
+  const shiftedList = provider(74, 695, 696, 697, 705, 706);
+
+  it('leaves both V74 archive rows numberless when the list runs past 686', () => {
+    expect(planPhantomPairs(bleach, shiftedList, 686)).toEqual([]);
+  });
+
+  it('numbered them 695 and 696 when no final chapter was given (the bug)', () => {
+    expect(summary(planPhantomPairs(bleach, shiftedList))).toEqual([[13025, 695], [48931, 696]]);
+  });
+
+  it('still pairs an archive with a chapter at or below the final chapter', () => {
+    expect(summary(planPhantomPairs([archive(1, 74)], provider(74, 675, 686), 686))).toEqual([[1, 675]]);
+    expect(summary(planPhantomPairs([archive(1, 74)], provider(74, 686), 686))).toEqual([[1, 686]]);
+  });
+});
+
+describe('finishedSeriesFinalChapter', () => {
+  it('is the expected count for a finished series', () => {
+    expect(finishedSeriesFinalChapter('COMPLETED', 686)).toBe(686);
+    expect(finishedSeriesFinalChapter('cancelled', 12)).toBe(12);
+  });
+
+  it('is null for a running series, an unknown status or an unknown count', () => {
+    expect(finishedSeriesFinalChapter('ONGOING', 686)).toBeNull();
+    expect(finishedSeriesFinalChapter(undefined, 686)).toBeNull();
+    expect(finishedSeriesFinalChapter('COMPLETED', 0)).toBeNull();
   });
 });
