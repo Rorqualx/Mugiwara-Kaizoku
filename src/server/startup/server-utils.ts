@@ -7,6 +7,8 @@
  * Extracted from: src/server/index.ts (lines 1-75)
  */
 
+import { Server } from 'http';
+
 import * as express from 'express';
 import * as next from 'next';
 
@@ -38,9 +40,22 @@ export const port = parseInt(env['KAIZOKU_PORT'], 10);
 export const dev = env['NODE_ENV'] !== 'production';
 
 /**
+ * Server that receives Next.js's own upgrade listener. It never listens.
+ *
+ * On the first request, Next attaches an `upgrade` listener to the server it
+ * is given (or, without one, to the server the request came in on). That
+ * listener ends every upgrade whose path matches a route, and `/api/v1/ws`
+ * matches `pages/api/v1/ws.ts` — so on the real server it closed each live
+ * WebSocket right after our handler accepted it. Next attaches here instead,
+ * and `websocket-setup.ts` forwards only the upgrades Next should see
+ * (`/_next/`, for HMR).
+ */
+export const nextUpgradeServer = new Server();
+
+/**
  * Next.js application instance
  */
-export const nextApp = next["default"]({ dev });
+export const nextApp = next["default"]({ dev, httpServer: nextUpgradeServer });
 
 /**
  * Next.js request handler

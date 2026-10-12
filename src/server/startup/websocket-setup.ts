@@ -90,17 +90,19 @@ function onWebSocketUpgraded(ws: WebSocket, request: IncomingMessage): void {
  * Set up WebSocket server and upgrade handling on the given HTTP server.
  *
  * Creates a WebSocketServer in noServer mode and registers an upgrade
- * handler that routes /api/v1/ws connections while passing through
- * Next.js HMR paths (/_next/).
+ * handler that routes /api/v1/ws connections and forwards Next.js HMR
+ * paths (/_next/) to `nextUpgradeServer`, the server Next.js attached its
+ * own upgrade listener to. This handler is the only upgrade listener on
+ * `server`, so Next never sees (and never closes) a /api/v1/ws socket.
  */
-export async function setupWebSocket(server: Server): Promise<void> {
+export async function setupWebSocket(server: Server, nextUpgradeServer: Server): Promise<void> {
   wss = new WebSocketServer({ noServer: true });
   global.__wss = wss;
 
   server.on(
     'upgrade',
     (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-      void handleUpgrade(request, socket, head);
+      void handleUpgrade(request, socket, head, nextUpgradeServer);
     }
   );
 
@@ -112,12 +114,13 @@ export async function setupWebSocket(server: Server): Promise<void> {
 
 /**
  * Handle HTTP upgrade requests, routing WebSocket connections
- * and passing through Next.js HMR paths.
+ * and forwarding Next.js HMR paths to Next's own upgrade listener.
  */
 async function handleUpgrade(
   request: IncomingMessage,
   socket: Duplex,
-  head: Buffer
+  head: Buffer,
+  nextUpgradeServer: Server
 ): Promise<void> {
   const { pathname } = parse(request.url ?? '');
 
@@ -125,7 +128,7 @@ async function handleUpgrade(
     await handleWebSocketUpgrade(request, socket, head);
   } else if (pathname?.startsWith('/_next/')) {
     // Next.js HMR — let Next.js handle the upgrade
-    return;
+    nextUpgradeServer.emit('upgrade', request, socket, head);
   } else {
     // Unknown upgrade request
     socket.destroy();

@@ -51,7 +51,7 @@ import {
   registerHttpServer,
   errorHandlingMiddleware
 } from './startup/server-shutdown';
-import { app, port, nextApp, nextHandler, formatError } from './startup/server-utils';
+import { app, port, nextApp, nextHandler, nextUpgradeServer, formatError } from './startup/server-utils';
 import { setupWebSocket } from './startup/websocket-setup';
 
 // ============================================================================
@@ -151,7 +151,7 @@ async function startServer(): Promise<void> {
     const server = createServer(app);
 
     // Initialize WebSocket upgrade handling on the HTTP server
-    await withStartupTimeout(() => setupWebSocket(server), 'WebSocket', 15_000);
+    await withStartupTimeout(() => setupWebSocket(server, nextUpgradeServer), 'WebSocket', 15_000);
 
     // Register HTTP server for graceful shutdown
     registerHttpServer(server);
