@@ -158,6 +158,15 @@ RUN curl -fsSL "https://github.com/oven-sh/bun/releases/download/${BUN_VERSION}/
     ln -sf /usr/local/bin/bun /usr/local/bin/bunx && \
     rm -rf /tmp/bun-baseline.zip /tmp/bun-linux-x64-baseline
 
+# Suwayomi's embedded browser (KCEF) downloads its runtime, including the
+# `jcef_helper` subprocess binary, into Suwayomi's data dir on first start. Its
+# JCEF build looks for that helper in `$JAVA_HOME/lib` instead, so without this
+# link the browser fails to initialise ("LaunchProcess: failed to execvp") and
+# sources that need it return nothing. The link dangles until KCEF has
+# downloaded the runtime; /app/data resolves to the persistent /config/data.
+RUN JAVA_LIB="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")/lib" && \
+    ln -s /config/data/suwayomi-config/bin/kcef/jcef_helper "$JAVA_LIB/jcef_helper"
+
 # Non-root app user (UID 1000). The entrypoint stays root to manage postgres,
 # then drops to this user via gosu when launching the app. All persistent
 # state lives under /config (single user-mounted directory). /library is
