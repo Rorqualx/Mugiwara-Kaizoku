@@ -31,6 +31,7 @@ import { Box } from '@mantine/core';
 
 import { useAnimatedCovers } from '@/hooks/useAnimatedCovers';
 
+import { observeCoverVisibility } from './cover-visibility';
 import { getCoverAnimation } from './coverSeed';
 import classes from './MangaCover.module.css';
 
@@ -167,7 +168,9 @@ export function MangaCover({
   // Drive the "living" motion imperatively. Re-runs (and re-animates) whenever
   // the element remounts or the seed/source/enabled state changes; cancelling
   // on cleanup restores the static transform so toggling off looks identical
-  // to the pre-feature cover.
+  // to the pre-feature cover. The animation runs only while the cover is on
+  // screen: an infinite animation per cover kept every cover of a long list
+  // compositing. Pausing (not cancelling) keeps its position for the return.
   React.useEffect(() => {
     const el = imgRef.current;
     if (!enabled || el === null || typeof el.animate !== 'function') {
@@ -181,7 +184,13 @@ export function MangaCover({
       easing: 'ease-in-out',
     });
     anim.currentTime = offsetMs;
+    anim.pause();
+    const stopObserving = observeCoverVisibility(el, (visible) => {
+      if (visible) anim.play();
+      else anim.pause();
+    });
     return () => {
+      stopObserving();
       anim.cancel();
     };
   }, [enabled, baseSrc, seed]);
