@@ -141,17 +141,57 @@ export function corroborateFinalChapter(witnesses: FinalChapterWitness[]): Corro
  * `collectedFloor` (collected-chapter-floor.ts) is the lowest count the
  * providers' volume lists allow: a chapter printed in a volume is real, so the
  * bound is never below it (Dr. STONE keeps 233-236, collected in volume 27).
+ *
+ * `extrasAfterFinal` (countExtrasAfterFinal) is how many decimal-numbered
+ * extras one provider lists right after the agreed final chapter. An excess
+ * within slack is kept, unless those extras account for all of it: Demon
+ * Slayer's 207 is 205 chapters plus 205.1 and 205.6, and keeping 207 created
+ * placeholders "Chapter 206" and "Chapter 207" on every refresh.
  */
 export function boundByCorroboratedFinal(
   ceiling: number,
   corroborated: CorroboratedFinalChapter | null,
   witnesses: FinalChapterWitness[] = [],
   collectedFloor = 0,
+  extrasAfterFinal = 0,
 ): number {
   if (corroborated === null) return ceiling;
   if (witnesses.some(w => Math.abs(w.chapter - ceiling) <= WITNESS_AGREEMENT_WINDOW)) return ceiling;
   if (corroborated.chapter < ceiling * CORROBORATION_FLOOR) return ceiling;
   const bound = Math.max(corroborated.chapter, collectedFloor);
-  if (ceiling - bound <= FINAL_CHAPTER_SLACK) return ceiling;
-  return bound;
+  const excess = ceiling - bound;
+  if (excess > FINAL_CHAPTER_SLACK) return bound;
+  // Within slack: lowered only to the agreed final itself (never to a collected
+  // chapter above it), and only when listed extras explain the whole excess.
+  const explainedByExtras = excess > 0 && bound === corroborated.chapter && extrasAfterFinal >= excess;
+  return explainedByExtras ? bound : ceiling;
+}
+
+/** Distinct chapter numbers strictly between `final` and `final + 1` (205.1, 205.6 after 205). */
+function extrasIn(numbers: Iterable<number>, final: number): number {
+  const extras = new Set<number>();
+  for (const n of numbers) {
+    if (Number.isFinite(n) && n > final && n < final + 1) extras.add(n);
+  }
+  return extras.size;
+}
+
+/**
+ * How many decimal-numbered extras a provider lists right after the final
+ * chapter: the most any one chapter list holds, not the union, since two
+ * providers may number the same extra differently (205.5 and 205.6).
+ *
+ * Read from lists of real chapter numbers: the MangaDex aggregate and chapter
+ * list, Fandom's and Wikipedia's chapter lists. MangaUpdates states only a
+ * latest chapter, which says nothing about extras.
+ */
+export function countExtrasAfterFinal(results: UnifiedProviderResults, final: number): number {
+  if (final <= 0) return 0;
+  const lists: number[][] = [
+    (results.mangadexAggregate?.volumes ?? []).flatMap(v => v.chapters),
+    (results.mangadexChapterList ?? []).map(c => c.number),
+    (results.fandomResult?.chapterList ?? []).map(c => c.number),
+    (results.wikipediaResult?.chapterList ?? []).map(c => c.number),
+  ];
+  return Math.max(0, ...lists.map(list => extrasIn(list, final)));
 }

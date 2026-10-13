@@ -143,6 +143,16 @@ describe('finished-series chapter bound against collected volumes', () => {
     expect((r.enrichmentResult.appliedMatch?.metadata as Record<string, unknown>)['chapters']).toBe(236);
   });
 
+  it('Dr. STONE keeps 236 even when a provider lists extras after 232: the collected volume floor wins', () => {
+    const r = {
+      ...results(drStone),
+      mangadexChapterList: [...range(1, 232), 232.1, 232.2, 232.3, 232.4].map(number => ({ number })),
+    } as UnifiedProviderResults;
+    expect(resolveTrustedFinalChapter(r).ceiling).toBe(236);
+    expect(applyCorroboratedFinalChapter(r)).toBeNull();
+    expect((r.enrichmentResult.appliedMatch?.metadata as Record<string, unknown>)['chapters']).toBe(236);
+  });
+
   it('Bleach still bounds 706 to 686: volume 74, the last volume, ends at 686', () => {
     const r = results(bleach);
     expect(resolveTrustedFinalChapter(r).ceiling).toBe(686);

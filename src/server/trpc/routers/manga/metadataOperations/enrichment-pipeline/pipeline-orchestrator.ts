@@ -27,7 +27,7 @@ import { logger } from '@/utils/logger';
 import { withClaimRun } from './claim-run/claim-run';
 import { crossValidateRecorded, noteReconciliationGate } from './claim-run/notes';
 import { collectVolumePlacements, describePlacements } from './collected-chapter-floor';
-import { collectFinalChapterWitnesses } from './corroborated-final-chapter';
+import { collectFinalChapterWitnesses, corroborateFinalChapter, countExtrasAfterFinal } from './corroborated-final-chapter';
 import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
 import { FandomPhaseDeadline } from './fandom-phase-deadline';
@@ -495,14 +495,17 @@ async function runStandaloneGalleryHarvest(mangaId: number, title: string): Prom
  * exceeds its cross-checked final chapter is replaced by that chapter.
  */
 function correctChapterScalar(mangaId: number, result: UnifiedProviderResults, stored: StoredTerminalSignal): void {
-  const witnesses = collectFinalChapterWitnesses(result).map(w => `${w.source}=${w.chapter}`).join(', ');
+  const found = collectFinalChapterWitnesses(result);
+  const witnesses = found.map(w => `${w.source}=${w.chapter}`).join(', ');
   const placed = describePlacements(collectVolumePlacements(result)) || 'none';
+  const agreed = corroborateFinalChapter(found)?.chapter ?? 0;
+  const extras = `extras after ${agreed}: ${countExtrasAfterFinal(result, agreed)}`;
   const fix = applyCorroboratedFinalChapter(result, stored);
   if (!fix) {
-    logger.info(`[enrichmentPipeline] Final chapter for manga ${mangaId}: scalar kept (witnesses: ${witnesses || 'none'}; in volumes: ${placed})`);
+    logger.info(`[enrichmentPipeline] Final chapter for manga ${mangaId}: scalar kept (witnesses: ${witnesses || 'none'}; ${extras}; in volumes: ${placed})`);
     return;
   }
-  logger.info(`[enrichmentPipeline] Final chapter for manga ${mangaId}: scalar ${fix.from} is a count; using ${fix.to} (agreed by ${fix.sources.join(', ')}; witnesses: ${witnesses}; in volumes: ${placed})`);
+  logger.info(`[enrichmentPipeline] Final chapter for manga ${mangaId}: scalar ${fix.from} is a count; using ${fix.to} (agreed by ${fix.sources.join(', ')}; witnesses: ${witnesses}; ${extras}; in volumes: ${placed})`);
 }
 
 /**

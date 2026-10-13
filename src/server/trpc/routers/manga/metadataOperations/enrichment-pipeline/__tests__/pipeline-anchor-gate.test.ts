@@ -31,7 +31,11 @@ jest.mock('@/server/db', () => ({
 jest.mock('@/server/services/metadata/provider-claims/claim-store', () => ({ writeClaimRun: jest.fn() }));
 jest.mock('@/server/services/completeness/manga-completeness', () => ({}));
 jest.mock('../phase-provider-fetch', () => ({ phaseProviderFetch: jest.fn() }));
-jest.mock('../corroborated-final-chapter', () => ({ collectFinalChapterWitnesses: jest.fn(() => []) }));
+jest.mock('../corroborated-final-chapter', () => ({
+  collectFinalChapterWitnesses: jest.fn(() => []),
+  corroborateFinalChapter: jest.fn(() => null),
+  countExtrasAfterFinal: jest.fn(() => 0),
+}));
 jest.mock('../phase-volume-cross-validation/volume-gate-ceiling', () => ({
   applyCorroboratedFinalChapter: jest.fn(() => null),
   resolveVolumeGateCeiling: jest.fn(),
