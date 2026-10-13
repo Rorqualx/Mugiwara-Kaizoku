@@ -1,4 +1,4 @@
-import { flattenPages, mergePage, pagesContaining, pagesFromRows } from '@/utils/library/manga-page-merge';
+import { flattenPages, mergePage, mergePages, missingPageOffsets, pagesContaining, pagesFromRows } from '@/utils/library/manga-page-merge';
 
 const PAGE = 3;
 const row = (id: number, label = 'old'): { id: number; label: string } => ({ id, label });
@@ -88,5 +88,25 @@ describe('manga-page-merge', () => {
 
     expect(pagesContaining(pages, new Set([2, 99]))).toEqual({ offsets: [0], missing: [99] });
     expect(pagesContaining(new Map(), new Set([1]))).toEqual({ offsets: [], missing: [1] });
+  });
+
+  it('lists the unloaded pages up to the one holding a row', () => {
+    const pages = mergePage(new Map(), 0, [row(1), row(2), row(3)], PAGE);
+    expect(missingPageOffsets(pages, 1, PAGE)).toEqual([]);
+    expect(missingPageOffsets(pages, 7, PAGE)).toEqual([3, 6]);
+    expect(missingPageOffsets(new Map(), 0, PAGE)).toEqual([0]);
+    expect(missingPageOffsets(pages, -1, PAGE)).toEqual([]);
+  });
+
+  it('merges several fetched pages in offset order and reports whether more follow', () => {
+    const pages = mergePage(new Map(), 0, [row(1), row(2), row(3)], PAGE);
+    const full = mergePages(pages, [{ offset: 6, rows: [row(7), row(8), row(9)] }, { offset: 3, rows: [row(4), row(5), row(6)] }], PAGE);
+    expect(flattenPages(full.pages).map((r) => (r as { id: number }).id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(full.hasMore).toBe(true);
+
+    const ended = mergePages(full.pages, [{ offset: 3, rows: [row(4)] }], PAGE);
+    expect(flattenPages(ended.pages).map((r) => (r as { id: number }).id)).toEqual([1, 2, 3, 4]);
+    expect(ended.hasMore).toBe(false);
+    expect(mergePages(new Map(), [], PAGE).hasMore).toBe(true);
   });
 });

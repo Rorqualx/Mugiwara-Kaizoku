@@ -8,7 +8,7 @@
  * @module components/library/views/ResponsiveTableView
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 
 
@@ -33,23 +33,37 @@ import { toStringId } from '@/utils/id-converters';
 // Sentinel-band filtering (index >= 100000 pack-import volume rows) is
 // centralized in libraryUtils — getLatestChapterNumber/calculateProgress/
 // getDownloadStatus already apply it internally.
-import { filterAndSortManga, getLatestChapterNumber, isRealChapter } from '../utils/libraryUtils';
+import { filterAndSortManga, getDownloadStatus, getLatestChapterNumber } from '../utils/libraryUtils';
 
 import { ResponsiveTableRowActions } from './ResponsiveTableRowActions';
 
 import type { Prisma } from '@prisma/client';
+
+/**
+ * Real chapters and downloaded real chapters. Library grid rows carry a
+ * `chapterStats` aggregate instead of a Chapter array; getDownloadStatus reads
+ * whichever the row has (reading `manga.Chapter` directly threw on grid rows).
+ */
+function chapterCounts(manga: MangaEntity): { total: number; downloaded: number } {
+  const { total, downloaded } = getDownloadStatus(manga as unknown as Parameters<typeof getDownloadStatus>[0]);
+  return { total, downloaded };
+}
+
 interface TableViewProps {
   manga: MangaEntity[];
   libraryId?: number;
   _libraryId?: number;
   onRefresh: () => void;
   searchedManga?: MangaEntity[];
+  /** Told when a column sort is active: it orders the loaded rows, so it needs all of them. */
+  onNeedAllRows?: (need: boolean) => void;
 }
 export function ResponsiveTableView({
   manga,
   _libraryId,
   onRefresh,
-  searchedManga
+  searchedManga,
+  onNeedAllRows
 }: TableViewProps): React.ReactElement {
   const { navigateTo } = useNavigation();
 
@@ -70,6 +84,14 @@ export function ResponsiveTableView({
   // preset/dropdown selector); clicking a column header overrides until the
   // user clicks the active column a third time to clear back to the store sort.
   const [tableSort, setTableSort] = useState<TableSortState | null>(null);
+
+  // The library grid is paged; a column sort needs the whole library loaded.
+  const columnSortActive = tableSort !== null;
+  useEffect(() => {
+    if (!onNeedAllRows) return;
+    onNeedAllRows(columnSortActive);
+    return () => onNeedAllRows(false);
+  }, [onNeedAllRows, columnSortActive]);
 
   const handleSort = useCallback((key: string) => {
     setTableSort(prev => {
@@ -107,12 +129,12 @@ export function ResponsiveTableView({
           return aStatus.localeCompare(bStatus) * dir;
         }
         case 'chapters':
-          return (a.Chapter.filter(isRealChapter).length - b.Chapter.filter(isRealChapter).length) * dir;
+          return (chapterCounts(a).total - chapterCounts(b).total) * dir;
         case 'progress': {
-          const aReal = a.Chapter.filter(isRealChapter);
-          const bReal = b.Chapter.filter(isRealChapter);
-          const aPct = aReal.length > 0 ? aReal.filter(c => c.downloadStatus === 'COMPLETED').length / aReal.length : 0;
-          const bPct = bReal.length > 0 ? bReal.filter(c => c.downloadStatus === 'COMPLETED').length / bReal.length : 0;
+          const ac = chapterCounts(a);
+          const bc = chapterCounts(b);
+          const aPct = ac.total > 0 ? ac.downloaded / ac.total : 0;
+          const bPct = bc.total > 0 ? bc.downloaded / bc.total : 0;
           return (aPct - bPct) * dir;
         }
         default:
@@ -193,7 +215,7 @@ export function ResponsiveTableView({
     render: (manga: MangaEntity) => {
       // Show real chapter count (excludes the index >= 100000 pack-import
       // sentinel band — those are imported volume files, not chapters).
-      const count = manga.Chapter.filter(isRealChapter).length;
+      const count = chapterCounts(manga).total;
       return <Group gap="xs" wrap="nowrap">
             <Text size="sm">{count}</Text>
           </Group>;
@@ -209,9 +231,7 @@ export function ResponsiveTableView({
       // Download progress (downloaded real chapters / total real chapters) —
       // sentinel pack rows are excluded so a series with no real downloads
       // but lots of pack rows doesn't read as "100% complete".
-      const realChapters = manga.Chapter.filter(isRealChapter);
-      const total = realChapters.length;
-      const downloaded = realChapters.filter(c => c.downloadStatus === 'COMPLETED').length;
+      const { total, downloaded } = chapterCounts(manga);
       const progress = total > 0 ? Math.round((downloaded / total) * 100) : 0;
       return <Group gap="xs" wrap="nowrap">
             <Progress value={progress} size="sm" style={{

@@ -38,6 +38,7 @@ import { addMembership, assertMembership, membershipInLibraryWhere, membershipWh
 import { router } from '@/server/trpc/trpc';
 import { findMangaFiles } from '@/utils/file-utils';
 import { toStringId } from '@/utils/id-converters';
+import type { LibraryGridView } from '@/utils/library/grid-view';
 import { logger } from '@/utils/logger';
 import { logInfo, logError, EventType, EventSource } from '@/utils/system-event-logger';
 
@@ -74,6 +75,8 @@ import {
   invalidateMangaCache
 } from './crud-operations/get-manga-cache';
 import { updateLibraryPathProcedure } from './crud-operations/update-library-path';
+import { inIdOrder, libraryScopeWhere, loadOrderedGrid } from './library-grid/grid-query';
+import { gridViewSchema } from './library-grid/grid-view-schema';
 import {
   DEFAULT_CHAPTER_LIMIT,
   createMangaRelations,
@@ -281,7 +284,9 @@ export const crudRouter = router({
     limit: z.number().min(1).max(500).optional().default(200),
     offset: z.number().min(0).optional().default(0),
     // Scope to one of the user's libraries (membership-based — a linked title keeps the original owner's Manga.libraryId).
-    libraryId: z.number().optional()
+    libraryId: z.number().optional(),
+    // Library grid: filter/search/sort the whole library server-side and return this page of the result (needs libraryId).
+    view: gridViewSchema.optional()
   }).optional())
     // eslint-disable-next-line complexity -- input-driven optional includes + per-row aggregate mapping
     .query(async ({ input, ctx }) => {
@@ -291,16 +296,19 @@ export const crudRouter = router({
 
     let where = membershipWhere(userId);
     if (input?.libraryId !== undefined) {
-      const first = await ctx.prisma.library.findFirst({ where: { ownerId: userId }, orderBy: { id: 'asc' }, select: { id: true } });
-      where = membershipInLibraryWhere(userId, input.libraryId, first?.id === input.libraryId);
+      where = await libraryScopeWhere(ctx.prisma, userId, input.libraryId);
     }
+    // Grid view: order the library, then load full rows for just this page's ids.
+    const pageIds = input?.view !== undefined && input.libraryId !== undefined
+      ? (await loadOrderedGrid(ctx.prisma, where, userId, input.view as LibraryGridView)).slice(offset, offset + limit).map((c) => c.id)
+      : undefined;
 
     // Grid aggregate is computed in SQL (parity-validated against buildChapterStats) so we never
     // materialize every chapter row. GRID_SQL_STATS=false falls back to the JS path (fetch + toGridManga).
     const useSqlStats = input?.include?.chapters === true && process.env['GRID_SQL_STATS'] !== 'false';
 
-    const result = await ctx.prisma.manga.findMany({
-      where,
+    const found = await ctx.prisma.manga.findMany({
+      where: pageIds ? { id: { in: pageIds } } : where,
       include: {
         Library: input?.include?.library ?? false,
         Metadata: input?.include?.metadata ?? false,
@@ -312,12 +320,12 @@ export const crudRouter = router({
           ? { select: { id: true } }
           : false,
       },
-      take: limit,
-      skip: offset,
+      ...(pageIds ? {} : { take: limit, skip: offset }),
       orderBy: {
         title: 'asc'
       }
     });
+    const result = pageIds ? inIdOrder(found, pageIds) : found;
 
     // Strip heavy blobs (providerMetadata ~7.5MB/page, galleryImages); the grid also swaps the Chapter array for chapterStats + recentChapters. Cast back to the result type (clients read the extra fields via cast).
     return (await finalizeQueryRows(result, input?.include?.chapters === true, useSqlStats, userId)) as unknown as typeof result;

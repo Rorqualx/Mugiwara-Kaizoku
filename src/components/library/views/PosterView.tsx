@@ -21,6 +21,7 @@ import { useNavigation } from '@/hooks/useNavigation';
 import { useLibraryViewStore } from '@/store/index';
 import type { MangaWithRelations } from '@/types/search.types';
 import { toNumberId } from '@/utils/id-converters';
+import { findLetterIndex } from '@/utils/library/grid-view';
 import { logger } from '@/utils/logger';
 import { withRemovalToast } from '@/utils/removalToast';
 import { trpc } from '@/utils/trpc-client/index';
@@ -87,22 +88,14 @@ function useViewportWidth(): number {
     return width;
 }
 
-function findLetterIndex(manga: MangaWithRelations[], letter: string): number {
-    return manga.findIndex((m) => {
-        const firstChar = m.title.charAt(0).toUpperCase();
-        if (letter === '#') return firstChar === '' || !/[A-Z]/.test(firstChar);
-        return firstChar === letter;
-    });
-}
-
 function useJumpToLetter(
     virtualizer: Virtualizer<HTMLElement, Element>,
     displayedManga: MangaWithRelations[],
     columnsPerRow: number,
 ): void {
     // Remember the most recent jump target so we can re-scroll once pagination
-    // loads the matching title. Without this, clicking "P" before P-titles have
-    // paginated in is silently a no-op.
+    // loads the matching title (the library page asks the server where the
+    // letter starts and loads the pages up to it).
     const pendingLetterRef = useRef<string | null>(null);
 
     const scrollToLetter = useCallback((letter: string): boolean => {

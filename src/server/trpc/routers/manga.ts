@@ -5,6 +5,7 @@ import { chapterRouter } from './manga/chapterOperations';
 import { crudRouter } from './manga/crudOperations';
 import { downloadRouter } from './manga/downloadOperations';
 import { importRouter } from './manga/importOperations';
+import { libraryGridRouter } from './manga/libraryGridOperations';
 import { metadataRouter } from './manga/metadataOperations';
 import { monitoringRouter } from './manga/monitoringOperations';
 import { providerRouter } from './manga/providerOperations';
@@ -28,6 +29,7 @@ export const mangaRouter = router({
   // Spread procedures from all sub-routers
   ...searchRouter._def.procedures,
   ...crudRouter._def.procedures,
+  ...libraryGridRouter._def.procedures,
   ...downloadRouter._def.procedures,
   ...monitoringRouter._def.procedures,
   ...providerRouter._def.procedures,

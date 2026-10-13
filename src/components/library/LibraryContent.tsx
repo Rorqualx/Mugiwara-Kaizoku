@@ -22,15 +22,17 @@ interface LibraryContentProps {
   onRefresh: () => void | Promise<void>;
   /** ScrollArea viewport ref — forwarded to PosterView and the detailed view for row virtualization. */
   scrollParentRef?: React.RefObject<HTMLElement | null>;
+  /** Told when the table needs every row loaded (a column sort orders the loaded rows). */
+  onNeedAllRows?: (need: boolean) => void;
 }
 
 export function LibraryContent(props: LibraryContentProps): React.ReactElement {
   const viewType = useLibraryViewStore((state) => state.viewType);
-  const { scrollParentRef, ...rest } = props;
+  const { scrollParentRef, onNeedAllRows, ...rest } = props;
 
   switch (viewType) {
     case 'table':
-      return <ResponsiveTableView {...rest} />;
+      return onNeedAllRows ? <ResponsiveTableView {...rest} onNeedAllRows={onNeedAllRows} /> : <ResponsiveTableView {...rest} />;
     case 'details':
       return scrollParentRef
         ? <ResponsiveDetailedView {...rest} scrollParentRef={scrollParentRef} />

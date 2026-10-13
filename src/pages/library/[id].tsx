@@ -10,7 +10,7 @@
  * @module pages/library/[id]
  */
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 
 import { Box, Center, Loader, ScrollArea, SegmentedControl, Stack, Text, Group, ActionIcon, Menu, Button, Modal, Container, Title, Badge, Tooltip } from "@mantine/core";
@@ -26,11 +26,10 @@ import { EditLibraryModal } from '@/components/library/EditLibraryModal';
 import { AdvancedFilters } from '@/components/library/filters/AdvancedFilters';
 import { LibraryContent } from '@/components/library/LibraryContent';
 import { MangaCardSkeletonGrid } from '@/components/library/MangaCardSkeleton';
-import { filterAndSortManga, getAvailableGenres, getAvailableTags } from '@/components/library/utils/libraryUtils';
 import { useLibraryBulkActions } from '@/hooks/library/useLibraryBulkActions';
+import { useLibraryGrid } from '@/hooks/library/useLibraryGrid';
 import { useComicvineConfig } from '@/hooks/useComicvineConfig';
 import { useLibrary } from '@/hooks/useLibrary';
-import { useLibraryMangaAccumulator } from '@/hooks/useLibraryMangaAccumulator';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useNotification } from '@/hooks/useNotification';
 import { useLibraryStore, useLibraryViewStore } from '@/store/index';
@@ -58,12 +57,9 @@ function LibraryPage(): React.ReactElement {
     // Get library view state
     // Select only the fields this page renders from: subscribing to the whole
     // store re-rendered the page on every unrelated store write.
-    const { sortBy, filterBy, searchQuery, searchField, enableRegexSearch, advancedFilters, selectionMode, selectedItems } = useLibraryViewStore(useShallow(state => ({
-        sortBy: state.sortBy,
+    const { filterBy, searchQuery, advancedFilters, selectionMode, selectedItems } = useLibraryViewStore(useShallow(state => ({
         filterBy: state.filterBy,
         searchQuery: state.searchQuery,
-        searchField: state.searchField,
-        enableRegexSearch: state.enableRegexSearch,
         advancedFilters: state.advancedFilters,
         selectionMode: state.selectionMode,
         selectedItems: state.selectedItems,
@@ -99,48 +95,28 @@ function LibraryPage(): React.ReactElement {
 
     const scrollViewportRef = useRef<HTMLDivElement>(null);
     const sentinelRef = useRef<HTMLDivElement>(null);
+    // A table column sort orders the loaded rows, so it needs all of them.
+    const [tableNeedsAllRows, setTableNeedsAllRows] = useState(false);
     // The grid is enabled from the route id, not from the loaded library, so
     // its first page is requested alongside the header instead of after it.
+    // Search, filters and sort run on the server (scoped by the user's
+    // LibraryMembership); the grid loads the result a page at a time.
     const {
-        allManga, hasMore, isFetching, pendingTitleRows,
-        refetchAll, registerScrollParent, registerSentinel,
-    } = useLibraryMangaAccumulator(
+        displayedManga, matchLabel, libraryCount, libraryIds, availableGenres, availableTags, skeletons,
+        hasMore, isFetching, refetchAll, registerScrollParent, registerSentinel,
+    } = useLibraryGrid(
         hasValidId && libraryId !== undefined ? libraryId : undefined,
         Boolean(hasValidId),
+        comicbookTrackingEnabled ? mediaTypeFilter : 'all',
+        tableNeedsAllRows,
     );
-    useEffect(() => { registerScrollParent(scrollViewportRef.current); }, [registerScrollParent]);
-    useEffect(() => { registerSentinel(sentinelRef.current); }, [registerSentinel, hasMore]);
-
-    // manga.query is now scoped server-side to THIS library (by the user's
-    // LibraryMembership.libraryId), so the accumulated page already contains
-    // exactly this library's titles. We must NOT re-filter by Manga.libraryId —
-    // a linked/deduplicated title keeps the original owner's libraryId.
-    const manga = allManga as MangaWithRelations[];
-    // Calculate filtered and sorted manga
-    const displayedManga = useMemo(() => {
-        const effectiveFilter = comicbookTrackingEnabled ? mediaTypeFilter : 'all';
-        const mediaFiltered = effectiveFilter === 'all'
-            ? manga
-            : (manga as MangaWithRelations[]).filter((m) => {
-                const mt = (m as { mediaType?: string }).mediaType ?? 'MANGA';
-                return effectiveFilter === 'manga' ? mt === 'MANGA' : mt === 'COMICBOOK';
-            });
-        return filterAndSortManga(mediaFiltered as MangaWithRelations[], {
-            sortBy,
-            filterBy,
-            searchQuery,
-            searchField,
-            enableRegexSearch,
-            advancedFilters
-        });
-    }, [manga, mediaTypeFilter, comicbookTrackingEnabled, sortBy, filterBy, searchQuery, searchField, enableRegexSearch, advancedFilters]);
-    // Get available genres and tags for filters
-    const availableGenres = useMemo(() => {
-        return getAvailableGenres((manga as MangaWithRelations[]) ?? []);
-    }, [manga]);
-    const availableTags = useMemo(() => {
-        return getAvailableTags((manga as MangaWithRelations[]) ?? []);
-    }, [manga]);
+    // Runs after every render: the viewport and sentinel only mount once the
+    // library header has loaded (and the sentinel comes and goes with
+    // hasMore). Registering is a no-op when the element is unchanged.
+    useEffect(() => {
+        registerScrollParent(scrollViewportRef.current);
+        registerSentinel(sentinelRef.current);
+    });
     // Refresh handler
     const handleRefresh = async (): Promise<void> => {
         setRefreshing(true);
@@ -241,7 +217,7 @@ function LibraryPage(): React.ReactElement {
               </Tooltip>
               <Title order={2}>{library?.name ?? 'Library'}</Title>
               <Badge variant="light" size="lg">
-                {displayedManga.length}{hasMore ? '+' : ''} / {manga?.length ?? 0}{hasMore ? '+' : ''} manga
+                {matchLabel} / {libraryCount ?? '…'} manga
               </Badge>
             </Group>
             
@@ -289,9 +265,9 @@ function LibraryPage(): React.ReactElement {
                   <Button
                     variant="subtle"
                     size="xs"
-                    onClick={() => selectAll(manga.map(m => String(m.id)))}
+                    onClick={() => selectAll(libraryIds)}
                   >
-                    Select All ({manga?.length ?? 0})
+                    Select All ({libraryIds.length})
                   </Button>
                   <Button
                     variant="subtle"
@@ -381,7 +357,7 @@ function LibraryPage(): React.ReactElement {
         }}>
           <Container size="xl" p="md">
             {/* Always show LibraryContent to ensure Add Manga card is visible */}
-            {displayedManga.length === 0 && (searchQuery || filterBy.length > 0 || activeFilterCount > 0) ? (
+            {displayedManga.length === 0 && !hasMore && !isFetching && (searchQuery || filterBy.length > 0 || activeFilterCount > 0) ? (
               // Show filter message when filters are active but no results
               <Stack gap="xl">
                 <Center style={{ minHeight: 200 }}>
@@ -408,18 +384,14 @@ function LibraryPage(): React.ReactElement {
                   libraryId={libraryId ?? 0}
                   onRefresh={async () => { await Promise.all([refreshLibrary(), refetchAll()]); }}
                   scrollParentRef={scrollViewportRef}
+                  onNeedAllRows={setTableNeedsAllRows}
                 />
                 {hasMore && (
                   <Box ref={sentinelRef} style={{ minHeight: 1 }} />
                 )}
-                {(() => {
-                  const loadedIds = new Set(manga.map(m => m.id));
-                  const titles = (pendingTitleRows ?? []).filter(r => !loadedIds.has(r.id)).map(r => r.title);
-                  // Generic 12-skeleton fallback only on the initial empty load — not on
-                  // a refetch (e.g. after a removal), where it flashed ghost cards.
-                  const count = titles.length > 0 ? titles.length : (isFetching && hasMore && manga.length === 0 ? 12 : 0);
-                  return count > 0 ? <MangaCardSkeletonGrid count={count} coverSize={coverSize} titles={titles} /> : null;
-                })()}
+                {skeletons.count > 0 && (
+                  <MangaCardSkeletonGrid count={skeletons.count} coverSize={coverSize} titles={skeletons.titles} />
+                )}
               </>
             )}
           </Container>

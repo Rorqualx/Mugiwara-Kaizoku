@@ -77,6 +77,39 @@ export function pagesFromRows(rows: readonly unknown[], pageSize: number): Map<n
 }
 
 /**
+ * Offsets of the pages that are not loaded yet, from the first page up to and
+ * including the page holding row `index`. The grid shows pages contiguously, so
+ * reaching a row (an alphabet-bar jump) means loading every page before it.
+ */
+export function missingPageOffsets(pages: MangaPages, index: number, pageSize: number): number[] {
+  if (index < 0) return [];
+  const target = Math.floor(index / pageSize) * pageSize;
+  const out: number[] = [];
+  for (let offset = 0; offset <= target; offset += pageSize) {
+    if (!pages.has(offset)) out.push(offset);
+  }
+  return out;
+}
+
+/**
+ * Applies fetched pages in ascending offset order (so a short page drops the
+ * stale pages after it) and reports whether more rows may follow the last one.
+ */
+export function mergePages(
+  pages: MangaPages,
+  fetched: ReadonlyArray<{ offset: number; rows: readonly unknown[] }>,
+  pageSize: number,
+): { pages: Map<number, readonly unknown[]>; hasMore: boolean } {
+  let next = new Map(pages);
+  for (const { offset, rows } of [...fetched].sort((a, b) => a.offset - b.offset)) {
+    next = mergePage(next, offset, rows, pageSize);
+  }
+  const lastOffset = Math.max(-1, ...next.keys());
+  const lastRows = next.get(lastOffset);
+  return { pages: next, hasMore: lastRows === undefined || lastRows.length >= pageSize };
+}
+
+/**
  * Finds the loaded pages that hold the given titles.
  *
  * Used to refresh only the pages a chapter update touched. `missing` lists ids

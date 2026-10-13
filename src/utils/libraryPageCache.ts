@@ -9,6 +9,8 @@
  * the data is recomputable and stale-after-reload.
  */
 export interface LibraryPageSnapshot {
+    /** Library + view settings the rows were loaded for; a different view starts over. */
+    key: string;
     allManga: unknown[];
     offset: number;
     hasMore: boolean;
