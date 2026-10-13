@@ -64,6 +64,29 @@ function buildExtraPlaceholders(
   return placeholders;
 }
 
+/** Largest chapter number reconciliation accepts from a source list. */
+function maxReasonableChapterFor(expectedChapterCount: number): number {
+  return Math.max(expectedChapterCount * 2, 500);
+}
+
+/**
+ * Every chapter number reconciliation keeps a row for: the source numbers it
+ * would insert, plus 1..expectedChapterCount. The deferred stale sweep spares
+ * these, so a row reconciliation would only re-insert is never deleted.
+ */
+export function plannedChapterNumbers(
+  allSourceChapters: ReadonlyArray<Pick<ChapterDataItem, 'number'>>,
+  expectedChapterCount: number,
+): Set<number> {
+  const max = maxReasonableChapterFor(expectedChapterCount);
+  const planned = new Set<number>();
+  for (const ch of allSourceChapters) {
+    if (ch.number > 0 && ch.number <= max) planned.add(ch.number);
+  }
+  for (let n = 1; n <= expectedChapterCount; n++) planned.add(n);
+  return planned;
+}
+
 export async function reconcileChapterCount(
   mangaId: number,
   allSourceChapters: ChapterDataItem[],
@@ -94,7 +117,7 @@ export async function reconcileChapterCount(
   // Wikipedia rows carry metadata from the wrong row type (e.g., a volume row
   // misidentified as a chapter row has number=volume_number, title=volume_title).
   // The real fix belongs upstream in the Wikipedia/Fandom normalizers.
-  const maxReasonableChapter = Math.max(expectedChapterCount * 2, 500);
+  const maxReasonableChapter = maxReasonableChapterFor(expectedChapterCount);
   const missing = allSourceChapters.filter(ch => {
     if (ch.number <= 0) return false;
     if (existingNumbers.has(ch.number)) return false;

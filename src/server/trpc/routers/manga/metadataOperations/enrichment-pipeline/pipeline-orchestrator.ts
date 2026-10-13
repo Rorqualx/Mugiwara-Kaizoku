@@ -32,9 +32,10 @@ import { filterFandomChaptersByCrossSeriesGate, seriesExtentEvidence, wikiVolume
 import { withEnrichmentLock } from './enrichment-lock';
 import { FandomPhaseDeadline } from './fandom-phase-deadline';
 import { reassignBonusChaptersToParentVolumes } from './phase-bonus-reassignment';
-import { reconcileChapterCount, mergeAllSourceChapters } from './phase-chapter-reconciliation';
+import { reconcileChapterCount, mergeAllSourceChapters, plannedChapterNumbers } from './phase-chapter-reconciliation';
 import { assembleSourceData, type StoredTerminalSignal } from './phase-data-assembly';
 import { phaseDbPersistence } from './phase-db-persistence';
+import { sweepDeferredStaleChapters } from './phase-db-persistence/deferred-stale-sweep';
 import { phaseFandomEnrichment } from './phase-fandom-enrichment';
 import { phaseFinalize } from './phase-finalize';
 import { phaseProviderFetch } from './phase-provider-fetch';
@@ -52,7 +53,8 @@ import { toFandomVolumeInputs, toWikipediaVolumeInputs } from './pipeline-orches
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybePlausibilityCheck, maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
 import { isBonusTitle } from './types';
-import { restoreVolumesAfterRebuild, snapshotVolumes } from './volume-snapshot';
+import { stabilizeVolumeIds } from './volume-identity';
+import { restoreVolumesAfterRebuild, snapshotVolumes, type VolumeSnapshot } from './volume-snapshot';
 
 import type { ValidatedVolumeRange } from './phase-volume-cross-validation';
 import type { BonusChapterInfo, ChapterDataItem, EnrichmentProgress, EnrichmentPipelineOptions, EnrichmentPipelineResult, UnifiedProviderResults, VolumeDataItem } from './types';
@@ -120,13 +122,16 @@ async function resolveVolumeGateContext(
  * Build merged source chapters from Phase 1 results and run reconciliation.
  * Computes expectedChapterCount using assembleSourceData, then creates
  * PENDING chapters for any chapter numbers missing from the database.
+ * Returns the chapter numbers reconciliation keeps rows for (null when it had
+ * no source data); `pendingStale` rows still exist but are not counted.
  */
 async function reconcileFromProviderResults(
   mangaId: number,
   result: UnifiedProviderResults,
+  pendingStale: number,
   onProgress?: EnrichmentProgress,
   options?: EnrichmentPipelineOptions,
-): Promise<void> {
+): Promise<Set<number> | null> {
   const rawFandomChapters = result.fandomResult?.chapterList ?? [];
   const wikiChapters = result.wikipediaResult?.chapterList ?? [];
   const mangadexChapters = extractMangaDexChapters(result);
@@ -167,7 +172,7 @@ async function reconcileFromProviderResults(
   );
   noteReconciliationGate(options, rawFandomChapters.length, fandomChapters.length, { mangadex: mangadexChapters.length, anilist: anilistChapterCount });
 
-  const dbChapterCount = await prisma.chapter.count({ where: { mangaId } });
+  const dbChapterCount = Math.max(0, await prisma.chapter.count({ where: { mangaId } }) - pendingStale);
   // Stored terminal signal — last-resort trusted ceiling when live providers
   // report no terminal status (e.g. Berserk reads RELEASING on AniList yet the
   // library already knows it concluded via stored endDate + chapter count).
@@ -182,7 +187,7 @@ async function reconcileFromProviderResults(
 
   // No source chapter data — nothing to reconcile
   if (fandomChapters.length === 0 && wikiChapters.length === 0
-      && mangadexChapters.length === 0 && comicvineChapters.length === 0) return;
+      && mangadexChapters.length === 0 && comicvineChapters.length === 0) return null;
 
   const merged = mergeAllSourceChapters(
     sourceData.expectedChapterCount, sourceData.trustedFinalChapter ?? null,
@@ -196,6 +201,7 @@ async function reconcileFromProviderResults(
   if (created > 0) {
     logger.info(`[enrichmentPipeline] Reconciliation created ${created} chapters for manga ${mangaId}`);
   }
+  return plannedChapterNumbers(merged, sourceData.expectedChapterCount);
 }
 
 // ============================================================================
@@ -552,7 +558,7 @@ async function executeEnrichmentPhases(
   result: UnifiedProviderResults,
   onProgress?: EnrichmentProgress,
   options?: EnrichmentPipelineOptions,
-): Promise<void> {
+): Promise<VolumeSnapshot> {
   // Phase 2: DB persistence (metadata + chapters/volumes from providers).
   // Pass the MangaDex aggregate chapter total so phaseDbPersistence's contamination
   // gate has a reference floor independent of AniList — MangaDex publishes one
@@ -578,10 +584,12 @@ async function executeEnrichmentPhases(
   logger.info(`[enrichmentPipeline] chapterConsensus for manga ${mangaId}: count=${chapterConsensus.count}, confidence=${chapterConsensus.confidence}, sources=${chapterConsensus.sources.join(',')}, bonusHint=${bonusChapterCount}`);
   // Volumes are deleted and rebuilt below; keep a copy to restore what a failed or degraded run does not rebuild.
   const volumeSnapshot = await snapshotVolumes(mangaId);
-  await phaseDbPersistence(mangaId, result.enrichmentResult, onProgress, getMangaDexAggregateCount(result), chapterConsensus);
+  const staleChapters = await phaseDbPersistence(mangaId, result.enrichmentResult, onProgress, getMangaDexAggregateCount(result), chapterConsensus);
 
-  // Phase 2.5: Chapter reconciliation (merge Fandom + Wikipedia chapters)
-  await reconcileFromProviderResults(mangaId, result, onProgress, options);
+  // Phase 2.5: Chapter reconciliation (merge Fandom + Wikipedia chapters), then
+  // delete the merge's stale rows it does not name (deferred-stale-sweep.ts).
+  const reconciledNumbers = await reconcileFromProviderResults(mangaId, result, staleChapters.length, onProgress, options);
+  await sweepDeferredStaleChapters(mangaId, staleChapters, reconciledNumbers);
 
   // Phase 3: COLLECT proposals from all sources
   await onProgress?.('validating', 'Cross-validating volume ranges...');
@@ -682,6 +690,7 @@ async function executeEnrichmentPhases(
   // still carry the whole-archive pageCount, inflating the volume's CHAPTERS + PAGES badges.
   // Runs last so it compares against the finalized chapter list.
   await pruneRedundantVolumeFileStubs(mangaId);
+  return volumeSnapshot;
 }
 
 // ============================================================================
@@ -719,11 +728,15 @@ export async function runEnrichmentPipeline(
     }
 
     // Phases 2-4: AI agent or adaptive parser
-    await executeEnrichmentPhases(mangaId, title, result, onProgress, options);
+    const volumeSnapshot = await executeEnrichmentPhases(mangaId, title, result, onProgress, options);
+    // Rebuilt volumes take back their previous ids before finalize announces the
+    // run, and again after it for anything finalize re-created (volume-identity.ts).
+    await stabilizeVolumeIds(mangaId, volumeSnapshot);
 
     // Phase 5: Finalize (volume covers, cache, WebSocket)
     await onProgress?.('finalizing', 'Storing volume covers and finalizing...');
     const manga = await phaseFinalize(mangaId, result, onProgress);
+    await stabilizeVolumeIds(mangaId, volumeSnapshot);
 
     // Phase 6: Completeness audit — re-read with Volume relation and score
     let completeness;

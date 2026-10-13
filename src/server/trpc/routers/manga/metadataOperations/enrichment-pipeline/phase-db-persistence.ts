@@ -26,6 +26,7 @@ import { findStaleChapterIds } from './phase-db-persistence/stale-chapter-sweep'
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
 import { crossCheckedFinalChapter } from './phase-volume-cross-validation/volume-gate-ceiling';
 
+import type { StaleChapterCandidate } from './phase-db-persistence/deferred-stale-sweep';
 import type { ChapterConsensus } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import type { EnrichmentProgress, ProviderChapter } from './types';
 import type { Prisma } from '@prisma/client';
@@ -109,10 +110,10 @@ export async function phaseDbPersistence(
   onProgress?: EnrichmentProgress,
   mangadexAggregateChapterCount?: number,
   chapterConsensus?: ChapterConsensus,
-): Promise<void> {
+): Promise<StaleChapterCandidate[]> {
   await onProgress?.('persisting', 'Creating chapters and volumes...');
 
-  if (!result.appliedMatch?.metadata) return;
+  if (!result.appliedMatch?.metadata) return [];
 
   const metadata = result.appliedMatch.metadata as Record<string, unknown>;
   // Phase 0: prefer the builder's per-field provenance map. Empty fallback is
@@ -125,7 +126,7 @@ export async function phaseDbPersistence(
   const enrichedData = result.enrichedData as
     Record<string, unknown> | undefined;
 
-  await createChaptersAndVolumes(mangaId, metadata, enrichedData, mangadexAggregateChapterCount, chapterConsensus);
+  return createChaptersAndVolumes(mangaId, metadata, enrichedData, mangadexAggregateChapterCount, chapterConsensus);
 }
 
 /**
@@ -181,14 +182,16 @@ function applyChapterConsensusCeiling(
 }
 
 /** Create chapters and volumes from enriched data.
- *  Uses a transaction to merge provider chapters with existing file-based chapters. */
+ *  Uses a transaction to merge provider chapters with existing file-based chapters.
+ *  Returns the rows the merge judged stale; the caller deletes them after
+ *  chapter reconciliation (phase-db-persistence/deferred-stale-sweep.ts). */
 async function createChaptersAndVolumes(
   mangaId: number,
   metadata: Record<string, unknown>,
   enrichedData: Record<string, unknown> | undefined,
   mangadexAggregateChapterCount?: number,
   chapterConsensus?: ChapterConsensus,
-): Promise<void> {
+): Promise<StaleChapterCandidate[]> {
   const unifiedManga = enrichedData?.['manga'] as Record<string, unknown> | undefined;
   const granularChapters = (unifiedManga?.['chapters'] ?? []) as Array<{
     chapterNumber?: string; title?: string; volume?: string;
@@ -260,19 +263,14 @@ async function createChaptersAndVolumes(
     crossCheckedFinal: crossCheckedFinalChapter(unifiedManga),
   });
 
+  let stale: StaleChapterCandidate[] = [];
   try {
     if (providerChapters.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        await deleteExistingVolumes(tx, mangaId);
-        const finalChapter = finishedSeriesFinalChapter(metadata['status'], inferredChapterCount);
-        const mergeResult = await mergeEnrichmentChapters(tx, mangaId, providerChapters, {
-          expectedCount: inferredChapterCount, finalChapter, seriesChapterCount: scalarChapterCount,
-        });
-        logger.info(
-          `Chapter merge for manga ${mangaId}: ${mergeResult.updated} updated, ` +
-          `${mergeResult.created} created, ${mergeResult.preserved} preserved`
-        );
-      }, { timeout: 30000 });
+      stale = await rebuildChaptersInTransaction(mangaId, providerChapters, {
+        expectedCount: inferredChapterCount,
+        finalChapter: finishedSeriesFinalChapter(metadata['status'], inferredChapterCount),
+        seriesChapterCount: scalarChapterCount,
+      });
     }
 
     const sources = unifiedManga?.['sources'] as string[] | undefined;
@@ -280,6 +278,24 @@ async function createChaptersAndVolumes(
   } catch (chapterError) {
     logger.warn(`Failed to create chapters/volumes from enrichment for manga ${mangaId}:`, chapterError);
   }
+  return stale;
+}
+
+/** Delete the volumes (rebuilt by later phases) and merge provider chapters, in one transaction. Returns the stale rows. */
+async function rebuildChaptersInTransaction(
+  mangaId: number,
+  providerChapters: ProviderChapter[],
+  counts: MergeCounts,
+): Promise<StaleChapterCandidate[]> {
+  return prisma.$transaction(async (tx) => {
+    await deleteExistingVolumes(tx, mangaId);
+    const mergeResult = await mergeEnrichmentChapters(tx, mangaId, providerChapters, counts);
+    logger.info(
+      `Chapter merge for manga ${mangaId}: ${mergeResult.updated} updated, ` +
+      `${mergeResult.created} created, ${mergeResult.preserved} preserved, ${mergeResult.stale.length} stale`
+    );
+    return mergeResult.stale;
+  }, { timeout: 30000 });
 }
 
 // ---------------------------------------------------------------------------
@@ -327,7 +343,7 @@ function buildTier2ChapterList(
 // Merge logic (split into focused helpers)
 // ---------------------------------------------------------------------------
 
-interface MergeResult { updated: number; created: number; preserved: number }
+interface MergeResult { updated: number; created: number; preserved: number; stale: StaleChapterCandidate[] }
 
 /** Build update payload for an existing chapter from provider data */
 // eslint-disable-next-line complexity -- sequential field-by-field merge, splitting would hurt readability
@@ -499,11 +515,10 @@ async function mergeEnrichmentChapters(
     }
   }
 
-  const staleIds = findStaleChapterIds(existing, providerNumbers, matchedIds, expectedCount, seriesChapterCount);
-  if (staleIds.length > 0) {
-    await tx.chapter.deleteMany({ where: { id: { in: staleIds } } });
-    logger.info(`Cleaned up ${staleIds.length} stale PENDING chapters for manga ${mangaId}`);
-  }
+  // Not deleted here: chapter reconciliation may want the number again, and
+  // deleting first made it re-insert the same chapter under a new id.
+  const staleIds = new Set(findStaleChapterIds(existing, providerNumbers, matchedIds, expectedCount, seriesChapterCount));
+  const stale = existing.filter(ch => staleIds.has(ch.id)).map(ch => ({ id: ch.id, chapterNumber: ch.chapterNumber }));
 
   const created = toCreate.length > 0
     ? await insertNewChapters(tx, mangaId, buildNewChapterRecords(
@@ -511,11 +526,11 @@ async function mergeEnrichmentChapters(
     ))
     : 0;
 
-  const preserved = existing.length - updated - staleIds.length;
+  const preserved = existing.length - updated - stale.length;
   if (shadowSkipped > 0) {
     logger.info(`[enrichmentPipeline] Skipped ${shadowSkipped} provider chapter(s) for manga ${mangaId} that would shadow existing file-attached row(s)`);
   }
-  return { updated, created, preserved };
+  return { updated, created, preserved, stale };
 }
 
 // ---------------------------------------------------------------------------

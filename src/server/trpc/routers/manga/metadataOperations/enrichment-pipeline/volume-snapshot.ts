@@ -19,7 +19,10 @@
  *     rebuild left on a volume whose previous data came from such a provider;
  *   - volumes the rebuild did not produce that are numbered within the
  *     stored volume count and fill a gap it left (planWithinCountRestore);
- *   - user volume progress, re-pointed at the rebuilt row for the same number.
+ *
+ * The user rows the delete cascaded away (volume progress, bookmarks) are put
+ * back, under their own ids, by `stabilizeVolumeIds` (volume-identity.ts) once
+ * the rebuilt rows have their previous ids again.
  */
 
 import { prisma } from '@/server/db';
@@ -28,13 +31,14 @@ import { logger } from '@/utils/logger';
 
 import { unansweredProviders, type ProviderOutcomes } from './phase-provider-fetch/provider-outcome';
 
-import type { Prisma, Volume, VolumeProgress } from '@prisma/client';
+import type { BookmarkedVolume, Prisma, Volume, VolumeProgress } from '@prisma/client';
 
 export interface VolumeSnapshot {
   volumes: Volume[];
   /** chapterId → volumeId as linked before the rebuild. */
   chapterLinks: Array<{ id: number; volumeId: number }>;
   progress: VolumeProgress[];
+  bookmarks: BookmarkedVolume[];
   /** Providers the title held a bound entity for when the run started. */
   boundProviders: string[];
 }
@@ -43,18 +47,18 @@ export interface VolumeRestoreResult {
   restoredVolumes: number;
   refilledVolumes: number;
   relinkedChapters: number;
-  restoredProgress: number;
 }
 
 export async function snapshotVolumes(mangaId: number): Promise<VolumeSnapshot> {
-  const [volumes, chapterRows, progress, manga] = await Promise.all([
+  const [volumes, chapterRows, progress, bookmarks, manga] = await Promise.all([
     prisma.volume.findMany({ where: { mangaId } }),
     prisma.chapter.findMany({ where: { mangaId, volumeId: { not: null } }, select: { id: true, volumeId: true } }),
     prisma.volumeProgress.findMany({ where: { mangaId } }),
+    prisma.bookmarkedVolume.findMany({ where: { mangaId, volumeId: { not: null } } }),
     prisma.manga.findUnique({ where: { id: mangaId }, select: { providerMetadata: true } }),
   ]);
   const chapterLinks = chapterRows.flatMap(c => (c.volumeId === null ? [] : [{ id: c.id, volumeId: c.volumeId }]));
-  return { volumes, chapterLinks, progress, boundProviders: boundProvidersOf(manga?.providerMetadata) };
+  return { volumes, chapterLinks, progress, bookmarks, boundProviders: boundProvidersOf(manga?.providerMetadata) };
 }
 
 /** Lower-cased provider names that carry a bound entity id in `Manga.providerMetadata`. */
@@ -209,7 +213,7 @@ export async function restoreVolumesAfterRebuild(
   snapshot: VolumeSnapshot,
   providerStatus: ProviderOutcomes | undefined,
 ): Promise<VolumeRestoreResult> {
-  const none: VolumeRestoreResult = { restoredVolumes: 0, refilledVolumes: 0, relinkedChapters: 0, restoredProgress: 0 };
+  const none: VolumeRestoreResult = { restoredVolumes: 0, refilledVolumes: 0, relinkedChapters: 0 };
   if (snapshot.volumes.length === 0) return none;
   try {
     const [current, counts] = await Promise.all([
@@ -247,28 +251,9 @@ export async function restoreVolumesAfterRebuild(
     }
 
     const refilledVolumes = await refillVolumeFields(mangaId, snapshot, unanswered);
-    const restoredProgress = await restoreVolumeProgress(mangaId, snapshot);
-    return { restoredVolumes: rows.length, refilledVolumes, relinkedChapters, restoredProgress };
+    return { restoredVolumes: rows.length, refilledVolumes, relinkedChapters };
   } catch (err) {
     logger.error(`[enrichmentPipeline] Volume restore failed for manga ${mangaId}`, err);
     return none;
   }
-}
-
-/** Re-create progress rows the delete cascaded away, on the rebuilt volume of the same number. */
-async function restoreVolumeProgress(mangaId: number, snapshot: VolumeSnapshot): Promise<number> {
-  if (snapshot.progress.length === 0) return 0;
-  const numberByOldId = new Map(snapshot.volumes.map(v => [v.id, v.number]));
-  const current = await prisma.volume.findMany({ where: { mangaId }, select: { id: true, number: true } });
-  const idByNumber = new Map(current.map(v => [v.number, v.id]));
-
-  const data: Prisma.VolumeProgressCreateManyInput[] = [];
-  for (const { id: _id, volumeId, ...rest } of snapshot.progress) {
-    const number = numberByOldId.get(volumeId);
-    const newVolumeId = number === undefined ? undefined : idByNumber.get(number);
-    if (newVolumeId !== undefined) data.push({ ...rest, volumeId: newVolumeId });
-  }
-  if (data.length === 0) return 0;
-  const created = await prisma.volumeProgress.createMany({ data, skipDuplicates: true });
-  return created.count;
 }

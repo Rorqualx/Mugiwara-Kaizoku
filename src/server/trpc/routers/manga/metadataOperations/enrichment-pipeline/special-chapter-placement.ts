@@ -86,6 +86,10 @@ function partitionPlacements(
   for (const ch of candidates) {
     const cn = ch.chapterNumber as number;
     if (cn <= 0) {
+      // Already in the real Vol 0: leave it. Clearing it as an orphan stranded
+      // Vol 0's volume-file row, which the next refresh deleted and re-created
+      // (One Piece chapter 0 "Strong World").
+      if (vol0Row && ch.volume === vol0Row.number && ch.volumeId === vol0Row.id) continue;
       // Real Vol 0 present → ch 0 / negatives can live there if not already placed.
       if (vol0Row && (ch.volumeId === null || ch.volume === null)) {
         decimalPlacements.push({ id: ch.id, volume: vol0Row.number, volumeId: vol0Row.id });
