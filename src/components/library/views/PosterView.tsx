@@ -11,7 +11,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Box, Center, Stack, Text, Checkbox } from '@mantine/core';
+import { Box, Checkbox } from '@mantine/core';
 import { useVirtualizer, type Virtualizer } from '@tanstack/react-virtual';
 
 import { CardAddMangaButton } from '@/components/addManga/CardAddMangaButton';
@@ -24,8 +24,6 @@ import { toNumberId } from '@/utils/id-converters';
 import { logger } from '@/utils/logger';
 import { withRemovalToast } from '@/utils/removalToast';
 import { trpc } from '@/utils/trpc-client/index';
-
-import { filterAndSortManga } from '../utils/libraryUtils';
 
 interface PosterViewProps {
     manga: MangaWithRelations[];
@@ -216,17 +214,6 @@ function buildRowCells(rowIndex: number, layout: RowLayout, ctx: CellContext): R
     return cells;
 }
 
-function EmptyFiltersState(): React.ReactElement {
-    return (
-        <Center p="xl">
-            <Stack align="center" gap="md">
-                <Text size="lg" c="dimmed">No manga match your filters</Text>
-                <Text size="sm" c="dimmed">Try adjusting your search criteria</Text>
-            </Stack>
-        </Center>
-    );
-}
-
 const GUTTER_PX = 16;
 
 export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: PosterViewProps): React.ReactElement {
@@ -234,12 +221,6 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
     // Manga removal uses a Mantine loading→success toast plus a durable bell row;
     // see handleMangaRemove below.
     const { isMobile, isTablet } = useBreakpoint();
-    const sortBy = useLibraryViewStore(state => state.sortBy);
-    const filterBy = useLibraryViewStore(state => state.filterBy);
-    const searchQuery = useLibraryViewStore(state => state.searchQuery);
-    const searchField = useLibraryViewStore(state => state.searchField);
-    const enableRegexSearch = useLibraryViewStore(state => state.enableRegexSearch);
-    const advancedFilters = useLibraryViewStore(state => state.advancedFilters);
     const coverSize = useLibraryViewStore(state => state.coverSize);
     const selectionMode = useLibraryViewStore(state => state.selectionMode);
     const selectedItems = useLibraryViewStore(state => state.selectedItems);
@@ -254,12 +235,10 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
     const removeMangaRef = useRef(removeMangaMutation.mutateAsync);
     removeMangaRef.current = removeMangaMutation.mutateAsync;
 
-    const displayedManga = useMemo(() => {
-        const filtered = filterAndSortManga(manga, {
-            sortBy, filterBy, searchQuery, searchField, enableRegexSearch, advancedFilters,
-        });
-        return filtered as MangaWithRelations[];
-    }, [manga, searchQuery, searchField, enableRegexSearch, advancedFilters, filterBy, sortBy]);
+    // The library page passes the list already filtered and sorted with the
+    // same view settings (and shows its own empty-filter state); running
+    // filterAndSortManga again here repeated that work on every change.
+    const displayedManga = manga;
 
     const viewportWidth = useViewportWidth();
     const columnsPerRow = useMemo(() => getColumnsPerRow(viewportWidth, coverSize), [viewportWidth, coverSize]);
@@ -345,10 +324,6 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
         handleMangaClick, handleMangaRemove, handleMangaPrefetch, stableOnRefresh, libraryId,
     ]);
     const layout: RowLayout = { displayedManga, columnsPerRow, totalCells, selectedItems };
-
-    if (displayedManga.length === 0 && manga.length > 0) {
-        return <EmptyFiltersState />;
-    }
 
     const virtualRows = virtualizer.getVirtualItems();
     const totalSize = virtualizer.getTotalSize();
