@@ -48,6 +48,8 @@ import { toNumberId } from '@/utils/id-converters';
  */
 type LibraryCardData = Omit<LibraryWithRelations, 'Manga'> & {
   Manga?: LibraryWithRelations['Manga'];
+  /** Total bytes of the library's chapters, summed by the server (library.query). */
+  totalSize?: number;
 };
 
 type MangaList = NonNullable<LibraryCardData['Manga']>;
@@ -93,7 +95,10 @@ function collectCoverUrls(mangaList: MangaList): string[] {
   return [...seen];
 }
 
-/** Sum chapter sizes defensively — Chapter may be absent on a lightly-loaded relation. */
+/**
+ * Sum chapter sizes defensively — Chapter may be absent on a lightly-loaded
+ * relation. Fallback only: library.query sends the library's `totalSize`.
+ */
 function computeLibrarySize(mangaList: MangaList): number {
   return mangaList.reduce((sum, manga) => {
     // Chapter.size is a BigInt column; byte counts are far below 2^53, so Number() is exact.
@@ -225,7 +230,11 @@ export function LibraryCard({ library, onEdit, onDelete, onClick }: LibraryCardP
   const name = library["name"];
 
   const covers = useMemo(() => collectCoverUrls(mangaList), [mangaList]);
-  const totalSize = useMemo(() => computeLibrarySize(mangaList), [mangaList]);
+  const serverTotalSize = library.totalSize;
+  const totalSize = useMemo(
+    () => serverTotalSize ?? computeLibrarySize(mangaList),
+    [serverTotalSize, mangaList]
+  );
 
   return (
     <Paper

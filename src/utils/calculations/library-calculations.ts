@@ -18,6 +18,11 @@ import type { LibraryWithRelations, MangaWithRelations } from '@/types/search.ty
  * @returns The total size in bytes of all chapters in the library
  */
 export function calculateLibrarySize(library: LibraryWithRelations): number {
+  // library.query sums the size in SQL and no longer sends per-chapter sizes.
+  const serverTotal = (library as LibraryWithRelations & { totalSize?: unknown }).totalSize;
+  if (typeof serverTotal === 'number') {
+    return serverTotal;
+  }
   if (library['Manga'].length === 0) {
     return 0;
   }

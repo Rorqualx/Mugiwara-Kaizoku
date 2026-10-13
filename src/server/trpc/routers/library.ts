@@ -178,14 +178,27 @@ export const libraryRouter = router({
     // List each owned library's titles via LibraryMembership(userId, libraryId)
     // rather than the Manga.libraryId relation, so linked/deduplicated titles
     // surface under the library the user chose. First library absorbs orphans.
+    //
+    // Every consumer (navbar, library cards, library list) needs a title count,
+    // the library's total size and a few cover URLs. The size is summed in SQL:
+    // returning each chapter's size instead made this the largest response in
+    // the app (~1.1 MB for 73 titles, one BigInt per chapter), and the navbar
+    // fetches it on every page. Titles carry only their cover fields, which the
+    // cards' cover mosaic reads (it found none while Metadata was not loaded).
     const libraries = await prisma.library.findMany({ where: { ownerId: userId }, orderBy: { id: 'asc' } });
     return Promise.all(libraries.map(async (library, idx) => {
-      const mangaArray = await prisma.manga.findMany({
-        where: membershipInLibraryWhere(userId, library.id, idx === 0),
-        include: { Chapter: { select: { size: true } } }
-      });
+      const where = membershipInLibraryWhere(userId, library.id, idx === 0);
+      const [mangaArray, sizeSum] = await Promise.all([
+        prisma.manga.findMany({
+          where,
+          include: { Metadata: { select: { cover: true, coverLarge: true, coverMedium: true } } },
+        }),
+        prisma.chapter.aggregate({ where: { Manga: where }, _sum: { size: true } }),
+      ]);
       const transformed = mangaArray.map((m: unknown) => stripHeavyFields(m as MangaRow));
-      return { ...library, Manga: transformed, mangaCount: mangaArray.length };
+      // Byte counts are far below 2^53, so Number() is exact.
+      const totalSize = Number(sizeSum._sum.size ?? 0);
+      return { ...library, Manga: transformed, mangaCount: mangaArray.length, totalSize };
     }));
   }),
 

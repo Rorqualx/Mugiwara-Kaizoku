@@ -161,6 +161,22 @@ describe('Library Calculations', () => {
       expect(size).toBe(6000);
     });
 
+    it('uses the total size the server summed when present', () => {
+      const library = {
+        id: 1,
+        name: 'Test Library',
+        ownerId: 'test-user',
+        path: '/test',
+        createdAt: new Date(),
+        lastScanAt: null,
+        // library.query sends titles without chapters, plus the summed size.
+        Manga: [createTestManga(1, 1, 'Manga 1', [])],
+        totalSize: 123_456,
+      } as LibraryWithRelations;
+
+      expect(calculateLibrarySize(library)).toBe(123_456);
+    });
+
     it('should handle library with no mangas', () => {
       const library: LibraryWithRelations = {
         id: 1,
