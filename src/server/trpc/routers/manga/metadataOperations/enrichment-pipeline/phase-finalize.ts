@@ -35,6 +35,7 @@ import { backfillChapterVolumeIds } from './phase-finalize/volume-id-backfill';
 import { fillVolumeFallbacksFromMetadata } from './phase-finalize/volume-metadata-fallback';
 import { fillVolumeFieldsFromWikipedia, runBannerImageFallback } from './phase-finalize/volume-wikipedia-fill';
 import { buildMangaDexExternalLinks } from './phase-provider-fetch/external-id-extractor';
+import { tagChaptersAwaitingVolume } from './phase-volume-overflow';
 
 import type { EnrichmentProgress, UnifiedProviderResults } from './types';
 import type { Prisma } from '@prisma/client';
@@ -110,6 +111,7 @@ export async function phaseFinalize(
     select: { id: true, chapterNumber: true, volume: true, volumeId: true, filePath: true },
   });
   await assignSpecialChapters(mangaId, allChaptersForSpecials);
+  await tagChaptersAwaitingVolume(mangaId); // after the passes above cleared stale numbers: one stable state per run
   // Final inheritance pass: chapters just linked by the range-based backfill
   // haven't picked up volume-level covers/descriptions/releaseDates yet.
   await inheritVolumeReleaseDatesToChapters(mangaId);

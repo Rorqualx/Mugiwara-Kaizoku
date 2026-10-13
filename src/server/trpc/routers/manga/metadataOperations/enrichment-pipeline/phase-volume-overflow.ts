@@ -4,10 +4,13 @@
  * Handles chapters that fall beyond the last known volume range.
  * Instead of creating phantom overflow volumes (which produced ghost volumes
  * for completed manga like Dorohedoro), this module marks overflow chapters
- * as verified-unassigned (volume = -1) so the UI groups them under
- * "Unassigned Chapters" where users can reassign them manually.
+ * as awaiting their volume (volume = -1, see `@/lib/metadata/awaiting-volume`)
+ * so the UI lists them after the last volume as "Not yet in a volume".
  */
 
+import {
+  AWAITING_VOLUME, lastRangedVolumeEnd, planAwaitingVolumeTags, type AwaitingVolumeRow,
+} from '@/lib/metadata/awaiting-volume';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
@@ -169,8 +172,8 @@ async function renumberFileBackedOverflow(
  * - Finished + cross-validated series: integer overflow with no file is spurious provider numbering
  *   (the real omake live as decimals in the final volume) — DELETE it so the chapter count and the
  *   volume browser stay accurate. Decimals and any downloaded files are never touched.
- * - Otherwise: conservatively tag overflow as verified-unassigned (volume = -1) for the UI's
- *   "Unassigned Chapters" section — it may be real latest content awaiting a tankōbon.
+ * - Otherwise: tag the overflow as awaiting its volume (volume = -1, see awaiting-volume.ts) — it
+ *   is real latest content whose tankōbon is not out yet.
  *
  * Never creates phantom overflow volumes (the old behaviour that produced ghost vols 24/25).
  */
@@ -178,33 +181,11 @@ export async function assignOverflowChapters(
   mangaId: number,
   _expectedVolumeCount?: number,
 ): Promise<void> {
-  const manga = await prisma.manga.findUnique({
-    where: { id: mangaId },
-    select: { publicationStatus: true, Metadata: { select: { endDate: true, chapters: true } } },
-  });
-  const finishedCount = finishedSeriesChapterCount(
-    manga?.publicationStatus, Boolean(manga?.Metadata?.endDate), manga?.Metadata?.chapters,
-  );
-  await untagCountedChapters(mangaId, finishedCount);
+  const signal = await loadOverflowSignal(mangaId);
+  if (!signal) return;
+  const { status, finishedCount, volumes, lastVolEnd } = signal;
 
-  const volumes = await prisma.volume.findMany({
-    where: { mangaId, number: { gt: 0 }, chapterStart: { not: null }, chapterEnd: { not: null } },
-    select: { id: true, number: true, chapterEnd: true, source: true },
-    orderBy: { number: 'desc' },
-  });
-
-  if (volumes.length < 2) return;
-  const lastVolume = volumes[0];
-  if (!lastVolume?.chapterEnd) return;
-  const lastVolEnd = lastVolume.chapterEnd;
-
-  const maxChResult = await prisma.chapter.aggregate({
-    where: { mangaId },
-    _max: { chapterNumber: true },
-  });
-  if (maxChResult._max.chapterNumber === null || maxChResult._max.chapterNumber <= lastVolEnd) return;
-
-  if (shouldDeleteSpuriousOverflow(manga?.publicationStatus, lastVolume.source)) {
+  if (shouldDeleteSpuriousOverflow(status, volumes[0]?.source ?? null)) {
     const overflowVolumes = volumes.map(v => ({ id: v.id, number: v.number, chapterEnd: v.chapterEnd as number }));
     // File-backed integer overflow = real omake → decimal in its parent volume (keeps the file).
     await renumberFileBackedOverflow(mangaId, lastVolEnd, overflowVolumes, finishedCount);
@@ -227,19 +208,88 @@ export async function assignOverflowChapters(
     return;
   }
 
-  // Conservative path: tag still-unassigned overflow as verified-unassigned.
-  // A finished series' own chapters are never overflow (finishedSeriesChapterCount).
-  const toTag = (await prisma.chapter.findMany({
-    where: { mangaId, chapterNumber: { gt: lastVolEnd }, volume: null },
-    select: { id: true, chapterNumber: true },
-  })).filter(c => isTaggableOverflow(c.chapterNumber, finishedCount));
-  if (toTag.length === 0) return;
-  await prisma.chapter.updateMany({
-    where: { id: { in: toTag.map(c => c.id) } },
-    data: { volume: -1 },
+  await tagAwaitingRows(mangaId, signal);
+}
+
+interface OverflowSignal {
+  status: MangaPublicationStatus | null;
+  finishedCount: number | null;
+  /** Numbered volumes with a full range, highest number first. */
+  volumes: Array<{ id: number; number: number; chapterEnd: number | null; source: string | null }>;
+  /** Every volume row, for the stale-number check. */
+  allVolumes: AwaitingVolumeRow[];
+  lastVolEnd: number;
+}
+
+/**
+ * What the overflow decisions need, read after undoing "-1" on a finished
+ * series' own chapters. Null when there is no overflow to consider: fewer than
+ * two ranged volumes, or no chapter numbered past the last range.
+ */
+async function loadOverflowSignal(mangaId: number): Promise<OverflowSignal | null> {
+  const manga = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { publicationStatus: true, Metadata: { select: { endDate: true, chapters: true } } },
   });
-  logger.info(
-    `[enrichmentPipeline] Tagged ${toTag.length} overflow chapters as unassigned ` +
-    `(beyond ch ${lastVolEnd}) for manga ${mangaId}`,
+  const finishedCount = finishedSeriesChapterCount(
+    manga?.publicationStatus, Boolean(manga?.Metadata?.endDate), manga?.Metadata?.chapters,
   );
+  await untagCountedChapters(mangaId, finishedCount);
+
+  const allVolumes = await prisma.volume.findMany({
+    where: { mangaId },
+    select: { id: true, number: true, chapterStart: true, chapterEnd: true, source: true },
+    orderBy: { number: 'desc' },
+  });
+  const volumes = allVolumes.filter(v => v.number > 0 && v.chapterStart !== null && v.chapterEnd !== null);
+  if (volumes.length < 2) return null;
+  // The furthest range end, not the highest-numbered volume's: a stray "0-0"
+  // range on a high number must not make every chapter overflow.
+  const lastVolEnd = lastRangedVolumeEnd(volumes);
+  if (lastVolEnd === null) return null;
+
+  const maxChResult = await prisma.chapter.aggregate({ where: { mangaId }, _max: { chapterNumber: true } });
+  if (maxChResult._max.chapterNumber === null || maxChResult._max.chapterNumber <= lastVolEnd) return null;
+  return { status: manga?.publicationStatus ?? null, finishedCount, volumes, allVolumes, lastVolEnd };
+}
+
+async function tagAwaitingRows(mangaId: number, signal: OverflowSignal): Promise<number> {
+  const lastEnd = signal.lastVolEnd;
+  // A tag on a chapter the volumes now reach is stale (its volume came out, or
+  // the ranges moved): back to "unknown" for the range and decimal passes.
+  const released = await prisma.chapter.updateMany({
+    where: { mangaId, volume: AWAITING_VOLUME, volumeId: null, chapterNumber: { lt: lastEnd + 1 } },
+    data: { volume: null },
+  });
+  if (released.count > 0) {
+    logger.info(`[enrichmentPipeline] Cleared the awaiting-volume tag on ${released.count} chapter(s) within the volumes of manga ${mangaId}`);
+  }
+  const rows = await prisma.chapter.findMany({
+    where: { mangaId, volumeId: null, chapterNumber: { gt: lastEnd } },
+    select: { id: true, chapterNumber: true, volume: true, volumeId: true, filePath: true },
+  });
+  // A finished series' own chapters are never overflow (finishedSeriesChapterCount).
+  const ids = planAwaitingVolumeTags(rows, signal.allVolumes, n => !isTaggableOverflow(n, signal.finishedCount));
+  if (ids.length === 0) return 0;
+  await prisma.chapter.updateMany({ where: { id: { in: ids } }, data: { volume: AWAITING_VOLUME } });
+  logger.info(
+    `[enrichmentPipeline] Tagged ${ids.length} chapters past the last volume (ends ch ${lastEnd}) ` +
+    `as awaiting their volume for manga ${mangaId}`,
+  );
+  return ids.length;
+}
+
+/**
+ * Re-apply the awaiting-volume tag after the late finalize passes (volume-id
+ * backfill, manual manifest) cleared stale volume numbers. Without it the first
+ * refresh left those chapters `volume = NULL` and only the second one tagged
+ * them -1 (Sakamoto Days 256-278), so refreshes were not idempotent. Same gate
+ * as assignOverflowChapters: a finished, cross-validated series' overflow is
+ * never tagged.
+ */
+export async function tagChaptersAwaitingVolume(mangaId: number): Promise<number> {
+  const signal = await loadOverflowSignal(mangaId);
+  if (!signal) return 0;
+  if (shouldDeleteSpuriousOverflow(signal.status, signal.volumes[0]?.source ?? null)) return 0;
+  return tagAwaitingRows(mangaId, signal);
 }

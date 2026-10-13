@@ -12,9 +12,10 @@ import { useState } from 'react';
 
 import { ActionIcon, Group, Tooltip } from '@mantine/core';
 import { ChapterStatus } from '@prisma/client';
-import { IconBookmark, IconBookmarkOff, IconFolderPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconBookmark, IconBookmarkOff, IconDownload, IconFolderPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 
 import { DownloadButton, UnifiedSearchModal, type DownloadContext } from '@/components/download';
+import { isAwaitingVolumeGroup, missingChapterIds, serverVolumeNumber } from '@/components/volumeChapters/awaiting-volume-group';
 import { logger } from '@/utils/logger';
 import { notify } from '@/utils/notify';
 import { trpc } from '@/utils/trpc-client/index';
@@ -120,6 +121,57 @@ function VolumeRetryButton({
 }
 
 /**
+ * Download context for a volume's DownloadButton. None for the "Not yet in a
+ * volume" group: there is no volume release to search for.
+ */
+function volumeDownloadContext(
+    mangaId: number,
+    mangaTitle: string | undefined,
+    volumeNumber: number,
+    chapters: ChapterEntity[] | undefined,
+): DownloadContext | null {
+    if (isAwaitingVolumeGroup(volumeNumber)) return null;
+    return {
+        type: 'volume' as const,
+        manga: { id: mangaId, title: mangaTitle ?? 'Unknown', source: 'unknown' } as unknown as MangaEntity,
+        volumeNumber,
+        chapters: chapters ?? [],
+    };
+}
+
+/**
+ * Download action of the "Not yet in a volume" group: no volume release exists
+ * to search for, so it quick-downloads the group's missing chapters.
+ */
+function AwaitingVolumeDownloadButton({
+    chapters,
+    onQuickDownload,
+    isDownloading,
+}: {
+    chapters: ChapterEntity[];
+    onQuickDownload: () => void;
+    isDownloading: boolean;
+}): JSX.Element | null {
+    const missing = missingChapterIds(chapters).length;
+    if (missing === 0) return null;
+    return (
+        <Tooltip label={`Download the ${missing} missing chapter(s) not yet in a volume`} withArrow>
+            <ActionIcon
+                variant="subtle"
+                color="blue"
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); onQuickDownload(); }}
+                loading={isDownloading}
+                aria-label="Download chapters not yet in a volume"
+                className={classes['actionIcon']}
+            >
+                <IconDownload size={16} />
+            </ActionIcon>
+        </Tooltip>
+    );
+}
+
+/**
  * Renders action buttons for unassigned chapters section
  */
 function UnassignedChapterActions({
@@ -186,9 +238,9 @@ export function VolumeHeaderActions({
     totalVolumeChapters,
     volumeMonitoredCount,
     isTogglingVolume,
-    isDownloadingVolume: _isDownloadingVolume,
+    isDownloadingVolume,
     onToggleMonitoring,
-    onQuickDownload: _onQuickDownload,
+    onQuickDownload,
     onOpenReassignModal,
     onDeleteAllUnassigned,
     isDeletingAll
@@ -220,23 +272,12 @@ export function VolumeHeaderActions({
         return null;
     }
 
-    // Build download context for the DownloadButton
-    const downloadContext: DownloadContext | null = mangaId
-        ? {
-            type: 'volume' as const,
-            manga: {
-                id: mangaId,
-                title: mangaTitle ?? 'Unknown',
-                source: 'unknown',
-            } as unknown as MangaEntity,
-            volumeNumber,
-            chapters: (chapters ?? []) as ChapterEntity[],
-        }
-        : null;
+    const awaiting = isAwaitingVolumeGroup(volumeNumber);
+    const downloadContext = volumeDownloadContext(mangaId, mangaTitle, volumeNumber, chapters);
 
     return (
         <>
-            <VolumeRetryButton mangaId={mangaId} volumeNumber={volumeNumber} chapters={chapters ?? []} />
+            <VolumeRetryButton mangaId={mangaId} volumeNumber={serverVolumeNumber(volumeNumber)} chapters={chapters ?? []} />
             <ActionIcon
                 variant="subtle"
                 color={(allVolumeMonitored || someVolumeMonitored) ? "white" : "gray"}
@@ -255,6 +296,14 @@ export function VolumeHeaderActions({
             >
                 {(allVolumeMonitored || someVolumeMonitored) ? <IconBookmark size={16} /> : <IconBookmarkOff size={16} />}
             </ActionIcon>
+
+            {awaiting && (
+                <AwaitingVolumeDownloadButton
+                    chapters={chapters ?? []}
+                    onQuickDownload={onQuickDownload}
+                    isDownloading={isDownloadingVolume}
+                />
+            )}
 
             {/* Unified Download Button */}
             {downloadContext && (

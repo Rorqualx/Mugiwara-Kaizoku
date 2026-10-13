@@ -27,6 +27,7 @@ import { trackApiCall } from '../apiCallAlert';
 import classes from '../chaptersTable.module.css';
 import { VirtualizedVolumeList } from '../virtualizedVolumeList';
 
+import { withAwaitingGroupTitle } from './awaiting-volume-group';
 import { useChapterFileVerification, useChapterProgress, useProgressMap } from './hooks/reading-progress';
 import { useVolumeMetadata } from './hooks/useVolumeMetadata';
 import { useVolumeProcessing } from './hooks/useVolumeProcessing';
@@ -166,6 +167,12 @@ export const VolumeGroupedChapters = memo(({
         mangaTitle: manga.title
     });
 
+    // Volume titles plus the "Not yet in a volume" group's header
+    const groupTitles = useMemo(
+        () => (isSuccess(volumesResult) ? withAwaitingGroupTitle(volumeTitles, volumesResult.data.volumes) : volumeTitles),
+        [volumesResult, volumeTitles],
+    );
+
     // Track API call after successful volume processing
     useEffect(() => {
         if (isSuccess(volumesResult)) {
@@ -247,7 +254,7 @@ export const VolumeGroupedChapters = memo(({
                             {...(propMangaId !== undefined ? { mangaId: propMangaId } : {})}
                             {...(manga.title !== undefined ? { mangaTitle: manga.title } : {})}
                             allExpanded={allExpanded}
-                            {...(volumeTitles !== undefined ? { volumeTitles } : {})}
+                            {...(groupTitles !== undefined ? { volumeTitles: groupTitles } : {})}
                             {...(volumeCovers !== undefined ? { volumeCovers } : {})}
                             {...(enrichedVolumeData !== undefined ? { enrichedVolumeData } : {})}
                             {...(providerMetadata !== undefined ? { providerMetadata } : {})}
@@ -278,7 +285,7 @@ export const VolumeGroupedChapters = memo(({
                                         {...(onManualSearch !== undefined ? { onManualSearch } : {})}
                                         {...(onChapterClick !== undefined ? { onChapterClick } : {})}
                                         {...(onForceRefresh !== undefined ? { onForceRefresh } : {})}
-                                        {...(volumeTitles?.[volumeNumber] !== undefined ? { volumeTitle: volumeTitles[volumeNumber] } : {})}
+                                        {...(groupTitles?.[volumeNumber] !== undefined ? { volumeTitle: groupTitles[volumeNumber] } : {})}
                                         {...(volumeRanges?.[volumeNumber] !== undefined ? { chapterRange: `${volumeRanges[volumeNumber].chapterStart}-${volumeRanges[volumeNumber].chapterEnd}` } : {})}
                                         {...(volumeCovers?.[volumeNumber] !== undefined ? { volumeCover: volumeCovers[volumeNumber] } : {})}
                                         {...((() => {

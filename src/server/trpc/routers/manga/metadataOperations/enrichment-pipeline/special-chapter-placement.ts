@@ -22,6 +22,7 @@
  *   already been correctly range-assigned.
  */
 
+import { isAwaitingVolume } from '@/lib/metadata/awaiting-volume';
 import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
@@ -76,7 +77,7 @@ export async function assignSpecialChapters(mangaId: number, allChapters: Chapte
 
 interface DecimalPlacement { id: number; volume: number; volumeId: number }
 
-function partitionPlacements(
+export function partitionPlacements(
   candidates: ChapterRow[],
   realVolumes: RealVolume[],
   vol0Row: RealVolume | null,
@@ -106,7 +107,8 @@ function partitionPlacements(
       }
       continue;
     }
-    if (ch.volume !== null || ch.volumeId !== null) orphans.push(ch);
+    // A decimal past the last volume tagged "awaiting its volume" (-1) is not a stale assignment.
+    if (ch.volumeId !== null || (ch.volume !== null && !isAwaitingVolume(ch.volume))) orphans.push(ch);
   }
   return { decimalPlacements, orphans };
 }

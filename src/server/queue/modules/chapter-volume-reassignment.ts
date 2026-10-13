@@ -11,10 +11,13 @@
  *   1. Existing-range backfill — cheapest. Catches chapters that fall
  *      inside an already-built `Volume.chapterStart..chapterEnd` range
  *      but missed the chapter-creation phase's assignment.
- *   2. Trailing placeholders — for manga that have a Volume tree but
- *      whose latest chapters fall past the highest `chapterEnd`. Creates
- *      one new "Vol N+1 (placeholder)" per affected manga covering the
- *      gap from `lastEnd+1` to `maxCh`.
+ *   2. Trailing chapters — for manga that have a Volume tree but whose
+ *      latest chapters fall past the highest `chapterEnd`. For a running
+ *      series these are chapters whose volume is not out yet: they are
+ *      tagged `volume = -1` (awaiting their volume, see
+ *      `@/lib/metadata/awaiting-volume`) and no volume is written, because
+ *      no provider has published its range. A finished series still gets
+ *      one "Vol N+1 (placeholder)" covering `lastEnd+1..maxCh` within its cap.
  *   3. Zero-volume placeholders — for manga whose Volume tree was never
  *      built (enrichment didn't yield volume data). Creates one
  *      "Vol 1 (placeholder)" covering `minCh..maxCh`.
@@ -31,17 +34,23 @@
  * Called from `MaintenanceManager.startMaintenance()` on a daily cadence
  * alongside the stale-job-recovery and old-job-cleanup tasks.
  */
+import { AWAITING_VOLUME, planAwaitingVolumeTags } from '@/lib/metadata/awaiting-volume';
 import { prisma } from '@/server/db';
 import { getVolumeCapForManga } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation/db-volume-cap';
 import { logger } from '@/utils/logger';
 
 const log = logger.child('ChapterVolumeReassignment');
 
+/** Chapters awaiting their volume are not orphans: never fold them into a "Misc" volume. */
+const NOT_AWAITING = { OR: [{ volume: null }, { volume: { not: AWAITING_VOLUME } }] };
+
 export interface ReassignmentReport {
   step0DenormSync: number;
   step1RangeBackfilled: number;
   step2TrailingPlaceholders: number;
   step2ChaptersAssigned: number;
+  /** Running-series chapters past the last volume tagged as awaiting their volume. */
+  step2AwaitingTagged: number;
   step3ZeroVolumePlaceholders: number;
   step3ChaptersAssigned: number;
   step4MiscPlaceholders: number;
@@ -95,28 +104,59 @@ interface TrailingCandidate {
   lastVolNum: number | null;
   lastChEnd: number | null;
   maxCh: number | null;
+  /** The run has ended (terminal status or an end date). */
+  finished: boolean;
 }
 
-/** Step 2: trailing placeholders for manga whose newest chapters are past the last volume. */
-async function step2TrailingPlaceholders(): Promise<{ created: number; assigned: number }> {
+/**
+ * Tag a running series' chapters past its last volume as awaiting their
+ * volume. Writing a "Vol N+1 (placeholder)" here instead gave it a range no
+ * provider published (One Piece "Vol 116 (placeholder)" 1180-1195); the next
+ * refresh's volume rebuild then dropped the row and left the chapters
+ * numbered for a volume that does not exist.
+ */
+async function tagTrailingAwaitingVolume(mangaId: number, lastChEnd: number): Promise<number> {
+  const [rows, volumes] = await Promise.all([
+    prisma.chapter.findMany({
+      where: { mangaId, volumeId: null, chapterNumber: { gt: lastChEnd } },
+      select: { id: true, chapterNumber: true, volume: true, volumeId: true, filePath: true },
+    }),
+    prisma.volume.findMany({ where: { mangaId }, select: { number: true, chapterStart: true, chapterEnd: true } }),
+  ]);
+  const ids = planAwaitingVolumeTags(rows, volumes);
+  if (ids.length === 0) return 0;
+  const upd = await prisma.chapter.updateMany({ where: { id: { in: ids } }, data: { volume: AWAITING_VOLUME } });
+  return upd.count;
+}
+
+/** Step 2: chapters past the last volume — awaiting their volume (running series) or a placeholder (finished). */
+async function step2TrailingPlaceholders(): Promise<{ created: number; assigned: number; awaiting: number }> {
   const candidates = await prisma.$queryRaw<TrailingCandidate[]>`
     SELECT
       m.id AS "mangaId",
       MAX(v.number) AS "lastVolNum",
       MAX(v."chapterEnd") AS "lastChEnd",
-      (SELECT MAX("chapterNumber") FROM "Chapter" WHERE "mangaId" = m.id)::int AS "maxCh"
+      (SELECT MAX("chapterNumber") FROM "Chapter" WHERE "mangaId" = m.id)::int AS "maxCh",
+      COALESCE(BOOL_OR(m."publicationStatus"::text IN ('COMPLETED', 'CANCELLED') OR md."endDate" IS NOT NULL), false) AS "finished"
     FROM "Manga" m
     JOIN "Volume" v ON v."mangaId" = m.id
+    LEFT JOIN "Metadata" md ON md.id = m."metadataId"
     GROUP BY m.id
     HAVING (SELECT COUNT(*) FROM "Chapter" c WHERE c."mangaId" = m.id AND c."chapterNumber" IS NOT NULL AND c."volumeId" IS NULL) > 0
   `;
   let created = 0;
   let assigned = 0;
+  let awaiting = 0;
   for (const c of candidates) {
     if (c.lastChEnd === null || c.maxCh === null) continue;
     const start = c.lastChEnd + 1;
     const end = c.maxCh;
     if (start > end) continue;
+    if (!c.finished) {
+      // eslint-disable-next-line no-await-in-loop -- per-manga write, bounded by candidate count
+      awaiting += await tagTrailingAwaitingVolume(c.mangaId, c.lastChEnd);
+      continue;
+    }
     const newVolNum = (c.lastVolNum ?? 0) + 1;
     // eslint-disable-next-line no-await-in-loop -- per-manga lookup, bounded by candidate count
     const { cap, source: capSource } = await getVolumeCapForManga(c.mangaId);
@@ -144,7 +184,7 @@ async function step2TrailingPlaceholders(): Promise<{ created: number; assigned:
     created++;
     assigned += upd.count;
   }
-  return { created, assigned };
+  return { created, assigned, awaiting };
 }
 
 interface ZeroVolCandidate {
@@ -202,6 +242,7 @@ async function step4MiscPlaceholders(): Promise<{ created: number; assigned: num
       MAX("chapterNumber")::float AS "maxCh"
     FROM "Chapter"
     WHERE "chapterNumber" IS NOT NULL AND "volumeId" IS NULL
+      AND "volume" IS DISTINCT FROM ${AWAITING_VOLUME}
     GROUP BY "mangaId"
   `;
   let created = 0;
@@ -216,7 +257,7 @@ async function step4MiscPlaceholders(): Promise<{ created: number; assigned: num
     if (newNum > cap) {
       // eslint-disable-next-line no-await-in-loop -- per-manga lookup
       const orphans = await prisma.chapter.findMany({
-        where: { mangaId: c.mangaId, volumeId: null, chapterNumber: { not: null } },
+        where: { mangaId: c.mangaId, volumeId: null, chapterNumber: { not: null }, ...NOT_AWAITING },
         select: { chapterNumber: true },
         orderBy: { chapterNumber: 'asc' },
         take: 20,
@@ -237,7 +278,7 @@ async function step4MiscPlaceholders(): Promise<{ created: number; assigned: num
     });
     // eslint-disable-next-line no-await-in-loop -- per-manga write
     const upd = await prisma.chapter.updateMany({
-      where: { mangaId: c.mangaId, volumeId: null },
+      where: { mangaId: c.mangaId, volumeId: null, ...NOT_AWAITING },
       data: { volumeId: vol.id, volume: vol.number },
     });
     created++;
@@ -267,6 +308,7 @@ export async function reassignOrphanedChapters(): Promise<ReassignmentReport> {
     step1RangeBackfilled: step1,
     step2TrailingPlaceholders: step2.created,
     step2ChaptersAssigned: step2.assigned,
+    step2AwaitingTagged: step2.awaiting,
     step3ZeroVolumePlaceholders: step3.created,
     step3ChaptersAssigned: step3.assigned,
     step4MiscPlaceholders: step4.created,
@@ -274,7 +316,7 @@ export async function reassignOrphanedChapters(): Promise<ReassignmentReport> {
     totalReassigned,
   };
 
-  if (totalReassigned > 0) {
+  if (totalReassigned > 0 || step2.awaiting > 0) {
     log.info('Chapter→Volume reassignment sweep complete', {
       ...report,
       durationMs: Date.now() - startedAt,

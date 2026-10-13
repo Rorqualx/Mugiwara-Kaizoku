@@ -13,10 +13,10 @@ import { createSuccessResult, createErrorResult } from '@/utils/async-result';
 import type { AsyncResult } from '@/utils/async-result';
 import { logger } from '@/utils/logger';
 
+import { volumeGroupKey } from '../awaiting-volume-group';
 import { isPhantomStub } from '../phantom-stub';
 import {
     isValidChapter,
-    extractVolumeNumber,
     generatePlaceholderChapters,
     createPlaceholderChapterForVolume
 } from '../utils';
@@ -66,7 +66,7 @@ export function useVolumeProcessing({
             sortChaptersInVolumes(volumeMap);
 
             // Sort volumes by number and convert to array
-            const sortedVolumes = Array.from(volumeMap.entries()).sort(([a], [b]) => a - b);
+            const sortedVolumes = sortVolumeGroups(Array.from(volumeMap.entries()));
 
             // Return success result with volume data and stats
             return createSuccessResult<VolumeProcessingState, Error>({
@@ -93,9 +93,19 @@ export function useVolumeProcessing({
 }
 
 /**
+ * Order the browser's groups: volumes by number, then "Not yet in a volume",
+ * then "Unassigned" (-1) last — the virtualized list (over 20 volumes) renders
+ * this order as is, and used to put the unassigned bucket above Volume 1.
+ */
+export function sortVolumeGroups(groups: Array<[number, Chapter[]]>): Array<[number, Chapter[]]> {
+    const rank = (key: number): number => (key === -1 ? Infinity : key);
+    return groups.sort(([a], [b]) => rank(a) - rank(b));
+}
+
+/**
  * Process actual chapters from database
  */
-function processActualChapters(chapters: Chapter[], volumeMap: Map<number, Chapter[]>): void {
+export function processActualChapters(chapters: Chapter[], volumeMap: Map<number, Chapter[]>): void {
     // First filter out invalid chapters AND phantom stubs left over from wrong
     // provider bindings or reidentify passes. The backend-side cleanup (Fix B
     // in the audit plan) deletes these on next enrichment, but in-flight users
@@ -103,8 +113,8 @@ function processActualChapters(chapters: Chapter[], volumeMap: Map<number, Chapt
     const validChapters = chapters.filter((c) => isValidChapter(c) && !isPhantomStub(c));
 
     validChapters.forEach((chapter) => {
-        // Extract volume number from database only
-        const volumeNumber = extractVolumeNumber(chapter);
+        // Volume number from the database; chapters awaiting their volume get their own group
+        const volumeNumber = volumeGroupKey(chapter);
 
         if (!volumeMap.has(volumeNumber)) {
             volumeMap.set(volumeNumber, []);

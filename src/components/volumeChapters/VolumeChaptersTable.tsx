@@ -25,6 +25,7 @@ import { trpc } from '@/utils/trpc-client';
 
 import classes from '../chaptersTable.module.css';
 
+import { isAwaitingVolumeGroup, missingChapterIds, serverVolumeNumber } from './awaiting-volume-group';
 import {
     useProgressMap,
     useToggleVolumeMonitoring,
@@ -160,7 +161,7 @@ export const VolumeChaptersTable = memo(({
         const newMonitoredState = noneVolumeMonitored;
         toggleVolumeMonitoring({
             mangaId,
-            volumeNumber,
+            volumeNumber: serverVolumeNumber(volumeNumber),
             monitored: newMonitoredState
         });
     }, [mangaId, volumeNumber, noneVolumeMonitored, toggleVolumeMonitoring]);
@@ -168,19 +169,26 @@ export const VolumeChaptersTable = memo(({
     // Live-update the per-volume quick-download toast as the auto-search fan-out reports per-source results.
     useQuickDownloadToast(mangaId, volumeNumber !== -1 ? `quick-download-volume-${volumeNumber}` : null);
 
-    // Handler for volume Quick Download
+    // Handler for volume Quick Download. The "Not yet in a volume" group has no
+    // volume release to search for, so it downloads its missing chapters instead.
     const handleVolumeQuickDownload = useCallback((): void => {
         if (!mangaId || volumeNumber === -1) return;
+        const awaitingIds = isAwaitingVolumeGroup(volumeNumber) ? missingChapterIds(chapters) : null;
+        if (awaitingIds?.length === 0) return;
 
         notifications.show({
             id: `quick-download-volume-${volumeNumber}`,
             title: 'Searching…',
-            message: 'Searching enabled sources for best volume release…',
+            message: awaitingIds ? 'Searching enabled sources for these chapters…' : 'Searching enabled sources for best volume release…',
             loading: true,
             autoClose: false
         });
 
-        quickDownloadVolume({
+        quickDownloadVolume(awaitingIds ? {
+            mangaId,
+            chapterIds: awaitingIds,
+            mode: 'BULK'
+        } : {
             mangaId,
             volumeNumber,
             mode: 'VOLUME'
@@ -189,7 +197,7 @@ export const VolumeChaptersTable = memo(({
                 notifications.hide(`quick-download-volume-${volumeNumber}`);
             }
         });
-    }, [mangaId, volumeNumber, quickDownloadVolume]);
+    }, [mangaId, volumeNumber, chapters, quickDownloadVolume]);
 
     // Memoize chapter data, filtering out invalid chapters and sorting by chapter number
     const records = useMemo(

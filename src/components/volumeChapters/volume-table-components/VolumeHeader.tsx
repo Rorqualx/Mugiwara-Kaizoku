@@ -14,6 +14,7 @@ import { IconAlertTriangle, IconChevronDown, IconChevronUp } from '@tabler/icons
 import prettyBytes from 'pretty-bytes';
 
 import classes from '@/components/chaptersTable.module.css';
+import { isAwaitingVolumeGroup } from '@/components/volumeChapters/awaiting-volume-group';
 import { VolumeHeaderActions } from '@/components/volumeChapters/VolumeHeaderActions';
 
 import type { VolumeHeaderProps } from './types';
@@ -73,6 +74,13 @@ function computeChapterTally(
   return { downloadedCount, totalCount, isComplete: totalCount > 0 && downloadedCount === totalCount };
 }
 
+/** Header text for a volume, the unassigned bucket, or the "Not yet in a volume" group. */
+function headerTitle(volumeNumber: number, chapterRange?: string | null, volumeTitle?: string | null): string {
+  if (volumeNumber === -1) return 'Unassigned Chapters & Volumes';
+  if (isAwaitingVolumeGroup(volumeNumber)) return volumeTitle ?? 'Not yet in a volume';
+  return `Volume ${volumeNumber}${chapterRange ? ` (${chapterRange})` : ''}${volumeTitle ? ` - ${volumeTitle}` : ''}`;
+}
+
 /**
  * Volume header with expansion controls, title, and statistics badges
  */
@@ -89,6 +97,9 @@ export const VolumeHeader = memo(({
   headerActionsProps
 }: VolumeHeaderProps): JSX.Element => {
   const isUnassigned = volumeNumber === -1;
+  // "Not yet in a volume": no volume modal to open; the parent passes its title.
+  const isAwaiting = isAwaitingVolumeGroup(volumeNumber);
+  const opensVolumeModal = !isUnassigned && !isAwaiting;
   const { downloadedCount, totalCount, isComplete } = computeChapterTally(chapters, isUnassigned);
 
   return (
@@ -134,19 +145,17 @@ export const VolumeHeader = memo(({
             order={4}
             {...(isUnassigned ? { c: "yellow" } : {})}
             style={{
-              cursor: !isUnassigned ? 'pointer' : 'default',
-              textDecoration: !isUnassigned ? 'underline' : 'none'
+              cursor: opensVolumeModal ? 'pointer' : 'default',
+              textDecoration: opensVolumeModal ? 'underline' : 'none'
             }}
             onClick={(e) => {
-              if (!isUnassigned) {
+              if (opensVolumeModal) {
                 e.stopPropagation();
                 onOpenVolumeModal();
               }
             }}
           >
-            {isUnassigned
-              ? 'Unassigned Chapters & Volumes'
-              : `Volume ${volumeNumber}${chapterRange ? ` (${chapterRange})` : ''}${volumeTitle ? ` - ${volumeTitle}` : ''}`}
+            {headerTitle(volumeNumber, chapterRange, volumeTitle)}
           </Title>
         </Group>
         <Group gap="xs">
