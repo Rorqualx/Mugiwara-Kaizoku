@@ -43,7 +43,8 @@ function createLinkConfig(baseUrl: string): ReturnType<typeof httpLink> {
 /**
  * Vanilla tRPC client for use in non-React contexts (services, scripts, etc.)
  * Based on existing pattern from test-comicvine-volume.ts script
- * Uses httpLink (same as React client) to avoid body size issues with large payloads
+ * Uses httpLink, one request per call: scripts and services call one procedure
+ * at a time, so batching (which the React client uses) would gain nothing.
  *
  * IMPORTANT: Uses credentials: 'include' to send session cookies for authenticated procedures
  */

@@ -3,12 +3,12 @@
  * 
  * This module sets up the tRPC client for making type-safe API calls from the frontend.
  * It configures the client with SuperJSON transformer for enhanced serialization and
- * HTTP batch link for optimized request handling.
+ * a streaming HTTP batch link (see the links comment below).
  * 
  * @module trpc-client
  */
 
-import { httpLink } from '@trpc/client';
+import { httpBatchStreamLink } from '@trpc/client';
 import { createTRPCNext } from '@trpc/next';
 import superjson from 'superjson';
 
@@ -39,7 +39,7 @@ function getBaseUrl(): string {
  *
  * Configured with:
  * - SuperJSON transformer for handling dates, BigInts, and other complex types
- * - HTTP link for request handling
+ * - Streaming batch link: calls made together share one HTTP request
  * - Client-side rendering (SSR disabled for simplicity)
  *
  * @example
@@ -53,11 +53,22 @@ export const trpc = createTRPCNext<AppRouter>({
   config() {
     return {
       links: [
-        // TEMPORARY: Using httpLink instead of httpBatchLink to debug rapid query issues
-        // httpBatchLink was causing manga detail queries to return wrong data when clicked rapidly
-        httpLink({
+        // Calls made in the same tick share one HTTP request, and each result
+        // streams back as soon as it is ready, so a slow call (a manga with
+        // all its chapters) does not hold up the small ones in its batch.
+        //
+        // Batching was off from 2025-10 to 2026-10 after "manga detail returns
+        // wrong data on rapid clicks". The cause was the server's response
+        // cache, which keyed on the whole request's input, so two calls to one
+        // procedure in a batch shared an entry; it now keys on each call's own
+        // input (and caller) — see cachingMiddleware.
+        httpBatchStreamLink({
           url: `${getBaseUrl()}/api/trpc`,
           transformer: superjson,
+          // Batched inputs go in the GET query string; split before proxies
+          // or the server would reject an overlong URL.
+          maxURLLength: 4000,
+          maxItems: 25,
         }),
       ],
       queryClientConfig: {
