@@ -20,7 +20,7 @@
  */
 
 import { parseComicVineDescriptions } from './comicvine-description-parser';
-import { highestWrittenChapter } from './corroborated-final-chapter';
+import { highestWrittenChapter, preferredLanguageMangaDexChapters } from './corroborated-final-chapter';
 
 import type { UnifiedProviderResults } from './types';
 
@@ -58,15 +58,29 @@ function comicvinePlacements(results: UnifiedProviderResults): VolumePlacement[]
     .map(v => ({ source: 'comicvine', volume: v.volumeNumber, chapter: highestWrittenChapter([v.descriptionText]) }));
 }
 
-/** MangaDex aggregate; its parser already drops the "none" volume. */
+/**
+ * MangaDex: the highest preferred-language chapter tagged with each volume.
+ * Not the all-language aggregate: Demon Slayer's aggregate puts a
+ * Latin-American Spanish "206" (the extras) in volume 23, which raised the
+ * floor above the final chapter 205.
+ */
 function mangadexPlacements(results: UnifiedProviderResults): VolumePlacement[] {
-  return (results.mangadexAggregate?.volumes ?? [])
-    .filter(v => v.volumeNumber > 0)
-    .map(v => ({ source: 'mangadex', volume: v.volumeNumber, chapter: Math.floor(v.chapterEnd) }));
+  const highest = new Map<number, number>();
+  for (const c of preferredLanguageMangaDexChapters(results)) {
+    if (c.volume === undefined || c.volume <= 0) continue;
+    highest.set(c.volume, Math.max(highest.get(c.volume) ?? 0, wholeChapter(c.number)));
+  }
+  return [...highest].map(([volume, chapter]) => ({ source: 'mangadex', volume, chapter }));
 }
 
 export function collectVolumePlacements(results: UnifiedProviderResults): VolumePlacement[] {
   return [...wikipediaPlacements(results), ...comicvinePlacements(results), ...mangadexPlacements(results)];
+}
+
+/** The stated volume count, else the highest volume Wikipedia or ComicVine lists (0: none). */
+function seriesLastVolume(placements: VolumePlacement[], statedVolumes: number | null): number {
+  if (statedVolumes !== null && statedVolumes > 0) return statedVolumes;
+  return Math.max(0, ...placements.filter(p => p.source !== 'mangadex').map(p => p.volume));
 }
 
 /**
@@ -86,13 +100,34 @@ export function collectedChapterFloor(
   finalChapter: number,
   statedVolumes: number | null,
 ): number {
-  const listedVolumes = placements.filter(p => p.source !== 'mangadex').map(p => p.volume);
-  const lastVolume = statedVolumes !== null && statedVolumes > 0 ? statedVolumes : Math.max(0, ...listedVolumes);
+  const lastVolume = seriesLastVolume(placements, statedVolumes);
   const reachingFinal = placements.filter(p => p.chapter >= finalChapter);
   if (lastVolume > 0 && reachingFinal.length > 0 && reachingFinal.every(p => p.volume < lastVolume)) {
     return Number.POSITIVE_INFINITY;
   }
   return Math.max(0, ...placements.map(p => p.chapter));
+}
+
+/**
+ * True when Wikipedia's or ComicVine's volume list ends the series' last
+ * volume exactly at the final chapter and no provider places anything above
+ * it: whatever a chapter count adds past that chapter is in no numbered volume.
+ *
+ * Demon Slayer: volume 23 of 23 collects 197-205, and the two extras AniList
+ * counts (207) are listed by Wikipedia only as unnumbered "Special chapters".
+ * Dr. STONE does not qualify: its last volume (27) holds chapters no provider
+ * numbers, so no list ends it at the final chapter 232. MangaDex volume tags
+ * are scanlators' and do not count.
+ */
+export function lastVolumeEndsAtFinal(
+  placements: VolumePlacement[],
+  finalChapter: number,
+  statedVolumes: number | null,
+): boolean {
+  const lastVolume = seriesLastVolume(placements, statedVolumes);
+  if (lastVolume <= 0 || finalChapter <= 0) return false;
+  if (placements.some(p => p.chapter > finalChapter)) return false;
+  return placements.some(p => p.source !== 'mangadex' && p.volume === lastVolume && p.chapter === finalChapter);
 }
 
 /** "wikipedia=232@v26 (last v27)": each provider's highest placed chapter and its last listed volume, for logs. */

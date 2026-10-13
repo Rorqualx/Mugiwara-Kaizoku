@@ -64,9 +64,10 @@ export function finishedSeriesFinalChapter(status: unknown, expectedCount: numbe
 export function splitOverflowPastFinal(
   chapters: ProviderChapter[],
   finalChapter: number | null,
+  slack = FINAL_CHAPTER_SLACK,
 ): { kept: ProviderChapter[]; refused: ProviderChapter[] } {
   if (finalChapter === null) return { kept: chapters, refused: [] };
-  const limit = finalChapter + FINAL_CHAPTER_SLACK;
+  const limit = finalChapter + slack;
   const mainRun = chapters.filter(c => c.chapterNumber <= limit).length;
   if (mainRun < finalChapter * MIN_MAIN_RUN_COVERAGE) return { kept: chapters, refused: [] };
   const isGenericWhole = (c: ProviderChapter): boolean =>
@@ -85,15 +86,30 @@ export function splitOverflowPastFinal(
   return { kept, refused };
 }
 
-/** The chapters to merge for one title, with any refused overflow logged. */
+/**
+ * The chapters to merge for one title, with any refused overflow logged.
+ *
+ * `crossCheckedFinal` is set when this run lowered a finished series' count to
+ * the final chapter the providers state (Demon Slayer 207 → 205). That number
+ * already leaves the extras out, so there is no epilogue slack past it: a
+ * generic "Chapter 206" (MangaDex's Latin-American Spanish upload numbers the
+ * extras 206) is refused. Decimal extras and titled chapters still pass.
+ */
 export function withoutOverflowPastFinal(
   mangaId: number,
   chapters: ProviderChapter[],
-  status: unknown,
-  scalarChapters: number,
-  consensus: ChapterConsensus | undefined,
+  series: {
+    status: unknown;
+    scalarChapters: number;
+    consensus: ChapterConsensus | undefined;
+    crossCheckedFinal?: number | null;
+  },
 ): ProviderChapter[] {
-  const { kept, refused } = splitOverflowPastFinal(chapters, agreedFinalChapter(status, scalarChapters, consensus));
+  const { status, scalarChapters, consensus, crossCheckedFinal } = series;
+  const finished = typeof status === 'string' && FINISHED_STATUSES.has(status.toUpperCase());
+  const { kept, refused } = finished && typeof crossCheckedFinal === 'number' && crossCheckedFinal > 0
+    ? splitOverflowPastFinal(chapters, crossCheckedFinal, 0)
+    : splitOverflowPastFinal(chapters, agreedFinalChapter(status, scalarChapters, consensus));
   if (refused.length > 0) {
     const numbers = refused.map(c => c.chapterNumber);
     logger.info(`[enrichmentPipeline] Refused ${refused.length} generic chapter(s) past the final chapter of finished manga ${mangaId} (${Math.min(...numbers)}-${Math.max(...numbers)})`);

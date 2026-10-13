@@ -24,6 +24,7 @@ import { finishedSeriesFinalChapter, withoutOverflowPastFinal } from './phase-db
 import { planPhantomPairs } from './phase-db-persistence/phantom-pairing';
 import { findStaleChapterIds } from './phase-db-persistence/stale-chapter-sweep';
 import { softCountCeiling } from './phase-volume-cross-validation/count-consensus';
+import { crossCheckedFinalChapter } from './phase-volume-cross-validation/volume-gate-ceiling';
 
 import type { ChapterConsensus } from './phase-volume-cross-validation/chapter-consensus-resolver';
 import type { EnrichmentProgress, ProviderChapter } from './types';
@@ -254,7 +255,10 @@ async function createChaptersAndVolumes(
     : inferredChapterCount > 0
       ? buildTier2ChapterList(inferredChapterCount, granularTitleMap)
       : [];
-  const providerChapters = withoutOverflowPastFinal(mangaId, allProviderChapters, metadata['status'], scalarChapterCount, chapterConsensus);
+  const providerChapters = withoutOverflowPastFinal(mangaId, allProviderChapters, {
+    status: metadata['status'], scalarChapters: scalarChapterCount, consensus: chapterConsensus,
+    crossCheckedFinal: crossCheckedFinalChapter(unifiedManga),
+  });
 
   try {
     if (providerChapters.length > 0) {

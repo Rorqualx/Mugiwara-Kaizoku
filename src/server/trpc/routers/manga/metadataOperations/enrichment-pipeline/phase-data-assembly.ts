@@ -8,7 +8,7 @@
 
 import { logger } from '@/utils/logger';
 
-import { collectedChapterFloor, collectVolumePlacements } from './collected-chapter-floor';
+import { collectedChapterFloor, collectVolumePlacements, lastVolumeEndsAtFinal } from './collected-chapter-floor';
 import { parseComicVineDescriptions } from './comicvine-description-parser';
 import {
   boundByCorroboratedFinal,
@@ -417,11 +417,17 @@ export function resolveTrustedFinalChapter(
   // Never below a chapter a provider places in a collected volume (Dr. STONE 233-236).
   const placements = corroborated ? collectVolumePlacements(results) : [];
   const floor = corroborated ? collectedChapterFloor(placements, corroborated.chapter, scalar.volumeCeiling) : 0;
-  // Decimal extras listed after the agreed final (Demon Slayer 205.1, 205.6) explain a small excess.
-  const extras = corroborated ? countExtrasAfterFinal(results, corroborated.chapter) : 0;
+  // A small excess is lowered only when listed extras or the last volume's end explain it (Demon Slayer 207 → 205).
+  const evidence = corroborated
+    ? {
+      collectedFloor: floor,
+      extrasAfterFinal: countExtrasAfterFinal(results, corroborated.chapter),
+      lastVolumeEndsAtFinal: lastVolumeEndsAtFinal(placements, corroborated.chapter, scalar.volumeCeiling),
+    }
+    : {};
   const ceiling = scalar.ceiling === null
     ? null
-    : boundByCorroboratedFinal(scalar.ceiling, corroborated, witnesses, floor, extras);
+    : boundByCorroboratedFinal(scalar.ceiling, corroborated, witnesses, evidence);
   const collected = ceiling !== null && corroborated !== null && ceiling > corroborated.chapter && ceiling === floor;
   return {
     ...scalar,

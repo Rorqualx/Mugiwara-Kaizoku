@@ -35,6 +35,7 @@ jest.mock('../corroborated-final-chapter', () => ({
   collectFinalChapterWitnesses: jest.fn(() => []),
   corroborateFinalChapter: jest.fn(() => null),
   countExtrasAfterFinal: jest.fn(() => 0),
+  preferredLanguageMangaDexChapters: jest.fn(() => []),
 }));
 jest.mock('../phase-volume-cross-validation/volume-gate-ceiling', () => ({
   applyCorroboratedFinalChapter: jest.fn(() => null),

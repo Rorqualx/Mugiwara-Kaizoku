@@ -67,6 +67,12 @@ export function resolveVolumeGateCeiling(
   };
 }
 
+/**
+ * `enrichedData.manga` key holding the final chapter the scalar was lowered
+ * to when that is the cross-checked final chapter itself (Demon Slayer 205).
+ */
+const CROSS_CHECKED_FINAL_CHAPTER = 'crossCheckedFinalChapter';
+
 export interface FinalChapterCorrection {
   from: number;
   to: number;
@@ -104,10 +110,28 @@ export function applyCorroboratedFinalChapter(
   metadata['chapters'] = final.ceiling;
   if (applied.perFieldProvenance) applied.perFieldProvenance['chapters'] = firstSource;
 
-  const enriched = result.enrichmentResult.enrichedData as Record<string, unknown> | undefined;
-  const manga = enriched?.['manga'] as Record<string, unknown> | undefined;
-  const total = manga?.['totalChapters'];
-  if (manga && typeof total === 'number' && total > final.ceiling) manga['totalChapters'] = final.ceiling;
+  capEnrichedManga(result, final.ceiling, final.ceiling === final.corroboratedFinal);
 
   return { from: scalar, to: final.ceiling, sources: final.corroboratedBy ?? [] };
+}
+
+/**
+ * Lower the unified manga's chapter total to the corrected final chapter.
+ * When that is the cross-checked final chapter itself, mark it: the stored
+ * scalar is then a chapter number the providers state, not a count with room
+ * for an epilogue, and the merge refuses generic chapters past it.
+ */
+function capEnrichedManga(result: UnifiedProviderResults, finalChapter: number, crossChecked: boolean): void {
+  const enriched = result.enrichmentResult.enrichedData as Record<string, unknown> | undefined;
+  const manga = enriched?.['manga'] as Record<string, unknown> | undefined;
+  if (!manga) return;
+  const total = manga['totalChapters'];
+  if (typeof total === 'number' && total > finalChapter) manga['totalChapters'] = finalChapter;
+  if (crossChecked) manga[CROSS_CHECKED_FINAL_CHAPTER] = finalChapter;
+}
+
+/** The cross-checked final chapter this run marked on the unified manga, or null. */
+export function crossCheckedFinalChapter(manga: Record<string, unknown> | undefined): number | null {
+  const value = manga?.[CROSS_CHECKED_FINAL_CHAPTER];
+  return typeof value === 'number' && value > 0 ? value : null;
 }

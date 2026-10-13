@@ -24,8 +24,8 @@ interface Shape {
   wikiVolumes: Record<number, Array<string | number>>;
   /** ComicVine volume descriptions: volume number → description. */
   comicvine?: Record<number, string>;
-  /** MangaDex aggregate: volume number → [first, last]. */
-  aggregate?: Record<number, [number, number]>;
+  /** MangaDex preferred-language chapters: volume number → [first, last]. */
+  mangadexVolumes?: Record<number, [number, number]>;
 }
 
 function range(from: number, to: number): number[] {
@@ -56,12 +56,9 @@ function results(shape: Shape): UnifiedProviderResults {
       ownChapterCount: shape.feedsFinal,
     },
     mangaupdatesResult: { completed: true, latestChapter: shape.feedsFinal },
-    mangadexAggregate: shape.aggregate === undefined ? null : {
-      mangaId: 'x',
-      volumes: Object.entries(shape.aggregate).map(([n, [start, end]]) => ({
-        volumeNumber: Number(n), chapterStart: start, chapterEnd: end, chapterCount: end - start + 1, chapters: range(start, end),
-      })),
-    },
+    mangadexAggregate: null,
+    mangadexChapterList: Object.entries(shape.mangadexVolumes ?? {}).flatMap(([n, [start, end]]) =>
+      range(start, end).map(number => ({ number, volume: Number(n), inPreferredLanguage: true }))),
   } as unknown as UnifiedProviderResults;
 }
 
@@ -75,7 +72,7 @@ const drStone: Shape = {
     26: [224, 225, 226, 227, 228, 230, 231, 232],
     27: [],
   },
-  aggregate: { 22: [188, 196], 23: [197, 205] },
+  mangadexVolumes: { 22: [188, 196], 23: [197, 205] },
 };
 
 /** Bleach: 686 closes volume 74, the last volume; AniList's 706 adds 20 extras that are in no volume. */
@@ -85,7 +82,7 @@ const bleach: Shape = {
   feedsFinal: 686,
   wikiVolumes: { 71: range(642, 650), 72: [], 73: [], 74: [] },
   comicvine: { 74: 'Chapter 675. The Midnight Eye\nChapter 685. Death & Strawberry 2\nChapter 686. Death & Strawberry' },
-  aggregate: { 39: [336, 336] },
+  mangadexVolumes: { 39: [336, 336] },
 };
 
 describe('collectedChapterFloor', () => {
@@ -123,12 +120,12 @@ describe('boundByCorroboratedFinal with a collected floor', () => {
   const agreed = { chapter: 232, sources: ['mangadex', 'mangaupdates'] };
 
   it('never bounds below a chapter placed in a volume', () => {
-    expect(boundByCorroboratedFinal(240, agreed, [], 236)).toBe(236);
+    expect(boundByCorroboratedFinal(240, agreed, [], { collectedFloor: 236 })).toBe(236);
   });
 
   it('keeps the scalar when the collected floor reaches it', () => {
-    expect(boundByCorroboratedFinal(236, agreed, [], 236)).toBe(236);
-    expect(boundByCorroboratedFinal(236, agreed, [], Number.POSITIVE_INFINITY)).toBe(236);
+    expect(boundByCorroboratedFinal(236, agreed, [], { collectedFloor: 236 })).toBe(236);
+    expect(boundByCorroboratedFinal(236, agreed, [], { collectedFloor: Number.POSITIVE_INFINITY })).toBe(236);
   });
 });
 
@@ -146,7 +143,7 @@ describe('finished-series chapter bound against collected volumes', () => {
   it('Dr. STONE keeps 236 even when a provider lists extras after 232: the collected volume floor wins', () => {
     const r = {
       ...results(drStone),
-      mangadexChapterList: [...range(1, 232), 232.1, 232.2, 232.3, 232.4].map(number => ({ number })),
+      mangadexChapterList: [...range(1, 232), 232.1, 232.2, 232.3, 232.4].map(number => ({ number, inPreferredLanguage: true })),
     } as UnifiedProviderResults;
     expect(resolveTrustedFinalChapter(r).ceiling).toBe(236);
     expect(applyCorroboratedFinalChapter(r)).toBeNull();

@@ -4,7 +4,7 @@
  * A finished series' chapter count may exceed its agreed final chapter by
  * extras numbered after it. Demon Slayer: AniList and Kitsu say 207; the story
  * ends at 205, and MangaDex numbers the two extras 205.1 (Rengoku one-shot)
- * and 205.6 (extended ending). Keeping 207 created placeholders "Chapter 206"
+ * and 205.6 (extended ending) in the preferred language. Keeping 207 created placeholders "Chapter 206"
  * and "Chapter 207" on every refresh. When the listed extras account for the
  * whole excess, the final chapter is stored instead.
  */
@@ -30,8 +30,8 @@ function range(from: number, to: number): number[] {
 }
 
 function results(shape: Shape): UnifiedProviderResults {
-  const listed = (extras: number[] | undefined): Array<{ number: number }> | null =>
-    extras === undefined ? null : [...range(1, shape.final), ...extras].map(number => ({ number }));
+  const listed = (extras: number[] | undefined): Array<{ number: number; inPreferredLanguage: boolean }> | null =>
+    extras === undefined ? null : [...range(1, shape.final), ...extras].map(number => ({ number, inPreferredLanguage: true }));
   const fandom = listed(shape.fandomExtras);
   const finished = (shape.status ?? 'COMPLETED') === 'COMPLETED';
   return {
@@ -73,16 +73,16 @@ describe('boundByCorroboratedFinal — extras within slack', () => {
   const agreed = { chapter: 205, sources: ['mangadex', 'mangaupdates'] };
 
   it('lowers to the final chapter when the listed extras cover the whole excess', () => {
-    expect(boundByCorroboratedFinal(207, agreed, [], 0, 2)).toBe(205);
+    expect(boundByCorroboratedFinal(207, agreed, [], { extrasAfterFinal: 2 })).toBe(205);
   });
 
   it('keeps the scalar when fewer extras are listed than the excess', () => {
-    expect(boundByCorroboratedFinal(207, agreed, [], 0, 1)).toBe(207);
+    expect(boundByCorroboratedFinal(207, agreed, [], { extrasAfterFinal: 1 })).toBe(207);
   });
 
   it('never lowers below a collected floor above the final chapter', () => {
-    expect(boundByCorroboratedFinal(207, agreed, [], 207, 5)).toBe(207);
-    expect(boundByCorroboratedFinal(207, agreed, [], Number.POSITIVE_INFINITY, 5)).toBe(207);
+    expect(boundByCorroboratedFinal(207, agreed, [], { collectedFloor: 207, extrasAfterFinal: 5 })).toBe(207);
+    expect(boundByCorroboratedFinal(207, agreed, [], { collectedFloor: Number.POSITIVE_INFINITY, extrasAfterFinal: 5 })).toBe(207);
   });
 });
 

@@ -12,6 +12,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   agreedFinalChapter,
   splitOverflowPastFinal,
+  withoutOverflowPastFinal,
 } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-db-persistence/final-chapter-overflow';
 import type { ChapterConsensus } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation/chapter-consensus-resolver';
 import type { ProviderChapter } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/types';
@@ -80,5 +81,37 @@ describe('splitOverflowPastFinal', () => {
 
   it('refuses nothing without an agreed final chapter', () => {
     expect(splitOverflowPastFinal(run(1, 500), null).refused).toHaveLength(0);
+  });
+});
+
+describe('withoutOverflowPastFinal — a cross-checked final chapter has no epilogue slack', () => {
+  // Demon Slayer: 207 lowered to the cross-checked 205; MangaDex's Latin-American
+  // Spanish upload numbers the extras "206" ("Chapter 206" once its title is dropped).
+  const demonSlayer: ProviderChapter[] = [
+    ...run(1, 205, n => `Title ${n}`),
+    { chapterNumber: 205.2 },
+    { chapterNumber: 205.5 },
+    { chapterNumber: 206, title: 'Chapter 206' },
+  ];
+
+  it('refuses a generic chapter right after a cross-checked final chapter', () => {
+    const kept = withoutOverflowPastFinal(88, demonSlayer, { status: 'COMPLETED', scalarChapters: 205, consensus: consensus(204, 'high'), crossCheckedFinal: 205 });
+    expect(kept.map(c => c.chapterNumber)).not.toContain(206);
+  });
+
+  it('keeps decimal extras and titled chapters after a cross-checked final chapter', () => {
+    const titled: ProviderChapter = { chapterNumber: 207, title: 'Rengoku Gaiden' };
+    const kept = withoutOverflowPastFinal(88, [...demonSlayer, titled], { status: 'COMPLETED', scalarChapters: 205, consensus: consensus(204, 'high'), crossCheckedFinal: 205 });
+    expect(kept.map(c => c.chapterNumber)).toEqual(expect.arrayContaining([205.2, 205.5, 207]));
+  });
+
+  it('without a cross-checked final chapter keeps the two-chapter epilogue slack', () => {
+    const kept = withoutOverflowPastFinal(88, demonSlayer, { status: 'COMPLETED', scalarChapters: 205, consensus: consensus(204, 'high') });
+    expect(kept.map(c => c.chapterNumber)).toContain(206);
+  });
+
+  it('a cross-checked final chapter on a running series refuses nothing', () => {
+    const kept = withoutOverflowPastFinal(88, demonSlayer, { status: 'RELEASING', scalarChapters: 205, consensus: consensus(204, 'high'), crossCheckedFinal: 205 });
+    expect(kept).toHaveLength(demonSlayer.length);
   });
 });

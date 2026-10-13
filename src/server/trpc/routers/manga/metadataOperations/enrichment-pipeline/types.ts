@@ -98,6 +98,14 @@ export interface ChapterDataItem {
    * upload's title to surface in the library.
    */
   language?: string;
+  /**
+   * MangaDex only: true when this number has an upload in the preferred
+   * language (`mangadex.preferredLanguage`, default `en`). Chapter numbers
+   * from other languages are scanlators' own numbering (Demon Slayer's
+   * Latin-American Spanish "206" is the extras), so the final-chapter rules
+   * read only these.
+   */
+  inPreferredLanguage?: boolean;
 }
 
 /** Combined results from all provider fetches in Phase 1 */

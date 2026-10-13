@@ -168,12 +168,13 @@ export async function fetchMangaDexChapters(
     // Wikipedia/Fandom/ComicVine title sources naturally fill the gap.
     let stripped = 0;
     const result = sorted.map(item => {
-      if (item.title && !isPreferred(item, preferredLanguage)) {
+      const inPreferredLanguage = isPreferred(item, preferredLanguage);
+      if (item.title && !inPreferredLanguage) {
         stripped++;
         const { title: _drop, ...rest } = item;
-        return rest;
+        return { ...rest, inPreferredLanguage };
       }
-      return item;
+      return { ...item, inPreferredLanguage };
     });
     log.info('Fetched MangaDex chapters', {
       mangaId,

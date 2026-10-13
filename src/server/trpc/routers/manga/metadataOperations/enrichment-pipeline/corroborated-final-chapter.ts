@@ -15,7 +15,7 @@
 import { parseComicVineDescriptions } from './comicvine-description-parser';
 import { wikipediaOwnChapterCount } from './phase-volume-cross-validation/witness-counts';
 
-import type { UnifiedProviderResults } from './types';
+import type { ChapterDataItem, UnifiedProviderResults } from './types';
 
 export interface FinalChapterWitness {
   source: string;
@@ -129,6 +129,13 @@ export function corroborateFinalChapter(witnesses: FinalChapterWitness[]): Corro
   return null;
 }
 
+/** What, besides the witnesses, decides how far a scalar is lowered (see boundByCorroboratedFinal). */
+export interface FinalChapterEvidence {
+  collectedFloor?: number;
+  extrasAfterFinal?: number;
+  lastVolumeEndsAtFinal?: boolean;
+}
+
 /**
  * Bound a trusted final-chapter scalar by the corroborated number. Only ever
  * lowers the scalar, and only when the excess is more than slack yet small
@@ -138,33 +145,50 @@ export function corroborateFinalChapter(witnesses: FinalChapterWitness[]): Corro
  * means the scalar is a chapter number, not a count: two lower witnesses that
  * agree with each other (two listings that both stop early) do not outvote it.
  *
- * `collectedFloor` (collected-chapter-floor.ts) is the lowest count the
- * providers' volume lists allow: a chapter printed in a volume is real, so the
- * bound is never below it (Dr. STONE keeps 233-236, collected in volume 27).
+ * `evidence.collectedFloor` (collected-chapter-floor.ts) is the lowest count
+ * the providers' volume lists allow: a chapter printed in a volume is real, so
+ * the bound is never below it (Dr. STONE keeps 233-236, collected in volume 27).
  *
- * `extrasAfterFinal` (countExtrasAfterFinal) is how many decimal-numbered
- * extras one provider lists right after the agreed final chapter. An excess
- * within slack is kept, unless those extras account for all of it: Demon
- * Slayer's 207 is 205 chapters plus 205.1 and 205.6, and keeping 207 created
- * placeholders "Chapter 206" and "Chapter 207" on every refresh.
+ * An excess within slack is kept unless something explains all of it; then
+ * the agreed final chapter itself is stored (never a collected chapter above
+ * it). Keeping Demon Slayer's 207 (205 chapters plus two extras) created
+ * placeholders "Chapter 206" and "Chapter 207" on every refresh. Either:
+ *   - `evidence.extrasAfterFinal` (countExtrasAfterFinal): one provider lists
+ *     at least that many decimal extras right after the final chapter; or
+ *   - `evidence.lastVolumeEndsAtFinal` (lastVolumeEndsAtFinal): a provider's
+ *     volume list ends the series' last volume at the final chapter, so the
+ *     excess is in no numbered volume.
  */
 export function boundByCorroboratedFinal(
   ceiling: number,
   corroborated: CorroboratedFinalChapter | null,
   witnesses: FinalChapterWitness[] = [],
-  collectedFloor = 0,
-  extrasAfterFinal = 0,
+  evidence: FinalChapterEvidence = {},
 ): number {
   if (corroborated === null) return ceiling;
   if (witnesses.some(w => Math.abs(w.chapter - ceiling) <= WITNESS_AGREEMENT_WINDOW)) return ceiling;
   if (corroborated.chapter < ceiling * CORROBORATION_FLOOR) return ceiling;
-  const bound = Math.max(corroborated.chapter, collectedFloor);
+  const bound = Math.max(corroborated.chapter, evidence.collectedFloor ?? 0);
   const excess = ceiling - bound;
   if (excess > FINAL_CHAPTER_SLACK) return bound;
-  // Within slack: lowered only to the agreed final itself (never to a collected
-  // chapter above it), and only when listed extras explain the whole excess.
-  const explainedByExtras = excess > 0 && bound === corroborated.chapter && extrasAfterFinal >= excess;
-  return explainedByExtras ? bound : ceiling;
+  if (excess <= 0 || bound !== corroborated.chapter) return ceiling;
+  const explained = (evidence.extrasAfterFinal ?? 0) >= excess || evidence.lastVolumeEndsAtFinal === true;
+  return explained ? bound : ceiling;
+}
+
+/**
+ * MangaDex chapter numbers that have an upload in the preferred language.
+ *
+ * Other languages' uploads carry their scanlators' own numbering: Demon
+ * Slayer's Latin-American Spanish upload numbers the extras "206" ("Extras del
+ * Final"), Arabic and Brazilian Portuguese number them 205.2 and 205.5. Read
+ * as chapter numbers they raised the collected floor above the final chapter
+ * (205) and counted extras nobody else numbers, so the final-chapter rules
+ * read only the preferred language. The all-language aggregate is not used
+ * here for the same reason; it carries no language.
+ */
+export function preferredLanguageMangaDexChapters(results: UnifiedProviderResults): ChapterDataItem[] {
+  return (results.mangadexChapterList ?? []).filter(c => c.inPreferredLanguage === true);
 }
 
 /** Distinct chapter numbers strictly between `final` and `final + 1` (205.1, 205.6 after 205). */
@@ -181,15 +205,14 @@ function extrasIn(numbers: Iterable<number>, final: number): number {
  * chapter: the most any one chapter list holds, not the union, since two
  * providers may number the same extra differently (205.5 and 205.6).
  *
- * Read from lists of real chapter numbers: the MangaDex aggregate and chapter
- * list, Fandom's and Wikipedia's chapter lists. MangaUpdates states only a
+ * Read from lists of real chapter numbers: MangaDex's preferred-language
+ * chapters, Fandom's and Wikipedia's chapter lists. MangaUpdates states only a
  * latest chapter, which says nothing about extras.
  */
 export function countExtrasAfterFinal(results: UnifiedProviderResults, final: number): number {
   if (final <= 0) return 0;
   const lists: number[][] = [
-    (results.mangadexAggregate?.volumes ?? []).flatMap(v => v.chapters),
-    (results.mangadexChapterList ?? []).map(c => c.number),
+    preferredLanguageMangaDexChapters(results).map(c => c.number),
     (results.fandomResult?.chapterList ?? []).map(c => c.number),
     (results.wikipediaResult?.chapterList ?? []).map(c => c.number),
   ];
