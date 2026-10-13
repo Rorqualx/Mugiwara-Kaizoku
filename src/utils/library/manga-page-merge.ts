@@ -75,3 +75,31 @@ export function pagesFromRows(rows: readonly unknown[], pageSize: number): Map<n
   }
   return pages;
 }
+
+/**
+ * Finds the loaded pages that hold the given titles.
+ *
+ * Used to refresh only the pages a chapter update touched. `missing` lists ids
+ * on no loaded page (e.g. a title added since the grid loaded), which needs a
+ * full reload instead.
+ */
+export function pagesContaining(
+  pages: MangaPages,
+  ids: ReadonlySet<number>,
+): { offsets: number[]; missing: number[] } {
+  const found = new Set<number>();
+  const offsets: number[] = [];
+  for (const [offset, rows] of pages) {
+    let hit = false;
+    for (const row of rows) {
+      const id = rowId(row);
+      if (id !== undefined && ids.has(id)) {
+        found.add(id);
+        hit = true;
+      }
+    }
+    if (hit) offsets.push(offset);
+  }
+  offsets.sort((a, b) => a - b);
+  return { offsets, missing: [...ids].filter(id => !found.has(id)) };
+}

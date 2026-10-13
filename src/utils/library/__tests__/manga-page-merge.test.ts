@@ -1,4 +1,4 @@
-import { flattenPages, mergePage, pagesFromRows } from '@/utils/library/manga-page-merge';
+import { flattenPages, mergePage, pagesContaining, pagesFromRows } from '@/utils/library/manga-page-merge';
 
 const PAGE = 3;
 const row = (id: number, label = 'old'): { id: number; label: string } => ({ id, label });
@@ -74,5 +74,19 @@ describe('manga-page-merge', () => {
     expect(Array.from(pages.keys())).toEqual([0, 3]);
     expect(flattenPages(pages)).toEqual(rows);
     expect(pagesFromRows([], PAGE).size).toBe(0);
+  });
+
+  it('finds the pages that hold the updated titles', () => {
+    const pages = pagesFromRows([row(1), row(2), row(3), row(4), row(5), row(6), row(7)], PAGE);
+
+    expect(pagesContaining(pages, new Set([5, 2, 4]))).toEqual({ offsets: [0, 3], missing: [] });
+    expect(pagesContaining(pages, new Set([7]))).toEqual({ offsets: [6], missing: [] });
+  });
+
+  it('reports titles that are on no loaded page', () => {
+    const pages = pagesFromRows([row(1), row(2)], PAGE);
+
+    expect(pagesContaining(pages, new Set([2, 99]))).toEqual({ offsets: [0], missing: [99] });
+    expect(pagesContaining(new Map(), new Set([1]))).toEqual({ offsets: [], missing: [1] });
   });
 });
