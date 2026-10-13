@@ -28,7 +28,7 @@ import { withClaimRun } from './claim-run/claim-run';
 import { crossValidateRecorded, noteReconciliationGate } from './claim-run/notes';
 import { collectVolumePlacements, describePlacements } from './collected-chapter-floor';
 import { collectFinalChapterWitnesses, corroborateFinalChapter, countExtrasAfterFinal } from './corroborated-final-chapter';
-import { filterFandomChaptersByCrossSeriesGate } from './cross-series-gate';
+import { filterFandomChaptersByCrossSeriesGate, seriesExtentEvidence, wikiVolumeCount } from './cross-series-gate';
 import { withEnrichmentLock } from './enrichment-lock';
 import { FandomPhaseDeadline } from './fandom-phase-deadline';
 import { reassignBonusChaptersToParentVolumes } from './phase-bonus-reassignment';
@@ -153,6 +153,16 @@ async function reconcileFromProviderResults(
     {
       ratio: FANDOM_OVERFLOW_RATIO, minAniList: FANDOM_OVERFLOW_MIN_AL, minMangaDex: FANDOM_OVERFLOW_MIN_MANGADEX,
       tightRatio: FANDOM_TIGHT_RATIO, absOverflow: FANDOM_ABS_OVERFLOW, tightMinAniList: FANDOM_TIGHT_MIN_AL,
+    },
+    {
+      volumeCount: wikiVolumeCount(result.fandomResult?.volumeList ?? [], rawFandomChapters),
+      evidence: seriesExtentEvidence({
+        mangadexFeed: result.mangadexChapterList,
+        mangaupdatesLatestChapter: result.mangaupdatesResult?.latestChapter,
+        kitsu: result.kitsuResult,
+        mal: result.malResult,
+        anilistVolumes: result.anilistCounts?.volumes,
+      }),
     },
   );
   noteReconciliationGate(options, rawFandomChapters.length, fandomChapters.length, { mangadex: mangadexChapters.length, anilist: anilistChapterCount });

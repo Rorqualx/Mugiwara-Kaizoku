@@ -180,7 +180,7 @@ export const DESCRIPTION_CHAPTER_PATTERNS = [
   // Mission chapters (Spy x Family: "Mission 1: ...")
   /^Mission\s+(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // Act/Scene/Case/Round/Night/Track/Lesson/Log/Tale
-  /^(?:Act|Scene|Case|Round|Night|Track|Lesson|Log|Tale)\s+(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
+  /^(?:Act|Scene|Case|Round|Night|Track|Lesson|Log|Tale|Days?)\s+(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // Iter 16 (production port): manga-specific labeled formats discovered by
   // the comicvine-accuracy loop:
   //   Naruto:       "Number 1: Uzumaki Naruto!"

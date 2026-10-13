@@ -15,6 +15,7 @@ import { capVolumeCount, validateConstraints } from './phase-volume-cross-valida
 import { dropDifferentEditionComicVine } from './phase-volume-cross-validation/edition-mismatch';
 import { resolveVolumeManifest } from './phase-volume-cross-validation/membership-consensus';
 import { collectVolumeRangeProposals } from './phase-volume-cross-validation/proposal-collectors';
+import { withRangeOnlyVolumes } from './phase-volume-cross-validation/range-only-volumes';
 
 const log = logger.child('VolumeCrossValidation');
 
@@ -142,6 +143,16 @@ function consensusToValidatedRanges(
   return out;
 }
 
+/** Resolve one volume from the given proposals, with semantic fields merged from all of that volume's proposals. */
+function resolveWithSemantics(
+  byVolume: Map<number, VolumeRangeProposal[]>,
+): (volNum: number, volProposals: VolumeRangeProposal[]) => ValidatedVolumeRange | null {
+  return (volNum, volProposals) => {
+    const result = resolveVolumeConflict(volNum, volProposals);
+    return result ? { ...result, ...mergeSemanticFields(byVolume.get(volNum) ?? volProposals) } : null;
+  };
+}
+
 // ============================================================================
 // Main Entry Point
 // ============================================================================
@@ -178,7 +189,8 @@ export function crossValidateVolumeRanges(
   // proposal has per-chapter signal (older cached data path).
   const consensus = resolveVolumeManifest(proposals);
   if (consensus.hadSignal && Object.keys(consensus.volumes).length > 0) {
-    const consensusRanges = consensusToValidatedRanges(consensus, proposals);
+    // Volumes only range-only sources speak to (Fandom's table) join the consensus.
+    const consensusRanges = withRangeOnlyVolumes(consensusToValidatedRanges(consensus, proposals), byVolume, resolveWithSemantics(byVolume));
     // iter-PVM-N safety guard: bail to legacy when consensus output is
     // structurally bad (overlaps, backwards order, huge oversized volumes).
     // Surfaced by Attack on Titan: Before the Fall where upstream WP cached

@@ -19,6 +19,16 @@ import { assignSpecialChapters } from './special-chapter-placement';
 
 import type { ChapterEnrichmentMaps } from './types';
 
+/**
+ * Chapter rows whose volume a re-assignment may clear: numbered and without a
+ * file. A file-less row with no chapter number is a volume's placeholder row;
+ * nothing assigns it a volume again (Frieren gained 14 duplicate placeholder
+ * rows and kept 15 orphans after one refresh cleared them).
+ */
+export function unfiledChapterRows(mangaId: number): { mangaId: number; filePath: null; chapterNumber: { not: null } } {
+  return { mangaId, filePath: null, chapterNumber: { not: null } };
+}
+
 /** Chapter row from DB with id, chapterNumber, volume, filePath */
 interface ChapterRow { id: number; chapterNumber: number | null; volume: number | null; volumeId: number | null; filePath: string | null }
 
@@ -619,20 +629,20 @@ async function resolveVolumeAssignments(
   const hasGoodAssignments = totalChapters > 0 && chaptersWithVolume > totalChapters * 0.8;
 
   if (fandomRangesSkipped && totalVolumes > 0) {
-    await prisma.chapter.updateMany({ where: { mangaId, filePath: null }, data: { volume: null } });
+    await prisma.chapter.updateMany({ where: unfiledChapterRows(mangaId), data: { volume: null } });
     logger.info(`[enrichmentPipeline] Fandom ranges skipped (overlaps) — clearing stale assignments (non-file-backed), using even distribution`);
     // Ensure all expected volumes exist before distribution to avoid cramming
     // chapters into only the few volumes that have provider data
     const allVolumes = await ensureExpectedVolumes(mangaId, expectedVolumeCount);
     await evenDistributionFallback(mangaId, allVolumes);
   } else if (hasBadFandomVolumes) {
-    await prisma.chapter.updateMany({ where: { mangaId, filePath: null }, data: { volume: null } });
+    await prisma.chapter.updateMany({ where: unfiledChapterRows(mangaId), data: { volume: null } });
     logger.info(`[enrichmentPipeline] Fandom volume data unreliable — clearing stale assignments (non-file-backed), reassigning from ranges`);
     await assignVolumesFromRanges(mangaId);
   } else if (hasGoodAssignments) {
     logger.info(`[enrichmentPipeline] Preserving existing chapter volume assignments (${chaptersWithVolume}/${totalChapters})`);
   } else if (hasProviderRanges) {
-    await prisma.chapter.updateMany({ where: { mangaId, filePath: null }, data: { volume: null } });
+    await prisma.chapter.updateMany({ where: unfiledChapterRows(mangaId), data: { volume: null } });
     logger.info(`[enrichmentPipeline] Cleared chapter volume assignments (non-file-backed, provider ranges exist) — will reassign`);
     await assignVolumesFromRanges(mangaId);
   } else {
@@ -671,7 +681,7 @@ async function safetyNetEvenDistribution(mangaId: number, totalVolumes: number, 
       `[enrichmentPipeline] Safety net: only ${finalRangeCount}/${totalVolumes} volumes have ranges, ` +
       `${finalUnassigned}/${totalChapters} chapters unassigned — running even distribution`,
     );
-    await prisma.chapter.updateMany({ where: { mangaId, filePath: null }, data: { volume: null } });
+    await prisma.chapter.updateMany({ where: unfiledChapterRows(mangaId), data: { volume: null } });
     const allVolumes = await ensureExpectedVolumes(mangaId, expectedVolumeCount);
     await evenDistributionFallback(mangaId, allVolumes);
   }

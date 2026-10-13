@@ -50,13 +50,21 @@ export function parseNumberedChaptersPattern(
   logger.info(`[WIKIPEDIA] Parsing numbered chapters pattern`);
 
   // Extract volume information (page hints provide detected volume prefix)
-  const volumeInfo = extractVolumeInfo(html, allChapterMatches.length, totalVolumes, hints, pageHints);
+  const { volumeInfo, countedChapters } = extractVolumeInfo(html, allChapterMatches.length, totalVolumes, hints, pageHints);
+
+  // Chapters are filed by position in the match list, so the volume sections
+  // must hold the chapters that were matched. When they hold many more, the
+  // matches are a subset and every volume number would be shifted.
+  const volumeTotals = volumeMapFitsMatches(countedChapters, allChapterMatches.length) ? totalVolumes : 0;
+  if (totalVolumes > 0 && volumeTotals === 0) {
+    logger.warn(`[WIKIPEDIA] Volume sections hold ${countedChapters} chapters but only ${allChapterMatches.length} were matched — chapters left without volume numbers`);
+  }
 
   for (let i = 0; i < allChapterMatches.length; i++) {
     const match = allChapterMatches[i];
     if (!match) continue;
 
-    const chapter = parseChapterMatch(match, i, volumeInfo, totalVolumes);
+    const chapter = parseChapterMatch(match, i, volumeInfo, volumeTotals);
     if (chapter) {
       chapters.push(chapter);
     }
@@ -336,11 +344,12 @@ function extractVolumeInfo(
   totalVolumes: number,
   hints?: ChapterListFormatHints,
   pageHints?: PageStructureHints
-): Map<number, VolumeInfo> {
+): { volumeInfo: Map<number, VolumeInfo>; countedChapters: number } {
   const volumeInfo = new Map<number, VolumeInfo>();
+  let countedChapters = 0;
 
   if (totalVolumes === 0) {
-    return volumeInfo;
+    return { volumeInfo, countedChapters };
   }
 
   logger.info(`[WIKIPEDIA] Found ${totalVolumes} volume markers`);
@@ -365,6 +374,7 @@ function extractVolumeInfo(
     if (fullSection && chapterCount > 0) {
       volumeInfo.set(volNum, buildVolumeInfo(startIdx, startIdx + chapterCount, fullSection));
       chapterIndex += chapterCount;
+      countedChapters += chapterCount;
     } else if (fullSection) {
       volumeInfo.set(volNum, buildVolumeInfo(startIdx, endIdx, fullSection));
       chapterIndex = endIdx;
@@ -374,6 +384,18 @@ function extractVolumeInfo(
     }
   }
 
-  return volumeInfo;
+  return { volumeInfo, countedChapters };
+}
+
+/**
+ * Whether chapters matched in page order can be filed by counting through the
+ * volume sections: the sections may not hold more chapters than were matched,
+ * beyond a little slack. Sakamoto Days' list writes `Days 1: "Title"` for
+ * chapters 1-214 and `Days 215. "Title"` after, so 62 of the 277 listed
+ * chapters matched, and counting filed chapters 215-221 under volume 1.
+ */
+export function volumeMapFitsMatches(countedChapters: number, matchedChapters: number): boolean {
+  const slack = Math.max(2, Math.ceil(matchedChapters * 0.1));
+  return countedChapters <= matchedChapters + slack;
 }
 

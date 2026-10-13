@@ -41,7 +41,6 @@ import { isNovelMediaType, pickBestTitleMatchWithScore } from './phase-provider-
 import { resolveAniListPin } from './phase-provider-fetch/anilist-pin';
 import { buildTitleOnlyAniListDetails, runLanguageAwareComicVineMatch, type ComicVineDirectResult } from './phase-provider-fetch/comicvine-fetch';
 import { buildEnrichmentResult } from './phase-provider-fetch/enrichment-result-builder';
-import { withoutChaptersPastVolumeCeiling } from './phase-provider-fetch/fandom-volume-ceiling';
 import { fetchKitsuDirect, mapKitsuToUnifiedResult, type KitsuDirectResult } from './phase-provider-fetch/kitsu-fetch';
 import { fetchMALDirect, type MALDirectResult } from './phase-provider-fetch/mal-fetch';
 import { fetchMangaDexDirect, verifyMangaDexWithAniList, type MangaDexDirectResult } from './phase-provider-fetch/mangadex-fetch';
@@ -50,6 +49,7 @@ import { buildClaimsForShadow } from './phase-provider-fetch/provider-claims';
 import { isUnansweredReason, ProviderOutcomeTracker, unansweredProviders } from './phase-provider-fetch/provider-outcome';
 import { buildProviderDirectives, skipsSecondWave } from './phase-provider-fetch/provider-pins';
 import { settledValueOr } from './phase-provider-fetch/wave-merge';
+import { applyWikiGate } from './phase-provider-fetch/wiki-gate';
 import { anchorUnanswered } from './pipeline-orchestrator/anchor-gate';
 import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
 
@@ -435,105 +435,13 @@ export async function phaseProviderFetch(
       )
     : null;
 
-  // Multi-series wiki gate: when a wiki's chapter list is >2× the expected
-  // count for this manga, the wiki is almost certainly a series-wide catalog
-  // (e.g. jojo.fandom.com lists 900+ chapters across all 9 JoJo parts) or a
-  // main-series wiki bound to a spin-off (e.g. naruto.fandom.com's 700
-  // chapters on "Naruto Shinden" whose AL entry has 10). Wipe chapterList +
-  // volumeList at the source so every downstream consumer sees an empty
-  // set. Metadata fields (summary/cover) remain intact since they live on
-  // the manga page, not the chapter list.
-  //
-  // Three-tier gate, most precise first:
-  //   1. AniList comparison (>2× ratio with AL >= 5). Best signal — AL indexes
-  //      spin-offs separately from main series even when MangaDex doesn't.
-  //   2. MangaDex comparison (>2× ratio with mdx >= 10). Legacy signal.
-  //   3. Title-pattern + absolute threshold. Last resort when both AL and MDx
-  //      are unavailable (AL outage) and the manga title matches a sub-series
-  //      pattern (`Part N`, `Vol N`, `Season N`).
-  const OVERFLOW_RATIO = 2.0;
-  // Same-universe spin-off backstop: catch a parent series' chapter list that
-  // overflows the spin-off's AniList count by a large ABSOLUTE margin while
-  // staying under the 2× ratio (e.g. AoT: Before the Fall AL=73, Fandom=139 →
-  // the main series' 139 chapters; 139 < 146 so the 2× rule alone misses it).
-  // Keep these mirrored with pipeline-orchestrator.ts.
-  const FANDOM_TIGHT_RATIO = 1.5;
-  const FANDOM_ABS_OVERFLOW = 40;
-  const FANDOM_TIGHT_MIN_AL = 30;
-  // OVERFLOW_MIN_AL set low (2) so spin-offs with tiny AL chapter counts
-  // (Vagabond Saigo no Manga-ten AL=2, JJK 0 AL=4, Chainsaw Man Buddy
-  // Stories AL=4) still trip the gate when their main-series wiki floods
-  // 200+ chapters. The 2× ratio prevents false positives — a 2-chapter
-  // manga whose wiki legitimately has 4 entries doesn't fire.
-  const OVERFLOW_MIN_AL = 2;
-  const OVERFLOW_MIN_MDX = 10;
-  const SUB_SERIES_PATTERN = /\b(part|vol|volume|season|book|arc)\s*\d+/i;
-  const SUB_SERIES_HARD_CAP = 200;
-  const isSubSeriesTitle = SUB_SERIES_PATTERN.test(title);
-  const mdxChCount = mangadexData?.chapterList.length ?? 0;
-  const alChCount = anilistData?.details.chapters ?? 0;
-  const shouldGate = (wikiChCount: number): { gate: boolean; reason: string } => {
-    // Tier 1 — AniList. Most accurate count (spin-offs indexed separately).
-    // When AniList provides a count, treat it as authoritative: a wiki count
-    // within 2× AL means the wiki is on-series, regardless of how few
-    // chapters MangaDex's English feed has. Falling through to the MangaDex
-    // tier in that case caused false positives — e.g. Twin Star Exorcists
-    // (AL=134, Fandom=135, MangaDex EN feed=12) tripped the MDX rule and
-    // had its full chapter list discarded.
-    if (alChCount >= OVERFLOW_MIN_AL) {
-      if (wikiChCount > alChCount * OVERFLOW_RATIO) {
-        return { gate: true, reason: `>${OVERFLOW_RATIO}x AniList (${wikiChCount} vs ${alChCount})` };
-      }
-      // Absolute-overflow backstop for same-universe spin-offs (1.5×–2× band).
-      if (alChCount >= FANDOM_TIGHT_MIN_AL
-          && wikiChCount > alChCount * FANDOM_TIGHT_RATIO
-          && wikiChCount - alChCount >= FANDOM_ABS_OVERFLOW) {
-        return { gate: true, reason: `>${FANDOM_TIGHT_RATIO}x & +${wikiChCount - alChCount} over AniList (${wikiChCount} vs ${alChCount})` };
-      }
-      return { gate: false, reason: '' };
-    }
-    // Tier 2 — MangaDex (fallback when AniList missing).
-    if (mdxChCount >= OVERFLOW_MIN_MDX && wikiChCount > mdxChCount * OVERFLOW_RATIO) {
-      return { gate: true, reason: `>${OVERFLOW_RATIO}x MangaDex (${wikiChCount} vs ${mdxChCount})` };
-    }
-    // Tier 3 — sub-series title + absolute cap (last resort).
-    if (isSubSeriesTitle && wikiChCount > SUB_SERIES_HARD_CAP) {
-      return { gate: true, reason: `sub-series title with ${wikiChCount} chapters (cap ${SUB_SERIES_HARD_CAP})` };
-    }
-    return { gate: false, reason: '' };
-  };
-
-  if (fandomResult) {
-    const fandomChCount = fandomResult.chapterList.length;
-    const { gate, reason } = shouldGate(fandomChCount);
-    if (gate) {
-      log.warn('Fandom chapter list disabled — likely cross-series wiki', {
-        mangaId, fandomChapters: fandomChCount, reason, fandomUrl: fandomResult.url,
-      });
-      options?.claimRun?.noteGated('fandom', reason, { fandom: fandomResult });
-      fandomResult = { ...fandomResult, chapterList: [], volumeList: [] };
-    } else {
-      // A whole-franchise wiki under the count gate still files its chapters under volumes this series does not have.
-      fandomResult = withoutChaptersPastVolumeCeiling(mangaId, fandomResult, anilistData?.details.status, anilistData?.details.volumes);
-    }
-  }
-  if (wikipediaResult) {
-    const wikiChCount = wikipediaResult.chapterList.length;
-    const { gate, reason } = shouldGate(wikiChCount);
-    if (gate) {
-      log.warn('Wikipedia chapter list disabled — likely cross-series article', {
-        mangaId, wikipediaChapters: wikiChCount, reason,
-        wikipediaTitle: wikipediaResult.data.title,
-      });
-      options?.claimRun?.noteGated('wikipedia', reason, { wikipedia: wikipediaResult });
-      wikipediaResult = {
-        ...wikipediaResult,
-        chapterList: [],
-        ownChapterCount: 0,
-        data: { ...wikipediaResult.data, volumeList: [] },
-      };
-    }
-  }
+  // Multi-series wiki gate (see phase-provider-fetch/wiki-gate.ts).
+  const gated = applyWikiGate({
+    mangaId, title, anilist: anilistData?.details ?? null, mangadex: mangadexData, mangaupdates: muData,
+    kitsu: kitsuData, mal: malData, fandom: fandomResult, wikipedia: wikipediaResult, claimRun: options?.claimRun,
+  });
+  fandomResult = gated.fandom;
+  wikipediaResult = gated.wikipedia;
 
   // Build EnrichmentResult from direct provider data (MU + MAL + Kitsu supplement AniList)
   const enrichmentResult = buildEnrichmentResult({
