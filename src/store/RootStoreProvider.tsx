@@ -88,7 +88,8 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
 
   // Setup queries with base options - using correct procedure names
   // These will automatically cache and won't refetch on navigation
-  const mangaQuery = trpc.manga.query.useQuery({ include: { library: true, metadata: true, chapters: false }, limit: 50 }, queryOptions);
+  // No manga prefetch here: a 50-title query with full metadata (~210 KB) ran
+  // on every app load, and nothing read its data.
   const libraryQuery = trpc.library.list.useQuery(undefined, queryOptions);
   const settingsQuery = trpc.settings.get.useQuery({ key: 'all' }, queryOptions);
 
@@ -219,9 +220,9 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
     // Skip if already initialized
     if (initialized.current) return;
 
-    const isLoading = mangaQuery.isLoading || libraryQuery.isLoading || settingsQuery.isLoading;
-    const hasError = mangaQuery.isError || libraryQuery.isError || settingsQuery.isError;
-    const isSuccess = mangaQuery.isSuccess && libraryQuery.isSuccess && settingsQuery.isSuccess;
+    const isLoading = libraryQuery.isLoading || settingsQuery.isLoading;
+    const hasError = libraryQuery.isError || settingsQuery.isError;
+    const isSuccess = libraryQuery.isSuccess && settingsQuery.isSuccess;
 
     if (isLoading) {
       setLoading('initial-data-loading', true);
@@ -237,9 +238,6 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
       }
     } else if (hasError) {
       // Log errors but don't block the app
-      if (mangaQuery.isError) {
-        logger.warn('Failed to load manga data:', mangaQuery.error.message);
-      }
       if (libraryQuery.isError) {
         logger.warn('Failed to load library data:', libraryQuery.error.message);
       }
@@ -251,10 +249,6 @@ export const RootStoreProvider: FC<{children: ReactNode;}> = ({ children }) => {
       initialized.current = true;
     }
   }, [
-    mangaQuery.isLoading,
-    mangaQuery.isSuccess,
-    mangaQuery.isError,
-    mangaQuery.error,
     libraryQuery.isLoading,
     libraryQuery.isSuccess,
     libraryQuery.isError,
