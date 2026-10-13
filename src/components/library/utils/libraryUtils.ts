@@ -192,11 +192,7 @@ function applyAdvancedFilters(manga: MangaWithRelations[], filters: AdvancedFilt
     if (filters.readingStatus !== undefined && filters.readingStatus.length > 0) {
         const readingFilter = filters.readingStatus;
         filtered = filtered.filter(m => {
-            const stats = (m as { chapterStats?: MangaChapterStats | null }).chapterStats;
-            const chapters = m.Chapter ?? [];
-            const totalCount = stats ? stats.realChapterCount : chapters.length;
-            const readCount = stats ? stats.readCount : chapters.filter(ch => ch.isRead).length;
-            const downloadedCount = stats ? stats.downloadedCount : chapters.filter(ch => ch.downloadStatus === ChapterStatus.COMPLETED).length;
+            const { totalCount, readCount, downloadedCount } = chapterCounts(m);
             return readingFilter.some(status => {
                 switch (status) {
                     case 'has-chapters': return totalCount > 0;
@@ -274,6 +270,46 @@ function getLastReadTime(manga: MangaWithRelations): number {
         .filter((time: number) => time > 0);
     return readTimes.length > 0 ? Math.max(...readTimes) : 0;
 }
+interface ChapterCounts {
+    totalCount: number;
+    readCount: number;
+    downloadedCount: number;
+    hasErrors: boolean;
+}
+
+/**
+ * A title's chapter counts. Library grid rows carry `chapterStats` (the SQL
+ * aggregate) and no Chapter array, so read those first; fall back to the
+ * Chapter array for callers that load one.
+ */
+function chapterCounts(m: MangaWithRelations): ChapterCounts {
+    const stats = (m as { chapterStats?: MangaChapterStats | null }).chapterStats;
+    if (stats) {
+        return { totalCount: stats.realChapterCount, readCount: stats.readCount, downloadedCount: stats.downloadedCount, hasErrors: stats.hasErrors };
+    }
+    const chapters = m.Chapter ?? [];
+    return {
+        totalCount: chapters.length,
+        readCount: chapters.filter(ch => ch.isRead).length,
+        downloadedCount: chapters.filter(ch => ch.downloadStatus === ChapterStatus.COMPLETED).length,
+        hasErrors: chapters.some(ch => ch.downloadStatus === ChapterStatus.ERROR),
+    };
+}
+
+/** Whether a title passes one of the toolbar's basic filters. */
+function passesBasicFilter(m: MangaWithRelations, filter: FilterOption): boolean {
+    if (filter === 'completed') return m.publicationStatus === MangaPublicationStatus.COMPLETED;
+    const { totalCount, readCount, downloadedCount, hasErrors } = chapterCounts(m);
+    switch (filter) {
+        case 'read': return totalCount > 0 && readCount === totalCount;
+        case 'unread': return totalCount > 0 && readCount === 0;
+        case 'in-progress': return readCount > 0 && readCount < totalCount;
+        case 'downloaded': return downloadedCount > 0;
+        case 'has-issues': return hasErrors;
+        default: return true;
+    }
+}
+
 /**
  * Filter and sort manga based on the provided options
  */
@@ -287,69 +323,7 @@ export function filterAndSortManga(manga: MangaWithRelations[], options: FilterS
     }
     // Apply basic filters
     if (filterBy.length > 0) {
-        // eslint-disable-next-line complexity -- Multi-filter switch with 8 filter types
-        filteredManga = filteredManga.filter(m => {
-            for (const filter of filterBy) {
-                switch (filter) {
-                    case 'read': {
-                        // Every chapter has been read by the user.
-                        const chapters = m.Chapter ?? [];
-                        if (chapters.length === 0 || !chapters.every(ch => ch.isRead)) {
-                            return false;
-                        }
-                        break;
-                    }
-                    case 'unread': {
-                        // No chapter has been read yet.
-                        const chapters = m.Chapter ?? [];
-                        if (chapters.length === 0 || chapters.some(ch => ch.isRead)) {
-                            return false;
-                        }
-                        break;
-                    }
-                    case 'in-progress': {
-                        // Some but not all chapters have been read.
-                        const chapters = m.Chapter ?? [];
-                        if (chapters.length === 0) {
-                            return false;
-                        }
-                        const readCount = chapters.filter(ch => ch.isRead).length;
-                        if (readCount === 0 || readCount === chapters.length) {
-                            return false;
-                        }
-                        break;
-                    }
-                    case 'completed': {
-                        // Check if manga publication status is completed
-                        if (m.publicationStatus !== MangaPublicationStatus.COMPLETED) {
-                            return false;
-                        }
-                        break;
-                    }
-                    case 'downloaded': {
-                        // Check if any chapter is downloaded
-                        const downloadedChapters = m.Chapter ?? [];
-                        if (!downloadedChapters.some(ch => ch.downloadStatus === ChapterStatus.COMPLETED)) {
-                            return false;
-                        }
-                        break;
-                    }
-                    case 'has-issues': {
-                        // Check if there are any issues (chapters with error status)
-                        const issueChapters = m.Chapter ?? [];
-                        if (!issueChapters.some(ch => ch.downloadStatus === ChapterStatus.ERROR)) {
-                            return false;
-                        }
-                        break;
-                    }
-                    default: {
-                        // This should not happen
-                        break;
-                    }
-                }
-            }
-            return true;
-        });
+        filteredManga = filteredManga.filter(m => filterBy.every(filter => passesBasicFilter(m, filter)));
     }
     // Apply advanced filters
     if (Object.keys(advancedFilters).length > 0) {

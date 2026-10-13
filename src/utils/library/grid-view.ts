@@ -140,6 +140,9 @@ export function isUnfilteredAlphabetical(view: LibraryGridView): boolean {
     && view.mediaType === 'all';
 }
 
+/** Toolbar filters that read chapter state (all but 'completed'). */
+const CHAPTER_FILTERS: ReadonlySet<FilterOption> = new Set<FilterOption>(['read', 'unread', 'in-progress', 'downloaded', 'has-issues']);
+
 /**
  * True when the view's filter or order depends on chapter state (read,
  * downloaded, monitored, counts), so a chapter update can move titles between
@@ -149,6 +152,7 @@ export function viewDependsOnChapters(view: LibraryGridView): boolean {
   const a = view.advancedFilters;
   return view.sortBy === 'last-read'
     || view.sortBy === 'progress'
+    || view.filterBy.some((f) => CHAPTER_FILTERS.has(f))
     || a.lastReadFrom !== undefined
     || a.lastReadTo !== undefined
     || a.chaptersMin !== undefined

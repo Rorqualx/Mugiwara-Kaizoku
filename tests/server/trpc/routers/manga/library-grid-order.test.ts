@@ -55,7 +55,7 @@ const ROWS: Row[] = [
   row('Vol 2 Stories', '2024-04-01T00:00:00Z', 'HIATUS', meta({ genres: ['Romance'], tags: [], rating: null }), stats(3, 1, 3, '2024-05-01T00:00:00.000Z', false)),
   row('alpha Romance', '2024-04-02T00:00:00Z', 'ONGOING', meta({ genres: ['Romance', 'Comedy'], tags: ['School'], rating: 55, countryOfOrigin: 'CN', artists: ['Oda Studio'] }), stats(40, 10, 40, '2024-08-20T08:00:00.000Z', false)),
   row('Élan Vital', '2024-05-01T00:00:00Z', 'CANCELLED', meta({ genres: ['Drama'], tags: ['Music'], rating: 70, countryOfOrigin: 'FR' }), stats(8, 8, 0, '2024-01-01T00:00:00.000Z', false)),
-  row('Zetman', '2024-05-01T00:00:00Z', 'COMPLETED', meta({ genres: ['Action', 'Sci-Fi'], tags: ['Gore', 'Superhero'], rating: { value: 70 } }), stats(1, 0, 1, null, true)),
+  row('Zetman', '2024-05-01T00:00:00Z', 'COMPLETED', meta({ genres: ['Action', 'Sci-Fi'], tags: ['Gore', 'Superhero'], rating: { value: 70 } }), { ...stats(1, 0, 1, null, true), hasErrors: true }),
 ];
 
 /** What the library page did before: media toggle, then filterAndSortManga. */
@@ -91,7 +91,12 @@ const CASES: Case[] = [
   { name: 'search tag', searchQuery: 'gore', searchField: 'tag' },
   { name: 'search with spaces only', searchQuery: '  ', searchField: 'all' },
   { name: 'filter completed', filterBy: ['completed'] },
-  { name: 'chapter-array filters (no Chapter rows on the grid)', filterBy: ['read', 'downloaded'] },
+  { name: 'filter read', filterBy: ['read'] },
+  { name: 'filter unread', filterBy: ['unread'] },
+  { name: 'filter in-progress', filterBy: ['in-progress'] },
+  { name: 'filter downloaded', filterBy: ['downloaded'] },
+  { name: 'filter has-issues', filterBy: ['has-issues'] },
+  { name: 'filters read + downloaded', filterBy: ['read', 'downloaded'] },
   { name: 'include genres', advancedFilters: { genres: ['Horror', 'Romance'] } },
   { name: 'include tags + exclude genres', advancedFilters: { tags: ['Gore', 'Pirates'], excludeGenres: ['Horror'] } },
   { name: 'exclude tags', advancedFilters: { excludeTags: ['Gore'] } },
@@ -141,6 +146,29 @@ describe('library grid server ordering parity', () => {
     // Natural (numeric) title order, which SQL's C collation would not give.
     const titles = clientOrder(settingsFor({ name: 'x' }, 'alphabetical')).map((id) => ROWS.find((r) => r.id === id)?.title);
     expect(titles.indexOf('Vol 2 Stories')).toBeLessThan(titles.indexOf('Vol 10 Stories'));
+  });
+});
+
+describe('chapter-state toolbar filters read the rows\' chapter stats', () => {
+  // Grid rows carry chapterStats and no Chapter array; these filters used to match nothing.
+  function titlesFor(filterBy: FilterOption[]): string[] {
+    const settings = settingsFor({ name: 'x', filterBy }, 'alphabetical');
+    return serverOrder(settings).map((id) => ROWS.find((r) => r.id === id)?.title ?? '');
+  }
+
+  it.each<[FilterOption, string[]]>([
+    ['read', ['.hack//Link', 'Berserk', 'Élan Vital']],
+    ['unread', ['100 Ghosts', 'Solo Leveling', 'Zetman']],
+    ['in-progress', ['Akira', 'alpha Romance', 'One Piece', 'Vol 2 Stories']],
+    ['downloaded', ['.hack//Link', '100 Ghosts', 'Akira', 'alpha Romance', 'Berserk', 'One Piece', 'Vol 2 Stories', 'Zetman']],
+    ['has-issues', ['Zetman']],
+  ])('%s', (filter, expected) => {
+    expect(titlesFor([filter]).sort()).toEqual([...expected].sort());
+  });
+
+  it('the server loads chapter stats when one of them is on', () => {
+    expect(gridProjection(buildServerView(settingsFor({ name: 'x', filterBy: ['unread'] }, 'alphabetical'))).chapterStats).toBe(true);
+    expect(gridProjection(buildServerView(settingsFor({ name: 'x', filterBy: ['completed'] }, 'alphabetical'))).chapterStats).toBe(false);
   });
 });
 
