@@ -53,7 +53,12 @@ function parseApiResponse(
 ): PageFetchResult | null {
   if (data.error) {
     const errorInfo = data.error.info ?? data.error.code ?? 'Unknown error';
-    logger.error(`[MediaWiki API] Error for ${pageTitle}: ${errorInfo}`);
+    // A missing page is the normal answer to a probed title guess ("Volume_1"), not a failure.
+    if (data.error.code === 'missingtitle') {
+      logger.debug(`[MediaWiki API] No page ${pageTitle}`);
+    } else {
+      logger.error(`[MediaWiki API] Error for ${pageTitle}: ${errorInfo}`);
+    }
     return null;
   }
 
