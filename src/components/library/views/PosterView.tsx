@@ -37,12 +37,14 @@ interface PosterViewProps {
     scrollParentRef?: React.RefObject<HTMLElement | null>;
 }
 
-interface RowRenderContext {
-    displayedManga: MangaWithRelations[];
-    columnsPerRow: number;
-    totalCells: number;
+/**
+ * What every cell shares. Holds only settings and stable callbacks, so it
+ * keeps its identity while the grid scrolls; per-cell data (the manga, its
+ * selected state) is passed to each cell separately. A context that changed
+ * on every render re-rendered every mounted card on every scroll step.
+ */
+interface CellContext {
     selectionMode: boolean;
-    selectedItems: string[];
     toggleItemSelection: (id: string) => void;
     onMangaClick: (id: number | string) => void;
     onMangaRemove: (id: number, shouldRemoveFiles: boolean) => void;
@@ -152,11 +154,24 @@ function SelectionCheckbox({ mangaId, selected, onToggle }: { mangaId: string; s
     );
 }
 
-const MangaCell = React.memo(function MangaCell({ manga, ctx }: { manga: MangaWithRelations; ctx: RowRenderContext }): React.ReactElement | null {
-    if (!manga.id) return null;
-    const idNum = typeof manga.id === 'string' ? toNumberId(manga.id) : manga.id;
-    const idStr = String(manga.id);
-    const prefetch = (): void => { ctx.onMangaPrefetch(manga.id); };
+interface RowLayout {
+    displayedManga: MangaWithRelations[];
+    columnsPerRow: number;
+    totalCells: number;
+    selectedItems: string[];
+}
+
+const MangaCell = React.memo(function MangaCell({ manga, selected, ctx }: { manga: MangaWithRelations; selected: boolean; ctx: CellContext }): React.ReactElement | null {
+    const id = manga.id;
+    const cardManga = useMemo(() => ({ ...manga, chapters: manga.Chapter } as MangaWithRelations), [manga]);
+    const { onMangaPrefetch, onMangaRemove, onMangaClick } = ctx;
+    const prefetch = useCallback((): void => { onMangaPrefetch(id); }, [onMangaPrefetch, id]);
+    const handleRemove = useCallback((shouldRemoveFiles: boolean): void => {
+        onMangaRemove(typeof id === 'string' ? toNumberId(id) : id, shouldRemoveFiles);
+    }, [onMangaRemove, id]);
+    const handleClick = useCallback((): void => { onMangaClick(id); }, [onMangaClick, id]);
+    if (!id) return null;
+    const idStr = String(id);
     return (
         <Box
             data-manga-title={manga.title}
@@ -165,26 +180,26 @@ const MangaCell = React.memo(function MangaCell({ manga, ctx }: { manga: MangaWi
             onFocus={prefetch}
         >
             {ctx.selectionMode && (
-                <SelectionCheckbox mangaId={idStr} selected={ctx.selectedItems.includes(idStr)} onToggle={ctx.toggleItemSelection} />
+                <SelectionCheckbox mangaId={idStr} selected={selected} onToggle={ctx.toggleItemSelection} />
             )}
             <ResponsiveMangaCard
-                manga={{ ...manga, chapters: manga.Chapter } as MangaWithRelations}
+                manga={cardManga}
                 onRefresh={ctx.onRefresh}
                 onUpdate={ctx.onRefresh}
                 showMobileActions={false}
-                onRemove={(shouldRemoveFiles: boolean) => { ctx.onMangaRemove(idNum, shouldRemoveFiles); }}
-                onClick={() => { ctx.onMangaClick(manga.id); }}
+                onRemove={handleRemove}
+                onClick={handleClick}
             />
         </Box>
     );
 });
 
-function buildRowCells(rowIndex: number, ctx: RowRenderContext): React.ReactNode[] {
+function buildRowCells(rowIndex: number, layout: RowLayout, ctx: CellContext): React.ReactNode[] {
     const cells: React.ReactNode[] = [];
-    const rowStart = rowIndex * ctx.columnsPerRow;
-    for (let col = 0; col < ctx.columnsPerRow; col++) {
+    const rowStart = rowIndex * layout.columnsPerRow;
+    for (let col = 0; col < layout.columnsPerRow; col++) {
         const cellIndex = rowStart + col;
-        if (cellIndex >= ctx.totalCells) break;
+        if (cellIndex >= layout.totalCells) break;
         if (cellIndex === 0) {
             cells.push(
                 <Box key="add-manga" style={{ minWidth: 0 }}>
@@ -193,9 +208,10 @@ function buildRowCells(rowIndex: number, ctx: RowRenderContext): React.ReactNode
             );
             continue;
         }
-        const m = ctx.displayedManga[cellIndex - 1];
+        const m = layout.displayedManga[cellIndex - 1];
         if (!m?.id) continue;
-        cells.push(<MangaCell key={m.id} manga={m} ctx={ctx} />);
+        const selected = ctx.selectionMode && layout.selectedItems.includes(String(m.id));
+        cells.push(<MangaCell key={m.id} manga={m} selected={selected} ctx={ctx} />);
     }
     return cells;
 }
@@ -231,7 +247,12 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
 
     // Toasts + refetch are orchestrated in handleMangaRemove so the success
     // notification fires only AFTER the list has actually refetched.
+    // Read through a ref: useMutation returns a new object every render, and
+    // depending on it gave the remove handler (and so every cell) a new
+    // identity on every scroll step.
     const removeMangaMutation = trpc.manga.remove.useMutation();
+    const removeMangaRef = useRef(removeMangaMutation.mutateAsync);
+    removeMangaRef.current = removeMangaMutation.mutateAsync;
 
     const displayedManga = useMemo(() => {
         const filtered = filterAndSortManga(manga, {
@@ -302,7 +323,7 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
                     fallbackErrorMessage: 'An error occurred while removing the manga',
                 },
                 async () => {
-                    await removeMangaMutation.mutateAsync({ id, shouldRemoveFiles });
+                    await removeMangaRef.current({ id, shouldRemoveFiles });
                     // Wait for the library list to refetch so the card is gone BEFORE
                     // success is reported — the fix for "notify, then UI updates".
                     await onRefreshRef.current();
@@ -311,20 +332,19 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
                 logger.error('Failed to remove manga:', error instanceof Error ? error.message : String(error));
             });
         })();
-    }, [removeMangaMutation]);
+    }, []);
 
-    const ctx: RowRenderContext = useMemo(() => ({
-        displayedManga, columnsPerRow, totalCells,
-        selectionMode, selectedItems, toggleItemSelection,
+    const ctx: CellContext = useMemo(() => ({
+        selectionMode, toggleItemSelection,
         onMangaClick: handleMangaClick,
         onMangaRemove: handleMangaRemove,
         onMangaPrefetch: handleMangaPrefetch,
         onRefresh: stableOnRefresh, libraryId,
     }), [
-        displayedManga, columnsPerRow, totalCells,
-        selectionMode, selectedItems, toggleItemSelection,
+        selectionMode, toggleItemSelection,
         handleMangaClick, handleMangaRemove, handleMangaPrefetch, stableOnRefresh, libraryId,
     ]);
+    const layout: RowLayout = { displayedManga, columnsPerRow, totalCells, selectedItems };
 
     if (displayedManga.length === 0 && manga.length > 0) {
         return <EmptyFiltersState />;
@@ -352,7 +372,7 @@ export function PosterView({ manga, libraryId, onRefresh, scrollParentRef }: Pos
                         paddingBottom: GUTTER_PX,
                     }}
                 >
-                    {buildRowCells(row.index, ctx)}
+                    {buildRowCells(row.index, layout, ctx)}
                 </div>
             ))}
         </Box>

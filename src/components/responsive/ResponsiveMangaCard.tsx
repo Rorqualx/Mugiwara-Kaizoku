@@ -61,7 +61,7 @@ function getResponsiveCoverUrl(metadata: unknown, mangaId?: number): string {
   return getCoverUrl(metadata as Record<string, string | null | undefined> | null, mangaId);
 }
 
-export function ResponsiveMangaCard({
+function ResponsiveMangaCardImpl({
   manga,
   onRemove,
   onUpdate,
@@ -261,3 +261,10 @@ export function ResponsiveMangaCard({
     </Box>);
 
 }
+
+/**
+ * Memoized: a library grid renders dozens of these and re-renders on every
+ * scroll step; with stable props (see PosterView's MangaCell) a card only
+ * re-renders when its own manga changes.
+ */
+export const ResponsiveMangaCard = React.memo(ResponsiveMangaCardImpl);
