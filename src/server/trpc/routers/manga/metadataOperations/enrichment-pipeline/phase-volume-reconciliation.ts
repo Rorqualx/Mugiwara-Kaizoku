@@ -14,6 +14,7 @@ import { prisma } from '@/server/db';
 import { logger } from '@/utils/logger';
 
 import { getVolumeCapForManga } from './phase-volume-cross-validation/db-volume-cap';
+import { finalVolumeFill } from './phase-volume-reconciliation/final-volume-fill';
 import {
   extractVolumeNumberFromFileName,
   isVolumeFileName,
@@ -500,6 +501,18 @@ export async function fillEmptyVolumeRanges(mangaId: number): Promise<void> {
   if (allVolumes.length < 3) return;
 
   const updates = buildGapInterpolations(allVolumes);
+  const manga = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { Metadata: { select: { status: true, chapters: true, volumes: true } } },
+  });
+  const final = finalVolumeFill(allVolumes, manga?.Metadata ?? null);
+  if (final) {
+    updates.push({
+      id: final.id,
+      volNumber: final.volNumber,
+      data: { chapterStart: final.chapterStart, chapterEnd: final.chapterEnd, totalChapters: final.chapterEnd - final.chapterStart + 1, source: INTERPOLATED_SOURCE },
+    });
+  }
   if (updates.length === 0) return;
 
   await Promise.all(

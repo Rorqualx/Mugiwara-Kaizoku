@@ -11,6 +11,7 @@
 import { logger } from '@/utils/logger';
 
 import { sanitizeGlobalCoherence } from './phase-volume-coherence-check';
+import { agreedValue, separateSharedBoundaries } from './phase-volume-cross-validation/boundary-vote';
 import { capVolumeCount, validateConstraints } from './phase-volume-cross-validation/constraint-validation';
 import { dropDifferentEditionComicVine } from './phase-volume-cross-validation/edition-mismatch';
 import { resolveVolumeManifest } from './phase-volume-cross-validation/membership-consensus';
@@ -205,7 +206,8 @@ export function crossValidateVolumeRanges(
       const coherent = sanitizeGlobalCoherence(offsetCorrected, proposals);
       const gapFilled = fillSequenceGaps(coherent, byVolume);
       const constrained = validateConstraints(gapFilled, expectedChapterCount, trusted);
-      return expectedVolumeCount ? capVolumeCount(constrained, expectedVolumeCount, trusted) : constrained;
+      const capped = expectedVolumeCount ? capVolumeCount(constrained, expectedVolumeCount, trusted) : constrained;
+      return separateSharedBoundaries(capped, byVolume);
     }
     log.warn('Consensus output failed structural-soundness guard — falling back to legacy', {
       consensusVolumes: consensusRanges.length,
@@ -238,9 +240,7 @@ export function crossValidateVolumeRanges(
   const constrained = validateConstraints(gapFilled, expectedChapterCount, trusted);
 
   // Cap volume count to prevent runaway creation from inconsistent providers
-  const validated = expectedVolumeCount
-    ? capVolumeCount(constrained, expectedVolumeCount, trusted)
-    : constrained;
+  const validated = separateSharedBoundaries(expectedVolumeCount ? capVolumeCount(constrained, expectedVolumeCount, trusted) : constrained, byVolume);
 
   // Debug: log per-volume results and their proposals
   for (const v of validated) {
@@ -546,14 +546,29 @@ function findConsensus(
     if (multiConsensus) return multiConsensus;
   }
 
-  // Fallback: pairwise consensus
+  // Fallback: pairwise consensus — the closest pair, so two sources that
+  // agree exactly are not passed over for an earlier pair two chapters apart.
+  let closest: { a: VolumeRangeProposal; b: VolumeRangeProposal; diff: number } | null = null;
   for (let i = 0; i < proposals.length; i++) {
-    const a = proposals[i];
-    if (!a) continue;
-    const matched = findMatchingProposal(a, proposals, i + 1);
-    if (matched) return matched;
+    for (let j = i + 1; j < proposals.length; j++) {
+      const a = proposals[i];
+      const b = proposals[j];
+      if (!a || !b) continue;
+      const startDiff = Math.abs(a.chapterStart - b.chapterStart);
+      const endDiff = Math.abs(a.chapterEnd - b.chapterEnd);
+      if (startDiff > 2 || endDiff > 2) continue;
+      if (closest === null || startDiff + endDiff < closest.diff) closest = { a, b, diff: startDiff + endDiff };
+    }
   }
-  return null;
+  const matched = closest ? findMatchingProposal(closest.a, [closest.b], 0) : null;
+  if (!matched) return null;
+  // A start or end two of this volume's sources share holds even when their
+  // other ends disagree too much to pair them.
+  const start = agreedValue(proposals.map(p => p.chapterStart));
+  const end = agreedValue(proposals.map(p => p.chapterEnd));
+  const chapterStart = start !== null && Math.abs(start - matched.chapterStart) <= 2 ? Math.round(start) : matched.chapterStart;
+  const chapterEnd = end !== null && Math.abs(end - matched.chapterEnd) <= 2 ? Math.floor(end) : matched.chapterEnd;
+  return chapterEnd >= chapterStart ? { ...matched, chapterStart, chapterEnd } : matched;
 }
 
 /** Check if all proposals agree within 2-chapter tolerance and return their consensus */
@@ -578,10 +593,15 @@ function findMultiSourceConsensus(
   // Use median for end — filters outliers where one source (e.g. Wikipedia table-parse)
   // inflates the count by including bonus chapters. Median lets the majority rule:
   //   [6, 8, 6] -> median 6 (two sources agree, Wikipedia's 8 is the outlier)
-  const consStart = Math.round(Math.min(...proposals.map(p => p.chapterStart)));
+  // A start or end two or more sources share is kept: one disagreeing source
+  // cannot move it (Dr. STONE volume 3: ComicVine's counted 16 against
+  // Wikipedia's and MangaDex's 17).
+  const consStart = Math.round(agreedValue(proposals.map(p => p.chapterStart)) ?? Math.min(...proposals.map(p => p.chapterStart)));
   const sortedEnds = proposals.map(p => p.chapterEnd).sort((a, b) => a - b);
   const medianEnd = sortedEnds[Math.floor(sortedEnds.length / 2)] ?? sortedEnds[0] ?? consStart;
-  const consEnd = Math.round(medianEnd);
+  // Floor: an end of 88.5 (a decimal extra after chapter 88) rounded up to 89
+  // claimed the next volume's first chapter (Bleach volumes 10/11).
+  const consEnd = Math.floor(agreedValue(sortedEnds) ?? medianEnd);
   if (consEnd < consStart) return null;
   const maxConf = Math.max(...proposals.map(p => p.confidence));
   return {
@@ -612,7 +632,7 @@ function findMatchingProposal(
         : (METHOD_PRIORITY[a.extractionMethod] ?? 0) >= (METHOD_PRIORITY[b.extractionMethod] ?? 0) ? a : b;
       return {
         chapterStart: Math.round(Math.min(a.chapterStart, b.chapterStart)),
-        chapterEnd: Math.round(higher.chapterEnd),
+        chapterEnd: Math.floor(higher.chapterEnd),
         confidence: Math.min(1.0, Math.max(a.confidence, b.confidence) + 0.1),
         sources: [...new Set([a.source, b.source])],
       };

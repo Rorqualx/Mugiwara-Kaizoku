@@ -172,8 +172,12 @@ function extractChapterRange(description: string | undefined | null): ChapterRan
   // counts and ranges so cumulative ranges stay accurate.
   const parsed = parseChaptersFromDescription(description);
   if (parsed.length > 0) {
-    const regular = parsed.filter(ch => !isBonusTitle(ch.title));
-    const counted = regular.length > 0 ? regular : parsed;
+    // Out-of-sequence lines (Bleach's "Chapter -17" in volume 15) are neither
+    // in the main run nor its continuation: counted as a trailing unnumbered
+    // line they stretched volume 15 to 124-131 over volume 16's first chapter.
+    const inSequence = parsed.filter(ch => ch.outOfSequence !== true);
+    const regular = inSequence.filter(ch => !isBonusTitle(ch.title));
+    const counted = regular.length > 0 ? regular : inSequence;
     // When every regular chapter has a real "Chapter N:" number parsed from
     // the description, prefer those as the explicit start/end. Without this,
     // the cumulative running counter inflates ranges for series with many
@@ -185,7 +189,10 @@ function extractChapterRange(description: string | undefined | null): ChapterRan
     if (numbered.length >= 2 && numbered.length >= regular.length * NUMBERED_MAJORITY) {
       const sortedNums = [...numbered.map(ch => ch.chapterNumber)].sort((a, b) => a - b);
       const start = sortedNums.at(0);
-      const lastNumbered = sortedNums.at(-1);
+      // A decimal after the last whole chapter is that chapter's extra
+      // (Bleach volume 10 ends "88", "88.5"): the volume's whole-chapter range
+      // ends at 88, not 89 — rounding 88.5 up claimed volume 11's first chapter.
+      const lastNumbered = lastWholeChapter(sortedNums);
       if (start !== undefined && lastNumbered !== undefined) {
         const trailing = regular.length - 1 - regular.map(ch => ch.hasRealNumber).lastIndexOf(true);
         const end = lastNumbered + trailing;
@@ -208,6 +215,14 @@ function extractChapterRange(description: string | undefined | null): ChapterRan
   }
 
   return null;
+}
+
+/** The last number, floored when it is a decimal extra after a whole chapter the list also has. */
+function lastWholeChapter(sortedNums: number[]): number | undefined {
+  const last = sortedNums.at(-1);
+  if (last === undefined || Number.isInteger(last)) return last;
+  const floored = Math.floor(last);
+  return sortedNums.includes(floored) ? floored : last;
 }
 
 /**
@@ -247,9 +262,12 @@ function computeCumulativeChapterRanges(volumes: Array<Record<string, unknown>>)
     return;
   }
 
-  // Hybrid: use explicit ranges where available, cumulative for the rest
-  const DEFAULT_CHAPTER_ESTIMATE = 9;
-  let nextChapterStart = 1;
+  // Hybrid: use explicit ranges where available, cumulative for the rest.
+  // A volume with no chapter count gets no range, and neither do the counted
+  // volumes after it until an explicit range fixes the position again. The old
+  // nine-chapter estimate was stored as ComicVine's range: Dr. STONE volume 27
+  // (no description) became 233-241 in a series that ends at 236.
+  let nextChapterStart: number | null = 1;
 
   for (const vol of volumes) {
     if (vol['hasExplicitRange'] === true) {
@@ -260,13 +278,9 @@ function computeCumulativeChapterRanges(volumes: Array<Record<string, unknown>>)
       }
       continue;
     }
-
-    const count = typeof vol['chapterCount'] === 'number' ? (vol['chapterCount'] as number) : 0;
-    const effective = count > 0 ? count : DEFAULT_CHAPTER_ESTIMATE;
-
-    vol['startChapter'] = String(nextChapterStart);
-    vol['endChapter'] = String(nextChapterStart + effective - 1);
-    nextChapterStart += effective;
+    const range = countedRange(vol, nextChapterStart);
+    if (range) Object.assign(vol, range);
+    nextChapterStart = range ? Number(range.endChapter) + 1 : null;
   }
 
   log.info('Computed chapter ranges from ComicVine (hybrid explicit + cumulative)', {
@@ -311,34 +325,39 @@ function validateExplicitRanges(explicitVolumes: Array<Record<string, unknown>>)
  *  One bad explicit range (causing validation to fail) shouldn't poison all
  *  the good ones. */
 function computeFullCumulative(volumes: Array<Record<string, unknown>>): void {
-  const DEFAULT_CHAPTER_ESTIMATE = 9;
-  let nextChapterStart = 1;
+  let nextChapterStart: number | null = 1;
   let preservedExplicit = 0;
   let cumulativeFilled = 0;
 
   for (const vol of volumes) {
     if (vol['hasExplicitRange'] === true) {
       const end = parseInt(String(vol['endChapter']), 10);
-      if (!isNaN(end) && end >= nextChapterStart) {
+      if (!isNaN(end) && (nextChapterStart === null || end >= nextChapterStart)) {
         nextChapterStart = end + 1;
       }
       preservedExplicit++;
       continue;
     }
-
-    const count = typeof vol['chapterCount'] === 'number' ? (vol['chapterCount'] as number) : 0;
-    const effective = count > 0 ? count : DEFAULT_CHAPTER_ESTIMATE;
-
-    vol['startChapter'] = String(nextChapterStart);
-    vol['endChapter'] = String(nextChapterStart + effective - 1);
-    nextChapterStart += effective;
-    cumulativeFilled++;
+    const range = countedRange(vol, nextChapterStart);
+    if (range) Object.assign(vol, range);
+    nextChapterStart = range ? Number(range.endChapter) + 1 : null;
+    if (range) cumulativeFilled++;
   }
 
   log.info('Fallback range computation (preserve explicit + cumulative-fill the rest)', {
     totalVolumes: volumes.length,
     preservedExplicit,
     cumulativeFilled,
-    totalChapters: nextChapterStart - 1,
   });
+}
+
+/**
+ * The next `chapterCount` chapters for a volume without an explicit range, or
+ * null once the position is unknown (this volume has no count, or an earlier
+ * one had none).
+ */
+function countedRange(vol: Record<string, unknown>, nextChapterStart: number | null): { startChapter: string; endChapter: string } | null {
+  const count = typeof vol['chapterCount'] === 'number' ? (vol['chapterCount'] as number) : 0;
+  if (nextChapterStart === null || count <= 0) return null;
+  return { startChapter: String(nextChapterStart), endChapter: String(nextChapterStart + count - 1) };
 }

@@ -171,6 +171,10 @@ export const DESCRIPTION_CHAPTER_PATTERNS = [
   /^(?:Chapter\s+)?\[\s*#?(\d+(?:\.\d+)?)\s*\][\s::\-–—]*(.+)$/i,
   // "123. Title" or "123.5. Title" or "123) Title"
   /^(\d+(?:\.\d+)?)[.)]\s*(.+)$/,
+  // "Z=8: Raise the Smoke Signal" or "Z=215 Long, Long Road" (Dr. STONE numbers
+  // its chapters "Z=N"). Read as unnumbered, each volume's lines were counted
+  // from the previous volume's end: volume 3 = 16-24 instead of 17-25.
+  /^Z\s*=\s*(\d+(?:\.\d+)?)[\s:：\-–—]+(.+)$/,
   // "Part 123: Title"
   /^Part\s+(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // "Episode 123: Title"

@@ -28,7 +28,17 @@ export interface ParsedChapter {
    * running index assigned by title-only mode or fallback heuristic.
    */
   hasRealNumber: boolean;
+  /**
+   * True for a line numbered outside the main sequence: Bleach's prequel
+   * chapters "Chapter -17: Prelude for the Straying Stars" (in volume 15,
+   * whose main chapters are 124-130). Such a line is a real chapter of the
+   * volume but says nothing about where the main numbering runs.
+   */
+  outOfSequence?: boolean;
 }
+
+/** "Chapter -17: Title" — Bleach's negative (prequel) numbering. */
+const NEGATIVE_CHAPTER_LINE = /^Chapter\s+#?-\s?(\d+(?:\.\d+)?)[\s:：\-–—]+(.+)$/i;
 
 /**
  * Remove HTML tags and decode entities from HTML string
@@ -181,6 +191,13 @@ function tryParseChapterFromLine(
   inChapterSection: boolean,
   chapterIndex: number
 ): { chapter: ParsedChapter | null; incrementIndex: boolean } {
+  const negative = line.match(NEGATIVE_CHAPTER_LINE);
+  if (negative?.[2]) {
+    return {
+      chapter: { chapterNumber: chapterIndex, title: cleanTitle(negative[2].trim()), originalText: line, hasRealNumber: false, outOfSequence: true },
+      incrementIndex: true,
+    };
+  }
   for (const pattern of DESCRIPTION_CHAPTER_PATTERNS) {
     const match = line.match(pattern);
     if (!match) continue;
