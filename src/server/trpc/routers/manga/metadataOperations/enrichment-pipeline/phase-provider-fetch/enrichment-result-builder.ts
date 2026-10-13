@@ -11,10 +11,12 @@ import type { ComicVineIssue, ComicVineVolume } from '@/server/services/comicvin
 import { extractAniListStaffCredits, splitAniListTags } from '@/server/services/metadata/selectors/anilist-extractors';
 import type { EnrichmentResult } from '@/types/domain/enrichment-result-types';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
+import { logger } from '@/utils/logger';
 import { mapToMangaStatus } from '@/utils/status-mapper';
 
 import { mapComicVineIssuesToVolumes } from './comicvine-volume-mapper';
 import { buildMALMetadataSupplements, type MALDirectResult } from './mal-fetch';
+import { restrictToPreferredLanguage } from './mangadex-language-filter';
 import { buildMangaUpdatesMetadataSupplements, type MangaUpdatesDirectResult } from './mangaupdates-fetch';
 
 import type { KitsuDirectResult } from './kitsu-fetch';
@@ -147,7 +149,7 @@ export function buildEnrichmentResult(params: BuildEnrichmentParams): Enrichment
 
   const enrichedData = {
     manga: {
-      chapters: mergeChapterSources(extractComicVineChapters(comicvine), mangadex?.chapterList ?? []),
+      chapters: buildGranularChapters(mangaId, details?.chapters ?? 0, comicvine, mangadex?.chapterList ?? []),
       volumes: mapComicVineToVolumes(comicvine),
       totalChapters: details?.chapters ?? 0,
       sources,
@@ -497,10 +499,34 @@ function buildIdsMap(
 }
 
 /**
- * Extract individual chapters with titles and volume assignments from ComicVine
- * issue descriptions. Each issue is a tankobon volume; its description lists
- * chapter titles. We parse those and assign cumulative chapter numbers + volume.
+ * The granular (Tier-1) chapter list: ComicVine's chapters overlaid on the
+ * MangaDex numbers that pass the preferred-language gate
+ * (`mangadex-language-filter.ts`) — a number only other-language uploads
+ * provide never becomes a chapter row.
  */
+function buildGranularChapters(
+  mangaId: number,
+  aniListChapterCount: number,
+  comicvine: ComicVineDirectResult | null,
+  mangadexChapters: ChapterDataItem[],
+): Array<Record<string, unknown>> {
+  const comicvineChapters = extractComicVineChapters(comicvine);
+  const corroboratedNumbers = new Set<number>();
+  for (const ch of comicvineChapters) {
+    const num = parseFloat(String(ch['chapterNumber'] ?? ''));
+    if (Number.isFinite(num)) corroboratedNumbers.add(num);
+  }
+  const gate = restrictToPreferredLanguage(mangadexChapters, {
+    seriesChapterCount: aniListChapterCount, corroboratedNumbers,
+  });
+  if (gate.fellBack) {
+    logger.info(`[enrichmentPipeline] MangaDex has no preferred-language upload and no other provider knows the series' chapters for manga ${mangaId}; keeping all ${mangadexChapters.length} MangaDex chapter numbers`);
+  } else if (gate.dropped.length > 0) {
+    logger.info(`[enrichmentPipeline] MangaDex preferred-language gate dropped ${gate.dropped.length} other-language-only chapter numbers for manga ${mangaId}: ${gate.dropped.slice(0, 20).join(', ')}${gate.dropped.length > 20 ? ' …' : ''}`);
+  }
+  return mergeChapterSources(comicvineChapters, gate.kept);
+}
+
 /**
  * Merge ComicVine chapters with MangaDex chapter data.
  * ComicVine wins on conflict for titles; MangaDex fills `pages` gaps.
@@ -542,6 +568,11 @@ function mergeChapterSources(
   );
 }
 
+/**
+ * Extract individual chapters with titles and volume assignments from ComicVine
+ * issue descriptions. Each issue is a tankobon volume; its description lists
+ * chapter titles. We parse those and assign cumulative chapter numbers + volume.
+ */
 export function extractComicVineChapters(
   comicvine: ComicVineDirectResult | null,
 ): Array<Record<string, unknown>> {

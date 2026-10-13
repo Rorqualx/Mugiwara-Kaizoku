@@ -131,7 +131,9 @@ export async function fetchMangaDexChapters(
     // Restricting languages here makes Vol 5-8 disappear for series whose
     // English translation is incomplete (e.g. Iken Senki Volundio: 22 EN
     // chapters but ~95 across vi/es-la/ru/zh combined). `shouldReplace`
-    // dedups by chapter number, preferring the highest-page upload.
+    // dedups by chapter number, preferring the highest-page upload. Which of
+    // these numbers may become chapter ROWS is decided later by the
+    // preferred-language gate (`mangadex-language-filter.ts`).
     for (let page = 0; page < MAX_PAGES; page++) {
       // eslint-disable-next-line no-await-in-loop -- pagination is inherently sequential; next offset depends on prior response
       const resp = await client.getMangaChapters(mangaId, {
