@@ -19,6 +19,7 @@ import { logger } from '@/utils/logger';
 // Import format detector and pattern parsers
 import { detectChapterListFormat, detectPageStructure } from './format-detector';
 import { isChapterRangePattern, parseChapterRangePattern } from './formats/chapter-range-pattern';
+import { itemValue, quotedItemTitle, topLevelListItems } from './formats/list-items';
 import { parseNumberedChaptersPattern } from './formats/numbered-chapters-pattern';
 import { isZeroIndexedPattern, parseZeroIndexedPattern } from './formats/zero-indexed-pattern';
 
@@ -276,27 +277,29 @@ function extractChaptersFromOlList(listContent: string, startNum: number): Chapt
 }
 
 /**
- * Extract chapters from <li> with quoted titles.
+ * Extract chapters from <li> with quoted titles: one entry per top-level item.
  *
- * The skip-ahead group picks each alternative by its first character (plain
- * char, tag, or a quote that does not open a `"title"`), so it cannot
- * backtrack between alternatives. The previous nested-lazy form
- * `(?:[^<]*?|<[^>]*>)*?` was exponential on any <li> with no quoted title.
+ * Every item takes the next number, as the browser numbers it, and keeps its
+ * place even when no title can be read from it (its title is then empty, and
+ * the chapter parser drops it without moving the chapters after it). Matching
+ * only the items whose title a pattern recognised shifted every later chapter:
+ * Dandadan's "'Acrobatic Silky' Is Kinda Long" (its opening quote sits in a
+ * <span>) was skipped, so the page's 9-item volumes came out 8 long, and
+ * counting chapters through the volume sections filed volume 10 as 79-87
+ * instead of 77-85.
  */
 export function extractQuotedLiChapters(listContent: string, startNum: number): ChapterMatch[] {
-  const chapters: ChapterMatch[] = [];
-  const liPattern = /<li(?:\s[^>]*)?>(?:[^<\u0022\u201C\u201D]|<[^>]*>|[\u0022\u201C\u201D](?![^\u0022\u201C\u201D<]+[\u0022\u201C\u201D]))*[\u0022\u201C\u201D]([^\u0022\u201C\u201D<]+)[\u0022\u201C\u201D]/gi;
-  const liMatches = [...listContent.matchAll(liPattern)];
+  const items = topLevelListItems(listContent);
+  const titles = items.map(item => quotedItemTitle(item.inner));
+  if (titles.every(t => t === null)) return [];
 
+  const chapters: ChapterMatch[] = [];
   let currentNum = startNum;
-  for (const liMatch of liMatches) {
-    const title = liMatch[1];
-    if (!title || title.length <= 1) continue;
-    const valueMatch = liMatch[0].match(/<li\s[^>]*value="(\d+)"/i);
-    if (valueMatch?.[1]) currentNum = parseInt(valueMatch[1], 10);
-    chapters.push({ fullMatch: liMatch[0], chapterNumber: String(currentNum), chapterTitle: title });
+  items.forEach((item, i) => {
+    currentNum = itemValue(item.openTag) ?? currentNum;
+    chapters.push({ fullMatch: item.openTag + item.inner, chapterNumber: String(currentNum), chapterTitle: titles[i] ?? '' });
     currentNum++;
-  }
+  });
   return chapters;
 }
 

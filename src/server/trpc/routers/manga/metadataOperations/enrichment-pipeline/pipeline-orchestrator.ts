@@ -49,6 +49,7 @@ import { reconcileMissingVolumeRecords, fillEmptyVolumeRanges, correctVolumeAssi
 import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { anchorUnanswered, logAnchorSkip } from './pipeline-orchestrator/anchor-gate';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
+import { comicVineAttestedVolumes } from './pipeline-orchestrator/stored-comicvine-volumes';
 import { toFandomVolumeInputs, toWikipediaVolumeInputs } from './pipeline-orchestrator/volume-inputs';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybePlausibilityCheck, maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
@@ -245,10 +246,8 @@ async function extractComicVineVolumes(mangaId: number, result: UnifiedProviderR
 
   const storedVolumeData = comicvine?.['volumeData'] as Array<Record<string, unknown>> | undefined;
   if (storedVolumeData && storedVolumeData.length > 0) {
-    // Filter to volumes with chapter ranges (skip empty shells like vol 15-18)
-    const withRanges = storedVolumeData.filter(v =>
-      v['chapterStart'] !== undefined && v['chapterEnd'] !== undefined,
-    );
+    // Ranges ComicVine attested, not every mirrored Volume row (see comicVineAttestedVolumes)
+    const withRanges = comicVineAttestedVolumes(storedVolumeData);
     if (withRanges.length > 0) {
       logger.info(`[enrichmentPipeline] Using ${withRanges.length} stored ComicVine volume ranges (API unavailable, volumeId=${String(currentVolumeId)} parity confirmed)`);
       return withRanges;

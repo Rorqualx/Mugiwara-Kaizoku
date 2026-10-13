@@ -60,8 +60,40 @@ describe('extractQuotedLiChapters', () => {
     ]);
   });
 
-  it('ignores a quote that does not open a closed title', () => {
-    expect(titles('<li>5" tall</li><li>"Real"</li>')).toEqual([['1', 'Real']]);
+  it('reads no title from a quote that does not open a closed title, but the item keeps its number', () => {
+    expect(titles('<li>5" tall</li><li>"Real"</li>')).toEqual([['1', ''], ['2', 'Real']]);
+  });
+
+  it('numbers items by position when a title cannot be read (bug: Dandadan chapters after an unread item were numbered one too low)', () => {
+    expect(titles('<li>no title here</li><li>"Two"</li><li>"Three"</li>', 6)).toEqual([
+      ['6', ''],
+      ['7', 'Two'],
+      ['8', 'Three'],
+    ]);
+  });
+
+  it("reads a title whose opening quote sits in a <span> (bug: Dandadan's \"'Acrobatic Silky' Is Kinda Long\" was skipped)", () => {
+    const html = '<li>"One"</li><li><span style="padding-right:.15em;">"</span>\'Acrobatic Silky\' Is Kinda Long"<span> (<span lang="ja">アクロ</span>)</span></li>';
+    expect(titles(html, 13)).toEqual([
+      ['13', 'One'],
+      ['14', "'Acrobatic Silky' Is Kinda Long"],
+    ]);
+  });
+
+  it("reads a title with markup inside it as one item (bug: Dandadan's 'Acro-Silky' title merged with the next item)", () => {
+    const html = '<li>"Let\'s Just Call Her \'Acro-Silky<span>\'</span>"<span> (x)</span></li><li>"Acro-Silky"</li>';
+    expect(titles(html, 15)).toEqual([
+      ['15', "Let's Just Call Her 'Acro-Silky'"],
+      ['16', 'Acro-Silky'],
+    ]);
+  });
+
+  it('reads a title whose closing quote the page left out (bug: Demon Slayer volume 4 read as 26-35, then 27-35, instead of 26-34)', () => {
+    const html = '<li>"Barehanded Fight (<span lang="ja">素手喧嘩</span>, <i>Sutegoro</i>)</li><li>"Inosuke Hashibira" (x)</li>';
+    expect(titles(html, 26)).toEqual([
+      ['26', 'Barehanded Fight'],
+      ['27', 'Inosuke Hashibira'],
+    ]);
   });
 
   it('matches uppercase tags', () => {

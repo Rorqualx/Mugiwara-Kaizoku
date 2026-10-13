@@ -100,15 +100,18 @@ function parseChapterMatch(
   }
 
   const currentVolume = findVolumeForChapter(index, volumeInfo);
-  const volData = volumeInfo.get(currentVolume);
+  const volData = currentVolume === undefined ? undefined : volumeInfo.get(currentVolume);
 
   const chapterOptions: BuildChapterOptions = {
     chapterNum,
     chapterIdentifier,
     cleanedTitle,
-    volumeNumber: currentVolume,
     totalVolumes
   };
+
+  if (currentVolume !== undefined) {
+    chapterOptions.volumeNumber = currentVolume;
+  }
 
   if (volData !== undefined) {
     chapterOptions.volData = volData;
@@ -162,12 +165,12 @@ function isArtifactTitle(title: string): boolean {
  *
  * @param index - Chapter index
  * @param volumeInfo - Map of volume information
- * @returns Volume number for the chapter
+ * @returns Volume number for the chapter, or undefined past the last volume section
  */
 function findVolumeForChapter(
   index: number,
   volumeInfo: Map<number, VolumeInfo>
-): number {
+): number | undefined {
   if (volumeInfo.size === 0) return 1;
 
   for (const [volNum, info] of volumeInfo.entries()) {
@@ -176,7 +179,9 @@ function findVolumeForChapter(
     }
   }
 
-  return 1;
+  // Past every volume section: a chapter not yet collected in a volume.
+  // Filing it under volume 1 invented a volume for it.
+  return undefined;
 }
 
 /**
@@ -186,7 +191,7 @@ interface BuildChapterOptions {
   chapterNum: number;
   chapterIdentifier: string | number;
   cleanedTitle: string;
-  volumeNumber: number;
+  volumeNumber?: number;
   totalVolumes: number;
   volData?: VolumeInfo;
 }
@@ -212,7 +217,7 @@ function buildChapter(options: BuildChapterOptions): WikipediaChapter {
     title: cleanedTitle || (typeof chapterIdentifier === 'number' ? `Chapter ${chapterIdentifier}` : chapterIdentifier)
   };
 
-  if (totalVolumes > 0) {
+  if (totalVolumes > 0 && volumeNumber !== undefined) {
     chapter.volumeNumber = volumeNumber;
   }
 
@@ -283,7 +288,19 @@ function findNextVolumeMarkerPos(
   return html.length;
 }
 
-/** Extract the full HTML section for a volume (from its marker to the next volume's marker) */
+/** Position of the first top-level section heading (`<h2>`) after `from`, or the end of the page. */
+function findNextSectionHeadingPos(html: string, from: number): number {
+  const next = html.slice(from).search(/<h2[\s>]/i);
+  return next === -1 ? html.length : from + next;
+}
+
+/**
+ * Extract the full HTML section for a volume: from its marker to the next
+ * volume's marker or the next `<h2>` section, whichever comes first. The last
+ * volume used to run to the end of the page and swallow the "Chapters not yet
+ * in tankobon format" list after it: Dandadan's volume 25 counted 38 chapters
+ * (211-248) instead of 9 (211-219).
+ */
 function extractFullVolumeSection(
   html: string,
   volNum: number,
@@ -294,7 +311,10 @@ function extractFullVolumeSection(
   const startMatch = html.match(startPattern);
   if (!startMatch?.index) return null;
 
-  const endPos = findNextVolumeMarkerPos(html, volNum, totalVolumes, prefix);
+  const endPos = Math.min(
+    findNextVolumeMarkerPos(html, volNum, totalVolumes, prefix),
+    findNextSectionHeadingPos(html, startMatch.index),
+  );
   return html.slice(startMatch.index, endPos);
 }
 

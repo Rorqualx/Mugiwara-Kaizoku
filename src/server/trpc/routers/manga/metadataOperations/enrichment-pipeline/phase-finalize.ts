@@ -770,6 +770,7 @@ async function storeVolumeCoverData(
       coverImageUrl: v.coverImage ?? undefined,
       chapterStart: v.chapterStart ?? undefined,
       chapterEnd: v.chapterEnd ?? undefined,
+      source: v.source ?? undefined,
     }));
 
     const currentManga = await prisma.manga.findUnique({

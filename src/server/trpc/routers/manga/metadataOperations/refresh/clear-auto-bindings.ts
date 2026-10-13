@@ -322,7 +322,7 @@ export { chapterIsCarrier, chapterIsPointerOnly };
 
 /**
  * A volume is auto-derived (clearable on reidentify) when it's a `reconciliation`
- * volume, or its `source` is composed *entirely* of cleared provider names. This
+ * or `interpolated` volume, or its `source` is composed *entirely* of cleared provider names. This
  * catches cross-validation compounds like `"comicvine+wikipedia+mangadex"` that a
  * naive exact-name `IN` filter misses — the gap that left Dorohedoro's 23 provider
  * volumes (+ 2 reconciliation phantoms) undeletable on reidentify. A compound that
@@ -331,7 +331,7 @@ export { chapterIsCarrier, chapterIsPointerOnly };
  */
 export function shouldClearVolumeSource(source: string | null, clearedSources: Set<string>): boolean {
   if (!source) return false;
-  if (source === 'reconciliation') return true;
+  if (source === 'reconciliation' || source === 'interpolated') return true;
   const parts = source.split('+').map((s) => s.trim()).filter(Boolean);
   return parts.length > 0 && parts.every((p) => clearedSources.has(p));
 }

@@ -18,6 +18,10 @@ describe('shouldClearVolumeSource', () => {
     expect(shouldClearVolumeSource('comicvine+wikipedia+mangadex', CLEARED)).toBe(true);
   });
 
+  it('clears interpolated volumes: their ranges were computed, not provider data', () => {
+    expect(shouldClearVolumeSource('interpolated', CLEARED)).toBe(true);
+  });
+
   it('clears reconciliation phantom volumes', () => {
     expect(shouldClearVolumeSource('reconciliation', CLEARED)).toBe(true);
   });

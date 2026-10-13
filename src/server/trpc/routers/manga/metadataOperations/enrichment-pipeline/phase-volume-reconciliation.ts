@@ -487,7 +487,8 @@ export async function reconcileMissingVolumeRecords(
  *
  * When a provider (e.g., ComicVine) only covers volumes 1-20 but the manga has 24 volumes,
  * volumes 21-23 may exist as empty shells (no chapterStart/chapterEnd). This function
- * distributes the gap chapters evenly across the empty volumes.
+ * distributes the gap chapters evenly across the empty volumes, and marks each such
+ * row `source: 'interpolated'` so the guess never reads as a provider's range.
  */
 export async function fillEmptyVolumeRanges(mangaId: number): Promise<void> {
   const allVolumes = await prisma.volume.findMany({
@@ -498,15 +499,7 @@ export async function fillEmptyVolumeRanges(mangaId: number): Promise<void> {
 
   if (allVolumes.length < 3) return;
 
-  const maxChapter = await prisma.chapter.aggregate({
-    where: { mangaId },
-    _max: { chapterNumber: true },
-  });
-  const maxChNum = maxChapter._max.chapterNumber !== null
-    ? Math.floor(maxChapter._max.chapterNumber)
-    : null;
-
-  const updates = buildGapInterpolations(allVolumes, maxChNum);
+  const updates = buildGapInterpolations(allVolumes);
   if (updates.length === 0) return;
 
   await Promise.all(
@@ -521,12 +514,27 @@ export async function fillEmptyVolumeRanges(mangaId: number): Promise<void> {
   }
 }
 
-interface VolumeRow { id: number; number: number; chapterStart: number | null; chapterEnd: number | null }
-interface GapUpdate { id: number; volNumber: number; data: { chapterStart: number; chapterEnd: number; totalChapters: number } }
+export interface VolumeRow { id: number; number: number; chapterStart: number | null; chapterEnd: number | null }
+interface GapUpdate {
+  id: number;
+  volNumber: number;
+  data: { chapterStart: number; chapterEnd: number; totalChapters: number; source: typeof INTERPOLATED_SOURCE };
+}
 
-/** Build interpolation updates for gaps in volume ranges (pure function, no DB calls) */
+/** `Volume.source` of a range this module computed rather than read from a provider. */
+export const INTERPOLATED_SOURCE = 'interpolated';
+
+/**
+ * Build interpolation updates for gaps in volume ranges (pure function, no DB calls).
+ *
+ * Only a gap with a ranged volume after it is filled. Empty volumes after the
+ * last ranged one have no upper bound but the newest chapter, and splitting up
+ * to it invented their ranges: Dandadan's volume 25 (a shell created for its
+ * cover) became 214-249 when the real volume is 211-219 and chapters 220-249
+ * are in no volume yet. Those volumes stay open.
+ */
 // eslint-disable-next-line complexity -- Gap detection with boundary checks requires sequential volume iteration
-function buildGapInterpolations(allVolumes: VolumeRow[], maxChNum: number | null): GapUpdate[] {
+export function buildGapInterpolations(allVolumes: VolumeRow[]): GapUpdate[] {
   const updates: GapUpdate[] = [];
 
   let i = 0;
@@ -548,7 +556,7 @@ function buildGapInterpolations(allVolumes: VolumeRow[], maxChNum: number | null
       ? prevVol.chapterEnd + 1 : (i === 0 ? 1 : null);
     const gapEndCh = nextVol?.chapterStart !== null && nextVol?.chapterStart !== undefined
       ? nextVol.chapterStart - 1
-      : (gapStart !== null ? maxChNum : null);
+      : null;
 
     if (gapStart === null || gapEndCh === null || gapEndCh < gapStart) {
       i = gapEnd + 1;
@@ -567,7 +575,7 @@ function buildGapInterpolations(allVolumes: VolumeRow[], maxChNum: number | null
       updates.push({
         id: emptyVol.id,
         volNumber: emptyVol.number,
-        data: { chapterStart: volStart, chapterEnd: volEnd, totalChapters: volEnd - volStart + 1 },
+        data: { chapterStart: volStart, chapterEnd: volEnd, totalChapters: volEnd - volStart + 1, source: INTERPOLATED_SOURCE },
       });
       chNum = volEnd + 1;
     }
