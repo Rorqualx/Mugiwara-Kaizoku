@@ -12,19 +12,18 @@ import React from 'react';
 
 import { useRouter } from 'next/router';
 
-import {
-  useMangaDetailModals,
-  useMangaDetailData,
-  useMangaMetadataExtraction,
-  useMangaProviderCheck,
-  useMangaDetailMutations
-} from '@/hooks/manga';
 import { useManga } from '@/hooks/useManga';
 import { useNotification } from '@/hooks/useNotification';
 import type { MangaWithRelations } from '@/types/search.types';
 import type { AsyncResult } from '@/utils/async-result';
 import { toNumberId } from '@/utils/id-converters';
 import { trpc } from '@/utils/trpc-client';
+
+import { useMangaDetailData } from './useMangaDetailData';
+import { useMangaDetailModals } from './useMangaDetailModals';
+import { useMangaDetailMutations } from './useMangaDetailMutations';
+import { useMangaMetadataExtraction } from './useMangaMetadataExtraction';
+import { useMangaProviderCheck } from './useMangaProviderCheck';
 
 /**
  * Return type for useMangaDetailPageState hook
