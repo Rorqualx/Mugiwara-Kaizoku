@@ -59,14 +59,21 @@ interface ChapterRange {
  * and it must not reach into a neighbouring volume's range: Dandadan's open
  * volume 25 was widened from 214-248 to 211-248 while volume 24 ends at 213.
  *
+ * The last volume has no next neighbour to bound it, and Fandom files the
+ * chapters not yet collected under the newest volume: One Piece's volume 115
+ * (1167-1179) was widened to 1167-1195. With no next volume, the widened span
+ * may not exceed `lastVolumeSpanCap` (1.5x the median span of the stored volumes).
+ *
  * @param previousEnd last chapter of the nearest lower volume with a range
  * @param nextStart first chapter of the nearest higher volume with a range
+ * @param lastVolumeSpanCap largest span accepted when there is no next volume; null for no cap
  */
 export function acceptsFandomWidening(
   stored: ChapterRange,
   fandom: ChapterRange,
   previousEnd: number | null,
   nextStart: number | null,
+  lastVolumeSpanCap: number | null = null,
 ): boolean {
   const storedSpan = stored.end - stored.start;
   const fandomSpan = fandom.end - fandom.start;
@@ -75,7 +82,20 @@ export function acceptsFandomWidening(
   if (fandomSpan > storedSpan * 3 + 2) return false;
   if (previousEnd !== null && fandom.start <= previousEnd) return false;
   if (nextStart !== null && fandom.end >= nextStart) return false;
+  if (nextStart === null && lastVolumeSpanCap !== null && fandomSpan > lastVolumeSpanCap) return false;
   return true;
+}
+
+/** Ratio of the median stored span a last volume's widened range may reach. */
+const LAST_VOLUME_SPAN_RATIO = 1.5;
+
+/** 1.5x the median span (end - start) of the given ranges; null when there are none. */
+export function lastVolumeSpanCapFor(ranges: ChapterRange[]): number | null {
+  if (ranges.length === 0) return null;
+  const spans = ranges.map(r => r.end - r.start).sort((a, b) => a - b);
+  const mid = Math.floor(spans.length / 2);
+  const median = spans.length % 2 === 1 ? (spans[mid] ?? 0) : ((spans[mid - 1] ?? 0) + (spans[mid] ?? 0)) / 2;
+  return median * LAST_VOLUME_SPAN_RATIO;
 }
 
 /**
@@ -106,6 +126,7 @@ export async function crossValidateVolumeRanges(
   // Working copy in volume order, updated as corrections land so each
   // volume is checked against its neighbours' current ranges.
   const ranges = dbVolumes.map(v => ({ number: v.number, start: v.chapterStart as number, end: v.chapterEnd as number }));
+  const lastVolumeSpanCap = lastVolumeSpanCapFor(ranges);
 
   let corrected = 0;
   for (const [i, current] of ranges.entries()) {
@@ -114,7 +135,7 @@ export async function crossValidateVolumeRanges(
 
     const previousEnd = ranges[i - 1]?.end ?? null;
     const nextStart = ranges[i + 1]?.start ?? null;
-    if (!acceptsFandomWidening(current, fandomRange, previousEnd, nextStart)) continue;
+    if (!acceptsFandomWidening(current, fandomRange, previousEnd, nextStart, lastVolumeSpanCap)) continue;
 
     // eslint-disable-next-line no-await-in-loop -- Sequential DB updates for volume range correction
     await prisma.volume.updateMany({

@@ -141,6 +141,40 @@ async function linkBySingleVolumeFallback(mangaId: number): Promise<number> {
   return result.count;
 }
 
+interface LegacyVolumeRow { id: number; volume: number | null; chapterNumber: number | null }
+interface VolumeTarget { id: number; number: number; chapterStart: number | null; chapterEnd: number | null }
+
+/**
+ * Split unlinked rows by whether their legacy `Chapter.volume` int can be linked.
+ *
+ * A row whose int names a volume with a range that excludes its chapter carries a
+ * stale int (a Fandom value, or a Wikipedia misparse: One Piece chapter 1195 arrived
+ * as volume 15, whose range is 127-136). Linking it is refused, and the int is cleared
+ * too: left in place, the detail UI counted the row under that volume and the volume's
+ * whole-volume row went PENDING for it. Pass 2 then links it by range, if any covers it.
+ */
+export function planLegacyVolumeLinks(
+  chapters: LegacyVolumeRow[],
+  volByNum: Map<number, VolumeTarget>,
+): { links: Array<{ id: number; volumeId: number }>; staleIntIds: number[] } {
+  const links: Array<{ id: number; volumeId: number }> = [];
+  const staleIntIds: number[] = [];
+  for (const ch of chapters) {
+    if (ch.volume === null) continue;
+    const target = volByNum.get(ch.volume);
+    if (!target) continue;
+    const { chapterStart: cs, chapterEnd: ce } = target;
+    // A decimal extra (255.5) belongs to the volume holding its integer part.
+    const n = ch.chapterNumber !== null ? Math.floor(ch.chapterNumber) : null;
+    if (cs !== null && ce !== null && n !== null && (n < cs || n > ce)) {
+      staleIntIds.push(ch.id);
+      continue;
+    }
+    links.push({ id: ch.id, volumeId: target.id });
+  }
+  return { links, staleIntIds };
+}
+
 async function linkByChapterVolumeField(mangaId: number): Promise<number> {
   const chapters = await prisma.chapter.findMany({
     where: { mangaId, volume: { not: null }, volumeId: null },
@@ -152,30 +186,16 @@ async function linkByChapterVolumeField(mangaId: number): Promise<number> {
     where: { mangaId },
     select: { id: true, number: true, chapterStart: true, chapterEnd: true },
   });
-  const volByNum = new Map(volumes.map(v => [v.number, v]));
+  const { links, staleIntIds } = planLegacyVolumeLinks(chapters, new Map(volumes.map(v => [v.number, v])));
 
-  let linked = 0;
-  for (const ch of chapters) {
-    if (ch.volume === null) continue;
-    const target = volByNum.get(ch.volume);
-    if (!target) continue;
-    // Reject the link when the target volume has a range and this chapter
-    // doesn't fit it — the legacy `Chapter.volume` int is sometimes a stale
-    // Fandom value that contradicts the cross-validated range. Pass 2
-    // (linkByChapterRange) will pick up the correct volume in that case.
-    const hasRange = target.chapterStart !== null && target.chapterEnd !== null;
-    if (hasRange && ch.chapterNumber !== null) {
-      const cs = target.chapterStart;
-      const ce = target.chapterEnd;
-      if (cs !== null && ce !== null && (ch.chapterNumber < cs || ch.chapterNumber > ce)) {
-        continue;
-      }
-    }
-    // eslint-disable-next-line no-await-in-loop -- per-chapter sequential FK update
-    await prisma.chapter.update({ where: { id: ch.id }, data: { volumeId: target.id } });
-    linked++;
+  if (staleIntIds.length > 0) {
+    await prisma.chapter.updateMany({ where: { id: { in: staleIntIds } }, data: { volume: null } });
   }
-  return linked;
+  for (const link of links) {
+    // eslint-disable-next-line no-await-in-loop -- per-chapter sequential FK update
+    await prisma.chapter.update({ where: { id: link.id }, data: { volumeId: link.volumeId } });
+  }
+  return links.length + staleIntIds.length;
 }
 
 async function linkByChapterRange(mangaId: number): Promise<number> {
