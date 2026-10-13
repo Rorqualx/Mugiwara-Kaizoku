@@ -216,7 +216,7 @@ async function tryAndCacheFandom(
  * Merge DB synonyms with caller-supplied alt titles. Caller hands in variants
  * that aren't in DB yet because Phase 1 runs before Metadata.synonyms is persisted.
  */
-async function loadAltTitlesForFandom(
+export async function loadAltTitlesForFandom(
   mangaId: number,
   title: string,
   externalAltTitles: string[] | undefined,
@@ -562,14 +562,12 @@ function generateFandomSlugs(title: string, altTitles: ReadonlyArray<string> = [
 
 /**
  * Fetch chapter and volume data from a Fandom wiki URL using the adaptive parser.
- * Returns normalized ChapterDataItem/VolumeDataItem arrays.
- *
- * When the adaptive parser follows interwiki links to a different domain
- * (e.g., monstermanga → obluda), the `resolvedDomain` is returned so callers
- * can update the cached URL.
+ * Returns normalized ChapterDataItem/VolumeDataItem arrays. When the adaptive parser follows interwiki links to another
+ * domain (monstermanga → obluda), `resolvedDomain` is returned so callers can update the cached URL.
+ * `wikiNameHints` (synonyms) only tell the list-page resolver whether the wiki is this series' own.
  */
 // eslint-disable-next-line complexity -- Multi-strategy fetch: page-passthrough + self-heal retry + adaptive parse + direct-extract fallback + cross-wiki redirect detection. Each branch is a distinct, necessary fallback; splitting would scatter the single linear fetch flow.
-export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: string, seriesAltTitles?: string[], pageCounts?: { requested: number; fetched: number }): Promise<{
+export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: string, seriesAltTitles?: string[], pageCounts?: { requested: number; fetched: number }, wikiNameHints?: string[]): Promise<{
   chapterList: ChapterDataItem[];
   volumeList: VolumeDataItem[];
   rawHtml?: string;
@@ -594,6 +592,7 @@ export async function fetchFandomChapterData(fandomUrl: string, seriesTitle?: st
       useCache: false,
       ...(seriesTitle ? { seriesTitle } : {}),
       ...(seriesAltTitles && seriesAltTitles.length > 0 ? { seriesAltTitles } : {}),
+      ...(wikiNameHints && wikiNameHints.length > 0 ? { wikiNameHints } : {}),
       // The caller's tally of chapter pages asked for and received, across every parse attempt.
       ...(pageCounts ? { onChapterPages: (requested: number, fetched: number): void => addPageCounts(pageCounts, requested, fetched) } : {}),
     };

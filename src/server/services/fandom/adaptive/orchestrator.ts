@@ -29,12 +29,14 @@ import { isIdVolumeTableStructure, parseIdVolumeTableStructure } from './id-volu
 import { isJoJoStructure, parseJoJoStructure } from './jojo-parser';
 import { fetchMainPageMetadata, fetchPageMetadata } from './metadata-fetcher';
 import { isNumberedRowStructure, parseNumberedRowStructure } from './numbered-row-parser';
+import { dropCollapsedVolumeAssignment } from './orchestrator/collapsed-volume-guard';
 import {
   buildMangaData,
   createFailureResult,
   mergeChapterTitlesFromNumberedList,
   mergeMetadataIntoMangaData,
 } from './orchestrator/data-builders';
+import { resolveTargetListPages, supplementVolumesFromPage } from './orchestrator/list-page-target';
 import {
   convertAlternatingRowToStandard,
   convertArcBasedToStandard,
@@ -1697,6 +1699,19 @@ export async function adaptiveParse(
   let targetUrl = isUrl ? input : null;
   let canonicalDomain = domain;
 
+  // Deterministic list-page lookup through the MediaWiki API: re-checks a bound
+  // page (kept unless another page clearly lists more chapters) and replaces
+  // HEAD-probe guessing when nothing is bound. A null result keeps the old path.
+  const listPages = await resolveTargetListPages(domain, targetUrl, mergedOptions);
+  let volumePageUrl: string | null = null;
+  if (listPages) {
+    if (targetUrl && listPages.chapterPageUrl !== targetUrl) {
+      logger.info(`[adaptiveParse] Bound page ${targetUrl} replaced by ${listPages.chapterPageUrl} (lists more chapters)`);
+    }
+    targetUrl = listPages.chapterPageUrl;
+    if (listPages.volumePageUrl !== listPages.chapterPageUrl) volumePageUrl = listPages.volumePageUrl;
+  }
+
   if (!targetUrl) {
     // Try series-specific pages first when a seriesTitle is provided
     // (handles franchise wikis like jojos.fandom.com where generic discovery
@@ -1850,6 +1865,11 @@ export async function adaptiveParse(
     if (MULTI_PAGE_WIKIS[canonicalDomain]) {
       const mergedData = await tryMergeMultiPageData(canonicalDomain, extraction.parsedData, mergedOptions);
       extraction.parsedData = mergedData;
+    }
+
+    // The wiki keeps its volume list on a separate page: take volumes from there.
+    if (volumePageUrl && volumePageUrl !== finalUrl) {
+      await supplementVolumesFromPage(extraction.parsedData, volumePageUrl, async (u) => (await tryExtractFromUrl(u, mergedOptions)).parsedData);
     }
 
     // Enhancement: If we have many chapters but few volumes, try extracting from "Volume N Chapters:" labels
@@ -2194,6 +2214,7 @@ export async function adaptiveParse(
       pageMetadataResult = await metadataPromise;
     }
 
+    dropCollapsedVolumeAssignment(extraction.parsedData, finalUrl);
     let mangaData = buildMangaData(extraction.parsedData, finalUrl);
 
     if (pageMetadataResult.success && pageMetadataResult.metadata) {
@@ -2299,7 +2320,9 @@ export async function adaptiveParse(
       }
     }
 
-    const mangaData = buildMangaData({ chapters: chapterData, volumes }, finalUrl);
+    const lastResort = { chapters: chapterData, volumes };
+    dropCollapsedVolumeAssignment(lastResort, `${canonicalDomain} category discovery`);
+    const mangaData = buildMangaData(lastResort, finalUrl);
     const pageMetadataResult = await metadataPromise;
     const mergedData = pageMetadataResult.success && pageMetadataResult.metadata
       ? mergeMetadataIntoMangaData(mangaData, pageMetadataResult.metadata, pageMetadataResult.mainPageUrl)

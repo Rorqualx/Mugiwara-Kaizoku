@@ -6,6 +6,7 @@
  * volume assignments, cover images, and descriptions.
  */
 
+import { findCollapsedVolumeInMap } from '@/server/services/fandom/adaptive/orchestrator/collapsed-volume-guard';
 import { parseFandomUrl, fetchPageHtmlViaApi } from '@/server/services/fandom/utils/mediaWikiApiFetch';
 import { logger } from '@/utils/logger';
 
@@ -101,6 +102,13 @@ export async function extractFromMediaWikiApi(
   }
 
   const volumeMap = extractVolumeAssignments(htmlToScan, titleMap, usedPadded);
+  // A page whose "Volume N" markers sit before the whole list files every
+  // chapter under one volume; such a map must not override real assignments.
+  const collapsedVolume = findCollapsedVolumeInMap(volumeMap);
+  if (collapsedVolume !== null) {
+    logger.warn(`[enrichmentPipeline] MediaWiki fallback filed ${Object.keys(volumeMap).length} chapters mostly under volume ${collapsedVolume} from ${sourceUrl} — volume assignments discarded`);
+    for (const k of Object.keys(volumeMap)) delete volumeMap[Number(k)];
+  }
   const existingVolumeCount = Object.keys(chapterVolumeMap).length;
   const fallbackVolumeCount = Object.keys(volumeMap).length;
 

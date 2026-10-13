@@ -51,7 +51,7 @@ import { buildProviderDirectives, skipsSecondWave } from './phase-provider-fetch
 import { settledValueOr } from './phase-provider-fetch/wave-merge';
 import { applyWikiGate } from './phase-provider-fetch/wiki-gate';
 import { anchorUnanswered } from './pipeline-orchestrator/anchor-gate';
-import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, updateCachedFandomUrl } from './wiki-discovery';
+import { discoverFandomWikiUrl, fetchFandomChapterData, fetchWikipediaChapterData, loadAltTitlesForFandom, updateCachedFandomUrl } from './wiki-discovery';
 
 import type { EnrichmentPipelineOptions, EnrichmentProgress, UnifiedProviderResults } from './types';
 
@@ -755,7 +755,11 @@ async function fetchFandomForPhase1(
   if (!fandomUrl) return null;
 
   const chapterPages = { requested: 0, fetched: 0 };
-  const fetchResult = await fetchFandomChapterData(fandomUrl, title, externalAltTitles, chapterPages);
+  // Synonyms tell the list-page resolver whether the wiki is this series' own
+  // ("Call of the Night Wiki" is Yofukashi no Uta's) or a shared franchise wiki.
+  const wikiNameHints = (await loadAltTitlesForFandom(mangaId, title, externalAltTitles))
+    .filter(t => /[a-z]/i.test(t)).slice(0, 12);
+  const fetchResult = await fetchFandomChapterData(fandomUrl, title, externalAltTitles, chapterPages, wikiNameHints);
 
   // Persist the actual article page the parser extracted from. This preserves
   // the granular spin-off page (e.g. ".../Attack_on_Titan:_Before_the_Fall_

@@ -439,6 +439,8 @@ export interface AdaptiveParserOptions {
   /** Alternate titles (romaji/synonyms) used to resolve the series-specific
    *  page on a shared franchise wiki (e.g. spin-offs on attackontitan.fandom.com) */
   seriesAltTitles?: string[];
+  /** Other names of the series (synonyms) — only used to tell whether the wiki is the series' own. */
+  wikiNameHints?: string[];
   /** Told after each batch of chapter pages: how many were asked for, how many came back. */
   onChapterPages?: (requested: number, fetched: number) => void;
 }

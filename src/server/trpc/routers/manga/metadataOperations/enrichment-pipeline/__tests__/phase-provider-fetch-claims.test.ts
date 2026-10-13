@@ -60,6 +60,7 @@ jest.mock('../wiki-discovery', () => ({
   discoverFandomWikiUrl: jest.fn(),
   fetchFandomChapterData: jest.fn(),
   fetchWikipediaChapterData: jest.fn(),
+  loadAltTitlesForFandom: jest.fn(() => Promise.resolve([])),
   updateCachedFandomUrl: jest.fn(() => Promise.resolve()),
 }));
 
