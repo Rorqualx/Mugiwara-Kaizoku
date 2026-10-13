@@ -14,7 +14,7 @@ import path from 'path';
 
 
 import { prisma as defaultPrisma } from '@/server/db';
-import { ensureDirectoriesExist } from '@/utils/defaultPaths';
+import { ensureDirectoriesExist, getUserLibrariesRoot } from '@/utils/defaultPaths';
 import { logger } from '@/utils/logger';
 
 import type { Library, PrismaClient } from '@prisma/client';
@@ -25,10 +25,10 @@ export const DEFAULT_LIBRARY_NAME = 'My Manga';
 /**
  * Resolve (and create on disk) the per-user library directory for a given name.
  * Mirrors `createLibraryDirectory` in the library router so auto-provisioned and
- * user-created libraries share the same `data/libraries/<owner>/<name>` layout.
+ * user-created libraries share the same `<libraries root>/<owner>/<name>` layout.
  */
 async function resolveLibraryDir(name: string, ownerId: string): Promise<string> {
-  const librariesDir = path.join(path.resolve(process.cwd(), 'data'), 'libraries');
+  const librariesDir = getUserLibrariesRoot();
   const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const safeOwner = ownerId.replace(/[^a-zA-Z0-9]+/g, '-');
   const resolvedPath = path.join(librariesDir, safeOwner, safeName);

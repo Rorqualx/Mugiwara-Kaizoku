@@ -89,6 +89,26 @@ export function getDefaultLibraryPath(name: string): string {
   }
   return path.join(LIBRARIES_DIR, safeName);
 }
+
+/**
+ * Root under which per-user libraries get their folders
+ * (`<root>/<owner>/<library-name>`).
+ *
+ * When MANGA_FILES_DIR is set (Docker: `/library`, the manga bind-mount on the
+ * NAS) libraries live under it. Without it they fall back to the project's
+ * `data/libraries`, as before. Libraries used to be created under
+ * `<cwd>/data/libraries` even in Docker, i.e. `/config/data` on the host's
+ * root disk, so every download into them filled the root disk.
+ *
+ * @returns {string} Absolute path of the libraries root
+ */
+export function getUserLibrariesRoot(): string {
+  const mangaRoot = process.env['MANGA_FILES_DIR'];
+  return mangaRoot !== undefined && mangaRoot !== ''
+    ? path.join(path.resolve(mangaRoot), 'libraries')
+    : path.join(path.resolve(process.cwd(), 'data'), 'libraries');
+}
+
 /**
  * Gets the default download path
  *

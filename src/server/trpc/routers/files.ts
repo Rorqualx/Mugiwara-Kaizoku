@@ -13,6 +13,7 @@ import * as path from 'path';
 import { z } from 'zod';
 
 import { getPathMapper } from '@/server/services/download/pathMapper';
+import { getUserLibrariesRoot } from '@/utils/defaultPaths';
 import { logger } from '@/utils/logger';
 
 import { protectedProcedure } from '../procedures';
@@ -61,6 +62,10 @@ function getAllowedDirectories(): string[] {
   // Add library directories (from config or default)
   const librariesDir = process.env['LIBRARIES_DIR'] ?? path.join(process.cwd(), 'data', 'libraries');
   allowed.push(librariesDir);
+  // Per-user libraries are created under the manga mount when one is set
+  // (Docker: /library/libraries on the NAS) — see getUserLibrariesRoot.
+  const userLibrariesRoot = getUserLibrariesRoot();
+  if (!allowed.includes(userLibrariesRoot)) allowed.push(userLibrariesRoot);
 
   // Add temp directories if specified
   if (process.env['TEMP_IMPORT_DIR']) {

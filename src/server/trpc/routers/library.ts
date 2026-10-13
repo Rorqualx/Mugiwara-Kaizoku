@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { prisma } from '@/server/db';
 import { realtimeEmitter } from '@/server/services/realtime/RealtimeEventEmitter';
-import { ensureDirectoriesExist, resolveLibraryPath } from '@/utils/defaultPaths';
+import { ensureDirectoriesExist, getUserLibrariesRoot, resolveLibraryPath } from '@/utils/defaultPaths';
 import { ValidationError } from '@/utils/errors';
 import { logger } from '@/utils/logger';
 import { isObject, hasProperty } from '@/utils/type-guards';
@@ -81,8 +81,7 @@ async function resolveAndValidateLibraryPath(inputPath: string, excludeId: numbe
 }
 
 async function createLibraryDirectory(name: string, ownerId: string): Promise<string> {
-  const projectRoot = process.cwd();
-  const librariesDir = path.join(path.resolve(projectRoot, 'data'), 'libraries');
+  const librariesDir = getUserLibrariesRoot();
   const safeName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const safeOwner = ownerId.replace(/[^a-zA-Z0-9]+/g, '-');
   const resolvedPath = path.join(librariesDir, safeOwner, safeName);
