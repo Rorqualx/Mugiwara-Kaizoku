@@ -3,12 +3,12 @@
  * 
  * This module sets up the tRPC client for making type-safe API calls from the frontend.
  * It configures the client with SuperJSON transformer for enhanced serialization and
- * a streaming HTTP batch link (see the links comment below).
+ * an HTTP batch link (see the links comment below).
  * 
  * @module trpc-client
  */
 
-import { httpBatchStreamLink } from '@trpc/client';
+import { httpBatchLink } from '@trpc/client';
 import { createTRPCNext } from '@trpc/next';
 import superjson from 'superjson';
 
@@ -39,7 +39,7 @@ function getBaseUrl(): string {
  *
  * Configured with:
  * - SuperJSON transformer for handling dates, BigInts, and other complex types
- * - Streaming batch link: calls made together share one HTTP request
+ * - Batch link: calls made together share one HTTP request
  * - Client-side rendering (SSR disabled for simplicity)
  *
  * @example
@@ -53,16 +53,21 @@ export const trpc = createTRPCNext<AppRouter>({
   config() {
     return {
       links: [
-        // Calls made in the same tick share one HTTP request, and each result
-        // streams back as soon as it is ready, so a slow call (a manga with
-        // all its chapters) does not hold up the small ones in its batch.
+        // Calls made in the same tick share one HTTP request.
+        //
+        // Not httpBatchStreamLink: on a streamed response tRPC sets
+        // `transfer-encoding: chunked` itself and Bun's node:http adds its own,
+        // so the header is sent twice. Browsers accept that, but the HTTPS
+        // proxy (Caddy, Go's HTTP client) rejects it and answers 502 — which
+        // took prod down on 2026-10-13. A plain batch response carries the
+        // header once and passes through the proxy.
         //
         // Batching was off from 2025-10 to 2026-10 after "manga detail returns
         // wrong data on rapid clicks". The cause was the server's response
         // cache, which keyed on the whole request's input, so two calls to one
         // procedure in a batch shared an entry; it now keys on each call's own
         // input (and caller) — see cachingMiddleware.
-        httpBatchStreamLink({
+        httpBatchLink({
           url: `${getBaseUrl()}/api/trpc`,
           transformer: superjson,
           // Batched inputs go in the GET query string; split before proxies
