@@ -295,6 +295,22 @@ describe('correctVolumeAssignments', () => {
     expect(prisma.chapter.updateMany).not.toHaveBeenCalled();
   });
 
+  it('leaves a chapter awaiting its volume (-1) past every range as it is instead of unlinking it each run', async () => {
+    (prisma.volume.findMany as jest.Mock).mockResolvedValue([makeVolume(1, 1, 10), makeVolume(2, 11, 20), makeVolume(3, 21, 30)]);
+    (prisma.chapter.findMany as jest.Mock).mockResolvedValue([
+      { id: 1, chapterNumber: 31, volume: -1, volumeId: null, filePath: null, fileName: null },
+      { id: 2, chapterNumber: 32, volume: 4, volumeId: null, filePath: null, fileName: null },
+    ]);
+
+    await correctVolumeAssignments(MANGA_ID);
+
+    expect(prisma.chapter.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.chapter.updateMany).toHaveBeenCalledWith({
+      where: { mangaId: MANGA_ID, chapterNumber: { in: [32] } },
+      data: { volume: null, volumeId: null },
+    });
+  });
+
   it('should skip when fewer than 3 volumes have ranges', async () => {
     (prisma.volume.findMany as jest.Mock).mockResolvedValue([
       makeVolume(1, 1, 10),
@@ -460,6 +476,16 @@ describe('reconcileMissingVolumeRecords', () => {
 
     expect(prisma.volume.createMany).toHaveBeenCalled();
     expect(prisma.chapter.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: { volume: null } }));
+  });
+
+  it('does not count a row with neither a chapter number nor a file as evidence of a volume (One Piece empty Volume 117 rebuilt from a deleted volume\'s per-volume row)', async () => {
+    (prisma.$queryRaw as jest.Mock).mockResolvedValue([]);
+
+    await reconcileMissingVolumeRecords(MANGA_ID, null);
+
+    const sql = ((prisma.$queryRaw as jest.Mock).mock.calls[0][0] as string[]).join('?');
+    expect(sql).toContain('("chapterNumber" IS NOT NULL OR COALESCE("filePath", \'\') <> \'\')');
+    expect(prisma.volume.createMany).not.toHaveBeenCalled();
   });
 
   it('should create simple Volume record when orphan count is within average', async () => {
