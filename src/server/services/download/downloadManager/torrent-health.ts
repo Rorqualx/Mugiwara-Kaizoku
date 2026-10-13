@@ -154,14 +154,19 @@ export async function handleProgressFailure(
         willRetry: false,
     });
 
-    // iter-4: remove from client but keep downloaded files on disk. The
-    // reconciliation sweep scans the filesystem for matching release titles
-    // when the client no longer tracks the torrent — preserved files are
-    // what lets a "failed" chapter get rescued if the torrent actually
-    // finished in the background.
+    // A torrent that reached 100% keeps its files: the reconciliation sweep
+    // scans the filesystem for matching release titles once the client no
+    // longer tracks the torrent, and can still import it.
+    //
+    // An unfinished one has its partial data deleted. Removing it stops the
+    // download, so it can never finish later, and its partial files usually
+    // sit in the client's incomplete-download folder, which Kaizoku cannot
+    // even see. Keeping them leaked 165 GB of abandoned manga packs onto the
+    // download host's root disk before this was changed (2026-10-13).
+    const keepFiles = progress >= 100;
     try {
-        await clientService.removeDownload(clientType, downloadId, false);
-        logger.info(`[DownloadManager] Removed failed download ${downloadId} from ${clientType} (files preserved)`);
+        await clientService.removeDownload(clientType, downloadId, !keepFiles);
+        logger.info(`[DownloadManager] Removed failed download ${downloadId} from ${clientType} (${keepFiles ? 'files preserved' : `partial data deleted at ${progress}%`})`);
     } catch (removeErr: unknown) {
         logger.warn(`[DownloadManager] Could not remove download ${downloadId}:`, removeErr);
     }
