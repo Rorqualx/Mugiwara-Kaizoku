@@ -13,7 +13,7 @@ import { describe, it, expect, jest } from '@jest/globals';
 jest.mock('@/server/db', () => ({ prisma: { $queryRaw: jest.fn() } }));
 
 import { prisma } from '@/server/db';
-import { filesOutrunLastVolume, getVolumeCapForManga, volumeCapFor } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation/db-volume-cap';
+import { corroboratedFinalChapter, filesOutrunLastVolume, getVolumeCapForManga, misnumberedPastFinalRows, volumeCapFor } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-volume-cross-validation/db-volume-cap';
 
 const base = { endDate: null, country: 'JP', format: 'MANGA' };
 
@@ -98,5 +98,68 @@ describe('getVolumeCapForManga', () => {
       pastRows: [{ chapterNumber: 10, volume: 21 }, { chapterNumber: 200.5, volume: 20 }],
     }] as never);
     await expect(getVolumeCapForManga(27)).resolves.toEqual({ cap: 21, source: 'metadata' });
+  });
+});
+
+describe('mis-numbered files past a finished series\' agreed final chapter', () => {
+  // Tokyo Ghoul: 14 volumes end at 143; AniList and Kitsu count 144 (one extra),
+  // MangaUpdates 143. Rows from "V09"-"V13" archives numbered 144-159 (they hold
+  // chapters 69-121) used to raise the cap to 15 and reconciliation rebuilt a
+  // "volume 15" over 144-159 on every refresh.
+  const tgClaims = [
+    { provider: 'anilist', chapters: 144 }, { provider: 'kitsu', chapters: 144 },
+    { provider: 'mangaupdates', chapters: 143 },
+  ];
+  const tgRows = [144, 145, 146, 147, 148, 158, 159].map(n => ({ chapterNumber: n, volume: 15 }));
+
+  it('takes the final chapter two providers agree on, and none when no two agree', () => {
+    expect(corroboratedFinalChapter(tgClaims)).toBe(144);
+    expect(corroboratedFinalChapter([{ provider: 'anilist', chapters: 66 }, { provider: 'mangaupdates', chapters: 48 }])).toBeNull();
+    expect(corroboratedFinalChapter([{ provider: 'anilist', chapters: 201 }, { provider: 'anilist', chapters: 201 }])).toBeNull();
+    expect(corroboratedFinalChapter([{ provider: 'anilist', chapters: null }, { provider: 'kitsu', chapters: 0 }])).toBeNull();
+  });
+
+  it('does not let Tokyo Ghoul\'s rows numbered 144-159 (filed in a rebuilt volume 15) earn a 15th volume', () => {
+    expect(filesOutrunLastVolume(tgRows, 143, 14, 144)).toBe(false);
+    expect(misnumberedPastFinalRows(tgRows, 143, 14, 144)).toHaveLength(tgRows.length);
+    // Without the agreed final chapter the old rule still applies.
+    expect(filesOutrunLastVolume(tgRows, 143, 14, null)).toBe(true);
+  });
+
+  it('treats a row past the agreed final chapter as mis-numbered even before the last volume\'s range is known', () => {
+    expect(misnumberedPastFinalRows([{ chapterNumber: 159, volume: 15 }], null, 14, 144)).toHaveLength(1);
+    expect(misnumberedPastFinalRows([{ chapterNumber: 143.5, volume: 14 }], null, 14, 143)).toHaveLength(0);
+  });
+
+  it('keeps Solo Leveling\'s volume 16: files 49-201 lie inside a series that ends at 201, far past volume 15\'s end at 48', () => {
+    const rows = [{ chapterNumber: 49, volume: 16 }, { chapterNumber: 201, volume: 16 }];
+    expect(misnumberedPastFinalRows(rows, 48, 15, 201)).toHaveLength(0);
+    expect(filesOutrunLastVolume(rows, 48, 15, 201)).toBe(true);
+  });
+
+  it('still lets a numberless archive filed past the count earn its volume (Jujutsu Kaisen "V31")', () => {
+    expect(filesOutrunLastVolume([{ chapterNumber: null, volume: 31 }], 271, 30, 271)).toBe(true);
+  });
+
+  it('caps finished Tokyo Ghoul at 14 from its stored claims, and finished Solo Leveling at 16', async () => {
+    jest.mocked(prisma.$queryRaw).mockResolvedValueOnce([{
+      ...base, volumes: 14, status: 'COMPLETED', lastVolumeEnd: 143, pastRows: tgRows, finalClaims: tgClaims,
+    }] as never);
+    await expect(getVolumeCapForManga(38)).resolves.toEqual({ cap: 14, source: 'metadata' });
+    jest.mocked(prisma.$queryRaw).mockResolvedValueOnce([{
+      ...base, volumes: 15, status: 'COMPLETED', lastVolumeEnd: 48,
+      pastRows: [{ chapterNumber: 49, volume: 16 }, { chapterNumber: 201, volume: 16 }],
+      finalClaims: [{ provider: 'anilist', chapters: 201 }, { provider: 'mangaupdates', chapters: 201 }],
+    }] as never);
+    await expect(getVolumeCapForManga(102)).resolves.toEqual({ cap: 16, source: 'metadata' });
+  });
+
+  it('ignores the chapter counts of a running series: its latest chapter is not a final one', async () => {
+    jest.mocked(prisma.$queryRaw).mockResolvedValueOnce([{
+      ...base, volumes: 10, status: 'ONGOING', lastVolumeEnd: 90,
+      pastRows: [{ chapterNumber: 95, volume: null }],
+      finalClaims: [{ provider: 'anilist', chapters: 91 }, { provider: 'mangaupdates', chapters: 91 }],
+    }] as never);
+    await expect(getVolumeCapForManga(1)).resolves.toEqual({ cap: 11, source: 'metadata' });
   });
 });

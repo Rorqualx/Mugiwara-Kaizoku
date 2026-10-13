@@ -20,6 +20,7 @@
  */
 
 import { prisma } from '@/server/db';
+import { logger } from '@/utils/logger';
 
 const KR_WEBTOON_CAP = 1;
 const OVERSHOOT_FACTOR = 1.1;
@@ -34,6 +35,11 @@ const TRAILING_VOLUMES_FOR_FILES = 1;
 
 /** Statuses that mean the run has ended: the volume count is final. */
 const FINISHED_STATUSES = new Set<string>(['COMPLETED', 'CANCELLED']);
+
+/** Has the run ended (an end date, or a finished status)? */
+function isFinished(signal: Pick<VolumeCapSignal, 'endDate' | 'status'> | null): boolean {
+  return Boolean(signal?.endDate) || FINISHED_STATUSES.has(signal?.status ?? '');
+}
 
 export interface VolumeCapSignal {
   volumes: number | null;
@@ -67,7 +73,7 @@ export interface VolumeCapSignal {
 export function volumeCapFor(signal: VolumeCapSignal | null, callerHint?: number): VolumeCap {
   const hint = callerHint !== undefined && callerHint > 0 ? callerHint : 0;
   const stored = Math.max(0, signal?.volumes ?? 0);
-  const finished = Boolean(signal?.endDate) || FINISHED_STATUSES.has(signal?.status ?? '');
+  const finished = isFinished(signal);
   if (finished && (hint > 0 || stored > 0)) {
     const trailing = signal?.filesPastLastVolume === true ? TRAILING_VOLUMES_FOR_FILES : 0;
     return { cap: Math.ceil(Math.max(hint, stored)) + trailing, source: hint > stored ? 'caller' : 'metadata' };
@@ -86,9 +92,78 @@ export interface PastFileRow {
   volume: number | null;
 }
 
+/** One provider's count of a series' chapters. */
+export interface FinalChapterClaim {
+  provider: string;
+  chapters: number | null;
+}
+
+/** Two providers' final chapters this close agree (Tokyo Ghoul: 143, and 144 with an extra). */
+const FINAL_CHAPTER_TOLERANCE = 1;
+
+/**
+ * The final chapter two providers agree on, or null when no two do.
+ *
+ * Each provider counts once. Returns the higher of the agreeing pair, so an
+ * extra chapter one of them counts (Tokyo Ghoul: AniList and Kitsu 144,
+ * MangaUpdates 143) stays inside the series. Pure — no DB.
+ */
+export function corroboratedFinalChapter(claims: readonly FinalChapterClaim[]): number | null {
+  const byProvider = new Map<string, number>();
+  for (const claim of claims) {
+    if (claim.chapters !== null && claim.chapters > 0 && !byProvider.has(claim.provider)) {
+      byProvider.set(claim.provider, claim.chapters);
+    }
+  }
+  const values = [...byProvider.values()].sort((a, b) => b - a);
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i] ?? 0;
+    if (values.some((w, j) => j !== i && Math.abs(w - v) <= FINAL_CHAPTER_TOLERANCE)) return v;
+  }
+  return null;
+}
+
 /** 139.5 after a last volume ending at 139: an extra of that volume, not a new one. */
 function isDecimalRightAfter(n: number | null, lastEnd: number | null): boolean {
   return n !== null && lastEnd !== null && !Number.isInteger(n) && n > lastEnd && n < lastEnd + 1;
+}
+
+/**
+ * Does the agreed final chapter leave room for a volume past the last counted
+ * one? At least half an average volume must lie between them. Tokyo Ghoul's 14
+ * volumes end at 143 and the series at 144: no room. Solo Leveling's 15 end at
+ * 48 and the series at 201: room.
+ */
+function finalLeavesRoomForAVolume(finalChapter: number, lastEnd: number, count: number | null): boolean {
+  const avgSpan = count !== null && count > 0 ? lastEnd / count : 0;
+  const minRoom = Math.max(2, Math.ceil(avgSpan / 2));
+  return finalChapter - lastEnd >= minRoom;
+}
+
+/**
+ * Downloaded rows numbered past the last counted volume although the agreed
+ * final chapter says no further volume exists: Tokyo Ghoul's "V09"-"V13"
+ * archive rows numbered 144-159 hold chapters 69-121. They are mis-numbered
+ * files, not a reason for another volume. A row past the agreed final
+ * chapter always is; one between the last volume's end and the final chapter
+ * is when that gap is too small to hold a volume. Empty without an agreed
+ * final chapter. Pure — no DB.
+ */
+export function misnumberedPastFinalRows(
+  rows: readonly PastFileRow[],
+  lastEnd: number | null,
+  count: number | null,
+  finalChapter: number | null,
+): PastFileRow[] {
+  if (finalChapter === null) return [];
+  const room = lastEnd === null || finalLeavesRoomForAVolume(finalChapter, lastEnd, count);
+  return rows.filter((row) => {
+    const n = row.chapterNumber;
+    if (n === null) return false;
+    if (n > finalChapter && !isDecimalRightAfter(n, Math.floor(finalChapter))) return true;
+    if (lastEnd === null || n <= lastEnd || isDecimalRightAfter(n, lastEnd)) return false;
+    return !room;
+  });
 }
 
 /**
@@ -104,14 +179,24 @@ function isDecimalRightAfter(n: number | null, lastEnd: number | null): boolean 
  *   archives in volume 31, Vinland Saga's "Vol 30" archive. Refusing the
  *   volume would leave those files without one.
  *
+ * With a final chapter two providers agree on (`finalChapter`), a numbered row
+ * past the last volume's end is evidence only when it lies inside the series
+ * and the series leaves room for another volume; otherwise it is a
+ * mis-numbered file (`misnumberedPastFinalRows`) and earns nothing, even when
+ * an earlier run already filed it past the count (Tokyo Ghoul's rows 144-159
+ * in a rebuilt "volume 15").
+ *
  * Pure — no DB.
  */
 export function filesOutrunLastVolume(
   rows: readonly PastFileRow[],
   lastEnd: number | null,
   count: number | null,
+  finalChapter: number | null = null,
 ): boolean {
+  const misnumbered = new Set(misnumberedPastFinalRows(rows, lastEnd, count, finalChapter));
   return rows.some((row) => {
+    if (misnumbered.has(row)) return false;
     const n = row.chapterNumber;
     const wholePastEnd = n !== null && lastEnd !== null && Number.isInteger(n) && n >= lastEnd + 1;
     const filedPastCount = count !== null && count > 0 && row.volume !== null && row.volume > count
@@ -126,6 +211,8 @@ const PAST_FILE_ROW_LIMIT = 500;
 interface VolumeCapRow extends Omit<VolumeCapSignal, 'filesPastLastVolume'> {
   lastVolumeEnd: number | null;
   pastRows: PastFileRow[] | null;
+  /** Chapter counts: the stored (selected) one and Kitsu's and MangaUpdates' own. */
+  finalClaims: FinalChapterClaim[] | null;
 }
 
 export async function getVolumeCapForManga(
@@ -145,7 +232,18 @@ export async function getVolumeCapForManga(
                   AND (c."chapterNumber" > le."lastEnd" OR c.volume > md.volumes)
                 LIMIT ${PAST_FILE_ROW_LIMIT}
               ) p
-           ) AS "pastRows"
+           ) AS "pastRows",
+           json_build_array(
+             json_build_object(
+               'provider', COALESCE(m."providerMetadata"->'metadataProvenance'->'chapters'->>'provider', 'metadata'),
+               'chapters', md.chapters),
+             json_build_object('provider', 'kitsu', 'chapters',
+               CASE WHEN jsonb_typeof(m."providerMetadata"->'kitsu'->'chapterCount') = 'number'
+                 THEN (m."providerMetadata"->'kitsu'->>'chapterCount')::float END),
+             json_build_object('provider', 'mangaupdates', 'chapters',
+               CASE WHEN jsonb_typeof(m."providerMetadata"->'mangaupdates'->'latestChapter') = 'number'
+                 THEN (m."providerMetadata"->'mangaupdates'->>'latestChapter')::float END)
+           ) AS "finalClaims"
     FROM "Manga" m JOIN "Metadata" md ON m."metadataId" = md.id
     LEFT JOIN LATERAL (
       SELECT MAX(v."chapterEnd") AS "lastEnd" FROM "Volume" v
@@ -155,7 +253,18 @@ export async function getVolumeCapForManga(
   `;
   const row = rows[0];
   if (!row) return volumeCapFor(null, callerHint);
-  const { lastVolumeEnd, pastRows, ...signal } = row;
-  const filesPastLastVolume = filesOutrunLastVolume(pastRows ?? [], lastVolumeEnd, signal.volumes);
+  const { lastVolumeEnd, pastRows, finalClaims, ...signal } = row;
+  // Only a finished series has a final chapter; a running one's count is just its latest.
+  const finalChapter = isFinished(signal) ? corroboratedFinalChapter(finalClaims ?? []) : null;
+  const misnumbered = misnumberedPastFinalRows(pastRows ?? [], lastVolumeEnd, signal.volumes, finalChapter);
+  if (misnumbered.length > 0) {
+    logger.warn(
+      `[volumeCap] manga ${mangaId}: ${misnumbered.length} downloaded rows are numbered past the last volume ` +
+      `(ends at ${lastVolumeEnd}) although providers agree the series ends at chapter ${finalChapter} ` +
+      `(${misnumbered.map(r => r.chapterNumber).join(', ')}). Treated as mis-numbered files: left as they are, ` +
+      'and no volume is built for them.',
+    );
+  }
+  const filesPastLastVolume = filesOutrunLastVolume(pastRows ?? [], lastVolumeEnd, signal.volumes, finalChapter);
   return volumeCapFor({ ...signal, filesPastLastVolume }, callerHint);
 }

@@ -165,6 +165,10 @@ export const DESCRIPTION_CHAPTER_PATTERNS = [
   /^Ch\.?\s*(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/i,
   // "#123: Title" or "#123.5 - Title"
   /^#(\d+(?:\.\d+)?)[\s::\-–—]+(.+)$/,
+  // "[ 17 ] Kill Denji" or "Chapter [165] Everyday Scenery" (Chainsaw Man).
+  // Read as unnumbered, each volume's lines were counted from the previous
+  // volume's end and labelled ComicVine's range.
+  /^(?:Chapter\s+)?\[\s*#?(\d+(?:\.\d+)?)\s*\][\s::\-–—]*(.+)$/i,
   // "123. Title" or "123.5. Title" or "123) Title"
   /^(\d+(?:\.\d+)?)[.)]\s*(.+)$/,
   // "Part 123: Title"

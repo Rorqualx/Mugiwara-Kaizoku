@@ -253,6 +253,42 @@ async function loadOverflowSignal(mangaId: number): Promise<OverflowSignal | nul
   return { status: manga?.publicationStatus ?? null, finishedCount, volumes, allVolumes, lastVolEnd };
 }
 
+/**
+ * A downloaded row numbered past every chapter a finished series has. No
+ * volume is still to come for it, so "awaiting its volume" (-1) would be
+ * false: it is a mis-numbered file (Tokyo Ghoul's archive rows 145-159 in a
+ * 144-chapter series hold chapters 69-121).
+ */
+export function isMisnumberedFile(
+  row: { chapterNumber: number | null; filePath: string | null },
+  finishedCount: number | null,
+): boolean {
+  return finishedCount !== null && row.filePath !== null && row.chapterNumber !== null
+    && row.chapterNumber >= Math.floor(finishedCount) + 1;
+}
+
+/**
+ * Mis-numbered files stay as they are, with no volume (the "Unassigned"
+ * bucket, where they can be reassigned or removed); an earlier "-1" on them
+ * is undone. Logged so the files can be repaired.
+ */
+async function leaveMisnumberedFilesUnassigned(
+  mangaId: number,
+  rows: Array<{ id: number; chapterNumber: number | null; volume: number | null }>,
+  finishedCount: number | null,
+): Promise<void> {
+  if (rows.length === 0) return;
+  const tagged = rows.filter(r => r.volume === AWAITING_VOLUME).map(r => r.id);
+  if (tagged.length > 0) {
+    await prisma.chapter.updateMany({ where: { id: { in: tagged } }, data: { volume: null } });
+  }
+  logger.warn(
+    `[enrichmentPipeline] ${rows.length} downloaded chapter row(s) numbered past the finished series' ` +
+    `${finishedCount} chapters are mis-numbered files, left unassigned for manga ${mangaId}: ` +
+    rows.map(r => r.chapterNumber).join(', '),
+  );
+}
+
 async function tagAwaitingRows(mangaId: number, signal: OverflowSignal): Promise<number> {
   const lastEnd = signal.lastVolEnd;
   // A tag on a chapter the volumes now reach is stale (its volume came out, or
@@ -264,10 +300,13 @@ async function tagAwaitingRows(mangaId: number, signal: OverflowSignal): Promise
   if (released.count > 0) {
     logger.info(`[enrichmentPipeline] Cleared the awaiting-volume tag on ${released.count} chapter(s) within the volumes of manga ${mangaId}`);
   }
-  const rows = await prisma.chapter.findMany({
+  const found = await prisma.chapter.findMany({
     where: { mangaId, volumeId: null, chapterNumber: { gt: lastEnd } },
     select: { id: true, chapterNumber: true, volume: true, volumeId: true, filePath: true },
   });
+  const misnumbered = found.filter(r => isMisnumberedFile(r, signal.finishedCount));
+  await leaveMisnumberedFilesUnassigned(mangaId, misnumbered, signal.finishedCount);
+  const rows = found.filter(r => !misnumbered.includes(r));
   // A finished series' own chapters are never overflow (finishedSeriesChapterCount).
   const ids = planAwaitingVolumeTags(rows, signal.allVolumes, n => !isTaggableOverflow(n, signal.finishedCount));
   if (ids.length === 0) return 0;

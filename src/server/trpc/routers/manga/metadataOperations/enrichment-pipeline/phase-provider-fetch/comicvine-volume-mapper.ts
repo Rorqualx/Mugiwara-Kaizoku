@@ -44,8 +44,49 @@ export function mapComicVineIssuesToVolumes(
     .sort((a, b) => Number(a['volumeNumber'] ?? 0) - Number(b['volumeNumber'] ?? 0));
 
   computeCumulativeChapterRanges(volumes);
+  dropOverlappingCountedRanges(volumes);
 
   return volumes;
+}
+
+/** A volume's range as numbers, or null when it has none. */
+function rangeOf(vol: Record<string, unknown>): { start: number; end: number } | null {
+  if (vol['startChapter'] === undefined || vol['endChapter'] === undefined) return null;
+  const start = parseFloat(String(vol['startChapter']));
+  const end = parseFloat(String(vol['endChapter']));
+  return isNaN(start) || isNaN(end) ? null : { start, end };
+}
+
+/**
+ * A range made by counting lines is a guess. When it overlaps a neighbour's
+ * range it is a wrong guess, and it would reach the volume table labelled as
+ * ComicVine's (Chainsaw Man Colored: counted volume 3 = 17-26 next to volume
+ * 4's 26-34). Such a counted range is removed; the volume keeps its count.
+ * Ranges read from the description's own numbers are never touched.
+ */
+export function dropOverlappingCountedRanges(volumes: Array<Record<string, unknown>>): void {
+  const ranged = volumes
+    .map(vol => ({ vol, range: rangeOf(vol) }))
+    .filter((r): r is { vol: Record<string, unknown>; range: { start: number; end: number } } => r.range !== null);
+  const overlapping = new Set<Record<string, unknown>>();
+  for (let i = 0; i < ranged.length; i++) {
+    const cur = ranged[i];
+    if (!cur || cur.vol['hasExplicitRange'] === true) continue;
+    const prev = ranged[i - 1];
+    const next = ranged[i + 1];
+    if ((prev && prev.range.end >= cur.range.start) || (next && cur.range.end >= next.range.start)) {
+      overlapping.add(cur.vol);
+    }
+  }
+  for (const vol of overlapping) {
+    log.warn('Dropped a counted ComicVine chapter range that overlaps a neighbouring volume', {
+      volumeNumber: vol['volumeNumber'],
+      startChapter: vol['startChapter'],
+      endChapter: vol['endChapter'],
+    });
+    delete vol['startChapter'];
+    delete vol['endChapter'];
+  }
 }
 
 /** Map a single ComicVine issue to a volume entry */
