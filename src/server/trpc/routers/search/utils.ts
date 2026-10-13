@@ -164,8 +164,8 @@ export function extractSearchOptions(input: Partial<SearchInput> & Record<string
  * Eliminates cache pattern duplication across 4 procedures
  *
  * Uses hot cache (fast, database-backed) with fallback to regular cache (persistent).
- * Note: The tRPC middleware also caches at the procedure level using ctx.req.query.input
- * as part of the cache key, ensuring different queries get different cached responses.
+ * Note: The tRPC cachingMiddleware also caches at the procedure level, keyed on
+ * each call's own input and caller, so different queries get different responses.
  *
  * @param options - Cache execution options
  * @returns Search results from cache or API

@@ -288,29 +288,34 @@ export const contextMiddleware = middleware(async ({ ctx, next }) => {
  *   (see src/server/cache/cache-adapter.ts)
  *
  * Uses the global cache instance so mutations can invalidate cached queries.
+ *
+ * The key is the procedure path, the caller and THIS call's input:
+ * - The input comes from `getRawInput()`, not the HTTP request. A batched
+ *   request carries several calls, and keying on the request's whole input
+ *   gave two calls to the same procedure in one batch the same key, so one
+ *   was answered with the other's result.
+ * - The caller is part of the key because cached procedures apply per-user
+ *   settings (e.g. the home lists' adult-content and webtoon filters); without
+ *   it one user's filtered list was served to another for the TTL.
  */
 export const cachingMiddleware = (ttlMs: number = 60000): ReturnType<typeof middleware> => {
-  return middleware(async ({ path, type, next, ctx }) => {
+  return middleware(async ({ path, type, next, ctx, getRawInput }) => {
     // Only cache queries
     if (type !== 'query') {
       return next();
     }
 
-    // Extract input from request context
-    // For HTTP requests, input comes from query params (GET) or body (POST)
-    // Note: We must extract from ctx.req because 'input' is undefined in middleware
-    // (input becomes available only after .input() validation in the procedure chain)
-    let inputForKey = 'no-input';
-    const context = ctx as { req?: { query?: { input?: string }; body?: unknown } };
-    if (context.req?.query?.input) {
-      // GET request - input is in query string
-      inputForKey = context.req.query.input;
-    } else if (context.req?.body) {
-      // POST request - input is in body
-      inputForKey = JSON.stringify(context.req.body);
+    let inputForKey: string;
+    try {
+      inputForKey = JSON.stringify((await getRawInput()) ?? null);
+    } catch {
+      // Not serializable as a key (e.g. a BigInt): run uncached.
+      return next();
     }
+    const userId = (ctx as { user?: { id?: unknown } }).user?.id;
+    const userForKey = typeof userId === 'string' ? userId : (getRequestUserId() ?? 'anon');
 
-    const cacheKey = `trpc:${path}:${inputForKey}`;
+    const cacheKey = `trpc:${path}:${userForKey}:${inputForKey}`;
 
     // Check cache using global cache adapter
     const cached = await cache.get(cacheKey);
