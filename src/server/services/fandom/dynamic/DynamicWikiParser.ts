@@ -9,7 +9,8 @@
  * - dynamic-wiki-parser/utils.ts - Helper functions (179 lines)
  * - dynamic-wiki-parser/structure-analyzer.ts - Structure detection (183 lines)
  * - dynamic-wiki-parser/table-extractor.ts - Table extraction (282 lines)
- * - dynamic-wiki-parser/tab-extractor.ts - Tab extraction (477 lines)
+ * - dynamic-wiki-parser/tab-extractor.ts - Tab extraction (+ tab-extractor/ submodules;
+ *   tabbed list pages delegate to the adaptive volume-band parser)
  * - dynamic-wiki-parser/other-extractors.ts - Other extractors (302 lines)
  * - dynamic-wiki-parser/selector-generators.ts - Selector generation (225 lines)
  *
@@ -35,7 +36,7 @@ import {
   generateDynamicSelectors,
   detectContentPatterns,
 } from './dynamic-wiki-parser/structure-analyzer';
-import { extractFromTabs } from './dynamic-wiki-parser/tab-extractor';
+import { extractFromTabs, extractVolumeBandData, type TabSource } from './dynamic-wiki-parser/tab-extractor';
 import { extractFromTables } from './dynamic-wiki-parser/table-extractor';
 import {
   StructureType,
@@ -107,6 +108,7 @@ export class DynamicWikiParser {
   async extractData(page: WikiPage): Promise<ExtractedData> {
     const $ = cheerio.load(page.html);
     const structure = page.structure ?? await this.analyzePageStructure(page.html, page.url);
+    const source: TabSource = { html: page.html, url: page.url };
 
     try {
       let data: unknown;
@@ -117,14 +119,23 @@ export class DynamicWikiParser {
           data = await extractFromTables($, structure);
           break;
 
-        case StructureType.TABBED_INTERFACE:
-          data = await extractFromTabs($, structure);
+        case StructureType.TABBED_INTERFACE: {
+          const tabData = await extractFromTabs($, structure, source);
+          if (tabData.method === 'volume_bands') extractionMethod = 'volume_bands';
+          data = tabData;
           break;
+        }
 
         case StructureType.HYBRID: {
           const tableData = await extractFromTables($, structure);
-          const tabData = await extractFromTabs($, structure);
-          data = this.mergeExtractedData(tableData, tabData);
+          const tabData = await extractFromTabs($, structure, source);
+          // Volume bands are the whole answer for the page; merging the table
+          // parser's per-row guesses into them would mix in wrong chapters.
+          const bandsWon = tabData.method === 'volume_bands';
+          if (bandsWon) extractionMethod = 'volume_bands';
+          data = bandsWon
+            ? this.mergeExtractedData(tabData, { gallery: getUnknownProperty(tableData, 'gallery') })
+            : this.mergeExtractedData(tableData, tabData);
           break;
         }
 
@@ -147,6 +158,16 @@ export class DynamicWikiParser {
         default:
           data = await extractWithFallbacks($, structure);
           extractionMethod = 'fallback';
+      }
+
+      // A list page that some other parser was picked for (Kingdom reads as a
+      // table page) but which found no chapters: use its volume bands.
+      if (!this.hasChapters(data) && !this.triedTabs(structure.type)) {
+        const bands = extractVolumeBandData(page.html, page.url);
+        if (bands) {
+          data = this.mergeExtractedData(bands, { gallery: isRecord(data) ? data['gallery'] : undefined });
+          extractionMethod = 'volume_bands';
+        }
       }
 
       return {
@@ -178,6 +199,20 @@ export class DynamicWikiParser {
         errors: [errorMessage]
       };
     }
+  }
+
+  /** Did the extraction find any chapter, at top level or inside a volume? */
+  private hasChapters(data: unknown): boolean {
+    if (!isRecord(data)) return false;
+    const chapters = data['chapters'];
+    if (Array.isArray(chapters) && chapters.length > 0) return true;
+    const volumes = data['volumes'];
+    return Array.isArray(volumes) && volumes.some(v => isVolumeData(v) && v.chapters.length > 0);
+  }
+
+  /** Structure types whose extraction already went through the tab extractor (and its band parse). */
+  private triedTabs(type: StructureType): boolean {
+    return type === StructureType.TABBED_INTERFACE || type === StructureType.HYBRID;
   }
 
   /**

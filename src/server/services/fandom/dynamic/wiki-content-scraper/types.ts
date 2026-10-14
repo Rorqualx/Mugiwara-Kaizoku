@@ -53,6 +53,13 @@ export interface ScrapingOptions {
   maxDepth?: number;
   followLinks?: boolean;
   extractSummaries?: boolean;
+  /**
+   * Fetch each volume's and chapter's own page for covers and summaries
+   * (default true). The enrichment pipeline turns it off: its chapter-detail
+   * phase already fetches chapter pages, and a list page that now parses
+   * would otherwise cost hundreds of extra wiki requests per series.
+   */
+  fetchDetailPages?: boolean;
   cacheResults?: boolean;
   timeout?: number;
   retryAttempts?: number;

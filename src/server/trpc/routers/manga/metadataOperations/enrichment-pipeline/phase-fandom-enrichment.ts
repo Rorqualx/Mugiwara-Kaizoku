@@ -22,7 +22,7 @@ import { applyFandomDataToDb, assignOrphanedChapters, clearRedirectSentinels } f
 import { extractFromMediaWikiApi } from './fandom-mediawiki-fallback';
 import { storeFandomProviderMetadata, storeChapterUrlTemplate, clearChapterUrlTemplate } from './fandom-provider-storage';
 import { auditEnrichmentResult, isUnreliableVolumeMap } from './fandom-volume-helpers';
-import { createEmptyEnrichmentMaps } from './types';
+import { createEmptyEnrichmentMaps, isGenericChapterTitle } from './types';
 import { updateCachedFandomUrl } from './wiki-discovery';
 
 import type { ChapterDetailFetchResult } from './fandom-chapter-detail-fetch';
@@ -312,7 +312,8 @@ function mergeMapsFromScraper(
   for (const [numStr, enrichment] of Object.entries(chapterEnrichmentMap)) {
     const num = Number(numStr);
     if (isNaN(num)) continue;
-    if (enrichment.title) { chapterTitleMap[num] = enrichment.title; mergedTitles++; }
+    // A placeholder ("Chapter 12") from the scraper must not replace a real title.
+    if (enrichment.title !== undefined && !isGenericChapterTitle(enrichment.title)) { chapterTitleMap[num] = enrichment.title; mergedTitles++; }
     if (enrichment.coverImage && !chapterCoverMap[num]) chapterCoverMap[num] = enrichment.coverImage;
     if (enrichment.summary && !chapterDescriptionMap[num]) chapterDescriptionMap[num] = enrichment.summary;
     if (enrichment.pages && !chapterPagesMap[num]) chapterPagesMap[num] = enrichment.pages;

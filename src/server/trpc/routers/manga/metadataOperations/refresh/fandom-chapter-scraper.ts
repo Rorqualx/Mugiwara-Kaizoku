@@ -19,6 +19,14 @@ import {
 
 import type { FandomData } from '../utils';
 
+/**
+ * Read the list pages only. Chapter covers and summaries come from the
+ * pipeline's chapter-detail phase; fetching every chapter and volume page here
+ * as well cost hundreds of wiki requests per series once tabbed list pages
+ * started parsing.
+ */
+const LIST_ONLY = { extractSummaries: false, fetchDetailPages: false } as const;
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -175,9 +183,11 @@ export function buildChapterEnrichmentMap(fandomData: FandomData): ChapterEnrich
   return enrichmentMap;
 }
 
+// parseFloat, not parseInt: "6.5" is its own chapter, and parseInt would file
+// its title under chapter 6 (My Hero Academia lists 6.5 right after 6).
 function parseChapterNumber(value: unknown): number | null {
-  const num = typeof value === 'number' ? value : parseInt(String(value), 10);
-  return isNaN(num) ? null : num;
+  const num = typeof value === 'number' ? value : parseFloat(String(value));
+  return Number.isFinite(num) ? num : null;
 }
 
 function extractChapterEnrichment(ch: Record<string, unknown>): ChapterEnrichment {
@@ -278,7 +288,7 @@ export async function scrapeFandomChapters(
     // Try volumes list URL first
     if (volumesListUrl !== undefined) {
       logger.info(`[fandom-chapter-scraper] Trying volumes page: ${volumesListUrl}`);
-      const parseResult: unknown = await fandomService.parseVolumesPage(volumesListUrl);
+      const parseResult: unknown = await fandomService.parseVolumesPage(volumesListUrl, LIST_ONLY);
       fandomResult = parseResult as AsyncResult<FandomData>;
       if (isSuccess(fandomResult)) {
         const vols: unknown = safeGet(fandomResult.data, 'volumes');
@@ -294,7 +304,7 @@ export async function scrapeFandomChapters(
     // Try chapters list URL if volumes failed
     if (fandomResult === null && chaptersListUrl !== undefined) {
       logger.info(`[fandom-chapter-scraper] Trying chapters page: ${chaptersListUrl}`);
-      const parseResult: unknown = await fandomService.parseVolumesPage(chaptersListUrl);
+      const parseResult: unknown = await fandomService.parseVolumesPage(chaptersListUrl, LIST_ONLY);
       const chaptersResult: AsyncResult<FandomData> = parseResult as AsyncResult<FandomData>;
       if (isSuccess(chaptersResult)) {
         const vols: unknown = safeGet(chaptersResult.data, 'volumes');
@@ -311,8 +321,8 @@ export async function scrapeFandomChapters(
     if (fandomResult === null) {
       logger.info(`[fandom-chapter-scraper] Trying main page: ${fandomUrl}`);
       const metadataResult: unknown = await fandomService.getEnhancedMetadata(fandomUrl, {
+        ...LIST_ONLY,
         followLinks: true,
-        extractSummaries: true,
         cacheResults: false,
       });
       fandomResult = metadataResult as AsyncResult<FandomData>;

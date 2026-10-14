@@ -28,10 +28,37 @@ export function readChapterEntry($li: Cheerio<Element>, baseUrl: string): BandCh
   if (number === null) return null;
 
   const chapter: BandChapter = { number };
-  const title = ($link.text() || $li.text()).replace(TITLE_PREFIX, '').trim();
+  const title = titleFrom($link.text(), $li.text());
   if (title && !/^Chapter\s*\d/i.test(title)) chapter.title = title;
   if (href.startsWith('/wiki/')) chapter.url = `${baseUrl}${href}`;
   return chapter;
+}
+
+/** A trailing Japanese gloss: "Map (地図, Chizu)". */
+const JAPANESE_GLOSS = /\s*\([^)]*[\u3040-\u30ff\u4e00-\u9fff][^)]*\)\s*$/;
+
+/**
+ * The title from the link text, or, when the link is only "Chapter 2", from
+ * the rest of the line ("Chapter 2 - A Pretty Big Mosquito", Call of the
+ * Night; "Chapter 2: Map (地図, Chizu)", Kingdom).
+ */
+function titleFrom(linkText: string, itemText: string): string {
+  const fromLink = linkText.replace(TITLE_PREFIX, '').trim();
+  const raw = fromLink || itemText.replace(TITLE_PREFIX, '').trim();
+  return raw.replace(JAPANESE_GLOSS, '').trim();
+}
+
+/**
+ * The chapter a bare link names ("1" linking /wiki/Chapter_1 in a navigation
+ * box row). Only the link target counts: the text is just the number.
+ */
+export function readChapterLink($a: Cheerio<Element>, baseUrl: string): BandChapter | null {
+  const href = $a.attr('href') ?? '';
+  const match = href.startsWith('/wiki/') ? CHAPTER_HREF.exec(href) : null;
+  if (!match?.[1]) return null;
+  const number = Number(match[1]);
+  if (!Number.isFinite(number) || number <= 0) return null;
+  return { number, url: `${baseUrl}${href}` };
 }
 
 function numberFrom(href: string, itemText: string, linkText: string): number | null {

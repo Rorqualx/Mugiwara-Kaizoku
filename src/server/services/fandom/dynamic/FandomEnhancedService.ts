@@ -55,6 +55,7 @@ export class FandomEnhancedService {
       const result = await this.scraper.scrapeMangaWiki(url, {
         followLinks: options?.followLinks ?? true,
         extractSummaries: options?.extractSummaries ?? true,
+        fetchDetailPages: options?.fetchDetailPages ?? true,
         cacheResults: options?.cacheResults ?? true,
         maxDepth: options?.maxDepth ?? 2,
         timeout: options?.timeout ?? 30000,
@@ -107,6 +108,7 @@ export class FandomEnhancedService {
       const result = await this.scraper.scrapeMangaWiki(url, {
         followLinks: options?.followLinks ?? true,
         extractSummaries: options?.extractSummaries ?? true,
+        fetchDetailPages: options?.fetchDetailPages ?? true,
         cacheResults: options?.cacheResults ?? true,
         maxDepth: options?.maxDepth ?? 2,
         timeout: options?.timeout ?? 30000,

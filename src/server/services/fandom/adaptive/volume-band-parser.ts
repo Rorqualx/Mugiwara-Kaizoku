@@ -24,6 +24,7 @@ import type { ChapterData, VolumeData } from '@/server/services/metadata/utils/f
 import { logger } from '@/utils/logger';
 
 import { readChapterEntry, type BandChapter } from './volume-band-parser/chapter-entry';
+import { walkNavRows } from './volume-band-parser/nav-rows';
 import { scopeTabbers } from './volume-band-parser/tabber-scope';
 import { rejectReason } from './volume-band-parser/validate';
 
@@ -58,10 +59,19 @@ export function isVolumeBandStructure(html: string): boolean {
 export function parseVolumeBands(html: string, baseUrl: string): VolumeBandResult {
   const $ = load(html);
   const droppedTabs = scopeTabbers($);
-  const { bands, unassigned } = walkBands($, baseUrl);
-
-  const numbers = new Map([...bands].map(([volume, chapters]) => [volume, chapters.map(c => c.number)]));
-  const rejected = rejectReason(numbers);
+  let { bands, unassigned } = walkBands($, baseUrl);
+  let rejected = rejectReason(numbersOf(bands));
+  if (rejected) {
+    // No list items to read: the page may still list each volume's chapters
+    // as navigation-box rows (Demon Slayer's "Kimetsu no Yaiba (Manga)").
+    const nav = walkNavRows($, baseUrl, $cell => numberOf(cellMarker($cell)));
+    const navRejected = nav.bands.size > 0 ? rejectReason(numbersOf(nav.bands), true) : rejected;
+    if (navRejected === null) {
+      ({ bands, unassigned } = nav);
+      rejected = null;
+      log.debug('Volume bands read from navigation rows', { volumes: nav.bands.size });
+    }
+  }
   if (rejected) {
     log.debug('Volume bands rejected', { rejected });
     return { volumes: [], chapters: [], success: false, rejected, droppedTabs };
@@ -139,9 +149,18 @@ function volumeMarker($el: Cheerio<Element>, tag: string): number | null {
     VOLUME_ID.exec($el.attr('id') ?? '') ??
     (/^h[2-5]$/.test(tag) ? VOLUME_HEADING.exec($el.text()) : null) ??
     (tag === 'td' || tag === 'th' ? cellMarker($el) : null);
+  return numberOf(match);
+}
+
+/** The positive whole volume number a marker match captured. */
+function numberOf(match: RegExpExecArray | null): number | null {
   if (!match?.[1]) return null;
   const n = Number(match[1]);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function numbersOf(bands: Map<number, BandChapter[]>): Map<number, number[]> {
+  return new Map([...bands].map(([volume, chapters]) => [volume, chapters.map(c => c.number)]));
 }
 
 /** "Volume 12" as a whole cell (Kingdom), or a short cell whose first link is the volume page (Demon Slayer, Dandadan). */

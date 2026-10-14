@@ -189,20 +189,25 @@ function isListTitle(title: string): boolean {
 }
 
 /**
- * Order measured candidates: most chapters first; then most volumes; then a
- * page named as a list; then the shorter title.
+ * Order measured candidates: most chapters first; then a page named as a
+ * list; then most volumes; then the shorter title. At equal chapters the list
+ * page wins over the series article: "Kimetsu no Yaiba (Manga)" and "Dr. Stone
+ * (Manga)" count the same chapters from a navigation box (bare numbers, one
+ * box filing a chapter a volume off), while "Chapters and Volumes" lists them
+ * with their titles.
  */
 export function rankByChapters(a: ListPageCandidate, b: ListPageCandidate): number {
   return b.chapters - a.chapters
-    || b.volumes - a.volumes
     || Number(isListTitle(b.title)) - Number(isListTitle(a.title))
+    || b.volumes - a.volumes
     || a.title.length - b.title.length;
 }
 
 /**
  * Pick the chapter page and the volume page from measured candidates.
- * The incumbent (an already-bound page) is kept unless it is unusable or a
- * challenger lists clearly more chapters (≥1.5× + 5).
+ * The incumbent (an already-bound page) is kept unless it is unusable, a
+ * challenger lists clearly more chapters (≥1.5× + 5), or the incumbent is a
+ * series article and the challenger a list page with at least as many.
  */
 export function pickListPages(
   candidates: ListPageCandidate[], incumbentUrl?: string,
@@ -212,7 +217,9 @@ export function pickListPages(
   if (!best) return null;
   let chapterPage = best;
   const incumbent = incumbentUrl ? candidates.find(c => c.url === incumbentUrl) : undefined;
-  if (incumbent && isUsableListPage(incumbent) && best.chapters < incumbent.chapters * 1.5 + 5) {
+  const listPageTakesOver = incumbent !== undefined && isListTitle(best.title) && !isListTitle(incumbent.title)
+    && best.chapters >= incumbent.chapters;
+  if (incumbent && isUsableListPage(incumbent) && best.chapters < incumbent.chapters * 1.5 + 5 && !listPageTakesOver) {
     chapterPage = incumbent;
   }
   const mostVolumes = [...usable].sort((a, b) => b.volumes - a.volumes || rankByChapters(a, b))[0] ?? chapterPage;

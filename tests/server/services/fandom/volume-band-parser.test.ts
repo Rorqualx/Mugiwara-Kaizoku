@@ -73,6 +73,14 @@ describe('parseVolumeBands', () => {
     expect(ch?.volume).toBe(3);
   });
 
+  it('takes the title from the rest of the line when the link is only "Chapter N"', () => {
+    const title = (name: string, n: number): string | undefined =>
+      parseVolumeBands(page(name), BASE).chapters.find(c => c.number === n)?.title;
+    expect(title('call-of-the-night', 2)).toBe('A Pretty Big Mosquito');
+    expect(title('kingdom', 2)).toBe('Map');
+    expect(title('frieren', 2)).toBe('The Priest\'s Lie');
+  });
+
   it('leaves out the light novel / spin-off tab whose volumes restart at 1', () => {
     expect(parseVolumeBands(page('demon-slayer'), BASE).droppedTabs).toEqual(['Light Novels/Spinoffs']);
     expect(parseVolumeBands(page('spy-x-family'), BASE).droppedTabs).toEqual(['Light Novels/Spin-Offs']);
@@ -83,6 +91,34 @@ describe('parseVolumeBands', () => {
     const tail = chapters.filter(c => c.number >= 220);
     expect(tail.length).toBe(29);
     expect(tail.every(c => c.volume === undefined)).toBe(true);
+  });
+
+  // "Kimetsu no Yaiba (Manga)": volumes are a cover gallery and the chapters
+  // appear only in the navigation box ("Volume 1:" cell, then "1 · 2 · … 7").
+  // The static parser read it as 24 volumes with a phantom volume 0 and every
+  // volume one chapter off.
+  it.each<RangeCase>([
+    ['demon-slayer-manga-navbox', 23, { 1: [1, 7], 2: [8, 16], 3: [17, 25], 22: [188, 196], 23: [197, 205] }],
+    ['dandadan-manga-navbox', 25, { 1: [1, 5], 2: [6, 14], 25: [211, 219] }],
+  ])('%s: reads %i volumes from navigation-box rows', (name, volumeCount, expected) => {
+    const got = ranges(name);
+    expect(got.size).toBe(volumeCount);
+    for (const [volume, range] of Object.entries(expected)) {
+      expect([Number(volume), got.get(Number(volume))]).toEqual([Number(volume), range]);
+    }
+    noChapterTwice(name);
+  });
+
+  it('keeps the navigation box\'s "not yet in a volume" chapters, with no volume', () => {
+    const tail = parseVolumeBands(page('dandadan-manga-navbox'), BASE).chapters.filter(c => c.volume === undefined);
+    expect(tail[0]?.number).toBe(220);
+    expect(tail.every(c => c.number >= 220)).toBe(true);
+  });
+
+  it('rejects a navigation box that files a chapter inside the volume above (Dr. STONE puts 15 in volume 3)', () => {
+    const result = parseVolumeBands(page('dr-stone-manga-navbox'), BASE);
+    expect(result.success).toBe(false);
+    expect(result.rejected).toMatch(/only 0 volumes/);
   });
 
   it('rejects a page whose bands overlap, so the other parsers run', () => {

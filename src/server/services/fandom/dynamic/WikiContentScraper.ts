@@ -197,7 +197,7 @@ export class WikiContentScraper {
       // Step 5: Enrich with detailed content if needed
       const needsCoverEnrichment = result.volumes.some(v => !v.coverImage);
 
-      if (needsCoverEnrichment || options.followLinks) {
+      if (options.fetchDetailPages !== false && (needsCoverEnrichment || options.followLinks)) {
         await this.enrichContentWithDetails(result, options);
       }
 

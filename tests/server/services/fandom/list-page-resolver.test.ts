@@ -125,6 +125,18 @@ describe('pickListPages', () => {
     expect(pickListPages([stub, cand('Chapters and Volumes', 272, 30)], stub.url)?.chapterPage.title).toBe('Chapters and Volumes');
   });
 
+  it('at equal chapters prefers the list page over the series article, bound or not', () => {
+    // Demon Slayer / Dr. STONE: the "(Manga)" article counts the same chapters
+    // from its navigation box, without titles (Dr. STONE's box files 15 in volume 3).
+    const article = cand('Dr. Stone (Manga)', 232, 28);
+    const list = cand('Chapters and Volumes', 232, 27);
+    expect(pickListPages([article, list])?.chapterPage).toBe(list);
+    const bound = cand('Kimetsu no Yaiba (Manga)', 205, 23);
+    expect(pickListPages([bound, cand('Chapters and Volumes', 205, 23)], bound.url)?.chapterPage.title).toBe('Chapters and Volumes');
+    // A list page with fewer chapters still does not displace the bound article.
+    expect(pickListPages([bound, cand('Chapters and Volumes', 190, 23)], bound.url)?.chapterPage).toBe(bound);
+  });
+
   it('returns null when no page names 10 chapters or 3 volumes', () => {
     expect(pickListPages([cand('Chapters', 4, 1), cand('Volumes', 0, 2)])).toBeNull();
   });

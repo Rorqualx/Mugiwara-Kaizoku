@@ -55,8 +55,12 @@ export class WikiDataConverter {
       this.extractVolumes(data["volumes"], volumes, chapters, baseUrl);
     }
 
-    // Extract standalone chapters
-    if (data["chapters"] && Array.isArray(data["chapters"]) && !volumes.length) {
+    // Extract standalone chapters when there are no volumes. A volume-band
+    // parse also lists the chapters out but not yet collected in a volume
+    // (Dandadan 220+), which no volume holds: keep those too. Other parsers'
+    // top-level chapters are left out when volumes exist, as before.
+    const keepLooseChapters = !volumes.length || extracted.extractionMethod === 'volume_bands';
+    if (data["chapters"] && Array.isArray(data["chapters"]) && keepLooseChapters) {
       this.extractStandaloneChapters(data["chapters"], chapters, baseUrl);
     }
 
@@ -169,9 +173,11 @@ export class WikiDataConverter {
     chapters: ChapterInfo[],
     baseUrl: string
   ): void {
+    const inVolumes = new Set(chapters.map(c => String(c.number)));
     for (const chData of chaptersData) {
       const ch = chData as Record<string, unknown>;
       const chNumber = ch["number"] ?? ch["chapter"] ?? chapters.length + 1;
+      if (inVolumes.has(String(chNumber))) continue;
       const chapter: ChapterInfo = {
         number: chNumber as string | number,
         title: typeof ch["title"] === 'string' ? ch["title"] : `Chapter ${chNumber}`
