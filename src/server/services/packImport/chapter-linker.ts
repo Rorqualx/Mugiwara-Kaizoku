@@ -12,6 +12,7 @@ import path from 'path';
 import { maybeEnqueueConversion } from '@/server/services/conversion/auto-convert-trigger';
 import { normalizeFileFormat } from '@/server/services/conversion/format-normalization';
 import { countPagesInArchive } from '@/server/services/download/fileImporter/page-counter';
+import { isSingleChapterFile } from '@/server/services/library/chapter-file-name';
 import { assertChapterFilePathOwned } from '@/server/services/library/chapter-path-guard';
 import { logger } from '@/utils/logger';
 
@@ -242,6 +243,13 @@ export async function linkVolumeChapters(
     prismaClient, mangaId, volumeNumber, archivePath, archiveFileName,
     archiveSize, packDownloadId, fileFormat,
   } = params;
+
+  // A file named for one chapter holds that chapter only; pointing the
+  // volume's other rows at it is how they came to read chapter 119's pages.
+  if (isSingleChapterFile(archivePath)) {
+    logger.warn(`[PackImport] linkVolumeChapters: ${archiveFileName} is a single-chapter file, not a volume archive; not linking volume=${volumeNumber}`);
+    return { linkedCount: 0, skippedCount: 0 };
+  }
 
   const candidates = await prismaClient.chapter.findMany({
     where: {

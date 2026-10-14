@@ -309,6 +309,17 @@ async function fillVolumeTotalChaptersFromDbCount(mangaId: number): Promise<void
   }
 }
 
+/** Has the series' run ended (a finished status or an end date), as db-volume-cap reads it? */
+async function isSeriesFinished(mangaId: number): Promise<boolean> {
+  const manga = await prisma.manga.findUnique({
+    where: { id: mangaId },
+    select: { Metadata: { select: { status: true, endDate: true } } },
+  });
+  const md = manga?.Metadata;
+  return md !== null && md !== undefined
+    && (md.endDate !== null || md.status === 'COMPLETED' || md.status === 'CANCELLED');
+}
+
 async function seedBoundaryVolumeRanges(mangaId: number): Promise<void> {
   const volumes = await prisma.volume.findMany({
     where: { mangaId, number: { gt: 0 } },
@@ -330,8 +341,11 @@ async function seedBoundaryVolumeRanges(mangaId: number): Promise<void> {
     }
   }
 
-  // Seed last volume: chapterEnd=max(chapterNumber) if null and >= chapterStart
-  if (last?.chapterEnd === null) {
+  // Seed last volume: chapterEnd=max(chapterNumber) if null and >= chapterStart.
+  // Only once the series has ended: while it runs, the newest chapters are in
+  // no volume yet, and the seed invented one (Omniscient Reader, an ongoing
+  // webtoon with no provider range at all, got a volume 12 ending at 308).
+  if (last?.chapterEnd === null && await isSeriesFinished(mangaId)) {
     const agg = await prisma.chapter.aggregate({
       where: { mangaId, chapterNumber: { not: null } },
       _max: { chapterNumber: true },

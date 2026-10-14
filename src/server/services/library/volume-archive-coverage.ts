@@ -17,8 +17,14 @@
  *    a "reset for downloads" (or any PENDING drift) never re-downloads a volume
  *    that's already complete.
  *
+ * A numberless row whose file is named for one chapter (`SPY x FAMILY V17
+ * C119.cbz`) is not a volume archive: it holds that chapter only. Treating it as
+ * one pointed every pending chapter of the volume at chapter 119's file.
+ *
  * Everything here is pure (no Prisma/IO) so it can be exhaustively unit-tested.
  */
+
+import { isSingleChapterFile } from '@/server/services/library/chapter-file-name';
 
 /** Minimal chapter shape needed to reason about volume-archive coverage. */
 export interface CoverageRow {
@@ -47,6 +53,8 @@ export interface ChapterLink {
 const COMPLETED = 'COMPLETED';
 
 const hasFile = (r: CoverageRow): boolean => r.filePath !== null && r.filePath !== '';
+/** File-backed and not named for a single chapter: a whole-volume archive on disk. */
+const hasVolumeArchiveFile = (r: CoverageRow): boolean => hasFile(r) && !isSingleChapterFile(r.filePath);
 const isArchiveRow = (r: CoverageRow): boolean => r.chapterNumber === null;
 const isNumbered = (r: CoverageRow): boolean => r.chapterNumber !== null;
 const isDone = (r: CoverageRow): boolean => r.downloadStatus === COMPLETED;
@@ -54,7 +62,7 @@ const isRealVolume = (v: number | null): v is number => typeof v === 'number' &&
 
 /** Pick the file-backed COMPLETED archive row for a volume, if any. */
 function fileBackedArchive(rows: CoverageRow[]): CoverageRow | undefined {
-  return rows.find(r => isArchiveRow(r) && isDone(r) && hasFile(r));
+  return rows.find(r => isArchiveRow(r) && isDone(r) && hasVolumeArchiveFile(r));
 }
 
 /**
@@ -64,7 +72,7 @@ function fileBackedArchive(rows: CoverageRow[]): CoverageRow | undefined {
 export function volumesWithFileBackedArchive(rows: CoverageRow[]): Set<number> {
   const out = new Set<number>();
   for (const r of rows) {
-    if (isArchiveRow(r) && isDone(r) && hasFile(r) && isRealVolume(r.volume)) {
+    if (isArchiveRow(r) && isDone(r) && hasVolumeArchiveFile(r) && isRealVolume(r.volume)) {
       out.add(r.volume);
     }
   }

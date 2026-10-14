@@ -6,20 +6,24 @@
 import { resolveTrustedFinalChapter, plausibleTrustedCeiling, type StoredTerminalSignal } from '../phase-data-assembly';
 
 import { gateChapterCount } from './gate-chapter-count';
-import { appliedCount } from './witness-counts';
+import { appliedCount, wikipediaOwnChapterCount } from './witness-counts';
 
 import type { UnifiedProviderResults } from '../types';
 
 /**
- * Wikipedia's chapter count for the gate. The cross-series gate empties the
- * chapter list of an article it distrusts but leaves `data.chapters` in place;
- * a count from a disabled article is no count (Frieren: 83, against 147).
+ * Wikipedia's chapter count for the gate: its own count (the larger of what
+ * the article lists and what it states), read through the same witness as the
+ * consensus resolvers. The cross-series gate empties the chapter list of an
+ * article it distrusts but leaves `data.chapters` in place; a count from a
+ * disabled article is no count (Frieren: 83, against 147).
+ *
+ * `data.chapters` alone is the best-match finder's total, which the adaptive
+ * merge does not update: Attack on Titan: Before the Fall listed 64 chapters
+ * with `data.chapters` = 1, the 1 let a MangaUpdates "final chapter" of 4
+ * pass as plausible, and every volume range past chapter 4 was dropped.
  */
 function wikipediaGateCount(result: UnifiedProviderResults): number {
-  const wiki = result.wikipediaResult;
-  if (!wiki || wiki.chapterList.length === 0) return 0;
-  const chapters = wiki.data.chapters;
-  return typeof chapters === 'number' && chapters > 0 ? chapters : 0;
+  return wikipediaOwnChapterCount(result);
 }
 
 /**

@@ -41,10 +41,18 @@ export interface WikipediaVolumeInputRow {
   isbn?: string;
 }
 
+/** A Fandom chapter row: its number and the volume the wiki files it under. */
+export interface FandomChapterLike {
+  number: number;
+  volume?: number;
+}
+
 export interface FandomVolumeInputRow {
   number: number;
   chapterStart?: number;
   chapterEnd?: number;
+  /** The chapters the wiki files under this volume, inside its range (see `fandomVolumeChapters`). */
+  chapters?: number[];
   title?: string;
   description?: string;
   coverImage?: string;
@@ -90,11 +98,47 @@ export function toWikipediaVolumeInputs(volumes: readonly WikipediaVolumeLike[])
   });
 }
 
-export function toFandomVolumeInputs(volumes: readonly FandomVolumeLike[]): FandomVolumeInputRow[] {
+/**
+ * The chapters Fandom's chapter list files under one volume, kept only when
+ * they sit inside that volume's own range (a decimal extra by its integer
+ * part). Without them Fandom's table spoke only as a range, and the
+ * per-chapter vote heard MangaDex alone: Yofukashi no Uta's aggregate tags
+ * volume 2 with chapter 9 only and has no 10-22, so volume 2 became 9-9
+ * while Fandom listed 9-18. A chapter tagged with a volume whose range does
+ * not hold it is a lumped or stale tag and is left out.
+ */
+function fandomVolumeChapters(
+  volume: FandomVolumeLike,
+  chapterList: readonly FandomChapterLike[],
+): number[] {
+  const { chapterStart: start, chapterEnd: end } = volume;
+  if (start === undefined || end === undefined) return [];
+  const out = new Set<number>();
+  for (const ch of chapterList) {
+    if (ch.volume !== volume.number || !Number.isFinite(ch.number) || ch.number <= 0) continue;
+    const whole = Math.floor(ch.number);
+    if (whole >= Math.floor(start) && whole <= end) out.add(ch.number);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** Fandom's volume rows, each with the chapters its chapter list files under it. */
+export function fandomVolumeInputsFrom(
+  fandom: { volumeList: readonly FandomVolumeLike[]; chapterList: readonly FandomChapterLike[] } | null | undefined,
+): FandomVolumeInputRow[] {
+  return toFandomVolumeInputs(fandom?.volumeList ?? [], fandom?.chapterList ?? []);
+}
+
+export function toFandomVolumeInputs(
+  volumes: readonly FandomVolumeLike[],
+  chapterList: readonly FandomChapterLike[] = [],
+): FandomVolumeInputRow[] {
   return volumes.map(fv => {
     const entry: FandomVolumeInputRow = { number: fv.number };
     if (fv.chapterStart !== undefined) entry.chapterStart = fv.chapterStart;
     if (fv.chapterEnd !== undefined) entry.chapterEnd = fv.chapterEnd;
+    const chapters = fandomVolumeChapters(fv, chapterList);
+    if (chapters.length > 0) entry.chapters = chapters;
     if (fv.title !== undefined) entry.title = fv.title;
     if (fv.description !== undefined) entry.description = fv.description;
     if (fv.coverImage !== undefined) entry.coverImage = fv.coverImage;

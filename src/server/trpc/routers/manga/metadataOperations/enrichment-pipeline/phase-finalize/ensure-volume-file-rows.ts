@@ -23,6 +23,7 @@
 import { ChapterStatus } from '@prisma/client';
 
 import { prisma } from '@/server/db';
+import { chapterNumberFromFileName, isSingleChapterFile } from '@/server/services/library/chapter-file-name';
 import { logger } from '@/utils/logger';
 
 import { VOLUME_FILE_INDEX_PROBE_LIMIT, volumeFileBaseIndex } from './volume-file-row-scheme';
@@ -72,6 +73,11 @@ async function findExistingVolumeFileRow(
  * file (the rest are pending) has one distinct path too, but that file is the
  * chapter, not the volume: Blue Exorcist volume 10 got a second file-backed
  * row for `c039.cbz`, which read as that chapter deleted and re-created.
+ *
+ * A file named for one chapter is never the volume's archive, however many rows
+ * point at it: SPY x FAMILY volume 17's rows 119, 120.1, 123.1 … all held
+ * `V17 C119.cbz`, and adopting it as the archive kept linking the rest of the
+ * volume to chapter 119's file on every refresh.
  */
 export function sharedArchivePath(rows: Array<{ filePath: string | null }>): string | null {
   const holders = new Map<string, number>();
@@ -80,7 +86,28 @@ export function sharedArchivePath(rows: Array<{ filePath: string | null }>): str
   }
   if (holders.size !== 1) return null;
   const [only] = [...holders.entries()];
-  return only !== undefined && only[1] >= 2 ? only[0] : null;
+  if (only === undefined || only[1] < 2 || isSingleChapterFile(only[0])) return null;
+  return only[0];
+}
+
+/**
+ * True when a numberless row holding a single-chapter file may drop it: the
+ * chapter's own numbered row holds the file too (so it stays linked), and the
+ * volume has no other file-less numberless row (only one may exist:
+ * `Chapter_one_null_per_volume`). Neon Genesis Evangelion's numberless row is
+ * the only holder of `Chapter 0029.cbz`; clearing it would orphan the file.
+ */
+async function mayReleaseChapterFile(mangaId: number, volume: number, row: { id: number; filePath: string }): Promise<boolean> {
+  const fileChapter = chapterNumberFromFileName(row.filePath);
+  if (fileChapter === null) return false;
+  const [owner, twin] = await Promise.all([
+    prisma.chapter.findFirst({ where: { mangaId, filePath: row.filePath, chapterNumber: fileChapter }, select: { id: true } }),
+    prisma.chapter.findFirst({
+      where: { mangaId, volume, chapterNumber: null, filePath: null, packDownloadId: null, id: { not: row.id } },
+      select: { id: true },
+    }),
+  ]);
+  return owner !== null && twin === null;
 }
 
 /**
@@ -148,6 +175,50 @@ function aggregateChapterRows(
   };
 }
 
+/** Bring a volume's existing numberless row in line with its chapters' aggregate. */
+async function refreshExistingRow(
+  mangaId: number,
+  volume: number,
+  existing: VolumeFileRow,
+  agg: ChapterAggregate,
+  downloadStatus: ChapterStatus,
+): Promise<'updated' | 'skipped'> {
+  // A file-backed volume row whose numbered chapters do NOT share one
+  // archive path is a pack-import compendium pointer (chapters may be
+  // pending or in per-chapter files from another source). Leave it alone:
+  // nulling its filePath / overwriting its archive-derived stats with
+  // chapter-row aggregates would orphan the archive on disk.
+  // A row holding a file named for one chapter is not a compendium pointer:
+  // it held that chapter's file as if it were the volume's archive, and
+  // linkArchiveCoveredChapters spread the file to the volume's other rows.
+  // It is cleared to the per-chapter shape below when its chapter's own row
+  // holds the file.
+  if (existing.filePath !== null && agg.sharedFilePath === null) {
+    const releasable = isSingleChapterFile(existing.filePath)
+      && await mayReleaseChapterFile(mangaId, volume, { id: existing.id, filePath: existing.filePath });
+    if (!releasable) return 'skipped';
+  }
+  // Status is compared too: chapters can complete (or lose their files)
+  // without the page or size totals moving, which left the row's status stale.
+  const needsUpdate = (existing.pageCount ?? 0) !== agg.totalPages
+    || existing.size !== agg.totalSize
+    || existing.filePath !== agg.sharedFilePath
+    || existing.downloadStatus !== downloadStatus;
+  if (!needsUpdate) return 'skipped';
+  await prisma.chapter.update({
+    where: { id: existing.id },
+    data: {
+      pageCount: agg.totalPages,
+      size: agg.totalSize,
+      downloadStatus,
+      ...(agg.sharedFilePath !== null
+        ? { filePath: agg.sharedFilePath, fileName: agg.sharedFileName ?? '', fileFormat: agg.sharedFileFormat }
+        : { filePath: null, ...(existing.filePath !== null ? { fileName: '', fileFormat: null } : {}) }),
+    },
+  });
+  return 'updated';
+}
+
 async function ensureRowForVolume(
   mangaId: number,
   volume: number,
@@ -162,33 +233,7 @@ async function ensureRowForVolume(
     : ChapterStatus.PENDING;
   const size = agg.totalSize;
 
-  if (existing) {
-    // A file-backed volume row whose numbered chapters do NOT share one
-    // archive path is a pack-import compendium pointer (chapters may be
-    // pending or in per-chapter files from another source). Leave it alone:
-    // nulling its filePath / overwriting its archive-derived stats with
-    // chapter-row aggregates would orphan the archive on disk.
-    if (existing.filePath !== null && agg.sharedFilePath === null) return 'skipped';
-    // Status is compared too: chapters can complete (or lose their files)
-    // without the page or size totals moving, which left the row's status stale.
-    const needsUpdate = (existing.pageCount ?? 0) !== agg.totalPages
-      || existing.size !== size
-      || existing.filePath !== agg.sharedFilePath
-      || existing.downloadStatus !== downloadStatus;
-    if (!needsUpdate) return 'skipped';
-    await prisma.chapter.update({
-      where: { id: existing.id },
-      data: {
-        pageCount: agg.totalPages,
-        size,
-        downloadStatus,
-        ...(agg.sharedFilePath !== null
-          ? { filePath: agg.sharedFilePath, fileName: agg.sharedFileName ?? '', fileFormat: agg.sharedFileFormat }
-          : { filePath: null }),
-      },
-    });
-    return 'updated';
-  }
+  if (existing) return refreshExistingRow(mangaId, volume, existing, agg, downloadStatus);
 
   // No existing row — create one. Index strategy: park in the synthetic
   // 100_000+ space partitioned by volume number so it doesn't collide with

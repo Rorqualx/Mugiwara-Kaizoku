@@ -8,6 +8,8 @@ import type { WikipediaParseResult } from '@/server/services/wikipedia/adaptive/
 import type { WikipediaMangaData, WikipediaChapter } from '@/server/services/wikipedia/wikipedia/types';
 import { logger } from '@/utils/logger';
 
+import { withGraphicNovelManifest } from './graphic-novel-manifest';
+
 /** Fetch alternative titles (synonyms) from the manga's metadata */
 export async function fetchAlternativeTitles(mangaId: number): Promise<string[]> {
   const manga = await prisma.manga.findUnique({
@@ -135,6 +137,8 @@ async function fetchAndPad(
 
   // Stage 2.5a: Wikidata fallback when both prior stages returned nothing
   mergedData ??= await tryWikidataFallback(title, lookupTitle, hints, wikipediaService, adaptiveExtract);
+  // Stage 2.6: volumes as the page's Graphic novel list wikitext files them (graphic-novel-manifest.ts)
+  mergedData = await withGraphicNovelManifest(mergedData, title);
 
   // Stage 2.5b: Replace chapter list with placeholder fill when extraction is <30% of expected
   if (mergedData) {

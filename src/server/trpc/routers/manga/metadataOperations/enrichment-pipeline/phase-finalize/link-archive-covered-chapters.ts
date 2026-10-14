@@ -18,6 +18,7 @@
 import { ChapterStatus } from '@prisma/client';
 
 import { prisma } from '@/server/db';
+import { findChapterFileSquatters } from '@/server/services/library/chapter-file-name';
 import { selectChaptersToLink, type ChapterLink, type CoverageRow } from '@/server/services/library/volume-archive-coverage';
 import { nullifyMissingArchives } from '@/server/services/library/volume-archive-coverage-fs';
 import { logger } from '@/utils/logger';
@@ -52,6 +53,36 @@ async function applyArchiveLink(filePath: string, group: ChapterLink[]): Promise
 export function withoutChaptersPastLastVolume(rows: CoverageRow[], lastChapterEnd: number | null): CoverageRow[] {
   if (lastChapterEnd === null) return rows;
   return rows.filter(r => r.chapterNumber === null || Boolean(r.filePath) || Math.floor(r.chapterNumber) <= lastChapterEnd);
+}
+
+/**
+ * Phase-finalize step, run before `ensureVolumeFileRows`: clear the file from
+ * numbered rows that hold another chapter's file (SPY x FAMILY 120.1, 123.1 …
+ * on `V17 C119.cbz`). They go back to file-less PENDING; the link step below
+ * points them at their volume's archive when the volume has a real one.
+ * Running first means the volume-file rows are summed without them.
+ */
+export async function releaseChapterFileSquatters(mangaId: number): Promise<number> {
+  try {
+    const rows = await prisma.chapter.findMany({
+      where: { mangaId, filePath: { not: null } },
+      select: { id: true, chapterNumber: true, filePath: true },
+    });
+    const squatters = findChapterFileSquatters(rows);
+    if (squatters.length === 0) return 0;
+    const result = await prisma.chapter.updateMany({
+      where: { id: { in: squatters }, mangaId },
+      data: {
+        filePath: null, fileName: '', fileFormat: null, size: 0, pageCount: null,
+        downloadStatus: ChapterStatus.PENDING, updatedAt: new Date(),
+      },
+    });
+    logger.info(`[releaseChapterFileSquatters] mangaId=${mangaId} released ${result.count} chapter row(s) holding another chapter's file`);
+    return result.count;
+  } catch (err) {
+    logger.warn(`[releaseChapterFileSquatters] failed for manga ${mangaId} (non-critical)`, err);
+    return 0;
+  }
 }
 
 export async function linkArchiveCoveredChapters(mangaId: number): Promise<number> {

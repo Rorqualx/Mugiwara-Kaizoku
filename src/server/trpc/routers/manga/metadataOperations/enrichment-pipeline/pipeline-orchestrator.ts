@@ -51,7 +51,7 @@ import { pruneRedundantVolumeFileStubs } from './phase-volume-stub-cleanup';
 import { anchorUnanswered, logAnchorSkip } from './pipeline-orchestrator/anchor-gate';
 import { applyFandomVolumeFields, resolveFandomUrl } from './pipeline-orchestrator/fandom-volume-fields';
 import { comicVineAttestedVolumes } from './pipeline-orchestrator/stored-comicvine-volumes';
-import { toFandomVolumeInputs, toWikipediaVolumeInputs } from './pipeline-orchestrator/volume-inputs';
+import { fandomVolumeInputsFrom, toWikipediaVolumeInputs } from './pipeline-orchestrator/volume-inputs';
 import { persistValidatedVolumeRanges } from './pipeline-orchestrator/volume-persistence';
 import { maybePlausibilityCheck, maybeSyncSuwayomiChapters, maybeTriggerAutoDownload } from './post-enrichment-hooks';
 import { isBonusTitle } from './types';
@@ -595,7 +595,7 @@ async function executeEnrichmentPhases(
   await onProgress?.('validating', 'Cross-validating volume ranges...');
   const comicvineVolumes = await extractComicVineVolumes(mangaId, result);
   const wikiVolumes = toWikipediaVolumeInputs(result.wikipediaResult?.data.volumeList ?? []);
-  const fandomVolumes = toFandomVolumeInputs(result.fandomResult?.volumeList ?? []);
+  const fandomVolumes = fandomVolumeInputsFrom(result.fandomResult);
 
   const mangadexVolumes = result.mangadexAggregate?.volumes ?? [];
   // iter-PVM-1: surface per-chapter list on CV volume rows from their

@@ -17,7 +17,7 @@ import { getVolumeCapForManga } from './phase-volume-cross-validation/db-volume-
 import { classifyChapterCorrections } from './phase-volume-reconciliation/chapter-corrections';
 import { finalVolumeFill } from './phase-volume-reconciliation/final-volume-fill';
 import { resolveNullRowVolume } from './phase-volume-reconciliation/null-row-volume';
-import { isStaleOrphanCoveredByRanges } from './phase-volume-reconciliation/stale-orphan';
+import { isStaleOrphanCoveredByRanges, uncoveredOrphanSpan } from './phase-volume-reconciliation/stale-orphan';
 
 export { resolveNullRowVolume };
 export type { VolumeRange } from './phase-volume-reconciliation/null-row-volume';
@@ -29,8 +29,9 @@ export type { VolumeRange } from './phase-volume-reconciliation/null-row-volume'
 interface OrphanedVolumeGroup {
   volume: number;
   count: bigint;
-  min_ch: number;
-  max_ch: number;
+  /** NULL when the group has only numberless rows (whole-volume archives). */
+  min_ch: number | null;
+  max_ch: number | null;
 }
 
 interface VolumeCreateData {
@@ -330,6 +331,58 @@ async function dropStaleCoveredOrphans(
   return orphans.filter(g => !stale.includes(g.volume));
 }
 
+/** Volumes to create, and rows to move, for the orphans reconciliation keeps. */
+async function planOrphanVolumes(
+  mangaId: number,
+  orphans: OrphanedVolumeGroup[],
+  existingVolumes: Array<{ number: number; chapterStart: number | null; chapterEnd: number | null }>,
+  existingSet: Set<number>,
+  expectedVolumeCount: number | null,
+): Promise<{ allCreates: VolumeCreateData[]; allUpdates: SplitResult['updates'] }> {
+  const avgPerVol = computeAvgChaptersPerVolume(existingVolumes);
+  const maxExisting = existingVolumes.length > 0
+    ? Math.max(...existingVolumes.map(v => v.number))
+    : 0;
+
+  // Classify orphans: simple creates vs needs-split
+  const simpleCreates: VolumeCreateData[] = [];
+  const splitWork: Array<{ orphanVol: number; missing: number[]; ownCreate: VolumeCreateData }> = [];
+
+  for (const orphan of orphans) {
+    const missing = findMissingVolumes(orphan.volume, maxExisting, existingSet, expectedVolumeCount);
+    const chCount = Number(orphan.count);
+    const needsSplit = missing.length > 1 && chCount > avgPerVol * 1.5;
+
+    // Built from its own rows, an orphan holds only the chapters no other volume's range does.
+    const span = uncoveredOrphanSpan(orphan, existingVolumes);
+    const ownCreate: VolumeCreateData = {
+      mangaId, number: orphan.volume, title: null,
+      chapterStart: span?.start ?? null, chapterEnd: span?.end ?? null,
+      totalChapters: chCount, source: 'reconciliation',
+    };
+    if (needsSplit) splitWork.push({ orphanVol: orphan.volume, missing, ownCreate });
+    // A volume of numberless rows (whole-volume archives) keeps its range-less record, as before.
+    else if (span !== null || orphan.min_ch === null) simpleCreates.push(ownCreate);
+    existingSet.add(orphan.volume);
+  }
+
+  // Process all splits concurrently. A split with nothing to move (every row is
+  // file-backed) still keeps the orphan's own volume: dropping it left its files
+  // in a volume that no longer existed ("Why Does Nobody Remember Me" rows 49-59).
+  const splitResults = await Promise.all(
+    splitWork.map(s => splitChaptersAcrossVolumes(mangaId, s.orphanVol, s.missing)),
+  );
+  const allCreates = [...simpleCreates];
+  const allUpdates: SplitResult['updates'] = [];
+  splitResults.forEach(({ creates, updates }, i) => {
+    const own = splitWork[i]?.ownCreate;
+    if (creates.length === 0 && own !== undefined && own.chapterStart !== null) allCreates.push(own);
+    allCreates.push(...creates);
+    allUpdates.push(...updates);
+  });
+  return { allCreates, allUpdates };
+}
+
 export async function reconcileMissingVolumeRecords(
   mangaId: number,
   expectedVolumeCount: number | null,
@@ -372,42 +425,7 @@ export async function reconcileMissingVolumeRecords(
   orphans = await dropStaleCoveredOrphans(mangaId, orphans, existingVolumes, expectedVolumeCount);
   if (orphans.length === 0) return;
 
-  const avgPerVol = computeAvgChaptersPerVolume(existingVolumes);
-  const maxExisting = existingVolumes.length > 0
-    ? Math.max(...existingVolumes.map(v => v.number))
-    : 0;
-
-  // Classify orphans: simple creates vs needs-split
-  const simpleCreates: VolumeCreateData[] = [];
-  const splitWork: Array<{ orphanVol: number; missing: number[] }> = [];
-
-  for (const orphan of orphans) {
-    const missing = findMissingVolumes(orphan.volume, maxExisting, existingSet, expectedVolumeCount);
-    const chCount = Number(orphan.count);
-    const needsSplit = missing.length > 1 && chCount > avgPerVol * 1.5;
-
-    if (needsSplit) {
-      splitWork.push({ orphanVol: orphan.volume, missing });
-    } else {
-      simpleCreates.push({
-        mangaId, number: orphan.volume, title: null,
-        chapterStart: orphan.min_ch, chapterEnd: orphan.max_ch,
-        totalChapters: chCount, source: 'reconciliation',
-      });
-    }
-    existingSet.add(orphan.volume);
-  }
-
-  // Process all splits concurrently
-  const splitResults = await Promise.all(
-    splitWork.map(s => splitChaptersAcrossVolumes(mangaId, s.orphanVol, s.missing)),
-  );
-  const allCreates = [...simpleCreates];
-  const allUpdates: SplitResult['updates'] = [];
-  for (const { creates, updates } of splitResults) {
-    allCreates.push(...creates);
-    allUpdates.push(...updates);
-  }
+  const { allCreates, allUpdates } = await planOrphanVolumes(mangaId, orphans, existingVolumes, existingSet, expectedVolumeCount);
 
   // Persist volume records and chapter reassignments
   if (allCreates.length > 0) {

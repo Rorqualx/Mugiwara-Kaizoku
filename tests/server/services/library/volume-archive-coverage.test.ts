@@ -120,6 +120,19 @@ describe('selectChaptersToLink', () => {
     const links = selectChaptersToLink(rows);
     expect(links).toHaveLength(110); // 120 numbered - 10 with own files
   });
+
+  it('a numberless row holding one chapter\'s file is not the volume\'s archive (SPY x FAMILY vol 17)', () => {
+    // Row 47488 "Volume 17" held V17 C119.cbz; every pending chapter of volume
+    // 17 (120.1, 120.5, 123.1, 127.3) was linked to chapter 119's file.
+    const c119 = '/library/Manga chapters/SPY x FAMILY/Chapters/Volume 17/SPY x FAMILY V17 C119.cbz';
+    const rows = [
+      archive(17, { filePath: c119, fileName: 'SPY x FAMILY V17 C119.cbz', pageCount: 226 }),
+      chap(17, 119, { downloadStatus: 'COMPLETED', filePath: c119 }),
+      chap(17, 120.1), chap(17, 120.5), chap(17, 123.1), chap(17, 127.3),
+    ];
+    expect(selectChaptersToLink(rows)).toEqual([]);
+    expect(volumesWithFileBackedArchive(rows).size).toBe(0);
+  });
 });
 
 describe('filterUncoveredCandidates', () => {

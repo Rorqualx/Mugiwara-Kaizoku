@@ -18,7 +18,7 @@ jest.mock('@/server/db', () => ({
 }));
 
 import { prisma } from '@/server/db';
-import { linkArchiveCoveredChapters } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/link-archive-covered-chapters';
+import { linkArchiveCoveredChapters, releaseChapterFileSquatters } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/link-archive-covered-chapters';
 
 const findMany = prisma.chapter.findMany as unknown as jest.Mock<(args: unknown) => Promise<unknown>>;
 const updateMany = prisma.chapter.updateMany as unknown as jest.Mock<(args: unknown) => Promise<unknown>>;
@@ -134,5 +134,31 @@ describe('linkArchiveCoveredChapters', () => {
     ]);
     expect(await linkArchiveCoveredChapters(80)).toBe(2);
     expect([...updateArg(0).where.id.in].sort()).toEqual([1, 2]);
+  });
+});
+
+describe('releaseChapterFileSquatters', () => {
+  const C119 = '/library/Manga chapters/SPY x FAMILY/Chapters/Volume 17/SPY x FAMILY V17 C119.cbz';
+
+  it("clears another chapter's file from the rows that hold it, keeping chapter 119 and the volume archive rows", async () => {
+    findMany.mockResolvedValue([
+      { id: 47488, chapterNumber: null, filePath: C119 },
+      { id: 41002, chapterNumber: 119, filePath: C119 },
+      { id: 48789, chapterNumber: 120.1, filePath: C119 },
+      { id: 48763, chapterNumber: 123.1, filePath: C119 },
+      { id: 100, chapterNumber: 18, filePath: v2 },
+      { id: 101, chapterNumber: 19, filePath: v2 },
+    ]);
+    expect(await releaseChapterFileSquatters(83)).toBe(2);
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    const arg = updateArg(0);
+    expect([...arg.where.id.in].sort()).toEqual([48763, 48789]);
+    expect(arg.data).toMatchObject({ filePath: null, fileName: '', downloadStatus: 'PENDING', pageCount: null });
+  });
+
+  it('writes nothing when every row holds its own file', async () => {
+    findMany.mockResolvedValue([{ id: 41002, chapterNumber: 119, filePath: C119 }]);
+    expect(await releaseChapterFileSquatters(83)).toBe(0);
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });

@@ -21,6 +21,7 @@ import { detectChapterListFormat, detectPageStructure } from './format-detector'
 import { isChapterRangePattern, parseChapterRangePattern } from './formats/chapter-range-pattern';
 import { itemValue, quotedItemTitle, topLevelListItems } from './formats/list-items';
 import { parseNumberedChaptersPattern } from './formats/numbered-chapters-pattern';
+import { parseVolumeRowChapters } from './formats/volume-row-pattern';
 import { isZeroIndexedPattern, parseZeroIndexedPattern } from './formats/zero-indexed-pattern';
 
 // Re-export pattern-specific parsers
@@ -50,6 +51,22 @@ export function parseChapterTables(html: string): WikipediaChapter[] {
     return parseChapterRangePattern(html);
   }
 
+  const byPagePattern = parseByPagePattern(html);
+  const byVolumeRow = parseVolumeRowChapters(html);
+  if (!byVolumeRow) return byPagePattern;
+
+  // The volume rows say which volume each chapter is in. Chapters listed after
+  // the last volume (not yet collected) only the page-wide parsers see.
+  const lastCollected = Math.max(...byVolumeRow.map(c => Number(c.number)));
+  const uncollected = byPagePattern
+    .filter(c => Number(c.number) > lastCollected)
+    .map(({ volumeNumber: _volume, ...c }) => c);
+  logger.info(`[WIKIPEDIA] Read ${byVolumeRow.length} chapters from the volume rows (+${uncollected.length} not yet collected)`);
+  return [...byVolumeRow, ...uncollected];
+}
+
+/** Chapters found by recognising the page's list pattern and counting through its volume sections. */
+function parseByPagePattern(html: string): WikipediaChapter[] {
   // Tier 1: Page-level structure (volume markers, edition layout)
   const pageHints = detectPageStructure(html);
 

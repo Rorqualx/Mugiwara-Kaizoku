@@ -81,6 +81,29 @@ function normalizeChapter(ch: number, integerCorpus: Set<number>): number {
 }
 
 /**
+ * Chapters a volume holds only as release parts: two or more decimals of the
+ * same whole number (27.1 and 27.2) where no source lists that whole number,
+ * so `normalizeChapter` kept them as decimals. They are one chapter published
+ * in parts, and the volume's range must reach it. Read as bonus extras, they
+ * left the range short: "Why Does Nobody Remember Me in this World" volume 6
+ * (25-28.2 on MangaDex) became 25-26 and volume 7 (29.1-31) became 31-31, so
+ * chapters 27-30 sat in no range and a stale volume 12 was rebuilt over them.
+ * A lone decimal (35.5, or 36.1 with 36.2 in the next volume) stays an extra.
+ */
+function splitReleaseChapters(chapters: readonly number[]): number[] {
+  const partsByWhole = new Map<number, number>();
+  for (const ch of chapters) {
+    if (Number.isInteger(ch)) continue;
+    const whole = Math.floor(ch);
+    partsByWhole.set(whole, (partsByWhole.get(whole) ?? 0) + 1);
+  }
+  const wholes = new Set(chapters.filter(c => Number.isInteger(c)));
+  return [...partsByWhole.entries()]
+    .filter(([whole, parts]) => parts >= 2 && whole > 0 && !wholes.has(whole))
+    .map(([whole]) => whole);
+}
+
+/**
  * Run the membership consensus. Accepts the full proposal list — only
  * proposals carrying `chapters[]` contribute; the rest are silently ignored.
  */
@@ -138,7 +161,8 @@ export function resolveVolumeManifest(proposals: VolumeRangeProposal[]): Consens
   const out: ConsensusVolumeManifest = { volumes: {}, conflictChapters: conflicts, hadSignal: true };
   for (const [vol, { chapters, sources }] of byVol) {
     chapters.sort((a, b) => a - b);
-    const integerCh = chapters.filter(c => Number.isInteger(c));
+    const integerCh = [...chapters.filter(c => Number.isInteger(c)), ...splitReleaseChapters(chapters)]
+      .sort((a, b) => a - b);
     const bonusCh = chapters.filter(c => !Number.isInteger(c));
     const first = integerCh[0];
     const last = integerCh[integerCh.length - 1];

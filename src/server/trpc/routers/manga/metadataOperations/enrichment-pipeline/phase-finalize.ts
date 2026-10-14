@@ -24,7 +24,7 @@ import { fillGenericChapterTitlesFromProviders } from './phase-finalize/chapter-
 import { ensureVolumeFileRows } from './phase-finalize/ensure-volume-file-rows';
 import { appendComicVineGalleryImages } from './phase-finalize/gallery-from-comicvine';
 import { unionVolumeChapterCoversIntoGallery } from './phase-finalize/gallery-union';
-import { linkArchiveCoveredChapters } from './phase-finalize/link-archive-covered-chapters';
+import { linkArchiveCoveredChapters, releaseChapterFileSquatters } from './phase-finalize/link-archive-covered-chapters';
 import { persistAniListRelationsForManga } from './phase-finalize/manga-relation-resolver';
 import { syncMangaStatusFromMetadata } from './phase-finalize/manga-status-sync';
 import { persistMergedSynonyms } from './phase-finalize/merged-synonyms';
@@ -35,6 +35,7 @@ import { backfillChapterVolumeIds } from './phase-finalize/volume-id-backfill';
 import { fillVolumeFallbacksFromMetadata } from './phase-finalize/volume-metadata-fallback';
 import { fillVolumeFieldsFromWikipedia, runBannerImageFallback } from './phase-finalize/volume-wikipedia-fill';
 import { buildMangaDexExternalLinks } from './phase-provider-fetch/external-id-extractor';
+import { wikipediaVolumeCount } from './phase-volume-cross-validation/witness-counts';
 import { tagChaptersAwaitingVolume } from './phase-volume-overflow';
 
 import type { EnrichmentProgress, UnifiedProviderResults } from './types';
@@ -96,7 +97,9 @@ export async function phaseFinalize(
   // (single file shared across chapters) and per-chapter file imports
   // (Kaiju: Chapter 0001.cbz...0007.cbz separately) end up with a single
   // "1-N" row in the chapter table so the UI can render the volume as a
-  // unit alongside the per-chapter rows.
+  // unit alongside the per-chapter rows. Rows holding another chapter's file
+  // are released first, so neither step counts them as file-backed.
+  await releaseChapterFileSquatters(mangaId);
   await ensureVolumeFileRows(mangaId);
   // Link numbered chapters covered by a file-backed whole-volume archive to that
   // archive (COMPLETED + filePath), so a range/manifest fix never leaves them
@@ -215,7 +218,6 @@ async function fillChapterDescs(mangaId: number, volumes: Array<{ id: number; de
  *
  * Safe to delete: no data is lost because these shells hold nothing.
  */
-// eslint-disable-next-line complexity -- complexity 24: provenance-aware volume-count reconciliation across AniList, Wikipedia, and DB state with several anti-corruption guards
 async function prunePhantomVolumes(
   mangaId: number,
   providerResults: UnifiedProviderResults,
@@ -223,7 +225,7 @@ async function prunePhantomVolumes(
   try {
     const metadata = providerResults.enrichmentResult.appliedMatch?.metadata as Record<string, unknown> | undefined;
     const anilistVolumes = typeof metadata?.['volumes'] === 'number' ? metadata['volumes'] as number : 0;
-    const wikiVolumes = providerResults.wikipediaResult?.data.volumeList?.length ?? 0;
+    const wikiVolumes = wikipediaVolumeCount(providerResults.wikipediaResult?.data.volumeList);
     // Prefer AniList's scalar volume count — Wikipedia's volumeList can be
     // inflated by chapter-list pages or multi-edition tables (e.g. 20th Century
     // Boys Wikipedia returns 73 volumes for a 22-volume series). Use Wikipedia

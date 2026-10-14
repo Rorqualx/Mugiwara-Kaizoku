@@ -67,6 +67,14 @@ describe('filesOutrunLastVolume — which downloads earn the one volume past the
     expect(filesOutrunLastVolume([...misc, { chapterNumber: 200.5, volume: 20 }], 200, 20)).toBe(true);
   });
 
+  it('allows nothing for rows past the count whose chapters a counted range already holds (Yofukashi no Uta: Fandom 9-18 and 19-29 hold the stale volume 21)', () => {
+    const misc = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22].map(n => ({ chapterNumber: n, volume: 21 }));
+    const counted = [{ start: 1, end: 8 }, { start: 9, end: 18 }, { start: 19, end: 29 }, { start: 190, end: 200 }];
+    expect(filesOutrunLastVolume([...misc, { chapterNumber: 200.5, volume: 20 }], 200, 20, null, counted)).toBe(false);
+    // One row no range holds is still evidence (chapter 0 in a volume past the count).
+    expect(filesOutrunLastVolume([...misc, { chapterNumber: 0, volume: 21 }], 200, 20, null, counted)).toBe(true);
+  });
+
   it('keeps the volume for chapter 0 and numberless archives filed past the count (Jujutsu Kaisen: volume 31; Vinland Saga: "Vol 30")', () => {
     const jjk = [
       { chapterNumber: null, volume: 31 }, { chapterNumber: 0, volume: 31 },

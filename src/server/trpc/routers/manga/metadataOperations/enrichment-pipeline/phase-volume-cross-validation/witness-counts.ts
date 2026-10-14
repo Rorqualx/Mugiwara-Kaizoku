@@ -38,6 +38,17 @@ export function anilistOwnCount(result: UnifiedProviderResults, field: CountFiel
 }
 
 /**
+ * How many volumes a Wikipedia volume list names: its distinct positive volume
+ * numbers. The list's length is not that count. A page with a second table
+ * (a light novel, an anthology, an English edition) repeats numbers: DARLING
+ * in the FRANXX's article yields volumes 1, 1, 2…8, and the 9 that its length
+ * gave voted a ninth volume into an eight-volume series.
+ */
+export function wikipediaVolumeCount(volumeList: ReadonlyArray<{ number: number }> | null | undefined): number {
+  return new Set((volumeList ?? []).map(v => v.number).filter(n => Number.isInteger(n) && n > 0)).size;
+}
+
+/**
  * Wikipedia's own chapter count (see `ownChapterCount`). A list emptied by the
  * cross-series gate is no witness at all, whatever the article stated.
  */

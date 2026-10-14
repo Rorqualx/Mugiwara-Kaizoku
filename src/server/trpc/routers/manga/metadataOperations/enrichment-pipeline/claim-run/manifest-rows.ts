@@ -56,7 +56,7 @@ export function summariseManifests(proposals: readonly ManifestProposal[]): Map<
 /** The ranges a gated wiki would have proposed, read from its pre-gate lists. */
 export function summarisePreGateManifests(preGate: PreGateSnapshot): Map<string, ManifestSummary> {
   const wikipediaVolumes = toWikipediaVolumeInputs(preGate.wikipedia?.data.volumeList ?? []);
-  const fandomVolumes = toFandomVolumeInputs(preGate.fandom?.volumeList ?? []);
+  const fandomVolumes = toFandomVolumeInputs(preGate.fandom?.volumeList ?? [], preGate.fandom?.chapterList ?? []);
   return summariseManifests(collectVolumeRangeProposals([], wikipediaVolumes, fandomVolumes, []));
 }
 

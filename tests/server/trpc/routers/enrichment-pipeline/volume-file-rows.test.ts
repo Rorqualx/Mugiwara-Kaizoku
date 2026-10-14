@@ -20,7 +20,7 @@ jest.mock('@/server/services/metadata/metadata-persister', () => ({ metadataPers
 jest.mock('@/server/services/volume-persister', () => ({ persistNormalizedVolumes: jest.fn() }));
 
 import { findStaleChapterIds } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-db-persistence';
-import { ensureVolumeFileRows } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/ensure-volume-file-rows';
+import { ensureVolumeFileRows, sharedArchivePath } from '@/server/trpc/routers/manga/metadataOperations/enrichment-pipeline/phase-finalize/ensure-volume-file-rows';
 import {
   findKeptVolumeFileRowIds,
   isVolumeFileRow,
@@ -211,5 +211,72 @@ describe('ensureVolumeFileRows — a refresh never manufactures a second file-ba
     await ensureVolumeFileRows(73);
     expect(mockChapter.create).not.toHaveBeenCalled();
     expect(mockChapter.update.mock.calls[0]?.[0]).toMatchObject({ where: { id: 500 }, data: { pageCount: 60 } });
+  });
+});
+
+describe('ensureVolumeFileRows — a file named for one chapter is never the volume\'s archive', () => {
+  const C119 = '/library/Manga chapters/SPY x FAMILY/Chapters/Volume 17/SPY x FAMILY V17 C119.cbz';
+  const numberedRow = (index: number, filePath: string | null, downloadStatus = 'COMPLETED'): Record<string, unknown> => ({
+    index, pageCount: 39, size: BigInt(1000), filePath, fileName: filePath?.split('/').pop() ?? '', fileFormat: 'cbz',
+    volume: 17, volumeId: 10105, downloadStatus,
+  });
+  /** Route the findMany calls: numbered chapters, archive rows, file-less containers. */
+  function mockRows(numbered: Array<Record<string, unknown>>, archiveRows: Array<{ id: number; filePath: string }>): void {
+    mockChapter.findMany.mockImplementation(async (args) => {
+      if (args.where['chapterNumber'] !== null) return numbered;
+      return 'OR' in args.where ? [] : archiveRows;
+    });
+  }
+  /**
+   * The volume's own row holds C119.cbz; `twin` is a file-less numberless row
+   * beside it, `owner` the numbered row of chapter 119 on the same file.
+   */
+  function mockExisting(twin: { id: number } | null, owner: { id: number } | null = { id: 41002 }): void {
+    mockChapter.findFirst.mockImplementation(async (args) => {
+      if (!('volume' in args.where)) return args.where['chapterNumber'] === 119 ? owner : null;
+      if (args.where['filePath'] === null) return twin;
+      return { id: 47488, pageCount: 226, size: BigInt(1000), filePath: C119, downloadStatus: 'COMPLETED' };
+    });
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockChapter.deleteMany.mockResolvedValue({ count: 0 });
+    mockChapter.create.mockResolvedValue({});
+    mockChapter.update.mockResolvedValue({});
+  });
+
+  it('sharedArchivePath rejects a chapter file however many rows hold it, and keeps a volume archive', () => {
+    expect(sharedArchivePath([{ filePath: C119 }, { filePath: C119 }, { filePath: C119 }])).toBeNull();
+    const v03 = '/library/Manga chapters/One Piece/Volumes/One Piece V03.cbz';
+    expect(sharedArchivePath([{ filePath: v03 }, { filePath: v03 }])).toBe(v03);
+  });
+
+  it('clears the chapter file from the volume\'s numberless row (SPY x FAMILY row 47488)', async () => {
+    // Rows 119, 120.1, 123.1 all on C119.cbz, the rest of the volume pending.
+    mockRows([numberedRow(119, C119), numberedRow(120, C119), numberedRow(123, C119), numberedRow(124, null, 'PENDING')], [{ id: 47488, filePath: C119 }]);
+    mockExisting(null);
+    await ensureVolumeFileRows(83);
+    expect(mockChapter.create).not.toHaveBeenCalled();
+    expect(mockChapter.update).toHaveBeenCalledTimes(1);
+    expect(mockChapter.update.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: 47488 }, data: { filePath: null, fileName: '', fileFormat: null, downloadStatus: 'PENDING' },
+    });
+  });
+
+  it('leaves it when no row of its own chapter holds the file (clearing it would orphan the file)', async () => {
+    mockRows([numberedRow(124, null, 'PENDING')], [{ id: 47488, filePath: C119 }]);
+    mockExisting(null, null);
+    await ensureVolumeFileRows(83);
+    expect(mockChapter.update).not.toHaveBeenCalled();
+    expect(mockChapter.create).not.toHaveBeenCalled();
+  });
+
+  it('leaves it when the volume already has its file-less row (only one may exist)', async () => {
+    mockRows([numberedRow(119, C119), numberedRow(124, null, 'PENDING')], [{ id: 47488, filePath: C119 }]);
+    mockExisting({ id: 9 });
+    await ensureVolumeFileRows(83);
+    expect(mockChapter.update).not.toHaveBeenCalled();
+    expect(mockChapter.create).not.toHaveBeenCalled();
   });
 });

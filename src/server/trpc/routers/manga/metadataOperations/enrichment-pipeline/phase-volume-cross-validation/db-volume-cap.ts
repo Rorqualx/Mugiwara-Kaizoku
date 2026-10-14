@@ -174,10 +174,10 @@ export function misnumberedPastFinalRows(
  *   not count: Attack on Titan's 139.5 after volume 34 (ending 139) belongs to
  *   volume 34 and must not allow a volume 35.
  * - A downloaded row already filed in a volume past the count, other than such
- *   a decimal extra: Yofukashi no Uta's chapters 10-22 (in no provider range)
- *   in its "Misc" volume 21, Jujutsu Kaisen's chapter 0 and "Vol 00"/"V31"
- *   archives in volume 31, Vinland Saga's "Vol 30" archive. Refusing the
- *   volume would leave those files without one.
+ *   a decimal extra or a chapter a counted volume's range already holds
+ *   (`countedRanges`; see `isInCountedRange`): Jujutsu Kaisen's chapter 0 and
+ *   "Vol 00"/"V31" archives in volume 31, Vinland Saga's "Vol 30" archive.
+ *   Refusing the volume would leave those files without one.
  *
  * With a final chapter two providers agree on (`finalChapter`), a numbered row
  * past the last volume's end is evidence only when it lies inside the series
@@ -193,6 +193,7 @@ export function filesOutrunLastVolume(
   lastEnd: number | null,
   count: number | null,
   finalChapter: number | null = null,
+  countedRanges: readonly CountedRange[] = [],
 ): boolean {
   const misnumbered = new Set(misnumberedPastFinalRows(rows, lastEnd, count, finalChapter));
   return rows.some((row) => {
@@ -200,9 +201,28 @@ export function filesOutrunLastVolume(
     const n = row.chapterNumber;
     const wholePastEnd = n !== null && lastEnd !== null && Number.isInteger(n) && n >= lastEnd + 1;
     const filedPastCount = count !== null && count > 0 && row.volume !== null && row.volume > count
-      && !isDecimalRightAfter(n, lastEnd);
+      && !isDecimalRightAfter(n, lastEnd) && !isInCountedRange(n, countedRanges);
     return wholePastEnd || filedPastCount;
   });
+}
+
+/** A counted volume's chapter range (volumes 1..count that have one). */
+export interface CountedRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * A row whose chapter a counted volume already holds is not evidence of a
+ * volume past the count: its number is stale. Yofukashi no Uta's chapters
+ * 10-22 sat in a "volume 21" built while no provider range held them; once
+ * Fandom's 9-18 and 19-29 did, the stale 21 still earned the trailing volume,
+ * reconciliation rebuilt it over them, and each refresh kept the number alive.
+ */
+function isInCountedRange(n: number | null, ranges: readonly CountedRange[]): boolean {
+  if (n === null) return false;
+  const whole = Math.floor(n);
+  return ranges.some(r => whole >= r.start && whole <= r.end);
 }
 
 /** Most candidate rows any title needs to decide `filesOutrunLastVolume`. */
@@ -210,6 +230,7 @@ const PAST_FILE_ROW_LIMIT = 500;
 
 interface VolumeCapRow extends Omit<VolumeCapSignal, 'filesPastLastVolume'> {
   lastVolumeEnd: number | null;
+  countedRanges: CountedRange[] | null;
   pastRows: PastFileRow[] | null;
   /** Chapter counts: the stored (selected) one and Kitsu's and MangaUpdates' own. */
   finalClaims: FinalChapterClaim[] | null;
@@ -225,6 +246,11 @@ export async function getVolumeCapForManga(
     SELECT md.volumes AS volumes, md.status::text AS status, md."endDate" AS "endDate",
            md."countryOfOrigin" AS country, md.format AS format,
            le."lastEnd" AS "lastVolumeEnd",
+           (SELECT json_agg(json_build_object('start', v."chapterStart", 'end', v."chapterEnd"))
+              FROM "Volume" v
+              WHERE v."mangaId" = m.id AND v.number BETWEEN 1 AND md.volumes
+                AND v."chapterStart" IS NOT NULL AND v."chapterEnd" IS NOT NULL
+           ) AS "countedRanges",
            (SELECT json_agg(json_build_object('chapterNumber', p."chapterNumber", 'volume', p.volume))
               FROM (
                 SELECT c."chapterNumber", c.volume FROM "Chapter" c
@@ -253,7 +279,7 @@ export async function getVolumeCapForManga(
   `;
   const row = rows[0];
   if (!row) return volumeCapFor(null, callerHint);
-  const { lastVolumeEnd, pastRows, finalClaims, ...signal } = row;
+  const { lastVolumeEnd, pastRows, finalClaims, countedRanges, ...signal } = row;
   // Only a finished series has a final chapter; a running one's count is just its latest.
   const finalChapter = isFinished(signal) ? corroboratedFinalChapter(finalClaims ?? []) : null;
   const misnumbered = misnumberedPastFinalRows(pastRows ?? [], lastVolumeEnd, signal.volumes, finalChapter);
@@ -265,6 +291,6 @@ export async function getVolumeCapForManga(
       'and no volume is built for them.',
     );
   }
-  const filesPastLastVolume = filesOutrunLastVolume(pastRows ?? [], lastVolumeEnd, signal.volumes, finalChapter);
+  const filesPastLastVolume = filesOutrunLastVolume(pastRows ?? [], lastVolumeEnd, signal.volumes, finalChapter, countedRanges ?? []);
   return volumeCapFor({ ...signal, filesPastLastVolume }, callerHint);
 }

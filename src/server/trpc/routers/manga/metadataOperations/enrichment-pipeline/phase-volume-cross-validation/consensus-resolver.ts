@@ -13,7 +13,7 @@
  *   - AniList   raw `anilistCounts.volumes` (scalar; see `witness-counts`)
  *   - MangaDex  `mangadexAggregate` max `volumeNumber`
  *   - MAL       `malResult.volumes`
- *   - Wikipedia `wikipediaResult.data.volumeList.length`
+ *   - Wikipedia distinct volume numbers in `wikipediaResult.data.volumeList`
  *
  * Aggregation:
  *   - 0 sources  -> { count: 0, confidence: 'unknown' }
@@ -38,7 +38,7 @@ import {
   type CountConfidence,
   type CountConsensus,
 } from './count-consensus';
-import { anilistOwnCount, appliedCount } from './witness-counts';
+import { anilistOwnCount, appliedCount, wikipediaVolumeCount } from './witness-counts';
 
 import type { UnifiedProviderResults } from '../types';
 
@@ -74,7 +74,7 @@ function collectCandidates(
   const malVols = result.malResult?.volumes;
   if (typeof malVols === 'number' && malVols > 0) out.push({ source: 'mal', count: malVols });
 
-  const wikiVols = result.wikipediaResult?.data.volumeList?.length ?? 0;
+  const wikiVols = wikipediaVolumeCount(result.wikipediaResult?.data.volumeList);
   if (wikiVols > 0) out.push({ source: 'wikipedia', count: wikiVols });
 
   // iter-PVM-N-tune-1: drop Wikipedia outliers when other sources have rich

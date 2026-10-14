@@ -10,6 +10,31 @@
  * "reconciliation" volume 117 over them. Not rebuilding it leaves the rows to the range-based
  * volumeId backfill, which links them to the volume that holds their chapters.
  */
+type RangedVolume = { number: number; chapterStart: number | null; chapterEnd: number | null };
+
+function isCovered(n: number, volumes: readonly RangedVolume[]): boolean {
+  return volumes.some(v => v.chapterStart !== null && v.chapterEnd !== null && n >= v.chapterStart && n <= v.chapterEnd);
+}
+
+/**
+ * An orphan's chapter span with the ends other volumes' ranges already hold
+ * trimmed off, or null when nothing is left. Used when an orphan is rebuilt
+ * from its own rows: "Why Does Nobody Remember Me in this World" rows 48-59
+ * still carried volume 13 after MangaDex's volume 11 took 48, and rebuilding
+ * 48-59 would overlap volume 11.
+ */
+export function uncoveredOrphanSpan(
+  orphan: { min_ch: number | null; max_ch: number | null },
+  existingVolumes: readonly RangedVolume[],
+): { start: number; end: number } | null {
+  if (orphan.min_ch === null || orphan.max_ch === null) return null;
+  let start = orphan.min_ch;
+  let end = orphan.max_ch;
+  while (start <= end && isCovered(Math.floor(start), existingVolumes)) start = Math.floor(start) + 1;
+  while (end >= start && isCovered(Math.floor(end), existingVolumes)) end = Math.ceil(end) - 1;
+  return start <= end ? { start, end } : null;
+}
+
 export function isStaleOrphanCoveredByRanges(
   orphan: { volume: number; min_ch: number | null; max_ch: number | null },
   existingVolumes: Array<{ number: number; chapterStart: number | null; chapterEnd: number | null }>,

@@ -109,6 +109,15 @@ describe('resolveVolumeGateCeiling — finished series', () => {
     expect(gate).toEqual({ expectedChapterCount: 686, trusted: true });
   });
 
+  it('Attack on Titan: Before the Fall: Wikipedia\'s own 64 (not its stale data.chapters of 1) rejects a MangaUpdates "final chapter" of 4', () => {
+    const gate = resolveVolumeGateCeiling(results({
+      metadata: {},
+      mangaupdates: { completed: true, latestChapter: 4 },
+      wikipedia: { chapters: 1, listed: 64, own: 64 },
+    }));
+    expect(gate).toEqual({ expectedChapterCount: 64, trusted: false });
+  });
+
   it('with nothing corroborated a lower plausible source count still wins, as before', () => {
     const gate = resolveVolumeGateCeiling(results({
       metadata: { status: 'COMPLETED', chapters: 95 },

@@ -79,7 +79,7 @@ function getRetryDelay(error: AxiosError, attempt: number): number {
  * @returns Promise with response data
  * @throws Will throw after max retries or on non-retryable errors
  */
-async function fetchWithRetry<T>(url: string): Promise<AxiosResponse<T>> {
+export async function fetchWithRetry<T>(url: string): Promise<AxiosResponse<T>> {
   const config: AxiosRequestConfig = {
     headers: WIKIPEDIA_HEADERS,
     timeout: REQUEST_TIMEOUT_MS,
