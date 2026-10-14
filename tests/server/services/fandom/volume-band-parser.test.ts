@@ -9,6 +9,8 @@ import { describe, it, expect } from '@jest/globals';
 
 import { findRangeSubpages } from '@/server/services/fandom/adaptive/orchestrator/range-subpages';
 import { parseVolumeBands } from '@/server/services/fandom/adaptive/volume-band-parser';
+import { withVolumeDetails } from '@/server/services/fandom/adaptive/volume-band-parser/volume-details';
+import { parsePageAdaptive } from '@/server/services/metadata/utils/fandom-table-parser';
 
 // Why this exists: tabbed Fandom list pages render every volume into one
 // shared table (cover-art tabs row, then chapter row). The old parsers gave
@@ -150,5 +152,26 @@ describe('findRangeSubpages', () => {
     expect(findRangeSubpages(html, 'https://x.fandom.com/wiki/Chapters_and_Volumes', new Set())).toEqual([
       'https://x.fandom.com/wiki/Chapters_and_Volumes/Volume_51_to_100',
     ]);
+  });
+});
+
+describe('withVolumeDetails', () => {
+  function detailed(name: string): ReturnType<typeof withVolumeDetails> {
+    const html = page(name);
+    const bands = parseVolumeBands(html, BASE);
+    return withVolumeDetails(bands, parsePageAdaptive(bands.scopedHtml ?? html, undefined, undefined, BASE));
+  }
+
+  it('keeps the volume titles the table parser reads (Sakamoto Days 22 = Tenkyu vs. Shin)', () => {
+    // Without them a refresh wiped the titles stored for volumes 22-28.
+    const volumes = detailed('sakamoto-days');
+    expect(volumes.find(v => v.number === 22)?.title).toBe('Tenkyu vs. Shin');
+    expect(volumes.filter(v => v.title).length).toBe(28);
+  });
+
+  it('takes covers and dates, never the spin-off novels\' titles (SPY x FAMILY)', () => {
+    const volumes = detailed('spy-x-family');
+    expect(volumes.filter(v => v.title)).toEqual([]);
+    expect(volumes.filter(v => v.releaseDate).length).toBe(17);
   });
 });

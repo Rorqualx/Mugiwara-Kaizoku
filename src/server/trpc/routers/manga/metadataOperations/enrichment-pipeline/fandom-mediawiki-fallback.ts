@@ -11,6 +11,7 @@ import { parseFandomUrl, fetchPageHtmlViaApi } from '@/server/services/fandom/ut
 import { logger } from '@/utils/logger';
 
 import { extractAllChapterTitles } from './fandom-mediawiki-fallback/chapter-title-patterns';
+import { fallbackVolumesToApply } from './fandom-mediawiki-fallback/volume-merge';
 import { extractTemplateFromRedirects } from './fandom-url-template';
 
 import type { ChapterEnrichmentMaps, ChapterUrlTemplate } from './types';
@@ -68,6 +69,7 @@ export async function extractFromMediaWikiApi(
   const { chapterTitleMap, chapterVolumeMap, chapterCoverMap, chapterDescriptionMap } = maps;
 
   const existingTitleCount = Object.keys(chapterTitleMap).length;
+  const seenChapters = new Set([...Object.keys(chapterTitleMap), ...Object.keys(chapterVolumeMap)].map(Number));
   const { titleMap, usedPadded, patternHits } = extractAllChapterTitles(htmlToScan);
   const fallbackTitleCount = Object.keys(titleMap).length;
 
@@ -112,17 +114,7 @@ export async function extractFromMediaWikiApi(
   const existingVolumeCount = Object.keys(chapterVolumeMap).length;
   const fallbackVolumeCount = Object.keys(volumeMap).length;
 
-  if (fallbackVolumeCount >= existingVolumeCount) {
-    for (const [k, v] of Object.entries(volumeMap)) {
-      chapterVolumeMap[Number(k)] = v;
-    }
-  } else {
-    for (const [k, v] of Object.entries(volumeMap)) {
-      const num = Number(k);
-      if (!chapterVolumeMap[num]) chapterVolumeMap[num] = v;
-    }
-  }
-
+  Object.assign(chapterVolumeMap, fallbackVolumesToApply(chapterVolumeMap, volumeMap, seenChapters));
   logger.info(
     `[enrichmentPipeline] Direct API fallback: ${fallbackTitleCount} titles (existing: ${existingTitleCount}), ${fallbackVolumeCount} volume assignments (existing: ${existingVolumeCount})`,
   );

@@ -63,6 +63,7 @@ import { analyzePageStructure } from './static-analyzer';
 import { DEFAULT_PARSER_OPTIONS, URL_PROBE_PATTERNS } from './types';
 import { discoverBestChapterVolumeUrl, extractDomainFromUrl, isFandomDomain, probeUrl } from './url-discoverer';
 import { isVolumeBandStructure, parseVolumeBands } from './volume-band-parser';
+import { withVolumeDetails } from './volume-band-parser/volume-details';
 
 import type { StaticAnalysisResult } from './static-analyzer';
 import type { AdaptiveParseResult, AdaptiveParserOptions, CachedPattern, MetadataFetchResult } from './types';
@@ -349,7 +350,9 @@ async function tryExtractFromUrl(
     if (isVolumeBandStructure(html)) {
       const bandResult = parseVolumeBands(html, baseUrl);
       if (bandResult.success) {
-        const parsedData = { volumes: bandResult.volumes, chapters: bandResult.chapters };
+        const bands = { volumes: bandResult.volumes, chapters: bandResult.chapters };
+        // Volume titles, covers and dates come from the table parser where it agrees.
+        const parsedData = { ...bands, volumes: withVolumeDetails(bands, parsePageAdaptive(bandResult.scopedHtml ?? html, undefined, undefined, baseUrl)) };
         logger.info(`[tryExtractFromUrl] Volume band parser succeeded: ${parsedData.volumes.length} vols, ${parsedData.chapters.length} chaps`);
         return { success: true, url, html, parsedData, structureType, pageStructure };
       }

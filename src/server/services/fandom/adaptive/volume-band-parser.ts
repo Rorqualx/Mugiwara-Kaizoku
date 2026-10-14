@@ -48,6 +48,8 @@ export interface VolumeBandResult {
   rejected?: string;
   /** Labels of side-series tabs that were left out. */
   droppedTabs: string[];
+  /** The page with side-series tabs removed, for reading volume details. */
+  scopedHtml?: string;
 }
 
 /** Cheap check: does the page have per-volume markers the band walk can use? */
@@ -87,7 +89,11 @@ export function parseVolumeBands(html: string, baseUrl: string): VolumeBandResul
   const inVolumes = new Set(chapters.map(c => c.number));
   for (const entry of unassigned) if (!inVolumes.has(entry.number)) chapters.push({ ...entry });
   if (droppedTabs.length > 0) log.info('Left out side-series tabs', { droppedTabs });
-  return { volumes, chapters, success: true, droppedTabs };
+  // Volume details read from the page with only the side-series tabs gone:
+  // the cover tabs hold each volume's cover.
+  const $details = load(html);
+  scopeTabbers($details, true);
+  return { volumes, chapters, success: true, droppedTabs, scopedHtml: $details.html() };
 }
 
 interface WalkResult {

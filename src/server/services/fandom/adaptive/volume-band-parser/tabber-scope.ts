@@ -16,10 +16,10 @@ import type { CheerioAPI } from 'cheerio';
 const SIDE_TAB = /light novel|spin[- ]?off|one[- ]?shot|novel|gaiden|side stor/i;
 
 /**
- * Removes cover-only tab panels and side-series panels from the page in place.
- * Returns the labels of the panels dropped as side series.
+ * Removes side-series panels, and unless `keepCovers` cover-only panels, from
+ * the page in place. Returns the labels of the panels dropped as side series.
  */
-export function scopeTabbers($: CheerioAPI): string[] {
+export function scopeTabbers($: CheerioAPI, keepCovers = false): string[] {
   const dropped: string[] = [];
   $('.wds-tabber, .tabber').each((_, tabber) => {
     const $tabber = $(tabber);
@@ -31,7 +31,7 @@ export function scopeTabbers($: CheerioAPI): string[] {
       const $panel = $(panel);
       const hasChapters = $panel.find('li, a[href*="/wiki/Chapter_"]').length > 0;
       if (!hasChapters) {
-        $panel.remove();
+        if (!keepCovers) $panel.remove();
         return;
       }
       const label = labels[index] ?? '';
