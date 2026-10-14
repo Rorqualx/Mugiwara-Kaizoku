@@ -613,3 +613,6 @@ __pycache__/
 
 # Local-only contributor guide (not tracked)
 /CLAUDE.md
+
+# Windows desktop app (packages/desktop): installers fetched by scripts/build/desktop.sh
+dist-desktop/

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kaizoku</title>
+    <link rel="stylesheet" href="/shelf.css" />
+  </head>
+  <body>
+    <main>
+      <!-- Shown while the saved server is being checked on start. -->
+      <section id="connecting" hidden>
+        <h1>Kaizoku</h1>
+        <p class="muted">Connecting to <span data-server></span>...</p>
+      </section>
+
+      <!-- First run, and "Change server". -->
+      <section id="setup" hidden>
+        <h1>Connect to your server</h1>
+        <p class="muted">Enter the address of the Kaizoku server on your network.</p>
+        <form id="setup-form">
+          <label for="address">Server address</label>
+          <input id="address" name="address" type="text" placeholder="192.168.1.20:3000"
+                 autocomplete="off" spellcheck="false" />
+          <p id="setup-error" class="error" role="alert" hidden></p>
+          <div class="actions">
+            <button id="connect" type="submit">Connect</button>
+            <button id="setup-cancel" type="button" class="secondary" hidden>Cancel</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- The offline surface. A placeholder until downloads exist (stage K2). -->
+      <section id="shelf" hidden>
+        <h1>Downloads</h1>
+        <p id="status" class="banner" role="status" hidden></p>
+        <div class="empty">
+          <p>Nothing is downloaded yet.</p>
+          <p class="muted">
+            Downloading chapters to read without a connection is not built yet. Until it is, this
+            page is where the app waits when the server cannot be reached.
+          </p>
+        </div>
+        <div class="actions">
+          <button id="open-library" type="button">Open library</button>
+          <button id="change-server" type="button" class="secondary">Change server</button>
+        </div>
+        <p class="muted small">Server: <span data-server></span></p>
+      </section>
+    </main>
+    <script src="/shelf.js"></script>
+  </body>
+</html>

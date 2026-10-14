@@ -38,3 +38,6 @@ coverage/
 .gitattributes
 READMETEMPLATE.md
 README.md
+# The Windows desktop shell is built on a Windows host, never in the image
+packages/desktop/
+dist-desktop/
