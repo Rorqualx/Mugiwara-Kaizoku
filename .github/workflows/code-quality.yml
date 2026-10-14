@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# The steps below comment on the PR. The repository's default token is
+# read-only, so without this the comment was refused and the job failed even
+# when every check passed.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   quality:
     name: Code Quality
@@ -72,7 +79,8 @@ jobs:
         fi
 
     - name: Post results comment
-      if: github.event_name == 'pull_request'
+      # Dependabot runs always get a read-only token, whatever is asked for above.
+      if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
       uses: actions/github-script@v7
       with:
         script: |

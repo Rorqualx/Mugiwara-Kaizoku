@@ -4,6 +4,13 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+# The steps below comment on the PR. The repository's default token is
+# read-only, so without this the comment was refused and the job failed even
+# when every check passed.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   coverage:
     name: Check Test Coverage
@@ -144,6 +151,8 @@ jobs:
 
       # Post coverage report as PR comment
       - name: Post coverage report comment
+        # Dependabot runs always get a read-only token, whatever is asked for above.
+        if: github.actor != 'dependabot[bot]'
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: test-coverage
