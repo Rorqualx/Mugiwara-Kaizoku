@@ -8,16 +8,18 @@ import { logger } from '@/utils/logger';
 export function buildVolRangesFromMap(
   chapterVolumeMap: Record<number, number>,
 ): Record<number, { start: number; end: number; chapterCount: number }> {
-  const volRanges: Record<number, { start: number; end: number; chapterCount: number }> = {};
+  const members: Record<number, number[]> = {};
   for (const [chNumStr, vNum] of Object.entries(chapterVolumeMap)) {
-    const chNum = Number(chNumStr);
-    if (!volRanges[vNum]) {
-      volRanges[vNum] = { start: chNum, end: chNum, chapterCount: 1 };
-    } else {
-      volRanges[vNum].start = Math.min(volRanges[vNum].start, chNum);
-      volRanges[vNum].end = Math.max(volRanges[vNum].end, chNum);
-      volRanges[vNum].chapterCount++;
-    }
+    (members[vNum] ??= []).push(Number(chNumStr));
+  }
+  const volRanges: Record<number, { start: number; end: number; chapterCount: number }> = {};
+  for (const [vNum, chapters] of Object.entries(members)) {
+    // A ".5" extra is placed by membership, not by the range: My Hero
+    // Academia's wiki files 7.5 in volume 2, which moved volume 2's start from
+    // 8 to 7.5 and pulled chapter 7.5 out of volume 1 by range.
+    const whole = chapters.filter(n => Number.isInteger(n));
+    const bounds = whole.length > 0 ? whole : chapters;
+    volRanges[Number(vNum)] = { start: Math.min(...bounds), end: Math.max(...bounds), chapterCount: chapters.length };
   }
   return volRanges;
 }

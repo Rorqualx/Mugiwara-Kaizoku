@@ -37,6 +37,7 @@ import {
   mergeMetadataIntoMangaData,
 } from './orchestrator/data-builders';
 import { resolveTargetListPages, supplementVolumesFromPage } from './orchestrator/list-page-target';
+import { findRangeSubpages } from './orchestrator/range-subpages';
 import {
   convertAlternatingRowToStandard,
   convertArcBasedToStandard,
@@ -61,6 +62,7 @@ import { isShiftedColumnStructure, parseShiftedColumnStructure } from './shifted
 import { analyzePageStructure } from './static-analyzer';
 import { DEFAULT_PARSER_OPTIONS, URL_PROBE_PATTERNS } from './types';
 import { discoverBestChapterVolumeUrl, extractDomainFromUrl, isFandomDomain, probeUrl } from './url-discoverer';
+import { isVolumeBandStructure, parseVolumeBands } from './volume-band-parser';
 
 import type { StaticAnalysisResult } from './static-analyzer';
 import type { AdaptiveParseResult, AdaptiveParserOptions, CachedPattern, MetadataFetchResult } from './types';
@@ -337,6 +339,18 @@ async function tryExtractFromUrl(
       if (jojoResult.success && jojoResult.chapters.length >= 50) {
         const parsedData = convertJoJoToStandard(jojoResult);
         logger.info(`[tryExtractFromUrl] JoJo parser succeeded: ${parsedData.volumes.length} vols, ${parsedData.chapters.length} chaps`);
+        return { success: true, url, html, parsedData, structureType, pageStructure };
+      }
+    }
+
+    // Volume bands: list pages where each volume's marker is followed by its
+    // chapter list (the tabbed Call of the Night / My Hero Academia / Demon
+    // Slayer pages). A parse that fails validation falls through unchanged.
+    if (isVolumeBandStructure(html)) {
+      const bandResult = parseVolumeBands(html, baseUrl);
+      if (bandResult.success) {
+        const parsedData = { volumes: bandResult.volumes, chapters: bandResult.chapters };
+        logger.info(`[tryExtractFromUrl] Volume band parser succeeded: ${parsedData.volumes.length} vols, ${parsedData.chapters.length} chaps`);
         return { success: true, url, html, parsedData, structureType, pageStructure };
       }
     }
@@ -1591,26 +1605,25 @@ function mergeExtractionData(
 }
 
 /**
- * Attempts to merge data from additional pages for multi-page wikis.
+ * Merges data from the list page's other pages: range sub-pages it links
+ * (Kingdom volumes 11-90) and the known JoJo split.
  */
 async function tryMergeMultiPageData(
-  domain: string,
+  additionalUrls: string[],
   existingData: StandardParsedData,
   options: AdaptiveParserOptions
 ): Promise<StandardParsedData> {
-  const additionalUrls = MULTI_PAGE_WIKIS[domain];
-  if (!additionalUrls || additionalUrls.length === 0) {
+  if (additionalUrls.length === 0) {
     return existingData;
   }
 
-  const baseUrl = `https://${domain}`;
   const allVolumes = [...existingData.volumes];
   const allChapters = [...existingData.chapters];
   const seenVolumes = new Set(allVolumes.map((v) => v.number));
   const seenChapters = new Set(allChapters.map((c) => c.number));
 
-  for (const urlPath of additionalUrls) {
-    const fullUrl = `${baseUrl}${urlPath}`;
+  for (const fullUrl of additionalUrls) {
+    const urlPath = new URL(fullUrl).pathname;
     try {
       logger.debug(`[multiPageMerge] Fetching additional page: ${fullUrl}`);
       // eslint-disable-next-line no-await-in-loop -- Sequential page merging to avoid rate limiting
@@ -1861,10 +1874,14 @@ export async function adaptiveParse(
 
   // Build successful result
   if (extraction.success && extraction.parsedData && extraction.structureType && extraction.pageStructure) {
-    // Enhancement: Multi-page merge for wikis like JoJo that split data across subpages
-    if (MULTI_PAGE_WIKIS[canonicalDomain]) {
-      const mergedData = await tryMergeMultiPageData(canonicalDomain, extraction.parsedData, mergedOptions);
-      extraction.parsedData = mergedData;
+    // Enhancement: Multi-page merge for wikis that split the list by volume range
+    const knownVolumes = new Set(extraction.parsedData.volumes.map((v) => v.number));
+    const morePages = new Set([
+      ...(MULTI_PAGE_WIKIS[canonicalDomain] ?? []).map((p) => `https://${canonicalDomain}${p}`),
+      ...(extraction.html ? findRangeSubpages(extraction.html, finalUrl, knownVolumes) : []),
+    ]);
+    if (morePages.size > 0) {
+      extraction.parsedData = await tryMergeMultiPageData([...morePages], extraction.parsedData, mergedOptions);
     }
 
     // The wiki keeps its volume list on a separate page: take volumes from there.
