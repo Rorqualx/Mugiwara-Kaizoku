@@ -34,6 +34,9 @@ jobs:
         run: |
           git fetch origin ${{ github.base_ref }}
           git checkout ${{ github.base_ref }}
+          # Tests import @prisma/client; without a generated client 74 suites
+          # failed with "Cannot find module '.prisma/client/default'".
+          bun prisma generate
 
       - name: Run tests on base branch
         id: base-coverage
@@ -55,6 +58,7 @@ jobs:
       - name: Checkout PR branch
         run: |
           git checkout ${{ github.head_ref }}
+          bun prisma generate
 
       - name: Run tests on PR branch
         id: pr-coverage
