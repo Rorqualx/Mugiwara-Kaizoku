@@ -66,46 +66,6 @@ export interface MediaWikiImageInfo {
   mime?: string;
 }
 
-// Fandom v1 API Types
-export interface FandomV1SearchItem {
-  id: number;
-  title: string;
-  url: string;
-  ns: number;
-  quality?: number;
-  snippet?: string;
-}
-
-export interface FandomV1ArticleDetails {
-  id: number;
-  title: string;
-  ns: number;
-  url: string;
-  type: string;
-  abstract: string;
-  thumbnail?: string;
-  original_dimensions?: {
-    width: number;
-    height: number;
-  };
-}
-
-export interface FandomV1SimpleArticle {
-  sections: Array<{
-    title: string;
-    level: number;
-    content?: Array<{
-      type: string;
-      text?: string;
-      elements?: unknown[];
-    }>;
-    images?: Array<{
-      src: string;
-      caption?: string;
-    }>;
-  }>;
-}
-
 // Portable Infobox Types
 export interface PortableInfoboxData {
   type: 'infobox';
@@ -386,17 +346,6 @@ export interface MediaWikiAPIResponse<T = unknown> {
     code: string;
     info: string;
     '*'?: string;
-  };
-}
-
-export interface FandomV1APIResponse<T = unknown> {
-  items?: T;
-  basepath?: string;
-  offset?: number;
-  total?: number;
-  error?: {
-    message: string;
-    code?: number;
   };
 }
 

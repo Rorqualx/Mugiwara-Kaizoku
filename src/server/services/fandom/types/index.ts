@@ -9,9 +9,6 @@ export type {
   MediaWikiSearchResult,
   MediaWikiPage,
   MediaWikiImageInfo,
-  FandomV1SearchItem,
-  FandomV1ArticleDetails,
-  FandomV1SimpleArticle,
   PortableInfoboxData,
   InfoboxItem,
   InfoboxTitle,
@@ -24,7 +21,6 @@ export type {
   FandomSearchResult,
   FandomAPIConfig,
   MediaWikiAPIResponse,
-  FandomV1APIResponse,
   CacheEntry,
   WikiConfig
 } from './interfaces';

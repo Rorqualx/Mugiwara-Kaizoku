@@ -113,58 +113,6 @@ export const MediaWikiAPIResponseSchema = <T extends z.ZodTypeAny>(querySchema: 
   });
 
 // ============================================================================
-// Fandom V1 API Schemas
-// ============================================================================
-
-/**
- * Fandom V1 search item
- */
-export const FandomV1SearchItemSchema = createLenientSchema({
-  id: z.number(),
-  title: z.string(),
-  url: z.string(),
-  ns: z.number(),
-  quality: NullableNumber,
-  snippet: NullableString,
-});
-
-export type FandomV1SearchItemValidated = z.infer<typeof FandomV1SearchItemSchema>;
-
-/**
- * Fandom V1 article details
- */
-export const FandomV1ArticleDetailsSchema = createLenientSchema({
-  id: z.number(),
-  title: z.string(),
-  ns: z.number(),
-  url: z.string(),
-  type: z.string(),
-  abstract: z.string(),
-  thumbnail: NullableString,
-  original_dimensions: createLenientSchema({
-    width: z.number(),
-    height: z.number(),
-  }).optional(),
-});
-
-export type FandomV1ArticleDetailsValidated = z.infer<typeof FandomV1ArticleDetailsSchema>;
-
-/**
- * Fandom V1 API response
- */
-export const FandomV1APIResponseSchema = <T extends z.ZodTypeAny>(itemsSchema: T): ReturnType<typeof createLenientSchema> =>
-  createLenientSchema({
-    items: itemsSchema.optional(),
-    basepath: NullableString,
-    offset: NullableNumber,
-    total: NullableNumber,
-    error: createLenientSchema({
-      message: z.string(),
-      code: NullableNumber,
-    }).optional(),
-  });
-
-// ============================================================================
 // Infobox Schemas
 // ============================================================================
 

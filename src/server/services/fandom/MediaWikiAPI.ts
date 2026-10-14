@@ -106,6 +106,32 @@ export class MediaWikiAPI extends FandomAPIClient {
   }
 
   /**
+   * Get each page's lead image thumbnail (PageImages), keyed by page id.
+   * Pages without an image are left out.
+   */
+  async getPageThumbnails(pageIds: number[], size: number): Promise<Record<number, string>> {
+    if (pageIds.length === 0) return {};
+    const response = await this.request<MediaWikiAPIResponse<{
+      pages: Record<string, { pageid?: number; thumbnail?: { source?: string } }>;
+    }>>('/api.php', {
+      action: 'query',
+      format: 'json',
+      pageids: pageIds.slice(0, 50).join('|'),
+      prop: 'pageimages',
+      piprop: 'thumbnail',
+      pithumbsize: size,
+      pilimit: 50
+    });
+
+    const thumbnails: Record<number, string> = {};
+    for (const page of Object.values(response.query?.pages ?? {})) {
+      const source = page.thumbnail?.source;
+      if (page.pageid !== undefined && source) thumbnails[page.pageid] = source;
+    }
+    return thumbnails;
+  }
+
+  /**
    * Get pages in a category
    */
   async getCategoryMembers(

@@ -1,7 +1,7 @@
 /**
  * Main Fandom Service - Aggregator
  *
- * Combines MediaWiki and v1 APIs with dynamic parsing capabilities.
+ * Uses the MediaWiki API with dynamic parsing capabilities.
  *
  * This is the main entry point that delegates to focused sub-modules:
  * - fandom/utils.ts - Helper functions
@@ -40,7 +40,6 @@ import {
   processImageUrl,
   hasChapterZeroInContent
 } from './fandom/utils';
-import { FandomV1API } from './FandomV1API';
 import { MediaWikiAPI } from './MediaWikiAPI';
 import { POPULAR_WIKIS } from './types';
 
@@ -56,7 +55,6 @@ import type {
 
 export class FandomService {
   private mediaWikiAPI: MediaWikiAPI;
-  private v1API: FandomV1API;
   private wikiConfig: WikiConfig;
   private log = logger.child('FandomService');
 
@@ -86,7 +84,6 @@ export class FandomService {
     };
 
     this.mediaWikiAPI = new MediaWikiAPI(config);
-    this.v1API = new FandomV1API(config);
     this.dynamicParser = new DynamicWikiParser();
     this.contentScraper = new WikiContentScraper();
 
@@ -131,7 +128,6 @@ export class FandomService {
   ): Promise<FandomSearchResult[]> {
     return search(query, options, {
       mediaWikiAPI: this.mediaWikiAPI,
-      v1API: this.v1API,
       wikiConfig: this.wikiConfig,
       getPageMetadata: (title) => this.getPageMetadata(title)
     });
@@ -206,7 +202,6 @@ export class FandomService {
    */
   destroy(): void {
     this.mediaWikiAPI.destroy();
-    this.v1API.destroy();
   }
 }
 

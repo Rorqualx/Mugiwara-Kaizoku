@@ -1,4 +1,4 @@
-// @file-size-justified: Core search orchestration for Fandom wikis - coordinates MediaWiki+V1 APIs, result processing, thumbnail fetching, and cover enhancement. Cover resolution extracted to cover-resolver.ts.
+// @file-size-justified: Core search orchestration for Fandom wikis - coordinates MediaWiki API search, result processing, thumbnail fetching, and cover enhancement. Cover resolution extracted to cover-resolver.ts.
 /**
  * Fandom Search Operations
  *
@@ -11,14 +11,12 @@ import { logger } from '@/utils/logger';
 
 import { findBestCover } from './cover-resolver';
 
-import type { FandomV1API } from '../FandomV1API';
 import type { MediaWikiAPI } from '../MediaWikiAPI';
 import type {
   FandomSearchResult,
   WikiConfig,
   FandomPageMetadata,
-  MediaWikiSearchResult,
-  FandomV1ArticleDetails
+  MediaWikiSearchResult
 } from '../types';
 
 const log = logger.child('FandomSearch');
@@ -35,7 +33,6 @@ export interface SearchOptions {
 
 export interface SearchDependencies {
   mediaWikiAPI: MediaWikiAPI;
-  v1API: FandomV1API;
   wikiConfig: WikiConfig;
   getPageMetadata: (title: string) => Promise<FandomPageMetadata | null>;
 }
@@ -204,27 +201,15 @@ function applyNonMangaPenalty(score: number, titleLower: string): number {
 }
 
 /**
- * Get article details for a page
+ * Get the page's thumbnail (MediaWiki PageImages)
  */
 export async function getArticleDetails(
   pageId: number,
-  v1API: FandomV1API
+  mediaWikiAPI: MediaWikiAPI
 ): Promise<ArticleDetails | null> {
   try {
-    const details = await v1API.getArticleDetails(pageId, {
-      abstract: 0,
-      width: 150,
-      height: 150
-    });
-
-    const pageDetail = details[pageId];
-    if (pageDetail) {
-      return {
-        ...(pageDetail.thumbnail ? { thumbnail: pageDetail.thumbnail } : {}),
-        metadata: { type: pageDetail.type }
-      };
-    }
-    return null;
+    const thumbnail = (await mediaWikiAPI.getPageThumbnails([pageId], 150))[pageId];
+    return thumbnail ? { thumbnail } : null;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log.debug('Failed to get article details', { pageId, errorMessage });
@@ -310,7 +295,7 @@ async function fetchEnhancedDetails(
 
   try {
     const [articleDetails, pageDetails] = await Promise.all([
-      getArticleDetails(mwResult.pageid, deps.v1API),
+      getArticleDetails(mwResult.pageid, deps.mediaWikiAPI),
       deps.getPageMetadata(mwResult.title)
     ]);
 
@@ -363,106 +348,6 @@ function buildDetailUpdates(
   }
 
   return updates;
-}
-
-// ============================================================================
-// V1 API Result Processing - Fixed await-in-loop
-// ============================================================================
-
-interface V1ResultProcessingContext {
-  query: string;
-  options: SearchOptions;
-  deps: SearchDependencies;
-  processedIds: Set<number>;
-}
-
-async function processV1Results(
-  v1Results: unknown[],
-  context: V1ResultProcessingContext
-): Promise<FandomSearchResult[]> {
-  // Filter v1 results that haven't been processed
-  const unprocessedV1Results = v1Results
-    .map(raw => raw as Record<string, unknown>)
-    .filter(v1Result => !context.processedIds.has(v1Result['id'] as number));
-
-  // Create base results
-  const baseResults = unprocessedV1Results
-    .map(v1Result => createV1SearchResult(v1Result, context))
-    .filter((result): result is FandomSearchResult => result !== null);
-
-  // If no details needed, return base results
-  if (!context.options.includeDetails) {
-    return baseResults;
-  }
-
-  // Fetch details in parallel and merge with results (fixes await-in-loop & no-param-reassign)
-  const resultsWithDetails = await Promise.all(
-    baseResults.map(async (result, index) => {
-      const v1Result = unprocessedV1Results[index];
-      if (!v1Result) return result;
-
-      try {
-        const v1Id = v1Result['id'] as number;
-        const details = await context.deps.v1API.getArticleDetails(v1Id, {
-          abstract: 200,
-          width: 300,
-          height: 300
-        });
-
-        const detailsRecord = details as Record<string, FandomV1ArticleDetails>;
-        const articleDetail = detailsRecord[v1Id];
-        if (articleDetail?.thumbnail) {
-          return { ...result, thumbnail: articleDetail.thumbnail };
-        }
-      } catch (detailError: unknown) {
-        log.debug('Failed to get v1 article details', {
-          id: v1Result['id'],
-          error: detailError instanceof Error ? detailError.message : 'Unknown error'
-        });
-      }
-
-      return result;
-    })
-  );
-
-  return resultsWithDetails;
-}
-
-function createV1SearchResult(
-  v1Result: Record<string, unknown>,
-  context: V1ResultProcessingContext
-): FandomSearchResult | null {
-  const title = v1Result['title'] as string;
-
-  // Build wiki context for type determination
-  const wikiContext: WikiContext = {
-    wikiName: context.deps.wikiConfig.name,
-    subdomain: context.deps.wikiConfig.subdomain,
-    isMangaWiki: !!(context.deps.wikiConfig.categories?.chapters ?? context.deps.wikiConfig.categories?.volumes)
-  };
-
-  const type = determineResultType(title, wikiContext);
-
-  // Filter based on type preference
-  if (context.options.type === 'manga' && type !== 'manga') {
-    return null;
-  }
-
-  const snippet = v1Result['snippet'] as string | undefined;
-  const v1Abstract = snippet?.replace(/<[^>]*>/g, '');
-  const id = v1Result['id'];
-  const url = v1Result['url'] as string;
-
-  return {
-    id: `v1-${id}`,
-    title,
-    url,
-    wikiUrl: url,
-    type,
-    wiki: context.deps.wikiConfig.name,
-    ...(v1Abstract ? { abstract: v1Abstract } : {}),
-    score: calculateRelevanceScore(context.query, title)
-  };
 }
 
 // ============================================================================
@@ -546,19 +431,16 @@ function prioritizeMangaPage(
 // ============================================================================
 
 /**
- * Map V1 API details to results
+ * Map page thumbnails to results
  */
 function mapDetailsToResults(
   results: FandomSearchResult[],
-  details: Record<number, FandomV1ArticleDetails>
+  thumbnails: Record<number, string>
 ): FandomSearchResult[] {
   return results.map(result => {
-    const idStr = result.id.replace(/^(mw-|v1-)/, '');
-    const pageId = parseInt(idStr, 10);
-    const detail = details[pageId];
-    return detail?.thumbnail && !result.thumbnail
-      ? { ...result, thumbnail: detail.thumbnail }
-      : result;
+    const pageId = parseInt(result.id.replace(/^mw-/, ''), 10);
+    const thumbnail = thumbnails[pageId];
+    return thumbnail && !result.thumbnail ? { ...result, thumbnail } : result;
   });
 }
 
@@ -594,12 +476,12 @@ async function enhanceTopMangaCover(
  */
 async function batchFetchThumbnails(
   results: FandomSearchResult[],
-  v1API: FandomV1API,
+  mediaWikiAPI: MediaWikiAPI,
   wikiSubdomain?: string
 ): Promise<FandomSearchResult[]> {
   const pageIds = results
     .map(r => {
-      const idStr = r.id.replace(/^(mw-|v1-)/, '');
+      const idStr = r.id.replace(/^mw-/, '');
       const parsed = parseInt(idStr, 10);
       return isNaN(parsed) ? null : parsed;
     })
@@ -617,19 +499,11 @@ async function batchFetchThumbnails(
   }
 
   try {
-    const details = await v1API.getArticleDetails(pageIds, {
-      abstract: 0,
-      width: 200,
-      height: 200
-    });
+    const thumbnails = await mediaWikiAPI.getPageThumbnails(pageIds, 200);
 
-    log.info('V1 API details fetched', {
-      pageIds,
-      detailKeys: Object.keys(details),
-      hasThumbnails: Object.values(details).some(d => d.thumbnail !== undefined)
-    });
+    log.info('Page thumbnails fetched', { pageIds, found: Object.keys(thumbnails).length });
 
-    const resultsWithThumbnails = mapDetailsToResults(results, details);
+    const resultsWithThumbnails = mapDetailsToResults(results, thumbnails);
 
     // For top manga result, try to fetch better cover from infobox
     if (wikiSubdomain) {
@@ -642,7 +516,7 @@ async function batchFetchThumbnails(
       error: error instanceof Error ? error.message : 'Unknown error',
       wikiSubdomain
     });
-    // Even if V1 API fails, still try infobox cover
+    // Even if the thumbnail lookup fails, still try infobox cover
     if (wikiSubdomain) {
       return enhanceTopMangaCover(results, wikiSubdomain);
     }
@@ -723,7 +597,7 @@ async function tryExactTitleLookup(
 // ============================================================================
 
 /**
- * Search for manga or characters across both APIs
+ * Search for manga or characters via the MediaWiki API
  *
  * @param query - Search query string
  * @param options - Search options
@@ -746,9 +620,6 @@ export async function search(
     // Try MediaWiki API first (more reliable)
     const mediaWikiResults = await deps.mediaWikiAPI.search(query, { limit });
 
-    // Try v1 API but don't fail if unavailable
-    const v1Results = await fetchV1Results(query, limit, deps.v1API);
-
     // Process MediaWiki results in parallel
     const processPromises = mediaWikiResults.map(mwResult =>
       processMediaWikiResult(mwResult, query, options, deps)
@@ -769,16 +640,6 @@ export async function search(
       }
     }
 
-    // Process v1 API results (avoid duplicates)
-    const processedIds = new Set(mediaWikiResults.map(r => r.pageid));
-    const v1ProcessedResults = await processV1Results(v1Results, {
-      query,
-      options,
-      deps,
-      processedIds
-    });
-    results.push(...v1ProcessedResults);
-
     // Filter and sort results - pass wiki name to filter disambiguation pages
     const wikiName = deps.wikiConfig.name;
     const sortedResults = filterAndSortResults(results, options, wikiName).slice(0, limit);
@@ -787,7 +648,7 @@ export async function search(
     const wikiSubdomain = deps.wikiConfig.subdomain;
     const resultsWithThumbnails = await batchFetchThumbnails(
       sortedResults,
-      deps.v1API,
+      deps.mediaWikiAPI,
       wikiSubdomain
     );
 
@@ -796,20 +657,5 @@ export async function search(
     const errorMessage = error instanceof Error ? error.message : String(error);
     log.error('Search failed', { query, errorMessage });
     throw error;
-  }
-}
-
-async function fetchV1Results(
-  query: string,
-  limit: number,
-  v1API: FandomV1API
-): Promise<unknown[]> {
-  try {
-    return await v1API.searchArticles(query, { limit });
-  } catch (v1Error: unknown) {
-    log.debug('Fandom v1 API search failed, using MediaWiki only', {
-      error: v1Error instanceof Error ? v1Error.message : 'Unknown error'
-    });
-    return [];
   }
 }
