@@ -13,6 +13,7 @@ import type { ComicVineIssue } from '@/server/services/comicvine/service';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { logger } from '@/utils/logger';
 
+import { findShiftedNumbering } from '../comicvine-shifted-numbering';
 import { isBonusTitle } from '../types';
 
 const log = logger.child('ComicVineVolumeMapper');
@@ -43,6 +44,7 @@ export function mapComicVineIssuesToVolumes(
     .filter((v): v is Record<string, unknown> => v !== null)
     .sort((a, b) => Number(a['volumeNumber'] ?? 0) - Number(b['volumeNumber'] ?? 0));
 
+  realignShiftedRanges(volumes);
   computeCumulativeChapterRanges(volumes);
   dropOverlappingCountedRanges(volumes);
 
@@ -55,6 +57,31 @@ function rangeOf(vol: Record<string, unknown>): { start: number; end: number } |
   const start = parseFloat(String(vol['startChapter']));
   const end = parseFloat(String(vol['endChapter']));
   return isNaN(start) || isNaN(end) ? null : { start, end };
+}
+
+/**
+ * A description that numbers its whole list one off (Bleach volume 60 reads
+ * 532-541 for chapters 531-540) is moved back into place, so it no longer
+ * claims the next volume's first chapter. See comicvine-shifted-numbering.ts.
+ */
+export function realignShiftedRanges(volumes: Array<Record<string, unknown>>): void {
+  const explicit = volumes
+    .filter(vol => vol['hasExplicitRange'] === true)
+    .map(vol => ({ vol, range: rangeOf(vol), volume: Number(vol['volumeNumber']) }))
+    .filter((r): r is { vol: Record<string, unknown>; range: { start: number; end: number }; volume: number } =>
+      r.range !== null && Number.isInteger(r.volume));
+  const shifts = findShiftedNumbering(explicit.map(r => ({ volume: r.volume, ...r.range })));
+  for (const { vol, range, volume } of explicit) {
+    const shift = shifts.get(volume);
+    if (shift === undefined) continue;
+    log.warn('ComicVine numbers this volume\'s chapters one off; realigned to its neighbours', {
+      volumeNumber: volume,
+      listed: `${range.start}-${range.end}`,
+      realigned: `${range.start + shift}-${range.end + shift}`,
+    });
+    vol['startChapter'] = String(range.start + shift);
+    vol['endChapter'] = String(range.end + shift);
+  }
 }
 
 /**

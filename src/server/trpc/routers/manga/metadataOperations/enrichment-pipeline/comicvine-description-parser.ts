@@ -13,6 +13,8 @@ import { CHAPTER_RANGE_PATTERN } from '@/server/services/comicvine/constants';
 import { parseChaptersFromDescription } from '@/utils/comicvine-chapter-parser';
 import { logger } from '@/utils/logger';
 
+import { findShiftedNumbering } from './comicvine-shifted-numbering';
+
 import type { ChapterDataItem } from './types';
 
 const log = logger.child('ComicVineDescriptionParser');
@@ -103,6 +105,8 @@ export function parseComicVineDescriptions(enrichedData: unknown): {
     result.volumeDescriptions.push(volumeResult);
   }
 
+  realignShiftedVolumes(result.volumeDescriptions);
+
   // Deduplicate by chapter number (keep entry with title)
   const deduped = deduplicateByChapterNumber(result.chapters);
   result.chapters = deduped;
@@ -110,6 +114,26 @@ export function parseComicVineDescriptions(enrichedData: unknown): {
   log.info(`Parsed ${result.chapters.length} chapters from ${result.volumeDescriptions.length} volume descriptions`);
 
   return result;
+}
+
+/**
+ * Moves a volume whose list is numbered one off back into place (Bleach volume
+ * 60 lists 532-541 for chapters 531-540, so its "541: The Sword Five" took the
+ * title and volume of volume 61's real chapter 541). The items are shared with
+ * the flat chapter list, so both see the correction.
+ */
+function realignShiftedVolumes(volumeDescriptions: VolumeParseResult[]): void {
+  const ranges = volumeDescriptions.flatMap(vd => {
+    const whole = vd.chapters.map(c => c.number).filter(n => Number.isInteger(n) && n > 0);
+    return whole.length >= 2 ? [{ volume: vd.volumeNumber, start: Math.min(...whole), end: Math.max(...whole) }] : [];
+  });
+  const shifts = findShiftedNumbering(ranges);
+  for (const vd of volumeDescriptions) {
+    const shift = shifts.get(vd.volumeNumber);
+    if (shift === undefined) continue;
+    log.warn(`ComicVine numbers volume ${vd.volumeNumber}'s chapters one off; realigned to its neighbours`);
+    for (const item of vd.chapters) item.number += shift;
+  }
 }
 
 /**
