@@ -45,6 +45,7 @@ export default {
     '!src/**/__tests__/**',
     '!src/test/**',
   ],
+  coverageReporters: ['json', 'json-summary', 'lcov', 'text'],
   coverageDirectory: '<rootDir>/coverage',
   testEnvironmentOptions: {
     customExportConditions: ['node', 'node-addons'],
